@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../Interface.xsd">
+	<Assets>
+		<!--  *************** Examples ***************  -->
+		<!-- <Font name="font_arialblack12" face="Arial Black" file="fonts/ariblk.ttf" height="12" texsize="256" antialias="true" hinting="true" autohinting="false" outline="false" shadow="false"/> -->
+		<!-- <Font name="font_arialblack16" face="Arial Black" file="fonts/ariblk.ttf" height="16" texsize="512" antialias="true" hinting="true" autohinting="false" outline="false" shadow="true" shadowsize="1" /> -->
+		<!--  ****************************************  -->
+		<Font name="inter_regular_12" face="Inter" file="fonts/Inter-Regular.ttf" height="12" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_regular_16" face="Inter" file="fonts/Inter-Regular.ttf" height="16" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_regular_20" face="Inter" file="fonts/Inter-Regular.ttf" height="20" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_regular_24" face="Inter" file="fonts/Inter-Regular.ttf" height="24" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+
+		<Font name="inter_medium_12" face="Inter" file="fonts/Inter-Medium.ttf" height="12" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_medium_14" face="Inter" file="fonts/Inter-Medium.ttf" height="14" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_medium_16" face="Inter" file="fonts/Inter-Medium.ttf" height="16" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_medium_18" face="Inter" file="fonts/Inter-Medium.ttf" height="18" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_medium_20" face="Inter" file="fonts/Inter-Medium.ttf" height="20" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_medium_24" face="Inter" file="fonts/Inter-Medium.ttf" height="24" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+	
+		<Font name="inter_light_12" face="Inter" file="fonts/Inter-Light.ttf" height="12" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_light_16" face="Inter" file="fonts/Inter-Light.ttf" height="16" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_light_20" face="Inter" file="fonts/Inter-Light.ttf" height="20" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+		<Font name="inter_light_24" face="Inter" file="fonts/Inter-Light.ttf" height="24" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
+	</Assets>
+</Interface>
