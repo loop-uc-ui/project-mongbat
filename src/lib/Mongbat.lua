@@ -3558,9 +3558,7 @@ local Api = {}
 local Constants = {}
 
 ---@class Views
-local Views = {}
-
-local _viewsInternal = {}
+local Components = {}
 
 ---@class Data
 local Data = {}
@@ -3574,7 +3572,7 @@ local Context = {
     Data = Data,
     Utils = Utils,
     Constants = Constants,
-    Views = Views
+    Components = Components
 }
 
 -- ========================================================================== --
@@ -5878,7 +5876,7 @@ function Utils.Array.Find(array, find)
 end
 
 ---@generic T
----@param array T[]
+---@param array T[]?
 ---@param forEach fun(item: T, index: integer)
 function Utils.Array.ForEach(array, forEach)
     if not array or #array == 0 then
@@ -5971,8 +5969,8 @@ function Utils.Table.Merge(targetTable, sourceTable)
     return newTable
 end
 
----@param a table
----@param b table
+---@param a table?
+---@param b table?
 ---@param seen table?
 ---@return boolean
 function Utils.Table.AreEqual(a, b, seen)
@@ -5996,42 +5994,6 @@ end
 ---@field Before any?
 ---@field After any?
 
-
----@param prev table?
----@param next table?
----@return table<string, TableValueDiff>?
-function Utils.Table.Diff(prev, next)
-    prev = prev or {}
-    next = next or {}
-
-    ---@type type<string, TableValueDiff>
-    local result = {}
-
-    for k, pv in pairs(prev) do
-        local nv = next[k]
-        if nv == nil then
-            result[k] = { Before = pv, After = nil }
-        elseif pv ~= nv then
-            if type(pv) == "table" and type(nv) == "table" and Utils.Table.AreEqual(pv, nv) then
-                -- structurally same, skip
-            else
-                result[k] = { Before = pv, After = nv }
-            end
-        end
-    end
-
-    for k, nv in pairs(next) do
-        if prev[k] == nil then
-            result[k] = { Before = nil, After = nv }
-        end
-    end
-
-    if Utils.Table.IsEmpty(result) then
-        return nil
-    else
-        return result
-    end
-end
 
 function Utils.Table.IsEmpty(table)
     if not table then
@@ -6862,323 +6824,6 @@ function Data.PlayerStatus()
 end
 
 -- ========================================================================== --
--- UI - Component
--- ========================================================================== --
-
----@type table<string, Component>
-local State = {}
-
-function Render()
-    Utils.Table.ForEach(
-        State,
-        function (_, v)
-            v:render()
-        end
-    )
-end
-
-Api.Window.RegisterCoreEventHandler(
-    "Root",
-    "Render",
-    "OnUpdate"
-)
-
----@class ComponentState
----@field Name string?
----@field Id integer?
----@field DoesExist boolean?
----@field Dimensions ComponentDimensions?
----@field Anchors ComponentAnchors[]?
----@field Color ComponentColor?
----@field IsMovable boolean?
----@field Parent string?
----@field Template string?
----@field IsShowing boolean?
-
----@class ComponentDimensions
----@field x integer
----@field y integer
-
----@class ComponentColor
----@field r integer
----@field g integer
----@field b integer
----@field a integer
-
----@class ComponentAnchors
----@field anchorPoint string
----@field relativePoint string
----@field relativeTo string
----@field xOffset integer
----@field yOffset integer
-
----@class ComponentEvents
----@field OnLButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnLButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(component: Component)?
-
----@class ComponentRenderer
----@field private name string
----@field private eventRegister table<string, boolean>
----@field private template string
-local ComponentRenderer = {}
-ComponentRenderer.__index = ComponentRenderer
-
----@param name string
----@param template string
----@return ComponentRenderer
-function ComponentRenderer:new(name, template)
-    local instance = setmetatable({}, self)
-    instance.name = name
-    instance.eventRegister = {}
-    instance.template = template
-    return instance
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyDimensions(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetDimensions(self.name, value.x, value.y)
-        end
-    )
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyCreation(diff, parent)
-    local after = diff and diff.After --[[@as boolean]]
-    local before = diff and diff.Before --[[@as boolean]]
-    parent = parent or "Root"
-
-    if before == after then
-        return self
-    elseif not before then
-        Api.Window.CreateFromTemplate(self.name, self.template, parent, false)
-    elseif not after then
-        Api.Window.Destroy(self.name)
-    end
-
-    return self
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyColor(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetColor(
-                self.name,
-                value
-            )
-        end
-    )
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyMovable(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetMovable(self.name, value)
-        end
-    )
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyParent(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetParent(self.name, value)
-        end
-    )
-end
-
-function ComponentRenderer:applyShowing(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetShowing(self.name, value)
-        end
-    )
-end
-
----@generic K
----@param diff TableValueDiff?
----@param onApply fun(value: K?)
----@return ComponentRenderer
----@private
-function ComponentRenderer:applyProperty(diff, onApply)
-    if diff ~= nil and diff.Before ~= diff.After then
-        onApply(diff.After)
-    end
-    return self
-end
-
-function ComponentRenderer:applyCoreEvents(diff)
-end
-
----@param state ComponentState
----@param previousState ComponentState
----@return ComponentState
-function ComponentRenderer:render(state, previousState)
-    Debug.Print("previous")
-    Debug.Print(previousState)
-    Debug.Print("new")
-    Debug.Print(state)
-    local diff = Utils.Table.Diff(previousState, state)
-
-    if diff == nil then
-        return state
-    end
-
-    if not previousState.DoesExist then
-        self:applyCreation({ After = true })
-    end
-
-    self:applyDimensions(diff.Dimensions)
-        :applyColor(diff.Color)
-        :applyMovable(diff.IsMovable)
-        :applyParent(diff.Parent)
-        :applyShowing(diff.IsShowing)
-
-    return state
-end
-
----@return ComponentState
-function ComponentRenderer:read()
-    if not Api.Window.DoesExist(self.name) then
-        return {
-            Name = self.name,
-            DoesExist = false
-        }
-    else
-        return {
-            Name = self.name,
-            Template = nil,
-            Id = Api.Window.GetId(self.name),
-            Parent = Api.Window.GetParent(self.name),
-            Position = Api.Window.GetPosition(self.name),
-            Dimensions = Api.Window.GetDimensions(self.name),
-            AnchorCount = Api.Window.GetAnchorCount(self.name),
-            Anchors = {},
-            IsMovable = Api.Window.IsMovable(self.name),
-            IsMoving = Api.Window.IsMoving(self.name),
-            Alpha = Api.Window.GetAlpha(self.name),
-            HandleInput = Api.Window.GetHandleInput(self.name),
-            IsSticky = Api.Window.IsSticky(self.name),
-            IsShowing = Api.Window.IsShowing(self.name),
-            IsResizing = Api.Window.IsResizing(self.name),
-            GetLayer = Api.Window.GetLayer(self.name),
-            OffsetFromParent = Api.Window.GetOffsetFromParent(self.name),
-            DoesExist = Api.Window.DoesExist(self.name),
-            Color = Api.Window.GetColor(self.name),
-            Scale = Api.Window.GetScale(self.name),
-            TabOrder = Api.Window.GetTabOrder(self.name),
-            HasFocus = Api.Window.HasFocus(self.name),
-            IsGameActionLocked = Api.Window.IsGameActionLocked(self.name),
-            IsPopable = Api.Window.IsPopable(self.name)
-        }
-    end
-end
-
----@class Component
----@field private state ComponentState?
----@field private previousState ComponentState?
----@field private renderer ComponentRenderer
----@field private name string
-local Component = {}
-Component.__index = Component
-
----@param name string
----@param template string
----@return Component
-function Component:new(name, template)
-    local instance = setmetatable({}, self)
-    instance.renderer = ComponentRenderer:new(name, template)
-    instance.name = name
-    return instance
-end
-
----@param newState ComponentState?
----@return Component
-function Component:render(newState)
-    local previousState = self.renderer:read()
-    newState = newState or previousState
-
-    if newState == previousState then
-        return self
-    end
-
-    self.renderer:render(Utils.Table.Merge(previousState, newState), previousState)
-    State[self.name] = self
-    return self
-end
-
-function Component:destroy()
-    self:render { DoesExist = false }
-    State[self.name] = nil
-end
-
--- ========================================================================== --
--- UI - Window
--- ========================================================================== --
-
----@class WindowState : ComponentState
----@field children Component[]? A list of child components to render within the window.
-
----@class WindowRenderer : ComponentRenderer
----@field private renderer WindowRenderer
-local WindowRenderer = {}
-WindowRenderer.__index = WindowRenderer
-setmetatable(WindowRenderer, { __index = ComponentRenderer })
-
----@param component WindowComponent
----@return WindowRenderer
-function WindowRenderer:new(component)
-     return ComponentRenderer.new(self, component) --[[@as WindowRenderer]]
-end
-
----@param children Component[]?
----@return WindowRenderer
-function WindowRenderer:renderChildren(children)
-    if children then
-        Utils.Array.ForEach(
-            children,
-            function (child)
-                child:render()
-            end
-        )
-    end
-    return self
-end
-
----@param state WindowState
----@return WindowState
-function WindowRenderer:render(state, previousState)
-    return ComponentRenderer.render(
-        self:renderChildren(state.children),
-        state,
-        previousState
-    ) --[[@as WindowState]]
-end
-
----@class WindowComponent : Component
-local WindowComponent = {}
-WindowComponent.__index = WindowComponent
-setmetatable(WindowComponent, { __index = Component })
-
-
----@return WindowComponent
-function WindowComponent:new(name)
-    return Component.new(self, name) --[[@as WindowComponent]]
-end
-
-
--- ========================================================================== --
 -- Mod
 -- ========================================================================== --
 
@@ -7239,12 +6884,195 @@ ModManager.Mods = {}
 ModManager.Initializers = {}
 
 -- ========================================================================== --
--- Uus Corp
+-- Components
 -- ========================================================================== --
+
+---@class ComponentState
+---@field Name string?
+---@field Id integer?
+---@field DoesExist boolean?
+---@field Dimensions ComponentDimensions?
+---@field Anchors ComponentAnchors[]?
+---@field Color ComponentColor?
+---@field IsMovable boolean?
+---@field Parent string?
+---@field Template string?
+---@field IsShowing boolean?
+
+---@class ComponentDimensions
+---@field x integer
+---@field y integer
+
+---@class ComponentColor
+---@field r integer
+---@field g integer
+---@field b integer
+
+---@class ComponentAnchors
+---@field anchorPoint string
+---@field relativePoint string
+---@field relativeTo string
+---@field xOffset integer
+---@field yOffset integer
+
+---@class ComponentEvents
+---@field OnLButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
+---@field OnLButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(component: Component)?
+
+local Component = {}
+
+---@param currentState ComponentState
+---@return ComponentState
+function Component.getComponentState(name)
+    if not Api.Window.DoesExist(name) then
+        return {
+            Name = name,
+            DoesExist = false
+        }
+    else
+        return {
+            Name = name,
+            Template = nil,
+            Id = Api.Window.GetId(name),
+            Parent = Api.Window.GetParent(name),
+            Position = Api.Window.GetPosition(name),
+            Dimensions = Api.Window.GetDimensions(name),
+            AnchorCount = Api.Window.GetAnchorCount(name),
+            Anchors = {},
+            IsMovable = Api.Window.IsMovable(name),
+            IsMoving = Api.Window.IsMoving(name),
+            Alpha = Api.Window.GetAlpha(name),
+            HandleInput = Api.Window.GetHandleInput(name),
+            IsSticky = Api.Window.IsSticky(name),
+            IsShowing = Api.Window.IsShowing(name),
+            IsResizing = Api.Window.IsResizing(name),
+            GetLayer = Api.Window.GetLayer(name),
+            OffsetFromParent = Api.Window.GetOffsetFromParent(name),
+            DoesExist = Api.Window.DoesExist(name),
+            Color = Api.Window.GetColor(name),
+            Scale = Api.Window.GetScale(name),
+            TabOrder = Api.Window.GetTabOrder(name),
+            HasFocus = Api.Window.HasFocus(name),
+            IsGameActionLocked = Api.Window.IsGameActionLocked(name),
+            IsPopable = Api.Window.IsPopable(name)
+        }
+    end
+end
+
+-- ========================================================================== --
+-- Renderer
+-- ========================================================================== --
+
+local Renderer = {}
+
+Renderer._previousState = {}
+Renderer._stateStore = {}
+Renderer._suspend = false
+
+function Renderer.suspend(fn)
+    Renderer._suspend = true
+    local ok, err = pcall(fn)
+    Renderer._suspend = false
+    if not ok then error(err) end
+end
+
+---@param name string
+---@param prev ComponentState
+---@param next ComponentState?
+---@return ComponentState?
+function Renderer.apply(name, prev, next)
+    if Renderer._suspend then
+        return next
+    end
+
+    -- Deletion
+    if not next and prev.DoesExist then
+        Debug.Print(name .. " destroyed")
+        Api.Window.Destroy(name)
+        Renderer._previousState[name] = nil
+        return nil
+    end
+
+    --Addition
+    if next and not prev.DoesExist then
+        Debug.Print(name .. " created")
+        Api.Window.Create(name, true)
+        next = Utils.Table.Merge(Component.getComponentState(name), next)
+    end
+
+    -- Render new / update
+    local rendered = Renderer.renderState(name, prev, next)
+    Renderer._previousState[name] = rendered
+    return rendered
+end
+
+Renderer.State = setmetatable({}, {
+    __index = function(_, k)
+        return Renderer._stateStore[k]
+    end,
+    __newindex = function(_, k, v)
+        local prev = Component.getComponentState(k, Renderer._stateStore[k])
+        if v == nil then
+            local final = Renderer.apply(k, prev, nil)
+            rawset(Renderer._stateStore, k, final)
+            return
+        end
+        v = Utils.Table.Merge(prev, v)
+        local final = Renderer.apply(k, prev, v)
+        rawset(Renderer._stateStore, k, final)
+    end
+})
+
+---@param name string
+---@param previous ComponentDimensions
+---@param next ComponentDimensions
+function Renderer.renderDimensions(name, previous, next)
+    Api.Window.SetDimensions(name, next.x, next.y)
+end
+
+---@param name string
+---@param previousColor ComponentColor
+---@param currentColor ComponentColor
+function Renderer.renderColor(name, previousColor, currentColor)
+    Api.Window.SetColor(name, currentColor)
+end
+
+---@param previous ComponentState
+---@param next ComponentState?
+function Renderer.renderState(name, previous, next)
+    next = next or previous
+
+    if previous == next then
+        return previous
+    end
+
+    Debug.Print(name .. " rendering")
+    Renderer.renderDimensions(name, previous.Dimensions, next.Dimensions)
+    Renderer.renderColor(name, previous.Color, next.Color)
+
+    local newState = Component.getComponentState(name)
+
+    return newState
+end
+
+
+-- ========================================================================== --
+-- Mongbat
+-- ========================================================================== --
+
 
 Mongbat = {}
 
 Mongbat.ModInitializer = ModManager.Initializers
+
+---@param state ComponentState
+function Components.Window(state)
+    Renderer.State[state.Name] = state
+    return Renderer.State[state.Name]
+end
 
 ---@param model ModModel
 ---@return Mod
@@ -7256,3 +7084,17 @@ function Mongbat.Mod(model)
     end
     return mod
 end
+
+
+--Init the mod 
+Mod:new {
+    Name = "ProjectMongbat",
+    Path = "/src/lib",
+    Files = {
+        "MongbatTextures.xml",
+        "Mongbat.xml"
+    },
+    OnInitialize = function (_)
+        Debug.Print("Mongbat Initialized")
+    end
+}:onInitialize()
