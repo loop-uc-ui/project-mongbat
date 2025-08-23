@@ -3554,9 +3554,6 @@ local DefaultUIClasses = {
 ---@class Api
 local Api = {}
 
----@type table<string, string>
-Api.Shadows = {}
-
 ---@class Constants
 local Constants = {}
 
@@ -5143,30 +5140,17 @@ end
 
 Api.Window = {}
 
-local _destroyWindow = DestroyWindow
-
-function DestroyWindow(windowName)
-    _destroyWindow(Api.Shadows[windowName] or windowName)
-end
-
 ---
 --- Destroys a window.
 ---@param windowName string The name of the window to destroy.
 ---@return boolean Whether the window was destroyed.
 function Api.Window.Destroy(windowName)
-    windowName = Api.Shadows[windowName] or windowName
     if Api.Window.DoesExist(windowName) then
-        _destroyWindow(windowName)
+        DestroyWindow(windowName)
         return true
     end
 
     return false
-end
-
-local _doesExist = DoesWindowNameExist
-
-function DoesWindowNameExist(windowName)
-   return _doesExist(Api.Shadows[windowName] or windowName)
 end
 
 ---
@@ -5177,24 +5161,12 @@ function Api.Window.DoesExist(windowName)
     return DoesWindowNameExist(windowName)
 end
 
-local _windowSetShowing = WindowSetShowing
-
-function WindowSetShowing(windowName, show)
-    _windowSetShowing(Api.Shadows[windowName] or windowName, show)
-end
-
 ---
 --- Sets the showing state of a window.
 ---@param windowName string The name of the window.
 ---@param show boolean Whether to show the window.
 function Api.Window.SetShowing(windowName, show)
     WindowSetShowing(windowName, show)
-end
-
-local _windowGetShowing = WindowGetShowing
-
-function WindowGetShowing(windowName)
-    return _windowGetShowing(Api.Shadows[windowName] or windowName)
 end
 
 ---
@@ -5205,24 +5177,12 @@ function Api.Window.IsShowing(windowName)
     return WindowGetShowing(windowName)
 end
 
-local _windowSetLayer = WindowSetLayer
-
-function WindowSetLayer(windowName, layer)
-    _windowSetLayer(Api.Shadows[windowName] or windowName, layer)
-end
-
 ---
 --- Sets the layer of a window.
 ---@param windowName string The name of the window.
 ---@param layer number The layer to set.
 function Api.Window.SetLayer(windowName, layer)
     WindowSetLayer(windowName, layer)
-end
-
-local _getLayer = WindowGetLayer
-
-function WindowGetLayer(windowName)
-    return _getLayer(Api.Shadows[windowName] or windowName)
 end
 
 ---
@@ -5233,24 +5193,12 @@ function Api.Window.GetLayer(windowName)
     return WindowGetLayer(windowName)
 end
 
-local _setHandleInput = WindowSetHandleInput
-
-function WindowHandleInput(windowName, handleInput)
-    _setHandleInput(Api.Shadows[windowName] or windowName, handleInput)
-end
-
 ---
 --- Sets whether a window handles input.
 ---@param windowName string The name of the window.
 ---@param handleInput boolean Whether to handle input.
 function Api.Window.SetHandleInput(windowName, handleInput)
     WindowHandleInput(windowName, handleInput)
-end
-
-local _getHandleInput = WindowGetHandleInput
-
-function WindowGetHandleInput(windowName)
-    return _getHandleInput(Api.Shadows[windowName] or windowName)
 end
 
 ---
@@ -5261,24 +5209,12 @@ function Api.Window.GetHandleInput(windowName)
     return WindowGetHandleInput(windowName)
 end
 
-local _setPopable = WindowSetPopable
-
-function WindowSetPopable(windowName, popable)
-    _setPopable(Api.Shadows[windowName] or windowName, popable)
-end
-
 ---
 --- Sets whether a window is popable.
 ---@param windowName string The name of the window.
 ---@param popable boolean Whether the window is popable.
 function Api.Window.SetPopable(windowName, popable)
     WindowSetPopable(windowName, popable)
-end
-
-local _getPopable = WindowGetPopable
-
-function WindowGetPopable(windowName)
-    return _getPopable(windowName)
 end
 
 ---
@@ -5289,12 +5225,6 @@ function Api.Window.IsPopable(windowName)
     return WindowGetPopable(windowName)
 end
 
-local _setMovable = WindowSetMovable
-
-function WindowSetMovable(windowName, movable)
-    _setMovable(Api.Shadows[windowName] or windowName, movable)
-end
-
 ---
 --- Sets whether a window is movable.
 ---@param windowName string The name of the window.
@@ -5303,11 +5233,6 @@ function Api.Window.SetMovable(windowName, movable)
     WindowSetMovable(windowName, movable)
 end
 
-local _getMovable = WindowGetMovable
-
-function WindowGetMovable(windowName)
-    return _getMovable(Api.Shadows[windowName] or windowName)
-end
 ---
 --- Gets whether a window is movable.
 ---@param windowName string The name of the window.
@@ -5531,18 +5456,6 @@ function Api.Window.GetColor(windowName)
     return { r = r, g = g, b = b }
 end
 
-local _createFromTemplateShow = CreateWindowFromTemplateShow
-
-function CreateWindowFromTemplateShow(windowName, template, parent, doShow)
-    _createFromTemplateShow(windowName, template, parent, doShow)
-end
-
-local _createFromTemplate = CreateWindowFromTemplate
-
-function CreateWindowFromTemplate(windowName, template, parent)
-    _createFromTemplate(windowName, template, parent)
-end
-
 ---
 --- Creates a window from a template.
 ---@param windowName string The name of the window.
@@ -5559,12 +5472,6 @@ function Api.Window.CreateFromTemplate(windowName, template, parent, doShow)
     return false
 end
 
-local _create = CreateWindow
-
-function CreateWindow(windowName, doShow)
-    _create(windowName, doShow == nil or doShow)
-end
-
 ---
 --- Creates a window.
 ---@param windowName string The name of the window.
@@ -5578,17 +5485,15 @@ function Api.Window.Create(windowName, doShow)
     return false
 end
 
-local _toggleWindowByName = ToggleWindowByName
-
-function ToggleWindowByName(wndName, btnName, toggleFunction, onOpenFunction, onCloseFunction)
-    _toggleWindowByName(Api.Shadows[wndName] or wndName, btnName, toggleFunction, onOpenFunction, onCloseFunction)
-end
-
 ---
 --- Toggles a window.
 ---@param windowName string The name of the window.
-function Api.Window.ToggleWindow(windowName, btnName, toggleFunction, onOpenFunction, onCloseFunction)
-    ToggleWindowByName(windowName, btnName, toggleFunction, onOpenFunction, onCloseFunction)
+---@return boolean Whether the window was created or shown.
+function Api.Window.ToggleWindow(windowName)
+    if not Api.Window.DoesExist(windowName) then
+        return Api.Window.Create(windowName, true)
+    end
+    return true
 end
 
 ---
@@ -7337,237 +7242,17 @@ ModManager.Initializers = {}
 -- Uus Corp
 -- ========================================================================== --
 
-<<<<<<< HEAD
-=======
----@class Component
----@field Name string?
----@field State ComponentState?
-
----@class ComponentState
----@field Name string?
----@field Id integer?
----@field DoesExist boolean?
----@field Dimensions ComponentDimensions?
----@field Anchors ComponentAnchors[]?
----@field Color ComponentColor?
----@field IsMovable boolean?
----@field Parent string?
----@field Template string?
----@field IsShowing boolean?
----@field Shadow string?
-
----@class ComponentDimensions
----@field x integer
----@field y integer
-
----@class ComponentColor
----@field r integer
----@field g integer
----@field b integer
-
----@class ComponentAnchors
----@field anchorPoint string
----@field relativePoint string
----@field relativeTo string
----@field xOffset integer
----@field yOffset integer
-
----@class ComponentEvents
----@field OnLButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnLButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(component: Component)?
-
-local Component = {}
-
----@param currentState ComponentState
----@return ComponentState
-function Component.getComponentState(name)
-    if not Api.Window.DoesExist(name) then
-        return {
-            Name = name,
-            DoesExist = false
-        }
-    else
-        return {
-            Name = name,
-            Template = nil,
-            Id = Api.Window.GetId(name),
-            Parent = Api.Window.GetParent(name),
-            Position = Api.Window.GetPosition(name),
-            Dimensions = Api.Window.GetDimensions(name),
-            AnchorCount = Api.Window.GetAnchorCount(name),
-            Anchors = {},
-            IsMovable = Api.Window.IsMovable(name),
-            IsMoving = Api.Window.IsMoving(name),
-            Alpha = Api.Window.GetAlpha(name),
-            HandleInput = Api.Window.GetHandleInput(name),
-            IsSticky = Api.Window.IsSticky(name),
-            IsShowing = Api.Window.IsShowing(name),
-            IsResizing = Api.Window.IsResizing(name),
-            GetLayer = Api.Window.GetLayer(name),
-            OffsetFromParent = Api.Window.GetOffsetFromParent(name),
-            DoesExist = Api.Window.DoesExist(name),
-            Color = Api.Window.GetColor(name),
-            Scale = Api.Window.GetScale(name),
-            TabOrder = Api.Window.GetTabOrder(name),
-            HasFocus = Api.Window.HasFocus(name),
-            IsGameActionLocked = Api.Window.IsGameActionLocked(name),
-            IsPopable = Api.Window.IsPopable(name)
-        }
-    end
-end
-
--- ========================================================================== --
--- Renderer
--- ========================================================================== --
-
-local Renderer = {}
-Renderer._stateStore = {}
-
----@param name string
----@param prev ComponentState
----@param next ComponentState?
----@return ComponentState?
-function Renderer.apply(name, prev, next)
-    -- Deletion
-    if not next and prev.DoesExist then
-        Debug.Print(name .. " destroyed")
-        Api.Window.Destroy(name)
-        return nil
-    end
-
-    --Addition
-    if next and not prev.DoesExist then
-        Debug.Print(name .. " created")
-        Api.Window.CreateFromTemplate(name, next.Template, next.Parent, true)
-        next = Utils.Table.Merge(Component.getComponentState(name), next)
-    end
-
-    -- Render new / update
-    local rendered = Renderer.renderState(name, prev, next)
-    return rendered
-end
-
-Renderer.State = setmetatable({}, {
-    __index = function(_, k)
-        return Renderer._stateStore[k]
-    end,
-    __newindex = function(_, k, v)
-        local prev = Component.getComponentState(k, Renderer._stateStore[k])
-        if v == nil then
-            local final = Renderer.apply(k, prev, nil)
-            rawset(Renderer._stateStore, k, final)
-            return
-        end
-        v = Utils.Table.Merge(prev, v)
-        local final = Renderer.apply(k, prev, v)
-        rawset(Renderer._stateStore, k, final)
-    end
-})
-
----@param name string
----@param previous ComponentDimensions
----@param next ComponentDimensions
-function Renderer.renderDimensions(name, previous, next)
-    if next then
-        Api.Window.SetDimensions(name, next.x, next.y)
-    end
-end
-
----@param name string
----@param previousColor ComponentColor
----@param currentColor ComponentColor
-function Renderer.renderColor(name, previousColor, currentColor)
-    if currentColor then
-        Api.Window.SetColor(name, currentColor)
-    end
-end
-
----@param previous ComponentState
----@param next ComponentState?
-function Renderer.renderState(name, previous, next)
-    next = next or previous
-
-    if previous == next then
-        return previous
-    end
-
-    Debug.Print(name .. " rendering")
-    Renderer.renderDimensions(name, previous.Dimensions, next.Dimensions)
-    Renderer.renderColor(name, previous.Color, next.Color)
-
-    local newState = Component.getComponentState(name)
-
-    return newState
-end
-
-
--- ========================================================================== --
--- Mongbat
--- ========================================================================== --
-
-
->>>>>>> 839c2b1d5f144eafd1b64c70e13bb43f5f5c956a
 Mongbat = {}
 
-Mongbat.ModInitializer = {}
+Mongbat.ModInitializer = ModManager.Initializers
 
-<<<<<<< HEAD
-=======
-Components.DefaultUI = {}
-
----@param model Component
----@return ComponentState?
-function Components.Window(model)
-    if not model.State then
-        Renderer.State[model.Name] = nil
-        return nil
-    end
-
-    if not model.State.Template then
-        model.State.Template= "MongbatWindow"
-    end
-
-    if not model.State.Parent then
-        model.State.Parent = "Root"
-    end
-
-    if model.State.Shadow then
-        Api.Shadows[model.State.Shadow] = model.Name
-    end
-
-    Renderer.State[model.Name] = model.State
-
-    return Renderer.State[model.Name]
-end
-
->>>>>>> 839c2b1d5f144eafd1b64c70e13bb43f5f5c956a
 ---@param model ModModel
 ---@return Mod
 function Mongbat.Mod(model)
     local mod = Mod:new(model)
     ModManager.Mods[model.Name] = mod
-    Mongbat.ModInitializer[model.Name] = function ()
+    ModManager.Initializers[model.Name] = function ()
         mod:onInitialize()
     end
     return mod
-<<<<<<< HEAD
 end
-=======
-end
-
---Init the mod 
-Mod:new {
-    Name = "ProjectMongbat",
-    Path = "/src/lib",
-    Files = {
-        "MongbatTextures.xml",
-        "Mongbat.xml"
-    },
-    OnInitialize = function (_)
-        Debug.Print("Mongbat Initialized")
-    end
-}:onInitialize()
->>>>>>> 839c2b1d5f144eafd1b64c70e13bb43f5f5c956a
