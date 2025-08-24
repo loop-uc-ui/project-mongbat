@@ -12,36 +12,39 @@
 			</TexCoords>
 		</HorizontalResizeImage>
     
-        <StatusBar name="UusCorpStatusBar" foreground="StatusBarForground" handleinput="false">
+        <StatusBar name="MongbatStatusBar" foreground="StatusBarForground" handleinput="false">
             <Size>
                 <AbsPoint x="168" y="24"/>
             </Size>
         </StatusBar>
 
-        <Button name="UusCorpButton" font="inter_medium_20">
+        <Button name="MongbatButton" font="inter_medium_20">
             <TextColors>
                 <Normal r="206" g="217" b="242" a="255"/>
             </TextColors>
         </Button>
 
-        <Button name="UusCorpButton18" inherits="UusCorpButton" font="inter_medium_18"/>
+        <Button name="MongbatButton18" inherits="MongbatButton" font="inter_medium_18"/>
 
-        <Label name="UusCorpLabel" font="inter_medium_18">
+        <Label name="MongbatLabel" font="inter_medium_18">
             <Size>
                 <AbsPoint x="54" y="18" />
             </Size>
             <Color r="206" g="217" b="242" a="255" />
         </Label>
 
-        <EditBox name="UusCorpEditTextBox" font="inter_medium_18" taborder="1" maxchars="256" scrolling="horz">
+        <EditBox name="MongbatEditTextBox" font="inter_medium_18" taborder="1" maxchars="256" scrolling="horz">
             <TextOffset x="4" y="4" />
             <Size>
                 <AbsPoint x="54" y="18" />
             </Size>
         </EditBox>
 
-        <Window name="UusCorpWindow" movable="true">
+        <Window name="MongbatWindow" movable="true">
             <Windows>
+                <EventHandlers>
+                    <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+                </EventHandlers>
                 <!-- Body background -->
                 <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
                     <Anchors>

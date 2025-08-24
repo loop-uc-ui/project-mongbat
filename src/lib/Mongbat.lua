@@ -3558,9 +3558,7 @@ local Api = {}
 local Constants = {}
 
 ---@class Views
-local Views = {}
-
-local _viewsInternal = {}
+local Components = {}
 
 ---@class Data
 local Data = {}
@@ -3574,7 +3572,7 @@ local Context = {
     Data = Data,
     Utils = Utils,
     Constants = Constants,
-    Views = Views
+    Components = Components
 }
 
 -- ========================================================================== --
@@ -6861,322 +6859,1281 @@ function Data.PlayerStatus()
     return PlayerStatus:new()
 end
 
+
+
+-- ========================================================================== --
+-- UI - Event Handler
+-- ========================================================================== --
+
+local Active = {}
+
+function Active.Window()
+    return SystemData.ActiveWindow.name
+end
+
+local EventHandler = {}
+
+---@type table<string, View>
+local Windows = {}
+
+function EventHandler.OnInitialize()
+    local window = Windows[Active.window()]
+    window:onInitialize()
+end
+
+function EventHandler.OnShutdown()
+    local window = Windows[Active.window()]
+    window:onShutdown()
+    Windows[Active.window()] = nil
+end
+
+function EventHandler.OnLButtonUp(flags, x, y)
+    local window = Windows[Active.window()]
+    window:onLButtonUp(flags, x, y)
+end
+
+function EventHandler.OnLButtonDown(flags, x, y)
+    local window = Windows[Active.window()]
+    window:onLButtonDown(flags, x, y)
+end
+
+function EventHandler.OnRButtonDown(flags, x, y)
+    local window = Windows[Active.window()]
+    window:onRButtonDown(flags, x, y)
+end
+
+function EventHandler.OnRButtonUp(flags, x, y)
+    local window = Windows[Active.window()]
+    window:onRButtonUp(flags, x, y)
+end
+
+function EventHandler.OnHidden()
+    local window = Windows[Active.window()]
+    window:onHidden()
+end
+
+function EventHandler.OnShown()
+    local window = Windows[Active.window()]
+    window:onShown()
+end
+
+function EventHandler.OnUpdate(timePassed)
+    local window = Windows[Active.window()]
+    window:onUpdate(timePassed)
+end
+
+function EventHandler.OnUpdateMobileName()
+    local window = Windows[Active.window()]
+    window:onUpdateMobileName()
+end
+
+function EventHandler.OnLButtonDblClk(flags, x, y)
+    local window = Windows[Active.window()]
+    window:onLButtonDblClk(flags, x, y)
+end
+
+function EventHandler.OnMouseOver()
+    local window = Windows[Active.window()]
+    window:onMouseOver()
+end
+
+function EventHandler.OnMouseOverEnd()
+    local window = Windows[Active.window()]
+    window:onMouseOverEnd()
+end
+
+function EventHandler.OnMouseDrag()
+    local window = Windows[Active.window()]
+    window:onMouseDrag()
+end
+
+function EventHandler.OnUpdatePlayerStatus()
+    local window = Windows[Active.window()]
+    window:onUpdatePlayerStatus()
+end
+
+function EventHandler.OnUpdateMobileStatus()
+    local window = Windows[Active.window()]
+    window:onUpdateMobileStatus()
+end
+
+function EventHandler.OnUpdateHealthBarColor()
+    local window = Windows[Active.window()]
+    window:onUpdateHealthBarColor()
+end
+
+function EventHandler.OnEndHealthBarDrag()
+    local window = Windows[Active.window()]
+    window:onEndHealthBarDrag()
+end
+
 -- ========================================================================== --
 -- UI - Component
 -- ========================================================================== --
 
----@type table<string, Component>
-local State = {}
-
-function Render()
-    Utils.Table.ForEach(
-        State,
-        function (_, v)
-            v:render()
-        end
-    )
-end
-
-Api.Window.RegisterCoreEventHandler(
-    "Root",
-    "Render",
-    "OnUpdate"
-)
-
----@class ComponentState
----@field Name string?
----@field Id integer?
----@field DoesExist boolean?
----@field Dimensions ComponentDimensions?
----@field Anchors ComponentAnchors[]?
----@field Color ComponentColor?
----@field IsMovable boolean?
----@field Parent string?
----@field Template string?
----@field IsShowing boolean?
-
----@class ComponentDimensions
----@field x integer
----@field y integer
-
----@class ComponentColor
----@field r integer
----@field g integer
----@field b integer
----@field a integer
-
----@class ComponentAnchors
----@field anchorPoint string
----@field relativePoint string
----@field relativeTo string
----@field xOffset integer
----@field yOffset integer
-
----@class ComponentEvents
----@field OnLButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnLButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(component: Component, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(component: Component)?
-
----@class ComponentRenderer
----@field private name string
----@field private eventRegister table<string, boolean>
----@field private template string
-local ComponentRenderer = {}
-ComponentRenderer.__index = ComponentRenderer
-
----@param name string
----@param template string
----@return ComponentRenderer
-function ComponentRenderer:new(name, template)
-    local instance = setmetatable({}, self)
-    instance.name = name
-    instance.eventRegister = {}
-    instance.template = template
-    return instance
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyDimensions(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetDimensions(self.name, value.x, value.y)
-        end
-    )
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyCreation(diff, parent)
-    local after = diff and diff.After --[[@as boolean]]
-    local before = diff and diff.Before --[[@as boolean]]
-    parent = parent or "Root"
-
-    if before == after then
-        return self
-    elseif not before then
-        Api.Window.CreateFromTemplate(self.name, self.template, parent, false)
-    elseif not after then
-        Api.Window.Destroy(self.name)
-    end
-
-    return self
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyColor(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetColor(
-                self.name,
-                value
-            )
-        end
-    )
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyMovable(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetMovable(self.name, value)
-        end
-    )
-end
-
----@param diff TableValueDiff?
-function ComponentRenderer:applyParent(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetParent(self.name, value)
-        end
-    )
-end
-
-function ComponentRenderer:applyShowing(diff)
-    return self:applyProperty(
-        diff,
-        function (value)
-            Api.Window.SetShowing(self.name, value)
-        end
-    )
-end
-
----@generic K
----@param diff TableValueDiff?
----@param onApply fun(value: K?)
----@return ComponentRenderer
----@private
-function ComponentRenderer:applyProperty(diff, onApply)
-    if diff ~= nil and diff.Before ~= diff.After then
-        onApply(diff.After)
-    end
-    return self
-end
-
-function ComponentRenderer:applyCoreEvents(diff)
-end
-
----@param state ComponentState
----@param previousState ComponentState
----@return ComponentState
-function ComponentRenderer:render(state, previousState)
-    Debug.Print("previous")
-    Debug.Print(previousState)
-    Debug.Print("new")
-    Debug.Print(state)
-    local diff = Utils.Table.Diff(previousState, state)
-
-    if diff == nil then
-        return state
-    end
-
-    if not previousState.DoesExist then
-        self:applyCreation({ After = true })
-    end
-
-    self:applyDimensions(diff.Dimensions)
-        :applyColor(diff.Color)
-        :applyMovable(diff.IsMovable)
-        :applyParent(diff.Parent)
-        :applyShowing(diff.IsShowing)
-
-    return state
-end
-
----@return ComponentState
-function ComponentRenderer:read()
-    if not Api.Window.DoesExist(self.name) then
-        return {
-            Name = self.name,
-            DoesExist = false
-        }
-    else
-        return {
-            Name = self.name,
-            Template = nil,
-            Id = Api.Window.GetId(self.name),
-            Parent = Api.Window.GetParent(self.name),
-            Position = Api.Window.GetPosition(self.name),
-            Dimensions = Api.Window.GetDimensions(self.name),
-            AnchorCount = Api.Window.GetAnchorCount(self.name),
-            Anchors = {},
-            IsMovable = Api.Window.IsMovable(self.name),
-            IsMoving = Api.Window.IsMoving(self.name),
-            Alpha = Api.Window.GetAlpha(self.name),
-            HandleInput = Api.Window.GetHandleInput(self.name),
-            IsSticky = Api.Window.IsSticky(self.name),
-            IsShowing = Api.Window.IsShowing(self.name),
-            IsResizing = Api.Window.IsResizing(self.name),
-            GetLayer = Api.Window.GetLayer(self.name),
-            OffsetFromParent = Api.Window.GetOffsetFromParent(self.name),
-            DoesExist = Api.Window.DoesExist(self.name),
-            Color = Api.Window.GetColor(self.name),
-            Scale = Api.Window.GetScale(self.name),
-            TabOrder = Api.Window.GetTabOrder(self.name),
-            HasFocus = Api.Window.HasFocus(self.name),
-            IsGameActionLocked = Api.Window.IsGameActionLocked(self.name),
-            IsPopable = Api.Window.IsPopable(self.name)
-        }
-    end
-end
-
 ---@class Component
----@field private state ComponentState?
----@field private previousState ComponentState?
----@field private renderer ComponentRenderer
----@field private name string
+---@field name string
 local Component = {}
 Component.__index = Component
 
 ---@param name string
----@param template string
 ---@return Component
-function Component:new(name, template)
+function Component:new(name)
     local instance = setmetatable({}, self)
-    instance.renderer = ComponentRenderer:new(name, template)
     instance.name = name
     return instance
 end
 
----@param newState ComponentState?
----@return Component
-function Component:render(newState)
-    local previousState = self.renderer:read()
-    newState = newState or previousState
+function Component:getName()
+    return self.name
+end
 
-    if newState == previousState then
-        return self
+-- ========================================================================== --
+-- UI - Default Component
+-- ========================================================================== --
+
+
+---@class DefaultComponent : Component
+---@field private _getDefault fun(): Component
+local DefaultComponent = {}
+DefaultComponent.__index = DefaultComponent
+setmetatable(DefaultComponent, { __index = Component})
+
+---@param name string
+---@param getDefault fun(): table
+---@return DefaultComponent
+function DefaultComponent:new(name, getDefault)
+    local instance = Component.new(self, name) --[[@as DefaultComponent]]
+    instance._getDefault = getDefault
+    return instance
+end
+
+function DefaultComponent:getDefault()
+    return Component:new(self.name)
+end
+
+function DefaultComponent:getDefaultFunction(functionName)
+    local d = self:getDefault()
+    return d[functionName] or function(...) end
+end
+
+---@param functionName string
+---@param func fun(self: Component, ...: any)
+function DefaultComponent:appendToFunction(functionName, func)
+    local d = self:getDefault()
+    local originalFunction = d[functionName] or function() end
+    d[functionName] = function(...)
+        originalFunction(...)
+        func(d, ...)
+    end
+end
+
+-- ========================================================================== --
+-- UI - View
+-- ========================================================================== --
+
+---@class ViewModel
+---@field Name string?
+---@field Template string?
+---@field OnInitialize fun(self: View)?
+---@field OnLButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: View)?
+---@field OnHidden fun(self: View)?
+---@field OnShown fun(self: View)?
+---@field OnLButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: View, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: View, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: View)?
+---@field OnMouseOverEnd fun(self: View)?
+---@field OnMouseDrag fun(self: View)?
+---@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: View)?
+
+
+---@class View : Component
+---@field private _model ViewModel
+local View = {}
+View.__index = View
+setmetatable(View, { __index = Component })
+
+---@param model ViewModel
+---@return View
+function View:new(model)
+    local name = model.Name or Utils.String.Random()
+    local instance = Component.new(self, name) --[[@as View]]
+    instance._model = model
+    return instance
+end
+
+function View:onInitialize()
+    local id = Utils.String.ExtractNumber(self:getName())
+
+    if id ~= 0 then
+        self:setId(id)
     end
 
-    self.renderer:render(Utils.Table.Merge(previousState, newState), previousState)
-    State[self.name] = self
-    return self
+    local prefix = "Mongbat.EventHandler."
+
+    for k, _ in pairs(self._model) do
+        local dataEvent = Constants.DataEvents[k]
+        local systemEvent = Constants.SystemEvents[k]
+        local isCore = Constants.CoreEvents[k] ~= nil
+        local skip = k == Constants.CoreEvents.OnInitialize or
+            k == Constants.CoreEvents.OnShutdown
+
+        local functionName = prefix .. k
+
+        if isCore and not skip then
+            self:registerCoreEventHandler(k, functionName)
+        elseif systemEvent ~= nil then
+            self:registerEventHandler(systemEvent.getEvent(), functionName)
+        elseif dataEvent ~= nil then
+            self:registerData(dataEvent.getType())
+            self:registerEventHandler(dataEvent.getEvent(), functionName)
+        end
+    end
+
+    self:registerCoreEventHandler(
+        Constants.CoreEvents.OnShutdown,
+        prefix .. Constants.CoreEvents.OnShutdown
+    )
+
+    if self._model.OnInitialize ~= nil then
+        self._model.OnInitialize(self)
+    end
+
+    for k, _ in pairs(Constants.DataEvents) do
+        local m = self[k]
+        if type(m) == "function" then
+            m(self)
+        end
+    end
 end
 
-function Component:destroy()
-    self:render { DoesExist = false }
-    State[self.name] = nil
+function View:onShutdown()
+    if self._model.OnShutdown ~= nil then
+        self._model.OnShutdown(self)
+    end
+
+    for k, _ in pairs(self._model) do
+        local dataEvent = Constants.DataEvents[k]
+        local systemEvent = Constants.SystemEvents[k]
+        local isCore = Constants.CoreEvents[k] ~= nil
+
+        if isCore then
+            self:unregisterCoreEventHandler(k)
+        elseif systemEvent ~= nil then
+            self:unregisterEventHandler(systemEvent.getEvent())
+        elseif dataEvent ~= nil then
+            self:unregisterData(dataEvent.getType())
+            self:unregisterEventHandler(dataEvent.getEvent())
+        end
+    end
 end
+
+function View:onLButtonUp(flags, x, y)
+    if self._model.OnLButtonUp ~= nil then
+        self._model.OnLButtonUp(self, flags, x, y)
+        return true
+    end
+    return false
+end
+
+function View:onLButtonDown(flags, x, y)
+    if self._model.OnLButtonDown ~= nil then
+        self._model.OnLButtonDown(self, flags, x, y)
+        return true
+    end
+    return false
+end
+
+function View:onRButtonUp(flags, x, y)
+    if self._model.OnRButtonUp ~= nil then
+        self._model.OnRButtonUp(self, flags, x, y)
+        return true
+    end
+    return false
+end
+
+function View:onRButtonDown(flags, x, y)
+    if self._model.OnRButtonDown ~= nil then
+        self._model.OnRButtonDown(self, flags, x, y)
+        return true
+    end
+    return false
+end
+
+function View:onHidden()
+    if self._model.OnHidden ~= nil then
+        self._model.OnHidden(self)
+        return true
+    end
+    return false
+end
+
+function View:onShown()
+    if self._model.OnShown ~= nil then
+        self._model.OnShown(self)
+        return true
+    end
+    return false
+end
+
+function View:onUpdate(timePassed, systemData, windowData)
+    if self._model.OnUpdate ~= nil then
+        self._model.OnUpdate(self, timePassed, systemData, windowData)
+        return true
+    end
+    return false
+end
+
+function View:onUpdateMobileName()
+    if self._model.OnUpdateMobileName ~= nil then
+        self._model.OnUpdateMobileName(self, Data.MobileName(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onLButtonDblClk(flags, x, y)
+    if self._model.OnLButtonDblClk ~= nil then
+        self._model.OnLButtonDblClk(self, flags, x, y)
+        return true
+    end
+    return false
+end
+
+function View:onMouseOver()
+    if self._model.OnMouseOver ~= nil then
+        self._model.OnMouseOver(self)
+        return true
+    end
+    return false
+end
+
+function View:onMouseOverEnd()
+    if self._model.OnMouseOverEnd ~= nil then
+        self._model.OnMouseOverEnd(self)
+        return true
+    end
+    return false
+end
+
+function View:onMouseDrag()
+    if self._model.OnMouseDrag ~= nil then
+        self._model.OnMouseDrag(self)
+        return true
+    end
+    return false
+end
+
+function View:onUpdatePlayerStatus()
+    if self._model.OnUpdatePlayerStatus ~= nil then
+        self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
+        return true
+    end
+    return false
+end
+
+function View:onUpdateMobileStatus()
+    if self._model.OnUpdateMobileStatus ~= nil then
+        self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateHealthBarColor()
+    if self._model.OnUpdateHealthBarColor ~= nil then
+        self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onEndHealthBarDrag()
+    if self._model.OnEndHealthBarDrag ~= nil then
+        self._model.OnEndHealthBarDrag(self)
+        return true
+    end
+    return false
+end
+
+function View:getId()
+    return Api.Window.GetId(self.name)
+end
+
+function View:setId(id)
+    Api.Window.SetId(self.name, id)
+end
+
+function View:getParent()
+    return Api.Window.GetParent(self.name)
+end
+
+function View:setParent(parent)
+    Api.Window.SetParent(self.name, parent)
+end
+
+function View:matchParentWidth(percent)
+    local parent = self:getParent()
+    local parentDimen = Api.Window.GetDimensions(parent)
+    local dimen = self:getDimensions()
+    self:setDimensions(parentDimen.x * percent, dimen.y)
+end
+
+function View:isParentRoot()
+    return self:getParent() == "Root"
+end
+
+function View:registerCoreEventHandler(event, callback)
+    Api.Window.RegisterCoreEventHandler(self.name, event, callback)
+end
+
+function View:unregisterCoreEventHandler(event)
+    Api.Window.UnregisterCoreEventHandler(self.name, event)
+end
+
+function View:registerEventHandler(event, callback)
+    Api.Window.RegisterEventHandler(self.name, event, callback)
+end
+
+function View:unregisterEventHandler(event)
+    Api.Window.UnregisterEventHandler(self.name, event)
+end
+
+function View:isMoving()
+    return Api.Window.IsMoving(self.name)
+end
+
+function View:setMoving(isMoving)
+    Api.Window.SetMoving(self.name, isMoving)
+end
+
+function View:getDimensions()
+    return Api.Window.GetDimensions(self.name)
+end
+
+function View:setDimensions(x, y)
+    Api.Window.SetDimensions(self.name, x, y)
+end
+
+function View:getAlpha()
+    return Api.Window.GetAlpha(self.name)
+end
+
+function View:setAlpha(alpha)
+    Api.Window.SetAlpha(self.name, alpha)
+end
+
+function View:setLayer(layer)
+    Api.Window.SetLayer(self.name, layer)
+end
+
+function View:getScale()
+    return Api.Window.GetScale(self.name)
+end
+
+function View:setScale(scale)
+    Api.Window.SetScale(self.name, scale)
+end
+
+function View:getOffsetFromParent()
+    return Api.Window.GetOffsetFromParent(self.name)
+end
+
+function View:setOffsetFromParent(x, y)
+    Api.Window.SetOffsetFromParent(self.name, x, y)
+end
+
+function View:getColor()
+    return Api.Window.GetColor(self.name)
+end
+
+function View:setColor(color)
+    Api.Window.SetColor(self.name, color)
+end
+
+function View:getPosition()
+    return Api.Window.GetPosition(self.name)
+end
+
+function View:isShowing()
+    return Api.Window.IsShowing(self.name)
+end
+
+function View:setShowing(isShowing)
+    Api.Window.SetShowing(self.name, isShowing)
+end
+
+function View:isPopable()
+    return Api.Window.IsPopable(self.name)
+end
+
+function View:setPopable(isPopable)
+    Api.Window.SetPopable(self.name, isPopable)
+end
+
+function View:isMovable()
+    return Api.Window.IsMovable(self.name)
+end
+
+function View:setMovable(isMovable)
+    Api.Window.SetMovable(self.name, isMovable)
+end
+
+function View:isSticky()
+    return Api.Window.IsSticky(self.name)
+end
+
+function View:clearAnchors()
+    Api.Window.ClearAnchors(self.name)
+end
+
+function View:forceProcessAnchors()
+    Api.Window.ForceProcessAnchors(self.name)
+end
+
+function View:addAnchor(anchorPoint, relativeTo, relativePoint, x, y)
+    Api.Window.AddAnchor(self.name, anchorPoint, relativeTo, relativePoint, x or 0, y or 0)
+end
+
+function View:anchorToParentTop(x, y)
+    self:addAnchor(
+        Constants.AnchorPoints.Top,
+        self:getParent(),
+        Constants.AnchorPoints.Top,
+        x or 0,
+        y or 0
+    )
+end
+
+function View:centerInWindow(toCenter, x, y)
+    self:addAnchor(
+        Constants.AnchorPoints.Center,
+        toCenter,
+        Constants.AnchorPoints.Center,
+        x or 0,
+        y or 0
+    )
+end
+
+function View:anchorToParentCenter(x, y)
+    self:centerInWindow(self:getParent(), x, y)
+end
+
+function View:isFocused()
+    return Api.Window.HasFocus(self.name)
+end
+
+function View:setFocus(doFocus)
+    Api.Window.AssignFocus(self.name, doFocus)
+end
+
+function View:isResizing()
+    return Api.Window.IsResizing(self.name)
+end
+
+function View:setResizing(isResizing)
+    Api.Window.SetResizing(self.name, isResizing)
+end
+
+function View:setRelativeScale(scale)
+    Api.Window.SetRelativeScale(self.name, scale)
+end
+
+function View:doesExist()
+    return Api.Window.DoesExist(self.name)
+end
+
+function View:destroy()
+    return Api.Window.Destroy(self.name)
+end
+
+function View:create(doShow)
+    doShow = doShow == nil or doShow
+    if self._model.Template == nil then
+        return Api.Window.Create(self.name, doShow)
+    else
+        return Api.Window.CreateFromTemplate(self.name, self._model.Template, "Root", doShow)
+    end
+end
+
+function View:registerData(type)
+    Api.Window.RegisterData(type, self:getId())
+end
+
+function View:unregisterData(type)
+    Api.Window.UnregisterData(type, self:getId())
+end
+
 
 -- ========================================================================== --
 -- UI - Window
 -- ========================================================================== --
 
----@class WindowState : ComponentState
----@field children Component[]? A list of child components to render within the window.
+---@class WindowModel : ViewModel
+---@field Name string? The name of the window. If not provided, a random name will be generated.
+---@field Template string? The template to use for the window. Defaults to "MongbatWindow"
+---@field PersistPosition boolean? If true, the window will save its position when closed and restore it when opened again
+---@field OnInitialize fun(self: Window)?
+---@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: Window)?
+---@field OnHidden fun(self: Window)?
+---@field OnShown fun(self: Window)?
+---@field OnLButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: Window, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: Window, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: Window)?
+---@field OnMouseOverEnd fun(self: Window)?
+---@field OnMouseDrag fun(self: Window)?
+---@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: Window)?
 
----@class WindowRenderer : ComponentRenderer
----@field private renderer WindowRenderer
-local WindowRenderer = {}
-WindowRenderer.__index = WindowRenderer
-setmetatable(WindowRenderer, { __index = ComponentRenderer })
+---@class Window : View
+---@field _model WindowModel?
+---@field _children Window[] A list of child windows.
+---@field _frame string The name of the window's frame component.
+---@field _background string The name of the window's background component.
+---@field _persistPosition boolean If true, the window will save its position when closed and restore it when opened again.
+local Window = {}
+Window.__index = Window
+setmetatable(Window, { __index = View })
 
----@param component WindowComponent
----@return WindowRenderer
-function WindowRenderer:new(component)
-     return ComponentRenderer.new(self, component) --[[@as WindowRenderer]]
+---@param model WindowModel?
+function Window:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatWindow"
+    local instance = View.new(self, model) --[[@as Window]]
+
+    instance._children = {}
+    instance._frame = instance.name .. "Frame"
+    instance._background = instance.name .. "Background"
+    instance._persistPosition = model.PersistPosition or false
+
+    return instance
 end
 
----@param children Component[]?
----@return WindowRenderer
-function WindowRenderer:renderChildren(children)
-    if children then
-        Utils.Array.ForEach(
-            children,
-            function (child)
-                child:render()
-            end
+function Window:onInitialize()
+    View.onInitialize(self)
+    if self:isParentRoot() and self._model.OnRButtonUp == nil then
+        self:registerCoreEventHandler(
+            Constants.CoreEvents.OnRButtonUp,
+            "Mongbat.EventHandler." .. Constants.CoreEvents.OnRButtonUp
         )
     end
-    return self
+
+    self:restorePosition()
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item, index)
+            item:create(true)
+            item:setParent(self:getName())
+            item:onInitialize()
+            if index > 1 then
+                item:addAnchor(
+                    "bottomleft",
+                    self._children[index - 1]:getName(),
+                    "topleft",
+                    0,
+                    8
+                )
+            end
+        end
+    )
+
+    self:toggleBackground(self:isParentRoot())
+    self:toggleFrame(self:isParentRoot())
 end
 
----@param state WindowState
----@return WindowState
-function WindowRenderer:render(state, previousState)
-    return ComponentRenderer.render(
-        self:renderChildren(state.children),
-        state,
-        previousState
-    ) --[[@as WindowState]]
+function Window:onShutdown()
+    self:savePosition()
+
+    Utils.Array.ForEach(self._children, function (item)
+        item:destroy()
+    end)
+
+    View.onShutdown(self)
 end
 
----@class WindowComponent : Component
-local WindowComponent = {}
-WindowComponent.__index = WindowComponent
-setmetatable(WindowComponent, { __index = Component })
+function Window:onLButtonUp(flags, x, y)
+    View.onLButtonUp(self, flags, x, y)
 
+    local child = Utils.Array.Find(
+        self._children,
+        function (item)
+            return item:getName() == Active.window()
+        end
+    )
 
----@return WindowComponent
-function WindowComponent:new(name)
-    return Component.new(self, name) --[[@as WindowComponent]]
+    if child ~= nil then
+        child:onLButtonUp(flags, x, y)
+    end
 end
 
+function Window:onLButtonDown(flags, x, y)
+    View.onLButtonDown(self, flags, x, y)
+
+    local child = Utils.Array.Find(
+        self._children,
+        function (item)
+            return item:getName() == Active.window()
+        end
+    )
+
+    if child ~= nil then
+        child:onLButtonDown(flags, x, y)
+    end
+end
+
+function Window:onRButtonUp(flags, x, y)
+    if self:isParentRoot() and self._model.OnRButtonUp == nil then
+        self:destroy()
+        return
+    end
+
+    View.onRButtonUp(self, flags, x, y)
+
+    local child = Utils.Array.Find(
+        self._children,
+        function (item)
+            return item:getName() == Active.window()
+        end
+    )
+
+    if child ~= nil then
+        child:onRButtonUp(flags, x, y)
+    end
+end
+
+function Window:onRButtonDown(flags, x, y)
+    View.onRButtonDown(self, flags, x, y)
+
+    local child = Utils.Array.Find(
+        self._children,
+        function (item)
+            return item:getName() == Active.window()
+        end
+    )
+
+    if child ~= nil then
+        child:onRButtonDown(flags, x, y)
+    end
+end
+
+function Window:onHidden()
+    View.onHidden(self)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onHidden()
+        end
+    )
+end
+
+function Window:onShown()
+    View.onShown(self)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onShown()
+        end
+    )
+end
+
+function Window:onUpdate(timePassed, systemData, windowData)
+    View.onUpdate(self, timePassed, systemData, windowData)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onUpdate(timePassed, systemData, windowData)
+        end
+    )
+end
+
+function Window:onUpdateMobileName()
+    View.onUpdateMobileName(self)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onUpdateMobileName()
+        end
+    )
+end
+
+function Window:onLButtonDblClk(flags, x, y)
+    View.onLButtonDblClk(self, flags, x, y)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onLButtonDblClk(flags, x, y)
+        end
+    )
+end
+
+function Window:onUpdatePlayerStatus()
+    View.onUpdatePlayerStatus(self)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onUpdatePlayerStatus()
+        end
+    )
+end
+
+function Window:onUpdateMobileStatus()
+    View.onUpdateMobileStatus(self)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onUpdateMobileStatus()
+        end
+    )
+end
+
+function Window:onUpdateHealthBarColor()
+    View.onUpdateHealthBarColor(self)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onUpdateHealthBarColor()
+        end
+    )
+end
+
+function Window:onEndHealthBarDrag()
+    View.onEndHealthBarDrag(self)
+
+    Utils.Array.ForEach(
+        self._children,
+        function (item)
+            item:onEndHealthBarDrag()
+        end
+    )
+end
+
+---@return Window
+function Window:getFrame()
+    if self._frameWindow == nil then
+        self._frameWindow = Window:new { Name = self._frame }
+    end
+    return self._frameWindow
+end
+
+---@return Window
+function Window:getBackground()
+    if self._backgroundWindow == nil then
+        self._backgroundWindow = Window:new { Name = self._background }
+    end
+    return self._backgroundWindow
+end
+
+function Window:toggleFrame(doShow)
+    if Api.Window.DoesExist(self._frame) then
+        Api.Window.SetShowing(self._frame, doShow)
+    end
+end
+
+function Window:toggleBackground(doShow)
+    if Api.Window.DoesExist(self._background) then
+        Api.Window.SetShowing(self._background, doShow)
+    end
+end
+
+function Window:attachToObject()
+    Api.Window.AttachToWorldObject(self:getId(), self:getName())
+end
+
+function Window:setChildren(children)
+    self._children = children
+end
+
+function Window:restorePosition()
+    if self._persistPosition and self:isParentRoot() then
+        Api.Window.RestorePosition(self.name)
+    end
+end
+
+function Window:savePosition()
+    if self._persistPosition and self:isParentRoot() then
+        Api.Window.SavePosition(self.name)
+    end
+end
+
+---@param model WindowModel?
+---@return Window
+function Components.Window(model)
+   local window = Window:new(model)
+    Windows[window:getName()] = window
+    return window
+end
+
+-- ========================================================================== --
+-- UI - Button
+-- ========================================================================== --
+
+---@class ButtonModel : WindowModel
+---@field OnInitialize fun(self: Button)?
+---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: Button)?
+---@field OnHidden fun(self: Button)?
+---@field OnShown fun(self: Button)?
+---@field OnLButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: Button, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: Button, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: Button)?
+---@field OnMouseOverEnd fun(self: Button)?
+---@field OnMouseDrag fun(self: Button)?
+---@field OnUpdatePlayerStatus fun(self: Button, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: Button, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Button, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: Button)?
+
+---@class Button: Window
+local Button = {}
+Button.__index = Button
+setmetatable(Button, { __index = Window })
+
+---@param model ButtonModel?
+---@return Button
+function Button:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatButton"
+    local instance = Window.new(self, model)
+    return instance --[[@as Button]]
+end
+
+function Button:getTextDimensions()
+    Api.Button.GetTextDimensions(self:getName())
+end
+
+function Button:setText(text)
+    Api.Button.SetText(self:getName(), Utils.String.ToWString(text))
+end
+
+function Button:getText()
+    return Api.Button.GetText(self:getName())
+end
+
+function Button:setTexture(state, texture, x, y)
+    Api.Button.SetTexture(self:getName(), state, texture, x, y)
+end
+
+function Button:setTextColor(state, color)
+    Api.Button.SetTextColor(self:getName(), state, color.r, color.g, color.b)
+end
+
+---@param model ButtonModel?
+---@return Button
+function Components.Button(model)
+    local button = Button:new(model)
+    Windows[button:getName()] = button
+    return button
+end
+
+-- ========================================================================== --
+-- UI - Edit Text Box
+-- ========================================================================== --
+
+---@class EditTextBoxModel : ViewModel
+---@field OnInitialize fun(self: EditTextBox)?
+---@field OnLButtonUp fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: EditTextBox)?
+---@field OnHidden fun(self: EditTextBox)?
+---@field OnShown fun(self: EditTextBox)?
+---@field OnLButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: EditTextBox, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: EditTextBox, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: EditTextBox)?
+---@field OnMouseOverEnd fun(self: EditTextBox)?
+---@field OnMouseDrag fun(self: EditTextBox)?
+---@field OnUpdatePlayerStatus fun(self: EditTextBox, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: EditTextBox, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: EditTextBox, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: EditTextBox)?
+
+---@class EditTextBox: View
+local EditTextBox = {}
+EditTextBox.__index = EditTextBox
+setmetatable(EditTextBox, { __index = View })
+
+---@param model EditTextBoxModel?
+---@return EditTextBox
+function EditTextBox:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatEditTextBox"
+    local instance = View.new(self, model)
+    return instance --[[@as EditTextBox]]
+end
+
+function EditTextBox:setText(text)
+    Api.EditTextBox.SetText(self:getName(), Utils.String.ToWString(text))
+end
+
+function EditTextBox:getText()
+    return Api.EditTextBox.GetText(self:getName())
+end
+
+---@param color Color
+function EditTextBox:setTextColor(color)
+    Api.EditTextBox.SetTextColor(self:getName(), color.r, color.g, color.b)
+end
+    
+---@param model ButtonModel?
+---@return Button
+function Components.EditTextBox(model)
+    local button = Button:new(model)
+    Windows[button:getName()] = button
+    return button
+end
+
+-- ========================================================================== --
+-- UI - Label
+-- ========================================================================== --
+
+---@class LabelModel : ViewModel
+---@field OnInitialize fun(self: Label)?
+---@field OnLButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: Label)?
+---@field OnHidden fun(self: Label)?
+---@field OnShown fun(self: Label)?
+---@field OnLButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: Label, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: Label, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: Label)?
+---@field OnMouseOverEnd fun(self: Label)?
+---@field OnMouseDrag fun(self: Label)?
+---@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: Label)?
+
+---@class Label: View
+local Label = {}
+Label.__index = Label
+setmetatable(Label, { __index = View })
+
+---@param model LabelModel?
+---@return Label
+function Label:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatLabel"
+    local instance = View.new(self, model)
+    return instance --[[@as Label]]
+end
+
+function Label:setText(text)
+    Api.Label.SetText(self:getName(), Utils.String.ToWString(text))
+end
+
+function Label:setTextColor(color)
+    Api.Label.SetTextColor(self:getName(), color)
+end
+
+function Label:setTextAlignment(alignment)
+    Api.Label.SetTextAlignment(self:getName(), alignment)
+end
+
+function Label:centerText()
+    self:setTextAlignment(Constants.TextAlignment.Center)
+end
+
+---@param model LabelModel?
+---@return Label
+function Components.Label(model)
+    local label = Label:new(model)
+    Windows[label:getName()] = label
+    return label
+end
+
+-- ========================================================================== --
+-- UI - Status Bar
+-- ========================================================================== --
+
+---@class StatusBarModel : ViewModel
+---@field OnInitialize fun(self: StatusBar)?
+---@field OnLButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: StatusBar)?
+---@field OnHidden fun(self: StatusBar)?
+---@field OnShown fun(self: StatusBar)?
+---@field OnLButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: StatusBar, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: StatusBar, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: StatusBar)?
+---@field OnMouseOverEnd fun(self: StatusBar)?
+---@field OnMouseDrag fun(self: StatusBar)?
+---@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: StatusBar)?
+
+---@class StatusBar: View
+local StatusBar = {}
+StatusBar.__index = StatusBar
+setmetatable(StatusBar, { __index = View })
+
+---@param model StatusBarModel?
+---@return StatusBar
+function StatusBar:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatStatusBar"
+    local instance = View.new(self, model)
+    return instance --[[@as StatusBar]]
+end
+
+function StatusBar:setMaxValue(maxValue)
+    Api.StatusBar.SetMaxValue(self:getName(), maxValue)
+end
+
+function StatusBar:setCurrentValue(currentValue)
+    Api.StatusBar.SetCurrentValue(self:getName(), currentValue)
+end
+
+function StatusBar:setBackgroundTint(tint)
+    Api.StatusBar.SetBackgroundTint(self:getName(), tint)
+end
+
+function StatusBar:setForegroundTint(tint)
+    Api.StatusBar.SetForegroundTint(self:getName(), tint)
+end
+
+---@param model StatusBarModel?
+---@return StatusBar
+function Components.StatusBar(model)
+    local statusBar = StatusBar:new(model)
+    Windows[statusBar:getName()] = statusBar
+    return statusBar
+end
+
+-- ========================================================================== --
+-- UI - Gump Window
+-- ========================================================================== --
+
+---@class GumpWindowModel : WindowModel
+---@field windowName string
+---@field TextEntry string[]?
+---@field Labels GumpItem[]?
+---@field Images string[]?
+---@field Buttons string[]?
+---@field OnInitialize fun(self: GumpWindow)?
+---@field OnLButtonUp fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: GumpWindow)?
+---@field OnHidden fun(self: GumpWindow)?
+---@field OnShown fun(self: GumpWindow)?
+---@field OnLButtonDown fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: GumpWindow, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: GumpWindow, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: GumpWindow)?
+---@field OnMouseOverEnd fun(self: GumpWindow)?
+---@field OnMouseDrag fun(self: GumpWindow)?
+---@field OnUpdatePlayerStatus fun(self: GumpWindow, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: GumpWindow, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: GumpWindow, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: GumpWindow)?
+
+---@class GumpWindow : Window
+---@field buttons Button[]
+---@field textEntries EditTextBox[]
+---@field _id integer The unique ID of the gump window.
+local GumpWindow = {}
+GumpWindow.__index = GumpWindow
+setmetatable(GumpWindow, { __index = Window })
+
+---@param gump GumpWindowModel
+---@param id integer
+---@return GumpWindow
+function GumpWindow:new(gump, id)
+    local instance = Window.new(self, { Name = gump.windowName }) --[[@as GumpWindow]]
+
+    instance.buttons = Utils.Array.MapToArray(
+        gump.Buttons,
+        function (buttonName)
+            return Button:new({ Name = buttonName })
+        end
+    )
+
+    instance.textEntries = Utils.Array.MapToArray(
+        gump.TextEntry,
+        function (textEntryName)
+            return EditTextBox:new({ Name = textEntryName })
+        end
+    )
+
+    instance._children = Utils.Array.Concat {
+        instance.buttons,
+        instance.textEntries
+    }
+
+    instance._id = id
+    return instance --[[@as GumpWindow]]
+end
+
+function GumpWindow:isVendorSearch()
+    return self._id == 999112
+end
+
+function GumpWindow:isJewelryBox()
+    return self._id == 999143
+end
+
+---@param name string?
+---@return GumpWindow?
+function Components.Gump(name)
+    name = name or Active.window()
+    if not GumpData then
+        return nil
+    end
+
+    local id = -1
+
+    local gump = Utils.Table.Find(
+        GumpData.Gumps,
+        function (k, v)
+            id = k
+            return v.windowName == name
+        end
+    )
+
+    if not gump then
+        return nil
+    else
+        return GumpWindow:new(gump, id)
+    end
+end
 
 -- ========================================================================== --
 -- Mod
@@ -7239,12 +8196,14 @@ ModManager.Mods = {}
 ModManager.Initializers = {}
 
 -- ========================================================================== --
--- Uus Corp
+-- Mongbat
 -- ========================================================================== --
 
 Mongbat = {}
 
 Mongbat.ModInitializer = ModManager.Initializers
+
+Mongbat.EventHandler = EventHandler
 
 ---@param model ModModel
 ---@return Mod
@@ -7256,3 +8215,25 @@ function Mongbat.Mod(model)
     end
     return mod
 end
+
+--Init the mod 
+Mod:new {
+    Name = "ProjectMongbat",
+    Path = "/src/lib",
+    Files = {
+        "MongbatTextures.xml",
+        "Mongbat.xml"
+    },
+    OnInitialize = function (_)
+        Debug.Print("Mongbat Initialized")
+    end
+}:onInitialize()
+
+Components.Window {
+    name = "Test",
+    events = {
+        OnInitialize = function (self)
+            Debug.Print("Test Window Initialized")
+        end
+    }
+}:create(true)
