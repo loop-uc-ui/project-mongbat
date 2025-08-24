@@ -6867,7 +6867,7 @@ end
 
 local Active = {}
 
-function Active.Window()
+function Active.window()
     return SystemData.ActiveWindow.name
 end
 
@@ -8218,7 +8218,7 @@ end
 
 --Init the mod 
 Mod:new {
-    Name = "ProjectMongbat",
+    Name = "Mongbat",
     Path = "/src/lib",
     Files = {
         "MongbatTextures.xml",
@@ -8228,12 +8228,3 @@ Mod:new {
         Debug.Print("Mongbat Initialized")
     end
 }:onInitialize()
-
-Components.Window {
-    name = "Test",
-    events = {
-        OnInitialize = function (self)
-            Debug.Print("Test Window Initialized")
-        end
-    }
-}:create(true)

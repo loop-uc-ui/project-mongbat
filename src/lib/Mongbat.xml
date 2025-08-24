@@ -41,10 +41,10 @@
         </EditBox>
 
         <Window name="MongbatWindow" movable="true">
+            <EventHandlers>
+                <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+            </EventHandlers>
             <Windows>
-                <EventHandlers>
-                    <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
-                </EventHandlers>
                 <!-- Body background -->
                 <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
                     <Anchors>
