@@ -461,60 +461,6 @@ local DefaultUIClasses = {
     ---@field TargetByObjectIdOK fun() Handles OK for target by object ID
     ---@field RequestTargetInfoReceived fun() Handles received target info
 
-    ---@class Actions
-    ---@field WarMode integer War mode state
-    ---@field nxt integer Next target index
-    ---@field MassOrganize boolean Whether mass organize is active
-    ---@field VacuumObjects table|nil Objects to vacuum for mass organize
-    ---@field DefaultRecordID integer|nil Default record ID for targeting
-    ---@field AutoLoadShurikens boolean Whether auto-load shurikens is active
-    ---@field BeltMenuRequest integer|nil Belt menu request ID
-    ---@field Nextshuri number Next shuriken timer
-    ---@field Undress boolean Whether undress is active
-    ---@field OrganizeBag integer|nil Organize bag ID
-    ---@field OrganizeParent integer|nil Organize parent ID
-    ---@field UndressItems table|nil Items to undress
-    ---@field itemQuantities table|nil Item quantities by type
-    ---@field AllItems table|nil All item IDs
-    ---@field ActionEditRequest table|nil Action edit request data
-    ---@field InjuredFollower fun() Targets the most injured follower
-    ---@field InjuredParty fun() Targets the most injured party member
-    ---@field InjuredMobile fun() Targets the most injured mobile
-    ---@field MassOrganizerStart fun() Starts mass organizer
-    ---@field MassOrganizer fun(timePassed: number) Handles mass organizer logic
-    ---@field AutoLoadShuri fun() Auto-loads shuriken
-    ---@field Shuriken fun(timePassed: number) Handles shuriken logic
-    ---@field DressHolding fun() Dresses holding item
-    ---@field DropHolding fun() Drops holding item
-    ---@field ToggleTrapBox fun() Toggles trap box
-    ---@field TrapboxTargetReceived fun() Handles trap box target received
-    ---@field ToggleLootbag fun() Toggles loot bag
-    ---@field LootbagTargetReceived fun() Handles loot bag target received
-    ---@field ToggleAlphaMode fun() Toggles alpha mode
-    ---@field ToggleScaleMode fun() Toggles scale mode
-    ---@field ObjectHandleContextMenu fun() Opens object handle context menu
-    ---@field ObjectHandleContextMenuCallback fun(returnCode: any, param: any) Handles object handle context menu callback
-    ---@field ObjectHandleSetFilter fun(j: integer, newval: any) Sets object handle filter
-    ---@field GetHealthbar fun() Gets health bar
-    ---@field GetTypeID fun() Gets type ID
-    ---@field ItemIDRequestTargetInfoReceived fun() Handles item ID request target info received
-    ---@field GetHueID fun() Gets hue ID
-    ---@field ColorRequestTargetInfoReceived fun() Handles color request target info received
-    ---@field IgnoreTargettedItem fun() Ignores targeted item
-    ---@field IgnoreItemRequestTargetInfoReceived fun() Handles ignore item request target info received
-    ---@field ClearIgnoreList fun() Clears ignore list
-    ---@field ToggleBlockPaperdolls fun() Toggles block paperdolls
-    ---@field UndressMe fun() Initiates undress
-    ---@field UndressTargetInfoReceived fun() Handles undress target info received
-    ---@field UndressAgent fun(timePassed: number) Handles undress agent logic
-    ---@field ImbueLast fun() Imbues last item
-    ---@field UnravelItem fun() Unravels item
-    ---@field EnhanceItem fun() Enhances item
-    ---@field SmeltItem fun() Smelts item
-    ---@field AlterItem fun() Alters item
-    ---@field MakeLast fun() Makes last item
-    ---@field RepairItem fun() Repairs item
-
     ---@class ActionsWindow
     ---@field DefaultTypes integer Number of default action types
     ---@field ActionData table Table of action data
@@ -5490,8 +5436,11 @@ end
 function Api.Window.ToggleWindow(windowName)
     if not Api.Window.DoesExist(windowName) then
         return Api.Window.Create(windowName, true)
+    else
+        local state = not Api.Window.IsShowing(windowName)
+        Api.Window.SetShowing(windowName, state)
+        return state
     end
-    return true
 end
 
 ---
@@ -6468,16 +6417,6 @@ end
 
 
 -- ========================================================================== --
--- Gump
--- ========================================================================== --
-
----@class GumpItem
----@field tid integer
----@field windowName string
----@field id integer
-
-
--- ========================================================================== --
 -- Data - Health Bar Color
 -- ========================================================================== --
 
@@ -6988,45 +6927,6 @@ function Component:getName()
     return self.name
 end
 
--- ========================================================================== --
--- UI - Default Component
--- ========================================================================== --
-
-
----@class DefaultComponent : Component
----@field private _getDefault fun(): Component
-local DefaultComponent = {}
-DefaultComponent.__index = DefaultComponent
-setmetatable(DefaultComponent, { __index = Component})
-
----@param name string
----@param getDefault fun(): table
----@return DefaultComponent
-function DefaultComponent:new(name, getDefault)
-    local instance = Component.new(self, name) --[[@as DefaultComponent]]
-    instance._getDefault = getDefault
-    return instance
-end
-
-function DefaultComponent:getDefault()
-    return Component:new(self.name)
-end
-
-function DefaultComponent:getDefaultFunction(functionName)
-    local d = self:getDefault()
-    return d[functionName] or function(...) end
-end
-
----@param functionName string
----@param func fun(self: Component, ...: any)
-function DefaultComponent:appendToFunction(functionName, func)
-    local d = self:getDefault()
-    local originalFunction = d[functionName] or function() end
-    d[functionName] = function(...)
-        originalFunction(...)
-        func(d, ...)
-    end
-end
 
 -- ========================================================================== --
 -- UI - View
@@ -8040,6 +7940,11 @@ end
 -- UI - Gump Window
 -- ========================================================================== --
 
+---@class GumpItem
+---@field tid integer
+---@field windowName string
+---@field id integer
+
 ---@class GumpWindowModel : WindowModel
 ---@field windowName string
 ---@field TextEntry string[]?
@@ -8135,6 +8040,220 @@ function Components.Gump(name)
     end
 end
 
+
+-- ========================================================================== --
+-- UI - Default Component
+-- ========================================================================== --
+
+
+---@class DefaultComponent : Component
+local DefaultComponent = {}
+DefaultComponent.__index = DefaultComponent
+setmetatable(DefaultComponent, { __index = Component})
+
+---@param name string
+---@return DefaultComponent
+function DefaultComponent:new(name)
+    local instance = Component.new(self, name) --[[@as DefaultComponent]]
+    return instance
+end
+
+function DefaultComponent:getDefault()
+    return Component:new(self.name)
+end
+
+function DefaultComponent:asComponent()
+    return Component:new(self.name)
+end
+
+---@param functionName string
+---@param func fun(self: Component, ...: any)
+function DefaultComponent:appendToFunction(functionName, func)
+    local d = self:getDefault()
+    local originalFunction = d[functionName] or function() end
+    d[functionName] = function(...)
+        originalFunction(...)
+        func(d, ...)
+    end
+end
+
+Components.Defaults = {}
+
+--- @class Actions
+--- @field WarMode integer
+--- @field nxt integer
+--- @field MassOrganize boolean
+--- @field VacuumObjects table|nil
+--- @field AutoLoadShurikens boolean
+--- @field BeltMenuRequest any
+--- @field Nextshuri number
+--- @field DefaultRecordID integer|nil
+--- @field itemQuantities table|nil
+--- @field AllItems table|nil
+--- @field Undress boolean|nil
+--- @field OrganizeBag integer|nil
+--- @field OrganizeParent integer|nil
+--- @field UndressItems table|nil
+--- @field ToggleMainMenu fun()
+--- @field ToggleWarMode fun()
+--- @field ToggleInventoryWindow fun()
+--- @field ToggleMapWindow fun()
+--- @field ToggleGuildWindow fun()
+--- @field ToggleChatWindow fun()
+--- @field ToggleSkillsWindow fun()
+--- @field ToggleVirtuesWindow fun()
+--- @field ToggleQuestWindow fun()
+--- @field ToggleHelpWindow fun()
+--- @field ToggleUOStoreWindow fun()
+--- @field TogglePaperdollWindow fun()
+--- @field ToggleFoliage fun()
+--- @field ToggleSound fun()
+--- @field ToggleSoundEffects fun()
+--- @field ToggleMusic fun()
+--- @field ToggleFootsteps fun()
+--- @field ToggleCharacterSheet fun(noloyalty:any)
+--- @field ToggleCharacterAbilities fun()
+--- @field IgnorePlayer fun()
+--- @field Ignore fun()
+--- @field ToggleUserSettings fun()
+--- @field ToggleActions fun()
+--- @field ToggleMacros fun()
+--- @field PrevTarget fun()
+--- @field SearchValidPrevTarget fun():table|nil
+--- @field NextTarget fun()
+--- @field TargetAllowed fun(mobileId:integer):boolean
+--- @field IsMobileVisible fun(mobileId:integer):boolean
+--- @field NearTarget fun()
+--- @field InjuredFollower fun()
+--- @field InjuredParty fun()
+--- @field InjuredMobile fun()
+--- @field TargetFirstContainerObject fun()
+--- @field TargetType fun()
+--- @field TypeRequestTargetInfoReceived fun()
+--- @field TargetByType fun(type:integer, hue:integer)
+--- @field ScanQuantities fun()
+--- @field ScanSubCont fun(id:integer):boolean
+--- @field TargetDefaultPet fun(id:integer)
+--- @field SetDefaultPet fun()
+--- @field TargetDefaultItem fun(id:integer)
+--- @field SetDefaultItem fun()
+--- @field TargetPetball fun()
+--- @field PetballRequestTargetInfoReceived fun()
+--- @field TargetMount fun()
+--- @field MountRequestTargetInfoReceived fun()
+--- @field ToggleLegacyContainers fun()
+--- @field IgnoreActionSelf fun()
+--- @field EnablePVPWarning fun()
+--- @field ReleaseCoownership fun()
+--- @field LeaveHouse fun()
+--- @field QuestConversation fun()
+--- @field ViewQuestLog fun()
+--- @field CancelQuest fun()
+--- @field QuestItem fun()
+--- @field InsuranceMenu fun()
+--- @field ToggleItemInsurance fun()
+--- @field TitlesMenu fun()
+--- @field LoyaltyRating fun()
+--- @field CancelProtection fun()
+--- @field VoidPool fun()
+--- @field ToggleTrades fun()
+--- @field SiegeBlessItem fun()
+--- @field ExportContainerItems fun()
+--- @field RequestContItems fun()
+--- @field ToggleEnglishNames fun()
+--- @field CloseAllContainers fun()
+--- @field CloseAllCorpses fun()
+--- @field MassOrganizerStart fun()
+--- @field MassOrganizer fun(timePassed:number)
+--- @field LoadShuri fun()
+--- @field Shuriken fun(timePassed:number)
+--- @field AutoLoadShuri fun()
+--- @field DressHolding fun()
+--- @field DropHolding fun()
+--- @field ToggleTrapBox fun()
+--- @field TrapboxTargetReceived fun()
+--- @field ToggleLootbag fun()
+--- @field LootbagTargetReceived fun()
+--- @field ToggleAlphaMode fun()
+--- @field ToggleScaleMode fun()
+--- @field ObjectHandleContextMenu fun()
+--- @field ObjectHandleContextMenuCallback fun(returnCode:any, param:any)
+--- @field ObjectHandleSetFilter fun(j:integer, newval:any)
+--- @field GetHealthbar fun()
+--- @field GetTypeID fun()
+--- @field ItemIDRequestTargetInfoReceived fun()
+--- @field GetHueID fun()
+--- @field ColorRequestTargetInfoReceived fun()
+--- @field IgnoreTargettedItem fun()
+--- @field IgnoreItemRequestTargetInfoReceived fun()
+--- @field ClearIgnoreList fun()
+--- @field ToggleBlockPaperdolls fun()
+--- @field UndressMe fun()
+--- @field UndressTargetInfoReceived fun()
+--- @field UndressAgent fun(timePassed:number)
+--- @field ImbueLast fun()
+--- @field UnravelItem fun()
+--- @field EnhanceItem fun()
+--- @field SmeltItem fun()
+--- @field AlterItem fun()
+--- @field MakeLast fun()
+--- @field RepairItem fun()
+
+---@class ActionsWrapper : DefaultComponent
+local ActionsWrapper = {}
+ActionsWrapper.__index = ActionsWrapper
+setmetatable(ActionsWrapper, { __index = DefaultComponent })
+
+---@return ActionsWrapper
+function ActionsWrapper:new()
+    local instance = DefaultComponent.new(self, "Actions") --[[@as ActionsWrapper]]
+    return instance
+end
+
+---@return Actions
+function ActionsWrapper:getDefault()
+    return Actions
+end
+
+--- @class MainMenuWindow
+--- @field TID table
+--- @field Initialize fun():void
+--- @field Shutdown fun():void
+--- @field OnLogOut fun():void
+--- @field OnOpenUserSettings fun():void
+--- @field OnOpenMacros fun():void
+--- @field OnOpenActions fun():void
+--- @field OnOpenBugReportItem fun():void
+--- @field OnOpenHelp fun():void
+--- @field OnOpenUOStore fun():void
+--- @field ToggleSettingsWindow fun():void
+--- @field ToggleBugReportWindow fun():void
+--- @field OnToggleAgentsSettings fun():void
+
+---@class MainMenuWindowWrapper : DefaultComponent
+local MainMenuWindowWrapper = {}
+MainMenuWindowWrapper.__index = MainMenuWindowWrapper
+setmetatable(MainMenuWindowWrapper, { __index = DefaultComponent })
+
+---@return MainMenuWindowWrapper
+function MainMenuWindowWrapper:new()
+    local instance = DefaultComponent.new(self, "MainMenuWindow") --[[@as MainMenuWindowWrapper]]
+    return instance
+end
+
+---@return MainMenuWindow
+function MainMenuWindowWrapper:getDefault()
+    return MainMenuWindow
+end
+
+---@return Window
+function MainMenuWindowWrapper:asComponent()
+    return Components.Window { Name = self.name }
+end
+
+Components.Defaults.Actions = ActionsWrapper:new()
+Components.Defaults.MainMenuWindow = MainMenuWindowWrapper:new()
+
 -- ========================================================================== --
 -- Mod
 -- ========================================================================== --
@@ -8221,7 +8340,7 @@ Mod:new {
     Name = "Mongbat",
     Path = "/src/lib",
     Files = {
-        "MongbatTextures.xml",
+        "/textures/MongbatTextures.xml",
         "Mongbat.xml"
     },
     OnInitialize = function (_)
