@@ -4102,6 +4102,22 @@ function Api.Event.Broadcast(event)
     BroadcastEvent(event)
 end
 
+function Api.Event.OpenHelpMenu()
+    Api.Event.Broadcast(SystemData.Events.REQUEST_OPEN_HELP_MENU)
+end
+
+function Api.Event.OpenStore()
+    Api.Event.Broadcast(SystemData.Events.UO_STORE_REQUEST)
+end
+
+function Api.Event.Logout()
+    Api.Event.Broadcast(SystemData.Events.LOG_OUT)
+end
+
+function Api.Event.ExitGame()
+    Api.Event.Broadcast(SystemData.Events.EXIT_GAME)
+end
+
 -- ========================================================================== --
 -- Api - Gump
 -- ========================================================================== --
@@ -5084,7 +5100,11 @@ end
 
 Api.Window = {}
 
----
+
+function Api.Window.GetState(windowName)
+    return WindowGetState(windowName)
+end
+
 --- Destroys a window.
 ---@param windowName string The name of the window to destroy.
 ---@return boolean Whether the window was destroyed.
@@ -8213,6 +8233,10 @@ end
 ---@return Actions
 function ActionsWrapper:getDefault()
     return Actions
+end
+
+function ActionsWrapper:asComponent()
+    return self:getDefault()
 end
 
 --- @class MainMenuWindow

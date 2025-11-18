@@ -27,7 +27,7 @@ local Window = function (context)
                     context,
                     3000128,
                     function ()
-                        EventApi.broadcast(Events.logOut())
+                        context.Api.Event.Logout()
                     end,
                     ---@param button Button
                     function (button)
@@ -38,26 +38,22 @@ local Window = function (context)
                     context,
                     1077859,
                     function ()
-                        InterfaceCore.OnExitGame()
+                        context.Api.Event.ExitGame()
                     end
                 ),
                 Button(
                     context,
                     L"Settings",
                     function ()
-                        if self:doesExist() then
-                            ToggleWindowByName("SettingsWindow", "")
-                            self:setShowing(false)
-                        else
-                            ToggleWindowByName("SettingsWindow", "")
-                        end
+                        context.Api.Window.ToggleWindow("SettingsWindow")
+                        self:setShowing(false)
                     end
                 ),
                 Button(
                     context,
                     L"Store",
                     function ()
-                        EventApi.broadcast(Events.store())
+                        context.Api.Event.OpenStore()
                         self:setShowing(false)
                     end
                 ),
@@ -65,7 +61,7 @@ local Window = function (context)
                     context,
                     L"Agents",
                     function ()
-                        ToggleWindowByName("OrganizerWindow", "")
+                        context.Api.Window.ToggleWindow("OrganizerWindow")
                         self:setShowing(false)
                     end
                 ),
@@ -73,7 +69,7 @@ local Window = function (context)
                     context,
                     3000172,
                     function ()
-                        ToggleWindowByName("MacroWindow", "")
+                        context.Api.Window.ToggleWindow("MacroWindow")
                         self:setShowing(false)
                     end
                 ),
@@ -81,7 +77,7 @@ local Window = function (context)
                     context,
                     1079812,
                     function ()
-                        ToggleWindowByName("ActionsWindow", "")
+                        context.Api.Window.ToggleWindow("ActionsWindow")
                         self:setShowing(false)
                     end
                 ),
@@ -89,8 +85,7 @@ local Window = function (context)
                     context,
                     1061037,
                     function ()
-                        context.Api.Event.Broadcast(Events.help())
-                        EventApi.broadcast(Events.help())
+                        context.Api.Event.OpenHelpMenu()
                         self:setShowing(false)
                     end
                 ),
@@ -98,7 +93,7 @@ local Window = function (context)
                     context,
                     L"Debug",
                     function ()
-                        ToggleWindowByName("DebugWindow", "")
+                        context.Api.Window.ToggleWindow("DebugWindow")
                         self:setShowing(false)
                     end
                 )
