@@ -4348,9 +4348,9 @@ end
 --- Adds a log to a log display.
 ---@param name string The name of the log display.
 ---@param log string The log to add.
----@param bool boolean A boolean value.
-function Api.LogDisplay.AddLog(name, log, bool)
-    LogDisplayAddLog(name, log, bool == nil or bool)
+---@param displayPreviousEntries boolean? Whether to display previous entries.
+function Api.LogDisplay.AddLog(name, log, displayPreviousEntries)
+    LogDisplayAddLog(name, log, displayPreviousEntries == nil or displayPreviousEntries)
 end
 
 ---
@@ -4376,9 +4376,9 @@ end
 ---@param name string The name of the log display.
 ---@param log string The log to set the state for.
 ---@param filterId number The ID of the filter.
----@param filter any The filter to set.
-function Api.LogDisplay.SetFilterState(name, log, filterId, filter)
-    LogDisplaySetFilterState(name, log, filterId, filter)
+---@param isEnabled boolean Whether the filter is enabled.
+function Api.LogDisplay.SetFilterState(name, log, filterId, isEnabled)
+    LogDisplaySetFilterState(name, log, filterId, isEnabled)
 end
 
 ---
@@ -7892,6 +7892,81 @@ function Components.Label(model)
     local label = Label:new(model)
     Windows[label:getName()] = label
     return label
+end
+
+-- ========================================================================== --
+-- UI - Log Display
+-- ========================================================================== --
+
+---@class LogDisplayModel : ViewModel
+---@field OnInitialize fun(self: LogDisplay)?
+---@field OnLButtonUp fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: LogDisplay)?
+---@field OnHidden fun(self: LogDisplay)?
+---@field OnShown fun(self: LogDisplay)?
+---@field OnLButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: LogDisplay, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: LogDisplay, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: LogDisplay)?
+---@field OnMouseOverEnd fun(self: LogDisplay)?
+---@field OnMouseDrag fun(self: LogDisplay)?
+---@field OnUpdatePlayerStatus fun(self: LogDisplay, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: LogDisplay, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: LogDisplay, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: LogDisplay)?
+
+---@class LogDisplay: View
+local LogDisplay = {}
+LogDisplay.__index = LogDisplay
+setmetatable(LogDisplay, { __index = View })
+
+---@param model LogDisplayModel?
+---@return LogDisplay
+function LogDisplay:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatLogDisplay"
+    local instance = View.new(self, model)
+    return instance --[[@as LogDisplay]]
+end
+
+function LogDisplay:showTimestamp(showTimestamp)
+    Api.LogDisplay.ShowTimestamp(self:getName(), showTimestamp)
+    return self
+end
+
+function LogDisplay:showLogName(showLogName)
+    Api.LogDisplay.ShowLogName(self:getName(), showLogName)
+    return self
+end
+
+function LogDisplay:showFilterName(showFilterName)
+    Api.LogDisplay.ShowFilterName(self:getName(), showFilterName)
+    return self
+end
+
+function LogDisplay:setFilterState(logName, filterId, isEnabled)
+    Api.LogDisplay.SetFilterState(self:getName(), logName, filterId, isEnabled)
+    return self
+end
+
+---Registers the log to the log display
+---@param logName string
+---@param displayPreviousEntries boolean?
+---@return LogDisplay
+function LogDisplay:addLog(logName, displayPreviousEntries)
+    Api.LogDisplay.AddLog(self:getName(), logName, displayPreviousEntries)
+    return self
+end
+
+---@param model LogDisplayModel?
+---@return LogDisplay
+function Components.LogDisplay(model)
+    local logDisplay = LogDisplay:new(model)
+    Windows[logDisplay:getName()] = logDisplay
+    return logDisplay
 end
 
 -- ========================================================================== --

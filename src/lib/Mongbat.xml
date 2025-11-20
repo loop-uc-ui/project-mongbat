@@ -1,5 +1,12 @@
 <Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../Interface.xsd">
     <Windows>
+        <VerticalScrollbar name="MongbatVertScroll" up="StandardVertScrollUpBtn" down="StandardVertScrollDownBtn" thumb="StandardVertScrollThumb" gutter="StandardVertScrollGutter" >
+			<Size>
+				<AbsPoint x="20" y="0" />
+			</Size>
+			<ThumbOffset x="1" y="1" />
+		</VerticalScrollbar>
+
         <HorizontalResizeImage name="StatusBarForground" texture="StatusBar" texturescale="2.0" alpha="0.7">
 			<Size>
 				<AbsPoint x="168" y="24" />
@@ -39,6 +46,27 @@
                 <AbsPoint x="54" y="18" />
             </Size>
         </EditBox>
+
+        <LogDisplay name="MongbatLogDisplay" font="inter_medium_18" scrollbar="$parentScrollbar">
+            <Anchors>
+                <Anchor point="topleft" relativePoint="topleft">
+                    <AbsPoint x="20" y="40" />
+                </Anchor>
+                <Anchor point="bottomright" relativePoint="bottomright">
+                    <AbsPoint x="-15" y="-20" />
+                </Anchor>
+            </Anchors>
+            <Windows>
+                <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll">
+                    <Anchors>
+                        <Anchor point="topright" relativePoint="topleft">
+                            <AbsPoint x="-10" y="0" />
+                        </Anchor>
+                        <Anchor point="bottomright" relativePoint="bottomright" />
+                    </Anchors>
+                </VerticalScrollbar>
+            </Windows>
+        </LogDisplay>
 
         <Window name="MongbatWindow" movable="true">
             <EventHandlers>

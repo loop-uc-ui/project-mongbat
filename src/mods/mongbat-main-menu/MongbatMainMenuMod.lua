@@ -17,7 +17,7 @@ end
 ---@param context Context
 local Window = function (context)
     return context.Components.Window {
-        Name = "MongbatMainMenuWindow",
+        Name = "MainMenuWindow",
         ---@param self Window
         OnInitialize = function (self)
             self:setDimensions(214, 440)
@@ -110,11 +110,7 @@ MongbatMainMenuMod = Mongbat.Mod {
     Name = "MongbatMainMenu",
     Path = "/src/mods/mongbat-main-menu",
     OnInitialize = function (context)
-        local window = Window(context)
-        context.Components.Defaults.Actions:getDefault().ToggleMainMenu = function ()
-            context.Api.Window.ToggleWindow(window.name)
-        end
         context.Components.Defaults.MainMenuWindow:asComponent():destroy()
-        window:create(false)
+        Window(context):create(false)
     end
 }
