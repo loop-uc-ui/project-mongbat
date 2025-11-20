@@ -3522,6 +3522,66 @@ local Context = {
 }
 
 -- ========================================================================== --
+-- Global Overrides
+-- ========================================================================== --
+
+--[[
+    In order to reduce errors as we override parts of the default UI, we override
+    certain global functions to add safety checks.
+]]--
+
+-- Save the original function
+local old_WindowGetShowing = WindowGetShowing
+
+-- Override the global
+function WindowGetShowing(windowName)
+    if not Api.Window.DoesExist(windowName) then
+        return false
+    end
+    return old_WindowGetShowing(windowName)
+end
+
+-- Save the original function
+local old_WindowSetShowing = WindowSetShowing
+
+-- Override the global
+function WindowSetShowing(windowName, show)
+    if Api.Window.DoesExist(windowName) then
+        old_WindowSetShowing(windowName, show)
+    end
+end
+
+-- Save the original function
+local old_LabelSetText = LabelSetText
+
+-- Override the global
+function LabelSetText(labelName, text)
+    if Api.Window.DoesExist(labelName) then
+        old_LabelSetText(labelName, text)
+    end
+end
+
+-- Save the original function
+local old_CircleImageSetTextureScale = CircleImageSetTextureScale
+
+-- Override the global
+function CircleImageSetTextureScale(imageName, scale)
+    if Api.Window.DoesExist(imageName) then
+         old_CircleImageSetTextureScale(imageName, scale)
+    end
+end
+
+-- Save the original function
+local old_CircleImageSetTexture = CircleImageSetTexture
+
+-- Override the global
+function CircleImageSetTexture(imageName, texture, x, y)
+    if Api.Window.DoesExist(imageName) then
+        old_CircleImageSetTexture(imageName, texture, x, y)
+    end
+end
+
+-- ========================================================================== --
 -- Api - Ability
 -- ========================================================================== --
 
@@ -7518,22 +7578,21 @@ function Window:onLButtonDown(flags, x, y)
 end
 
 function Window:onRButtonUp(flags, x, y)
-    if self:isParentRoot() and self._model.OnRButtonUp == nil then
-        self:destroy()
-        return
-    end
+    if self._model.OnRButtonUp ~= nil then
+        self._model.OnRButtonUp(self, flags, x, y)
 
-    View.onRButtonUp(self, flags, x, y)
+        local child = Utils.Array.Find(
+            self._children,
+            function (item)
+                return item:getName() == Active.window()
+            end
+        )
 
-    local child = Utils.Array.Find(
-        self._children,
-        function (item)
-            return item:getName() == Active.window()
+        if child ~= nil then
+            child:onRButtonUp(flags, x, y)
         end
-    )
-
-    if child ~= nil then
-        child:onRButtonUp(flags, x, y)
+    elseif self:isParentRoot() then
+        self:destroy()
     end
 end
 
@@ -8316,18 +8375,18 @@ end
 
 --- @class MainMenuWindow
 --- @field TID table
---- @field Initialize fun():void
---- @field Shutdown fun():void
---- @field OnLogOut fun():void
---- @field OnOpenUserSettings fun():void
---- @field OnOpenMacros fun():void
---- @field OnOpenActions fun():void
---- @field OnOpenBugReportItem fun():void
---- @field OnOpenHelp fun():void
---- @field OnOpenUOStore fun():void
---- @field ToggleSettingsWindow fun():void
---- @field ToggleBugReportWindow fun():void
---- @field OnToggleAgentsSettings fun():void
+--- @field Initialize fun()
+--- @field Shutdown fun()
+--- @field OnLogOut fun()
+--- @field OnOpenUserSettings fun()
+--- @field OnOpenMacros fun()
+--- @field OnOpenActions fun()
+--- @field OnOpenBugReportItem fun()
+--- @field OnOpenHelp fun()
+--- @field OnOpenUOStore fun()
+--- @field ToggleSettingsWindow fun()
+--- @field ToggleBugReportWindow fun()
+--- @field OnToggleAgentsSettings fun()
 
 ---@class MainMenuWindowWrapper : DefaultComponent
 local MainMenuWindowWrapper = {}
@@ -8350,8 +8409,94 @@ function MainMenuWindowWrapper:asComponent()
     return Components.Window { Name = self.name }
 end
 
+--- @class StatusWindow
+--- @field CurPlayerId integer
+--- @field Skills table
+--- @field Notoriety table
+--- @field TextColors table
+--- @field Locked boolean
+--- @field HPLocked boolean
+--- @field MANALocked boolean
+--- @field STAMLocked boolean
+--- @field DisableDelta number
+--- @field TempDisabled boolean
+--- @field TCToolsHandle boolean
+--- @field MPHeight integer
+--- @field MPWidth integer
+--- @field LastMPHeight integer
+--- @field HPHeight integer
+--- @field HPWidth integer
+--- @field LastHPHeight integer
+--- @field Initialize fun(reinit:any)
+--- @field Shutdown fun()
+--- @field Latency_OnMouseOver fun()
+--- @field LockTooltip fun()
+--- @field Lock fun()
+--- @field LockTooltipHP fun()
+--- @field LockHP fun()
+--- @field LockTooltipMANA fun()
+--- @field LockMANA fun()
+--- @field LockTooltipSTAM fun()
+--- @field LockSTAM fun()
+--- @field MenuTooltip fun()
+--- @field Menu fun()
+--- @field UpdateLatency fun()
+--- @field ClickOutside fun()
+--- @field EnableInput fun(timePassed:number)
+--- @field UpdateStatus fun()
+--- @field OnLButtonUp fun()
+--- @field OnLButtonDown fun()
+--- @field OnHPLButtonUp fun()
+--- @field OnHPLButtonDown fun()
+--- @field OnMLANAButtonUp fun()
+--- @field OnMANALButtonDown fun()
+--- @field OnSTAMLButtonUp fun()
+--- @field OnSTAMLButtonDown fun()
+--- @field GuardsButton_OnLButtonUp fun()
+--- @field GuardsButton_OnMouseOver fun()
+--- @field OnRButtonUp fun()
+--- @field UpdateLabelContent fun()
+--- @field OnMouseOver fun()
+--- @field OnMouseOverEnd fun()
+--- @field ToggleStrLabel fun()
+--- @field OnMouseDlbClk fun()
+--- @field TCTools fun()
+--- @field TCContextMenuCallback fun(returnCode:any, param:any)
+--- @field EditSkill fun(id:any, value:any, max:any, min:any)
+--- @field EditStr fun(id:any, value:any, max:any, min:any)
+--- @field TCToolsTooltip fun()
+--- @field TCToolsOver fun()
+--- @field TCToolsOnLButtonDown fun()
+--- @field TCToolsOverend fun()
+--- @field SetMana fun(current:number, maximum:number)
+--- @field SetHealth fun(current:number, maximum:number)
+--- @field ChangeStyle fun(style:any)
+--- @field ToggleButtons fun()
+
+---@class StatusWindowWrapper : DefaultComponent
+local StatusWindowWrapper = {}
+StatusWindowWrapper.__index = StatusWindowWrapper
+setmetatable(StatusWindowWrapper, { __index = DefaultComponent })
+
+---@return StatusWindowWrapper
+function StatusWindowWrapper:new()
+    local instance = DefaultComponent.new(self, "StatusWindow") --[[@as StatusWindowWrapper]]
+    return instance
+end
+
+---@return StatusWindow
+function StatusWindowWrapper:getDefault()
+    return StatusWindow
+end
+
+---@return Window
+function StatusWindowWrapper:asComponent()
+    return Components.Window { Name = self.name }
+end
+
 Components.Defaults.Actions = ActionsWrapper:new()
 Components.Defaults.MainMenuWindow = MainMenuWindowWrapper:new()
+Components.Defaults.StatusWindow = StatusWindowWrapper:new()
 
 -- ========================================================================== --
 -- Mod
@@ -8439,7 +8584,6 @@ Mod:new {
     Name = "Mongbat",
     Path = "/src/lib",
     Files = {
-        "/textures/MongbatTextures.xml",
         "Mongbat.xml"
     },
     OnInitialize = function (_)
