@@ -6878,10 +6878,8 @@ function Data.PlayerStatus()
     return PlayerStatus:new()
 end
 
-
-
 -- ========================================================================== --
--- UI - Event Handler
+-- Components
 -- ========================================================================== --
 
 local Active = {}
@@ -6890,10 +6888,711 @@ function Active.window()
     return SystemData.ActiveWindow.name
 end
 
+Components.Defaults = {}
+
 local EventHandler = {}
 
 ---@type table<string, EventReceiver>
 local Windows = {}
+
+---@class ButtonModel : WindowModel
+---@field OnInitialize fun(self: Button)?
+---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: Button)?
+---@field OnHidden fun(self: Button)?
+---@field OnShown fun(self: Button)?
+---@field OnLButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: Button, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: Button, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: Button, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: Button)?
+---@field OnMouseOverEnd fun(self: Button)?
+---@field OnMouseDrag fun(self: Button)?
+---@field OnUpdatePlayerStatus fun(self: Button, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: Button, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Button, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: Button)?
+
+---@class Button: Window
+local Button = {}
+Button.__index = Button
+
+---@class ButtonBuilder : WindowBuilder
+---@field _model ButtonModel
+---@field onInitialize fun(self: ButtonBuilder, onInitialize: fun(self: Button)): ButtonBuilder
+---@field onLButtonUp fun(self: ButtonBuilder, onLButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onRButtonUp fun(self: ButtonBuilder, onRButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onShutdown fun(self: ButtonBuilder, onShutdown: fun(self: Button)): ButtonBuilder
+---@field onHidden fun(self: ButtonBuilder, onHidden: fun(self: Button)): ButtonBuilder
+---@field onShown fun(self: ButtonBuilder, onShown: fun(self: Button)): ButtonBuilder
+---@field onLButtonDown fun(self: ButtonBuilder, onLButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onRButtonDown fun(self: ButtonBuilder, onRButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onUpdate fun(self: ButtonBuilder, onUpdate: fun(self: Button, timePassed: integer)): ButtonBuilder
+---@field onUpdateMobileName fun(self: ButtonBuilder, onUpdateMobileName: fun(self: Button, windowData: MobileNameWrapper)): ButtonBuilder
+---@field onLButtonDblClk fun(self: ButtonBuilder, onLButtonDblClk: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onMouseOver fun(self: ButtonBuilder, onMouseOver: fun(self: Button)): ButtonBuilder
+---@field onMouseOverEnd fun(self: ButtonBuilder, onMouseOverEnd: fun(self: Button)): ButtonBuilder
+---@field onMouseDrag fun(self: ButtonBuilder, onMouseDrag: fun(self: Button)): ButtonBuilder
+---@field onUpdatePlayerStatus fun(self: ButtonBuilder, onUpdatePlayerStatus: fun(self: Button, playerStatus: PlayerStatusWrapper)): ButtonBuilder
+---@field onUpdateMobileStatus fun(self: ButtonBuilder, onUpdateMobileStatus: fun(self: Button, mobileStatus: MobileStatusWrapper)): ButtonBuilder
+---@field onUpdateHealthBarColor fun(self: ButtonBuilder, onUpdateHealthBarColor: fun(self: Button, healthBarColor: HealthBarColorWrapper)): ButtonBuilder
+---@field onEndHealthBarDrag fun(self: ButtonBuilder, onEndHealthBarDrag: fun(self: Button)): ButtonBuilder
+local ButtonBuilder = {}
+ButtonBuilder.__index = ButtonBuilder
+
+---@class DefaultComponent : Component
+local DefaultComponent = {}
+DefaultComponent.__index = DefaultComponent
+
+--- @class DefaultActions
+--- @field WarMode integer
+--- @field nxt integer
+--- @field MassOrganize boolean
+--- @field VacuumObjects table|nil
+--- @field AutoLoadShurikens boolean
+--- @field BeltMenuRequest any
+--- @field Nextshuri number
+--- @field DefaultRecordID integer|nil
+--- @field itemQuantities table|nil
+--- @field AllItems table|nil
+--- @field Undress boolean|nil
+--- @field OrganizeBag integer|nil
+--- @field OrganizeParent integer|nil
+--- @field UndressItems table|nil
+--- @field ToggleMainMenu fun()
+--- @field ToggleWarMode fun()
+--- @field ToggleInventoryWindow fun()
+--- @field ToggleMapWindow fun()
+--- @field ToggleGuildWindow fun()
+--- @field ToggleChatWindow fun()
+--- @field ToggleSkillsWindow fun()
+--- @field ToggleVirtuesWindow fun()
+--- @field ToggleQuestWindow fun()
+--- @field ToggleHelpWindow fun()
+--- @field ToggleUOStoreWindow fun()
+--- @field TogglePaperdollWindow fun()
+--- @field ToggleFoliage fun()
+--- @field ToggleSound fun()
+--- @field ToggleSoundEffects fun()
+--- @field ToggleMusic fun()
+--- @field ToggleFootsteps fun()
+--- @field ToggleCharacterSheet fun(noloyalty:any)
+--- @field ToggleCharacterAbilities fun()
+--- @field IgnorePlayer fun()
+--- @field Ignore fun()
+--- @field ToggleUserSettings fun()
+--- @field ToggleActions fun()
+--- @field ToggleMacros fun()
+--- @field PrevTarget fun()
+--- @field SearchValidPrevTarget fun():table|nil
+--- @field NextTarget fun()
+--- @field TargetAllowed fun(mobileId:integer):boolean
+--- @field IsMobileVisible fun(mobileId:integer):boolean
+--- @field NearTarget fun()
+--- @field InjuredFollower fun()
+--- @field InjuredParty fun()
+--- @field InjuredMobile fun()
+--- @field TargetFirstContainerObject fun()
+--- @field TargetType fun()
+--- @field TypeRequestTargetInfoReceived fun()
+--- @field TargetByType fun(type:integer, hue:integer)
+--- @field ScanQuantities fun()
+--- @field ScanSubCont fun(id:integer):boolean
+--- @field TargetDefaultPet fun(id:integer)
+--- @field SetDefaultPet fun()
+--- @field TargetDefaultItem fun(id:integer)
+--- @field SetDefaultItem fun()
+--- @field TargetPetball fun()
+--- @field PetballRequestTargetInfoReceived fun()
+--- @field TargetMount fun()
+--- @field MountRequestTargetInfoReceived fun()
+--- @field ToggleLegacyContainers fun()
+--- @field IgnoreActionSelf fun()
+--- @field EnablePVPWarning fun()
+--- @field ReleaseCoownership fun()
+--- @field LeaveHouse fun()
+--- @field QuestConversation fun()
+--- @field ViewQuestLog fun()
+--- @field CancelQuest fun()
+--- @field QuestItem fun()
+--- @field InsuranceMenu fun()
+--- @field ToggleItemInsurance fun()
+--- @field TitlesMenu fun()
+--- @field LoyaltyRating fun()
+--- @field CancelProtection fun()
+--- @field VoidPool fun()
+--- @field ToggleTrades fun()
+--- @field SiegeBlessItem fun()
+--- @field ExportContainerItems fun()
+--- @field RequestContItems fun()
+--- @field ToggleEnglishNames fun()
+--- @field CloseAllContainers fun()
+--- @field CloseAllCorpses fun()
+--- @field MassOrganizerStart fun()
+--- @field MassOrganizer fun(timePassed:number)
+--- @field LoadShuri fun()
+--- @field Shuriken fun(timePassed:number)
+--- @field AutoLoadShuri fun()
+--- @field DressHolding fun()
+--- @field DropHolding fun()
+--- @field ToggleTrapBox fun()
+--- @field TrapboxTargetReceived fun()
+--- @field ToggleLootbag fun()
+--- @field LootbagTargetReceived fun()
+--- @field ToggleAlphaMode fun()
+--- @field ToggleScaleMode fun()
+--- @field ObjectHandleContextMenu fun()
+--- @field ObjectHandleContextMenuCallback fun(returnCode:any, param:any)
+--- @field ObjectHandleSetFilter fun(j:integer, newval:any)
+--- @field GetHealthbar fun()
+--- @field GetTypeID fun()
+--- @field ItemIDRequestTargetInfoReceived fun()
+--- @field GetHueID fun()
+--- @field ColorRequestTargetInfoReceived fun()
+--- @field IgnoreTargettedItem fun()
+--- @field IgnoreItemRequestTargetInfoReceived fun()
+--- @field ClearIgnoreList fun()
+--- @field ToggleBlockPaperdolls fun()
+--- @field UndressMe fun()
+--- @field UndressTargetInfoReceived fun()
+--- @field UndressAgent fun(timePassed:number)
+--- @field ImbueLast fun()
+--- @field UnravelItem fun()
+--- @field EnhanceItem fun()
+--- @field SmeltItem fun()
+--- @field AlterItem fun()
+--- @field MakeLast fun()
+--- @field RepairItem fun()
+
+---@class DefaultActionsComponent : DefaultComponent
+local DefaultActionsComponent = {}
+DefaultActionsComponent.__index = DefaultActionsComponent
+
+--- @class DefaultMainMenuWindow
+--- @field TID table
+--- @field Initialize fun()
+--- @field Shutdown fun()
+--- @field OnLogOut fun()
+--- @field OnOpenUserSettings fun()
+--- @field OnOpenMacros fun()
+--- @field OnOpenActions fun()
+--- @field OnOpenBugReportItem fun()
+--- @field OnOpenHelp fun()
+--- @field OnOpenUOStore fun()
+--- @field ToggleSettingsWindow fun()
+--- @field ToggleBugReportWindow fun()
+--- @field OnToggleAgentsSettings fun()
+
+---@class DefaultMainMenuWindowComponent : DefaultComponent
+local DefaultMainMenuWindowComponent = {}
+DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
+
+--- @class DefaultStatusWindow
+--- @field CurPlayerId integer
+--- @field Skills table
+--- @field Notoriety table
+--- @field TextColors table
+--- @field Locked boolean
+--- @field HPLocked boolean
+--- @field MANALocked boolean
+--- @field STAMLocked boolean
+--- @field DisableDelta number
+--- @field TempDisabled boolean
+--- @field TCToolsHandle boolean
+--- @field MPHeight integer
+--- @field MPWidth integer
+--- @field LastMPHeight integer
+--- @field HPHeight integer
+--- @field HPWidth integer
+--- @field LastHPHeight integer
+--- @field Initialize fun(reinit:any)
+--- @field Shutdown fun()
+--- @field Latency_OnMouseOver fun()
+--- @field LockTooltip fun()
+--- @field Lock fun()
+--- @field LockTooltipHP fun()
+--- @field LockHP fun()
+--- @field LockTooltipMANA fun()
+--- @field LockMANA fun()
+--- @field LockTooltipSTAM fun()
+--- @field LockSTAM fun()
+--- @field MenuTooltip fun()
+--- @field Menu fun()
+--- @field UpdateLatency fun()
+--- @field ClickOutside fun()
+--- @field EnableInput fun(timePassed:number)
+--- @field UpdateStatus fun()
+--- @field OnLButtonUp fun()
+--- @field OnLButtonDown fun()
+--- @field OnHPLButtonUp fun()
+--- @field OnHPLButtonDown fun()
+--- @field OnMLANAButtonUp fun()
+--- @field OnMANALButtonDown fun()
+--- @field OnSTAMLButtonUp fun()
+--- @field OnSTAMLButtonDown fun()
+--- @field GuardsButton_OnLButtonUp fun()
+--- @field GuardsButton_OnMouseOver fun()
+--- @field OnRButtonUp fun()
+--- @field UpdateLabelContent fun()
+--- @field OnMouseOver fun()
+--- @field OnMouseOverEnd fun()
+--- @field ToggleStrLabel fun()
+--- @field OnMouseDlbClk fun()
+--- @field TCTools fun()
+--- @field TCContextMenuCallback fun(returnCode:any, param:any)
+--- @field EditSkill fun(id:any, value:any, max:any, min:any)
+--- @field EditStr fun(id:any, value:any, max:any, min:any)
+--- @field TCToolsTooltip fun()
+--- @field TCToolsOver fun()
+--- @field TCToolsOnLButtonDown fun()
+--- @field TCToolsOverend fun()
+--- @field SetMana fun(current:number, maximum:number)
+--- @field SetHealth fun(current:number, maximum:number)
+--- @field ChangeStyle fun(style:any)
+--- @field ToggleButtons fun()
+
+---@class DefaultStatusWindowComponent : DefaultComponent
+local DefaultStatusWindowComponent = {}
+DefaultStatusWindowComponent.__index = DefaultStatusWindowComponent
+
+---@class Component
+---@field name string
+local Component = {}
+Component.__index = Component
+
+---@class EditTextBoxModel : ViewModel
+---@field OnInitialize fun(self: EditTextBox)?
+---@field OnLButtonUp fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: EditTextBox)?
+---@field OnHidden fun(self: EditTextBox)?
+---@field OnShown fun(self: EditTextBox)?
+---@field OnLButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: EditTextBox, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: EditTextBox, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: EditTextBox)?
+---@field OnMouseOverEnd fun(self: EditTextBox)?
+---@field OnMouseDrag fun(self: EditTextBox)?
+---@field OnUpdatePlayerStatus fun(self: EditTextBox, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: EditTextBox, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: EditTextBox, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: EditTextBox)?
+
+---@class EditTextBox: View
+local EditTextBox = {}
+EditTextBox.__index = EditTextBox
+
+---@class EventReceiver : Component
+local EventReceiver = {}
+EventReceiver.__index = EventReceiver
+
+---@class WindowModel : ViewModel
+---@field Name string? The name of the window. If not provided, a random name will be generated.
+---@field Template string? The template to use for the window. Defaults to "MongbatWindow"
+---@field OnInitialize fun(self: Window)?
+---@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: Window)?
+---@field OnHidden fun(self: Window)?
+---@field OnShown fun(self: Window)?
+---@field OnLButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: Window, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: Window, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: Window, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: Window)?
+---@field OnMouseOverEnd fun(self: Window)?
+---@field OnMouseDrag fun(self: Window)?
+---@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: Window)?
+
+---@class LabelModel : ViewModel
+---@field OnInitialize fun(self: Label)?
+---@field OnLButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: Label)?
+---@field OnHidden fun(self: Label)?
+---@field OnShown fun(self: Label)?
+---@field OnLButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: Label, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: Label, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: Label, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: Label)?
+---@field OnMouseOverEnd fun(self: Label)?
+---@field OnMouseDrag fun(self: Label)?
+---@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: Label)?
+
+---@class GumpItem
+---@field tid integer
+---@field windowName string
+---@field id integer
+
+---@class GumpWModel : WindowModel
+---@field windowName string
+---@field TextEntry string[]?
+---@field Labels GumpItem[]?
+---@field Images string[]?
+---@field Buttons string[]?
+---@field OnInitialize fun(self: Gump)?
+---@field OnLButtonUp fun(self: Gump, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: Gump, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: Gump)?
+---@field OnHidden fun(self: Gump)?
+---@field OnShown fun(self: Gump)?
+---@field OnLButtonDown fun(self: Gump, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: Gump, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: Gump, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: Gump, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: Gump, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: Gump)?
+---@field OnMouseOverEnd fun(self: Gump)?
+---@field OnMouseDrag fun(self: Gump)?
+---@field OnUpdatePlayerStatus fun(self: Gump, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: Gump, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Gump, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: Gump)?
+
+---@class Gump : Window
+---@field buttons Button[]
+---@field textEntries EditTextBox[]
+---@field _id integer The unique ID of the gump window.
+local Gump = {}
+Gump.__index = Gump
+
+---@class Label: View
+local Label = {}
+Label.__index = Label
+
+---@class LogDisplayModel : ViewModel
+---@field OnInitialize fun(self: LogDisplay)?
+---@field OnLButtonUp fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: LogDisplay)?
+---@field OnHidden fun(self: LogDisplay)?
+---@field OnShown fun(self: LogDisplay)?
+---@field OnLButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: LogDisplay, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: LogDisplay, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: LogDisplay)?
+---@field OnMouseOverEnd fun(self: LogDisplay)?
+---@field OnMouseDrag fun(self: LogDisplay)?
+---@field OnUpdatePlayerStatus fun(self: LogDisplay, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: LogDisplay, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: LogDisplay, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: LogDisplay)?
+
+---@class LogDisplay: View
+local LogDisplay = {}
+LogDisplay.__index = LogDisplay
+
+---@class ViewModel
+---@field Name string?
+---@field Template string?
+---@field OnInitialize fun(self: View)?
+---@field OnLButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: View)?
+---@field OnHidden fun(self: View)?
+---@field OnShown fun(self: View)?
+---@field OnLButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: View, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: View, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: View, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: View)?
+---@field OnMouseOverEnd fun(self: View)?
+---@field OnMouseDrag fun(self: View)?
+---@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: View)?
+
+---@class StatusBarModel : ViewModel
+---@field OnInitialize fun(self: StatusBar)?
+---@field OnLButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: StatusBar)?
+---@field OnHidden fun(self: StatusBar)?
+---@field OnShown fun(self: StatusBar)?
+---@field OnLButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: StatusBar, timePassed: integer)?
+---@field OnUpdateMobileName fun(self: StatusBar, windowData: MobileNameWrapper)?
+---@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: StatusBar)?
+---@field OnMouseOverEnd fun(self: StatusBar)?
+---@field OnMouseDrag fun(self: StatusBar)?
+---@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
+---@field OnEndHealthBarDrag fun(self: StatusBar)?
+
+---@class StatusBar: View
+local StatusBar = {}
+StatusBar.__index = StatusBar
+
+---@class StatusBarBuilder : ViewBuilder
+---@field _model StatusBarModel
+---@field onInitialize fun(self: StatusBarBuilder, onInitialize: fun(self: StatusBar)): StatusBarBuilder
+---@field onLButtonUp fun(self: StatusBarBuilder, onLButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onRButtonUp fun(self: StatusBarBuilder, onRButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onShutdown fun(self: StatusBarBuilder, onShutdown: fun(self: StatusBar)): StatusBarBuilder
+---@field onHidden fun(self: StatusBarBuilder, onHidden: fun(self: StatusBar)): StatusBarBuilder
+---@field onShown fun(self: StatusBarBuilder, onShown: fun(self: StatusBar)): StatusBarBuilder
+---@field onLButtonDown fun(self: StatusBarBuilder, onLButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onRButtonDown fun(self: StatusBarBuilder, onRButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onUpdate fun(self: StatusBarBuilder, onUpdate: fun(self: StatusBar, timePassed: integer)): StatusBarBuilder
+---@field onUpdateMobileName fun(self: StatusBarBuilder, onUpdateMobileName: fun(self: StatusBar, windowData: MobileNameWrapper)): StatusBarBuilder
+---@field onLButtonDblClk fun(self: StatusBarBuilder, onLButtonDblClk: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onMouseOver fun(self: StatusBarBuilder, onMouseOver: fun(self: StatusBar)): StatusBarBuilder
+---@field onMouseOverEnd fun(self: StatusBarBuilder, onMouseOverEnd: fun(self: StatusBar)): StatusBarBuilder
+---@field onMouseDrag fun(self: StatusBarBuilder, onMouseDrag: fun(self: StatusBar)): StatusBarBuilder
+---@field onUpdatePlayerStatus fun(self: StatusBarBuilder, onUpdatePlayerStatus: fun(self: StatusBar, playerStatus: PlayerStatusWrapper)): StatusBarBuilder
+---@field onUpdateMobileStatus fun(self: StatusBarBuilder, onUpdateMobileStatus: fun(self: StatusBar, mobileStatus: MobileStatusWrapper)): StatusBarBuilder
+---@field onUpdateHealthBarColor fun(self: StatusBarBuilder, onUpdateHealthBarColor: fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)): StatusBarBuilder
+---@field onEndHealthBarDrag fun(self: StatusBarBuilder, onEndHealthBarDrag: fun(self: StatusBar)): StatusBarBuilder
+local StatusBarBuilder = {}
+StatusBarBuilder.__index = StatusBarBuilder
+
+---@class View : EventReceiver
+---@field private _model ViewModel
+local View = {}
+View.__index = View
+
+---@class ViewBuilder
+---@field _model ViewModel
+local ViewBuilder = {}
+ViewBuilder.__index = ViewBuilder
+
+---@class Window : View
+---@field _model WindowModel?
+---@field _children Window[] A list of child windows.
+---@field _frame string The name of the window's frame component.
+---@field _background string The name of the window's background component.
+local Window = {}
+Window.__index = Window
+
+---@class WindowBuilder : ViewBuilder
+---@field _model WindowModel
+---@field onInitialize fun(self: WindowBuilder, onInitialize: fun(self: Window)): WindowBuilder
+---@field onLButtonUp fun(self: WindowBuilder, onLButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onRButtonUp fun(self: WindowBuilder, onRButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onShutdown fun(self: WindowBuilder, onShutdown: fun(self: Window)): WindowBuilder
+---@field onHidden fun(self: WindowBuilder, onHidden: fun(self: Window)): WindowBuilder
+---@field onShown fun(self: WindowBuilder, onShown: fun(self: Window)): WindowBuilder
+---@field onLButtonDown fun(self: WindowBuilder, onLButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onRButtonDown fun(self: WindowBuilder, onRButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onUpdate fun(self: WindowBuilder, onUpdate: fun(self: Window, timePassed: integer)): WindowBuilder
+---@field onUpdateMobileName fun(self: WindowBuilder, onUpdateMobileName: fun(self: Window, windowData: MobileNameWrapper)): WindowBuilder
+---@field onLButtonDblClk fun(self: WindowBuilder, onLButtonDblClk: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onMouseOver fun(self: WindowBuilder, onMouseOver: fun(self: Window)): WindowBuilder
+---@field onMouseOverEnd fun(self: WindowBuilder, onMouseOverEnd: fun(self: Window)): WindowBuilder
+---@field onMouseDrag fun(self: WindowBuilder, onMouseDrag: fun(self: Window)): WindowBuilder
+---@field onUpdatePlayerStatus fun(self: WindowBuilder, onUpdatePlayerStatus: fun(self: Window, playerStatus: PlayerStatusWrapper)): WindowBuilder
+---@field onUpdateMobileStatus fun(self: WindowBuilder, onUpdateMobileStatus: fun(self: Window, mobileStatus: MobileStatusWrapper)): WindowBuilder
+---@field onUpdateHealthBarColor fun(self: WindowBuilder, onUpdateHealthBarColor: fun(self: Window, healthBarColor: HealthBarColorWrapper)): WindowBuilder
+---@field onEndHealthBarDrag fun(self: WindowBuilder, onEndHealthBarDrag: fun(self: Window)): WindowBuilder
+local WindowBuilder = {}
+WindowBuilder.__index = WindowBuilder
+
+-- ========================================================================== --
+-- Components - Button
+-- ========================================================================== --
+
+---@param model ButtonModel?
+---@return Button
+function Button:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatButton"
+    local instance = Window.new(self, model)
+    return instance --[[@as Button]]
+end
+
+function Button:getTextDimensions()
+    Api.Button.GetTextDimensions(self:getName())
+end
+
+function Button:setText(text)
+    Api.Button.SetText(self:getName(), Utils.String.ToWString(text))
+end
+
+function Button:getText()
+    return Api.Button.GetText(self:getName())
+end
+
+function Button:setTexture(state, texture, x, y)
+    Api.Button.SetTexture(self:getName(), state, texture, x, y)
+end
+
+function Button:setTextColor(state, color)
+    Api.Button.SetTextColor(self:getName(), state, color.r, color.g, color.b)
+end
+
+-- ========================================================================== --
+-- Components - Button Builder
+-- ========================================================================== --
+
+---@param name string?
+---@param template string?
+function ButtonBuilder:new(name, template)
+    local instance = WindowBuilder.new(self, name, template) --[[@as ButtonBuilder]]
+    return instance
+end
+
+function ButtonBuilder:build()
+    local button = Button:new(self._model)
+    Windows[button:getName()] = button
+    return button
+end
+
+---@param name string?
+---@param template string?
+---@return ButtonBuilder
+function Components.Button(name, template)
+    return ButtonBuilder:new(name, template)
+end
+
+-- ========================================================================== --
+-- Components - Component
+-- ========================================================================== --
+
+
+---@param name string
+---@return Component
+function Component:new(name)
+    local instance = setmetatable({}, self)
+    instance.name = name
+    return instance
+end
+
+function Component:getName()
+    return self.name
+end
+
+
+-- ========================================================================== --
+-- Components - Default
+-- ========================================================================== --
+
+---@param name string
+---@return DefaultComponent
+function DefaultComponent:new(name)
+    local instance = Component.new(self, name) --[[@as DefaultComponent]]
+    return instance
+end
+
+function DefaultComponent:getDefault()
+    return Component:new(self.name)
+end
+
+function DefaultComponent:asComponent()
+    return Component:new(self.name)
+end
+
+-- ========================================================================== --
+-- Components - Default - Actions
+-- ========================================================================== --
+
+---@return DefaultActionsComponent
+function DefaultActionsComponent:new()
+    local instance = DefaultComponent.new(self, "Actions") --[[@as DefaultActionsComponent]]
+    return instance
+end
+
+---@return DefaultActions
+function DefaultActionsComponent:getDefault()
+    return Actions
+end
+
+-- ========================================================================== --
+-- Components - Default - Main Menu Window
+-- ========================================================================== --
+
+---@return DefaultMainMenuWindowComponent
+function DefaultMainMenuWindowComponent:new()
+    local instance = DefaultComponent.new(self, "MainMenuWindow") --[[@as DefaultMainMenuWindowComponent]]
+    return instance
+end
+
+---@return DefaultMainMenuWindow
+function DefaultMainMenuWindowComponent:getDefault()
+    return MainMenuWindow
+end
+
+---@return Window
+function DefaultMainMenuWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Status Window
+-- ========================================================================== --
+
+---@return DefaultStatusWindowComponent
+function DefaultStatusWindowComponent:new()
+    local instance = DefaultComponent.new(self, "StatusWindow") --[[@as DefaultStatusWindowComponent]]
+    return instance
+end
+
+---@return DefaultStatusWindow
+function DefaultStatusWindowComponent:getDefault()
+    return StatusWindow
+end
+
+---@return Window
+function DefaultStatusWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Edit Text Box
+-- ========================================================================== --
+
+---@param model EditTextBoxModel?
+---@return EditTextBox
+function EditTextBox:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatEditTextBox"
+    local instance = View.new(self, model)
+    return instance --[[@as EditTextBox]]
+end
+
+function EditTextBox:setText(text)
+    Api.EditTextBox.SetText(self:getName(), Utils.String.ToWString(text))
+end
+
+function EditTextBox:getText()
+    return Api.EditTextBox.GetText(self:getName())
+end
+
+---@param color Color
+function EditTextBox:setTextColor(color)
+    Api.EditTextBox.SetTextColor(self:getName(), color.r, color.g, color.b)
+end
+
+---@param model EditTextBoxModel?
+---@return EditTextBox
+function Components.EditTextBox(model)
+    local editTextBox = EditTextBox:new(model)
+    Windows[editTextBox:getName()] = editTextBox
+    return editTextBox
+end
+
+-- ========================================================================== --
+-- Components - Event Handler
+-- ========================================================================== --
 
 function EventHandler.OnInitialize()
     local window = Windows[Active.window()]
@@ -6987,30 +7686,8 @@ function EventHandler.OnEndHealthBarDrag()
 end
 
 -- ========================================================================== --
--- UI - Component
--- ========================================================================== --
-
----@class Component
----@field name string
-local Component = {}
-Component.__index = Component
-
----@param name string
----@return Component
-function Component:new(name)
-    local instance = setmetatable({}, self)
-    instance.name = name
-    return instance
-end
-
-function Component:getName()
-    return self.name
-end
-
----@class EventReceiver : Component
-local EventReceiver = {}
-EventReceiver.__index = EventReceiver
-setmetatable(EventReceiver, { __index = Component })
+-- Components - Event Receiver
+--#========================================================================= --
 
 ---@param name string
 ---@return EventReceiver
@@ -7091,38 +7768,218 @@ function EventReceiver:onEndHealthBarDrag()
     return self
 end
 
+
 -- ========================================================================== --
--- UI - View
+-- Components - Gump
 -- ========================================================================== --
 
----@class ViewModel
----@field Name string?
----@field Template string?
----@field OnInitialize fun(self: View)?
----@field OnLButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: View)?
----@field OnHidden fun(self: View)?
----@field OnShown fun(self: View)?
----@field OnLButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: View, timePassed: integer)?
----@field OnUpdateMobileName fun(self: View, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: View)?
----@field OnMouseOverEnd fun(self: View)?
----@field OnMouseDrag fun(self: View)?
----@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: View)?
+---@param gump GumpWModel
+---@param id integer
+---@return Gump
+function Gump:new(gump, id)
+    local instance = Window.new(self, { Name = gump.windowName }) --[[@as Gump]]
+
+    instance.buttons = Utils.Array.MapToArray(
+        gump.Buttons,
+        function (buttonName)
+            return Button:new({ Name = buttonName })
+        end
+    )
+
+    instance.textEntries = Utils.Array.MapToArray(
+        gump.TextEntry,
+        function (textEntryName)
+            return EditTextBox:new({ Name = textEntryName })
+        end
+    )
+
+    instance._children = Utils.Array.Concat {
+        instance.buttons,
+        instance.textEntries
+    }
+
+    instance._id = id
+    return instance --[[@as Gump]]
+end
+
+function Gump:isVendorSearch()
+    return self._id == 999112
+end
+
+function Gump:isJewelryBox()
+    return self._id == 999143
+end
+
+---@param name string?
+---@return Gump?
+function Components.Gump(name)
+    name = name or Active.window()
+    if not GumpData then
+        return nil
+    end
+
+    local id = -1
+
+    local gump = Utils.Table.Find(
+        GumpData.Gumps,
+        function (k, v)
+            id = k
+            return v.windowName == name
+        end
+    )
+
+    if not gump then
+        return nil
+    else
+        return Gump:new(gump, id)
+    end
+end
+
+-- ========================================================================== --
+-- Components - Label
+-- ========================================================================== --
+
+---@param model LabelModel?
+---@return Label
+function Label:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatLabel"
+    local instance = View.new(self, model)
+    return instance --[[@as Label]]
+end
+
+function Label:setText(text)
+    Api.Label.SetText(self:getName(), Utils.String.ToWString(text))
+end
+
+function Label:setTextColor(color)
+    Api.Label.SetTextColor(self:getName(), color)
+end
+
+function Label:setTextAlignment(alignment)
+    Api.Label.SetTextAlignment(self:getName(), alignment)
+end
+
+function Label:centerText()
+    self:setTextAlignment(Constants.TextAlignment.Center)
+end
+
+---@param model LabelModel?
+---@return Label
+function Components.Label(model)
+    local label = Label:new(model)
+    Windows[label:getName()] = label
+    return label
+end
 
 
----@class View : EventReceiver
----@field private _model ViewModel
-local View = {}
-View.__index = View
-setmetatable(View, { __index = EventReceiver })
+-- ========================================================================== --
+-- Components - Log Display
+-- ========================================================================== --
+
+---@param model LogDisplayModel?
+---@return LogDisplay
+function LogDisplay:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatLogDisplay"
+    local instance = View.new(self, model)
+    return instance --[[@as LogDisplay]]
+end
+
+function LogDisplay:showTimestamp(showTimestamp)
+    Api.LogDisplay.ShowTimestamp(self:getName(), showTimestamp)
+    return self
+end
+
+function LogDisplay:showLogName(showLogName)
+    Api.LogDisplay.ShowLogName(self:getName(), showLogName)
+    return self
+end
+
+function LogDisplay:showFilterName(showFilterName)
+    Api.LogDisplay.ShowFilterName(self:getName(), showFilterName)
+    return self
+end
+
+function LogDisplay:setFilterState(logName, filterId, isEnabled)
+    Api.LogDisplay.SetFilterState(self:getName(), logName, filterId, isEnabled)
+    return self
+end
+
+---Registers the log to the log display
+---@param logName string
+---@param displayPreviousEntries boolean?
+---@return LogDisplay
+function LogDisplay:addLog(logName, displayPreviousEntries)
+    Api.LogDisplay.AddLog(self:getName(), logName, displayPreviousEntries)
+    return self
+end
+
+---@param model LogDisplayModel?
+---@return LogDisplay
+function Components.LogDisplay(model)
+    local logDisplay = LogDisplay:new(model)
+    Windows[logDisplay:getName()] = logDisplay
+    return logDisplay
+end
+
+
+-- ========================================================================== --
+-- Components - Status Bar
+-- ========================================================================== --
+
+---@param model StatusBarModel?
+---@return StatusBar
+function StatusBar:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatStatusBar"
+    local instance = View.new(self, model)
+    return instance --[[@as StatusBar]]
+end
+
+function StatusBar:setMaxValue(maxValue)
+    Api.StatusBar.SetMaxValue(self:getName(), maxValue)
+end
+
+function StatusBar:setCurrentValue(currentValue)
+    Api.StatusBar.SetCurrentValue(self:getName(), currentValue)
+end
+
+function StatusBar:setBackgroundTint(tint)
+    Api.StatusBar.SetBackgroundTint(self:getName(), tint)
+end
+
+function StatusBar:setForegroundTint(tint)
+    Api.StatusBar.SetForegroundTint(self:getName(), tint)
+end
+
+-- ========================================================================== --
+-- Components - Status Bar Builder
+-- ========================================================================== --
+
+---@param name string?
+---@param template string?
+function StatusBarBuilder:new(name, template)
+    local instance = ViewBuilder.new(self, name, template) --[[@as StatusBarBuilder]]
+    return instance
+end
+
+function StatusBarBuilder:build()
+    local statusBar = StatusBar:new(self._model)
+    Windows[statusBar:getName()] = statusBar
+    return statusBar
+end
+
+---@param name string?
+---@param template string?
+---@return StatusBarBuilder
+function Components.StatusBar(name, template)
+    return StatusBarBuilder:new(name, template)
+end
+
+-- ========================================================================== --
+-- Components - View
+-- ========================================================================== --
 
 ---@param model ViewModel
 ---@return View
@@ -7535,11 +8392,9 @@ function View:isParentRoot()
     return self:getParent() == "Root"
 end
 
-
----@class ViewBuilder
----@field _model ViewModel
-local ViewBuilder = {}
-ViewBuilder.__index = ViewBuilder
+-- ========================================================================== --
+-- Components - View Builder
+-- ========================================================================== --
 
 ---@param name string?
 ---@param template string?
@@ -7649,39 +8504,8 @@ end
 
 
 -- ========================================================================== --
--- UI - Window
+-- Components - Window
 -- ========================================================================== --
-
----@class WindowModel : ViewModel
----@field Name string? The name of the window. If not provided, a random name will be generated.
----@field Template string? The template to use for the window. Defaults to "MongbatWindow"
----@field OnInitialize fun(self: Window)?
----@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: Window)?
----@field OnHidden fun(self: Window)?
----@field OnShown fun(self: Window)?
----@field OnLButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: Window, timePassed: integer)?
----@field OnUpdateMobileName fun(self: Window, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Window)?
----@field OnMouseOverEnd fun(self: Window)?
----@field OnMouseDrag fun(self: Window)?
----@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: Window)?
-
----@class Window : View
----@field _model WindowModel?
----@field _children Window[] A list of child windows.
----@field _frame string The name of the window's frame component.
----@field _background string The name of the window's background component.
-local Window = {}
-Window.__index = Window
-setmetatable(Window, { __index = View })
 
 ---@param model WindowModel?
 function Window:new(model)
@@ -7812,29 +8636,9 @@ function Window:setChildren(children)
     self._children = children
 end
 
----@class WindowBuilder : ViewBuilder
----@field _model WindowModel
----@field onInitialize fun(self: WindowBuilder, onInitialize: fun(self: Window)): WindowBuilder
----@field onLButtonUp fun(self: WindowBuilder, onLButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onRButtonUp fun(self: WindowBuilder, onRButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onShutdown fun(self: WindowBuilder, onShutdown: fun(self: Window)): WindowBuilder
----@field onHidden fun(self: WindowBuilder, onHidden: fun(self: Window)): WindowBuilder
----@field onShown fun(self: WindowBuilder, onShown: fun(self: Window)): WindowBuilder
----@field onLButtonDown fun(self: WindowBuilder, onLButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onRButtonDown fun(self: WindowBuilder, onRButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onUpdate fun(self: WindowBuilder, onUpdate: fun(self: Window, timePassed: integer)): WindowBuilder
----@field onUpdateMobileName fun(self: WindowBuilder, onUpdateMobileName: fun(self: Window, windowData: MobileNameWrapper)): WindowBuilder
----@field onLButtonDblClk fun(self: WindowBuilder, onLButtonDblClk: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onMouseOver fun(self: WindowBuilder, onMouseOver: fun(self: Window)): WindowBuilder
----@field onMouseOverEnd fun(self: WindowBuilder, onMouseOverEnd: fun(self: Window)): WindowBuilder
----@field onMouseDrag fun(self: WindowBuilder, onMouseDrag: fun(self: Window)): WindowBuilder
----@field onUpdatePlayerStatus fun(self: WindowBuilder, onUpdatePlayerStatus: fun(self: Window, playerStatus: PlayerStatusWrapper)): WindowBuilder
----@field onUpdateMobileStatus fun(self: WindowBuilder, onUpdateMobileStatus: fun(self: Window, mobileStatus: MobileStatusWrapper)): WindowBuilder
----@field onUpdateHealthBarColor fun(self: WindowBuilder, onUpdateHealthBarColor: fun(self: Window, healthBarColor: HealthBarColorWrapper)): WindowBuilder
----@field onEndHealthBarDrag fun(self: WindowBuilder, onEndHealthBarDrag: fun(self: Window)): WindowBuilder
-local WindowBuilder = {}
-WindowBuilder.__index = WindowBuilder
-setmetatable(WindowBuilder, { __index = ViewBuilder })
+-- ========================================================================== --
+-- Components - Window Builder
+-- ========================================================================== --
 
 ---@param name string?
 ---@param template string?
@@ -7854,810 +8658,26 @@ function Components.Window(name, template)
     return WindowBuilder:new(name, template)
 end
 
--- ========================================================================== --
--- UI - Button
--- ========================================================================== --
-
----@class ButtonModel : WindowModel
----@field OnInitialize fun(self: Button)?
----@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: Button)?
----@field OnHidden fun(self: Button)?
----@field OnShown fun(self: Button)?
----@field OnLButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: Button, timePassed: integer)?
----@field OnUpdateMobileName fun(self: Button, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: Button, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Button)?
----@field OnMouseOverEnd fun(self: Button)?
----@field OnMouseDrag fun(self: Button)?
----@field OnUpdatePlayerStatus fun(self: Button, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: Button, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: Button, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: Button)?
-
----@class Button: Window
-local Button = {}
-Button.__index = Button
+setmetatable(EventReceiver, { __index = Component })
+setmetatable(View, { __index = EventReceiver })
+setmetatable(Window, { __index = View })
+setmetatable(WindowBuilder, { __index = ViewBuilder })
 setmetatable(Button, { __index = Window })
-
----@param model ButtonModel?
----@return Button
-function Button:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatButton"
-    local instance = Window.new(self, model)
-    return instance --[[@as Button]]
-end
-
-function Button:getTextDimensions()
-    Api.Button.GetTextDimensions(self:getName())
-end
-
-function Button:setText(text)
-    Api.Button.SetText(self:getName(), Utils.String.ToWString(text))
-end
-
-function Button:getText()
-    return Api.Button.GetText(self:getName())
-end
-
-function Button:setTexture(state, texture, x, y)
-    Api.Button.SetTexture(self:getName(), state, texture, x, y)
-end
-
-function Button:setTextColor(state, color)
-    Api.Button.SetTextColor(self:getName(), state, color.r, color.g, color.b)
-end
-
-
----@class ButtonBuilder : WindowBuilder
----@field _model ButtonModel
----@field onInitialize fun(self: ButtonBuilder, onInitialize: fun(self: Button)): ButtonBuilder
----@field onLButtonUp fun(self: ButtonBuilder, onLButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onRButtonUp fun(self: ButtonBuilder, onRButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onShutdown fun(self: ButtonBuilder, onShutdown: fun(self: Button)): ButtonBuilder
----@field onHidden fun(self: ButtonBuilder, onHidden: fun(self: Button)): ButtonBuilder
----@field onShown fun(self: ButtonBuilder, onShown: fun(self: Button)): ButtonBuilder
----@field onLButtonDown fun(self: ButtonBuilder, onLButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onRButtonDown fun(self: ButtonBuilder, onRButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onUpdate fun(self: ButtonBuilder, onUpdate: fun(self: Button, timePassed: integer)): ButtonBuilder
----@field onUpdateMobileName fun(self: ButtonBuilder, onUpdateMobileName: fun(self: Button, windowData: MobileNameWrapper)): ButtonBuilder
----@field onLButtonDblClk fun(self: ButtonBuilder, onLButtonDblClk: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onMouseOver fun(self: ButtonBuilder, onMouseOver: fun(self: Button)): ButtonBuilder
----@field onMouseOverEnd fun(self: ButtonBuilder, onMouseOverEnd: fun(self: Button)): ButtonBuilder
----@field onMouseDrag fun(self: ButtonBuilder, onMouseDrag: fun(self: Button)): ButtonBuilder
----@field onUpdatePlayerStatus fun(self: ButtonBuilder, onUpdatePlayerStatus: fun(self: Button, playerStatus: PlayerStatusWrapper)): ButtonBuilder
----@field onUpdateMobileStatus fun(self: ButtonBuilder, onUpdateMobileStatus: fun(self: Button, mobileStatus: MobileStatusWrapper)): ButtonBuilder
----@field onUpdateHealthBarColor fun(self: ButtonBuilder, onUpdateHealthBarColor: fun(self: Button, healthBarColor: HealthBarColorWrapper)): ButtonBuilder
----@field onEndHealthBarDrag fun(self: ButtonBuilder, onEndHealthBarDrag: fun(self: Button)): ButtonBuilder
-local ButtonBuilder = {}
-ButtonBuilder.__index = ButtonBuilder
 setmetatable(ButtonBuilder, { __index = WindowBuilder })
-
----@param name string?
----@param template string?
-function ButtonBuilder:new(name, template)
-    local instance = WindowBuilder.new(self, name, template) --[[@as ButtonBuilder]]
-    return instance
-end
-
-function ButtonBuilder:build()
-    local button = Button:new(self._model)
-    Windows[button:getName()] = button
-    return button
-end
-
----@param name string?
----@param template string?
----@return ButtonBuilder
-function Components.Button(name, template)
-    return ButtonBuilder:new(name, template)
-end
-
--- ========================================================================== --
--- UI - Edit Text Box
--- ========================================================================== --
-
----@class EditTextBoxModel : ViewModel
----@field OnInitialize fun(self: EditTextBox)?
----@field OnLButtonUp fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: EditTextBox)?
----@field OnHidden fun(self: EditTextBox)?
----@field OnShown fun(self: EditTextBox)?
----@field OnLButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: EditTextBox, timePassed: integer)?
----@field OnUpdateMobileName fun(self: EditTextBox, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: EditTextBox)?
----@field OnMouseOverEnd fun(self: EditTextBox)?
----@field OnMouseDrag fun(self: EditTextBox)?
----@field OnUpdatePlayerStatus fun(self: EditTextBox, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: EditTextBox, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: EditTextBox, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: EditTextBox)?
-
----@class EditTextBox: View
-local EditTextBox = {}
-EditTextBox.__index = EditTextBox
 setmetatable(EditTextBox, { __index = View })
-
----@param model EditTextBoxModel?
----@return EditTextBox
-function EditTextBox:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatEditTextBox"
-    local instance = View.new(self, model)
-    return instance --[[@as EditTextBox]]
-end
-
-function EditTextBox:setText(text)
-    Api.EditTextBox.SetText(self:getName(), Utils.String.ToWString(text))
-end
-
-function EditTextBox:getText()
-    return Api.EditTextBox.GetText(self:getName())
-end
-
----@param color Color
-function EditTextBox:setTextColor(color)
-    Api.EditTextBox.SetTextColor(self:getName(), color.r, color.g, color.b)
-end
-
----@param model EditTextBoxModel?
----@return EditTextBox
-function Components.EditTextBox(model)
-    local editTextBox = EditTextBox:new(model)
-    Windows[editTextBox:getName()] = editTextBox
-    return editTextBox
-end
-
--- ========================================================================== --
--- UI - Label
--- ========================================================================== --
-
----@class LabelModel : ViewModel
----@field OnInitialize fun(self: Label)?
----@field OnLButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: Label)?
----@field OnHidden fun(self: Label)?
----@field OnShown fun(self: Label)?
----@field OnLButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: Label, timePassed: integer)?
----@field OnUpdateMobileName fun(self: Label, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: Label, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Label)?
----@field OnMouseOverEnd fun(self: Label)?
----@field OnMouseDrag fun(self: Label)?
----@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: Label)?
-
----@class Label: View
-local Label = {}
-Label.__index = Label
 setmetatable(Label, { __index = View })
-
----@param model LabelModel?
----@return Label
-function Label:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatLabel"
-    local instance = View.new(self, model)
-    return instance --[[@as Label]]
-end
-
-function Label:setText(text)
-    Api.Label.SetText(self:getName(), Utils.String.ToWString(text))
-end
-
-function Label:setTextColor(color)
-    Api.Label.SetTextColor(self:getName(), color)
-end
-
-function Label:setTextAlignment(alignment)
-    Api.Label.SetTextAlignment(self:getName(), alignment)
-end
-
-function Label:centerText()
-    self:setTextAlignment(Constants.TextAlignment.Center)
-end
-
----@param model LabelModel?
----@return Label
-function Components.Label(model)
-    local label = Label:new(model)
-    Windows[label:getName()] = label
-    return label
-end
-
--- ========================================================================== --
--- UI - Log Display
--- ========================================================================== --
-
----@class LogDisplayModel : ViewModel
----@field OnInitialize fun(self: LogDisplay)?
----@field OnLButtonUp fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: LogDisplay)?
----@field OnHidden fun(self: LogDisplay)?
----@field OnShown fun(self: LogDisplay)?
----@field OnLButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: LogDisplay, timePassed: integer)?
----@field OnUpdateMobileName fun(self: LogDisplay, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: LogDisplay)?
----@field OnMouseOverEnd fun(self: LogDisplay)?
----@field OnMouseDrag fun(self: LogDisplay)?
----@field OnUpdatePlayerStatus fun(self: LogDisplay, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: LogDisplay, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: LogDisplay, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: LogDisplay)?
-
----@class LogDisplay: View
-local LogDisplay = {}
-LogDisplay.__index = LogDisplay
 setmetatable(LogDisplay, { __index = View })
-
----@param model LogDisplayModel?
----@return LogDisplay
-function LogDisplay:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatLogDisplay"
-    local instance = View.new(self, model)
-    return instance --[[@as LogDisplay]]
-end
-
-function LogDisplay:showTimestamp(showTimestamp)
-    Api.LogDisplay.ShowTimestamp(self:getName(), showTimestamp)
-    return self
-end
-
-function LogDisplay:showLogName(showLogName)
-    Api.LogDisplay.ShowLogName(self:getName(), showLogName)
-    return self
-end
-
-function LogDisplay:showFilterName(showFilterName)
-    Api.LogDisplay.ShowFilterName(self:getName(), showFilterName)
-    return self
-end
-
-function LogDisplay:setFilterState(logName, filterId, isEnabled)
-    Api.LogDisplay.SetFilterState(self:getName(), logName, filterId, isEnabled)
-    return self
-end
-
----Registers the log to the log display
----@param logName string
----@param displayPreviousEntries boolean?
----@return LogDisplay
-function LogDisplay:addLog(logName, displayPreviousEntries)
-    Api.LogDisplay.AddLog(self:getName(), logName, displayPreviousEntries)
-    return self
-end
-
----@param model LogDisplayModel?
----@return LogDisplay
-function Components.LogDisplay(model)
-    local logDisplay = LogDisplay:new(model)
-    Windows[logDisplay:getName()] = logDisplay
-    return logDisplay
-end
-
--- ========================================================================== --
--- UI - Status Bar
--- ========================================================================== --
-
----@class StatusBarModel : ViewModel
----@field OnInitialize fun(self: StatusBar)?
----@field OnLButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: StatusBar)?
----@field OnHidden fun(self: StatusBar)?
----@field OnShown fun(self: StatusBar)?
----@field OnLButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: StatusBar, timePassed: integer)?
----@field OnUpdateMobileName fun(self: StatusBar, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: StatusBar)?
----@field OnMouseOverEnd fun(self: StatusBar)?
----@field OnMouseDrag fun(self: StatusBar)?
----@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: StatusBar)?
-
----@class StatusBar: View
-local StatusBar = {}
-StatusBar.__index = StatusBar
 setmetatable(StatusBar, { __index = View })
-
----@param model StatusBarModel?
----@return StatusBar
-function StatusBar:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatStatusBar"
-    local instance = View.new(self, model)
-    return instance --[[@as StatusBar]]
-end
-
-function StatusBar:setMaxValue(maxValue)
-    Api.StatusBar.SetMaxValue(self:getName(), maxValue)
-end
-
-function StatusBar:setCurrentValue(currentValue)
-    Api.StatusBar.SetCurrentValue(self:getName(), currentValue)
-end
-
-function StatusBar:setBackgroundTint(tint)
-    Api.StatusBar.SetBackgroundTint(self:getName(), tint)
-end
-
-function StatusBar:setForegroundTint(tint)
-    Api.StatusBar.SetForegroundTint(self:getName(), tint)
-end
-
----@class StatusBarBuilder : ViewBuilder
----@field _model StatusBarModel
----@field onInitialize fun(self: StatusBarBuilder, onInitialize: fun(self: StatusBar)): StatusBarBuilder
----@field onLButtonUp fun(self: StatusBarBuilder, onLButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onRButtonUp fun(self: StatusBarBuilder, onRButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onShutdown fun(self: StatusBarBuilder, onShutdown: fun(self: StatusBar)): StatusBarBuilder
----@field onHidden fun(self: StatusBarBuilder, onHidden: fun(self: StatusBar)): StatusBarBuilder
----@field onShown fun(self: StatusBarBuilder, onShown: fun(self: StatusBar)): StatusBarBuilder
----@field onLButtonDown fun(self: StatusBarBuilder, onLButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onRButtonDown fun(self: StatusBarBuilder, onRButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onUpdate fun(self: StatusBarBuilder, onUpdate: fun(self: StatusBar, timePassed: integer)): StatusBarBuilder
----@field onUpdateMobileName fun(self: StatusBarBuilder, onUpdateMobileName: fun(self: StatusBar, windowData: MobileNameWrapper)): StatusBarBuilder
----@field onLButtonDblClk fun(self: StatusBarBuilder, onLButtonDblClk: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onMouseOver fun(self: StatusBarBuilder, onMouseOver: fun(self: StatusBar)): StatusBarBuilder
----@field onMouseOverEnd fun(self: StatusBarBuilder, onMouseOverEnd: fun(self: StatusBar)): StatusBarBuilder
----@field onMouseDrag fun(self: StatusBarBuilder, onMouseDrag: fun(self: StatusBar)): StatusBarBuilder
----@field onUpdatePlayerStatus fun(self: StatusBarBuilder, onUpdatePlayerStatus: fun(self: StatusBar, playerStatus: PlayerStatusWrapper)): StatusBarBuilder
----@field onUpdateMobileStatus fun(self: StatusBarBuilder, onUpdateMobileStatus: fun(self: StatusBar, mobileStatus: MobileStatusWrapper)): StatusBarBuilder
----@field onUpdateHealthBarColor fun(self: StatusBarBuilder, onUpdateHealthBarColor: fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)): StatusBarBuilder
----@field onEndHealthBarDrag fun(self: StatusBarBuilder, onEndHealthBarDrag: fun(self: StatusBar)): StatusBarBuilder
-local StatusBarBuilder = {}
-StatusBarBuilder.__index = StatusBarBuilder
 setmetatable(StatusBarBuilder, { __index = ViewBuilder })
+setmetatable(Gump, { __index = Window })
+setmetatable(DefaultComponent, { __index = Component })
+setmetatable(DefaultActionsComponent, { __index = DefaultComponent })
+setmetatable(DefaultMainMenuWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultStatusWindowComponent, { __index = DefaultComponent })
 
----@param name string?
----@param template string?
-function StatusBarBuilder:new(name, template)
-    local instance = ViewBuilder.new(self, name, template) --[[@as StatusBarBuilder]]
-    return instance
-end
-
-function StatusBarBuilder:build()
-    local statusBar = StatusBar:new(self._model)
-    Windows[statusBar:getName()] = statusBar
-    return statusBar
-end
-
----@param name string?
----@param template string?
----@return StatusBarBuilder
-function Components.StatusBar(name, template)
-    return StatusBarBuilder:new(name, template)
-end
-
--- ========================================================================== --
--- UI - Gump Window
--- ========================================================================== --
-
----@class GumpItem
----@field tid integer
----@field windowName string
----@field id integer
-
----@class GumpWindowModel : WindowModel
----@field windowName string
----@field TextEntry string[]?
----@field Labels GumpItem[]?
----@field Images string[]?
----@field Buttons string[]?
----@field OnInitialize fun(self: GumpWindow)?
----@field OnLButtonUp fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: GumpWindow)?
----@field OnHidden fun(self: GumpWindow)?
----@field OnShown fun(self: GumpWindow)?
----@field OnLButtonDown fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: GumpWindow, timePassed: integer)?
----@field OnUpdateMobileName fun(self: GumpWindow, windowData: MobileNameWrapper)?
----@field OnLButtonDblClk fun(self: GumpWindow, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: GumpWindow)?
----@field OnMouseOverEnd fun(self: GumpWindow)?
----@field OnMouseDrag fun(self: GumpWindow)?
----@field OnUpdatePlayerStatus fun(self: GumpWindow, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: GumpWindow, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: GumpWindow, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: GumpWindow)?
-
----@class GumpWindow : Window
----@field buttons Button[]
----@field textEntries EditTextBox[]
----@field _id integer The unique ID of the gump window.
-local GumpWindow = {}
-GumpWindow.__index = GumpWindow
-setmetatable(GumpWindow, { __index = Window })
-
----@param gump GumpWindowModel
----@param id integer
----@return GumpWindow
-function GumpWindow:new(gump, id)
-    local instance = Window.new(self, { Name = gump.windowName }) --[[@as GumpWindow]]
-
-    instance.buttons = Utils.Array.MapToArray(
-        gump.Buttons,
-        function (buttonName)
-            return Button:new({ Name = buttonName })
-        end
-    )
-
-    instance.textEntries = Utils.Array.MapToArray(
-        gump.TextEntry,
-        function (textEntryName)
-            return EditTextBox:new({ Name = textEntryName })
-        end
-    )
-
-    instance._children = Utils.Array.Concat {
-        instance.buttons,
-        instance.textEntries
-    }
-
-    instance._id = id
-    return instance --[[@as GumpWindow]]
-end
-
-function GumpWindow:isVendorSearch()
-    return self._id == 999112
-end
-
-function GumpWindow:isJewelryBox()
-    return self._id == 999143
-end
-
----@param name string?
----@return GumpWindow?
-function Components.Gump(name)
-    name = name or Active.window()
-    if not GumpData then
-        return nil
-    end
-
-    local id = -1
-
-    local gump = Utils.Table.Find(
-        GumpData.Gumps,
-        function (k, v)
-            id = k
-            return v.windowName == name
-        end
-    )
-
-    if not gump then
-        return nil
-    else
-        return GumpWindow:new(gump, id)
-    end
-end
-
-
--- ========================================================================== --
--- UI - Default Component
--- ========================================================================== --
-
-
----@class DefaultComponent : Component
-local DefaultComponent = {}
-DefaultComponent.__index = DefaultComponent
-setmetatable(DefaultComponent, { __index = Component})
-
----@param name string
----@return DefaultComponent
-function DefaultComponent:new(name)
-    local instance = Component.new(self, name) --[[@as DefaultComponent]]
-    return instance
-end
-
-function DefaultComponent:getDefault()
-    return Component:new(self.name)
-end
-
-function DefaultComponent:asComponent()
-    return Component:new(self.name)
-end
-
----@param functionName string
----@param func fun(self: Component, ...: any)
-function DefaultComponent:appendToFunction(functionName, func)
-    local d = self:getDefault()
-    local originalFunction = d[functionName] or function() end
-    d[functionName] = function(...)
-        originalFunction(...)
-        func(d, ...)
-    end
-end
-
-Components.Defaults = {}
-
---- @class Actions
---- @field WarMode integer
---- @field nxt integer
---- @field MassOrganize boolean
---- @field VacuumObjects table|nil
---- @field AutoLoadShurikens boolean
---- @field BeltMenuRequest any
---- @field Nextshuri number
---- @field DefaultRecordID integer|nil
---- @field itemQuantities table|nil
---- @field AllItems table|nil
---- @field Undress boolean|nil
---- @field OrganizeBag integer|nil
---- @field OrganizeParent integer|nil
---- @field UndressItems table|nil
---- @field ToggleMainMenu fun()
---- @field ToggleWarMode fun()
---- @field ToggleInventoryWindow fun()
---- @field ToggleMapWindow fun()
---- @field ToggleGuildWindow fun()
---- @field ToggleChatWindow fun()
---- @field ToggleSkillsWindow fun()
---- @field ToggleVirtuesWindow fun()
---- @field ToggleQuestWindow fun()
---- @field ToggleHelpWindow fun()
---- @field ToggleUOStoreWindow fun()
---- @field TogglePaperdollWindow fun()
---- @field ToggleFoliage fun()
---- @field ToggleSound fun()
---- @field ToggleSoundEffects fun()
---- @field ToggleMusic fun()
---- @field ToggleFootsteps fun()
---- @field ToggleCharacterSheet fun(noloyalty:any)
---- @field ToggleCharacterAbilities fun()
---- @field IgnorePlayer fun()
---- @field Ignore fun()
---- @field ToggleUserSettings fun()
---- @field ToggleActions fun()
---- @field ToggleMacros fun()
---- @field PrevTarget fun()
---- @field SearchValidPrevTarget fun():table|nil
---- @field NextTarget fun()
---- @field TargetAllowed fun(mobileId:integer):boolean
---- @field IsMobileVisible fun(mobileId:integer):boolean
---- @field NearTarget fun()
---- @field InjuredFollower fun()
---- @field InjuredParty fun()
---- @field InjuredMobile fun()
---- @field TargetFirstContainerObject fun()
---- @field TargetType fun()
---- @field TypeRequestTargetInfoReceived fun()
---- @field TargetByType fun(type:integer, hue:integer)
---- @field ScanQuantities fun()
---- @field ScanSubCont fun(id:integer):boolean
---- @field TargetDefaultPet fun(id:integer)
---- @field SetDefaultPet fun()
---- @field TargetDefaultItem fun(id:integer)
---- @field SetDefaultItem fun()
---- @field TargetPetball fun()
---- @field PetballRequestTargetInfoReceived fun()
---- @field TargetMount fun()
---- @field MountRequestTargetInfoReceived fun()
---- @field ToggleLegacyContainers fun()
---- @field IgnoreActionSelf fun()
---- @field EnablePVPWarning fun()
---- @field ReleaseCoownership fun()
---- @field LeaveHouse fun()
---- @field QuestConversation fun()
---- @field ViewQuestLog fun()
---- @field CancelQuest fun()
---- @field QuestItem fun()
---- @field InsuranceMenu fun()
---- @field ToggleItemInsurance fun()
---- @field TitlesMenu fun()
---- @field LoyaltyRating fun()
---- @field CancelProtection fun()
---- @field VoidPool fun()
---- @field ToggleTrades fun()
---- @field SiegeBlessItem fun()
---- @field ExportContainerItems fun()
---- @field RequestContItems fun()
---- @field ToggleEnglishNames fun()
---- @field CloseAllContainers fun()
---- @field CloseAllCorpses fun()
---- @field MassOrganizerStart fun()
---- @field MassOrganizer fun(timePassed:number)
---- @field LoadShuri fun()
---- @field Shuriken fun(timePassed:number)
---- @field AutoLoadShuri fun()
---- @field DressHolding fun()
---- @field DropHolding fun()
---- @field ToggleTrapBox fun()
---- @field TrapboxTargetReceived fun()
---- @field ToggleLootbag fun()
---- @field LootbagTargetReceived fun()
---- @field ToggleAlphaMode fun()
---- @field ToggleScaleMode fun()
---- @field ObjectHandleContextMenu fun()
---- @field ObjectHandleContextMenuCallback fun(returnCode:any, param:any)
---- @field ObjectHandleSetFilter fun(j:integer, newval:any)
---- @field GetHealthbar fun()
---- @field GetTypeID fun()
---- @field ItemIDRequestTargetInfoReceived fun()
---- @field GetHueID fun()
---- @field ColorRequestTargetInfoReceived fun()
---- @field IgnoreTargettedItem fun()
---- @field IgnoreItemRequestTargetInfoReceived fun()
---- @field ClearIgnoreList fun()
---- @field ToggleBlockPaperdolls fun()
---- @field UndressMe fun()
---- @field UndressTargetInfoReceived fun()
---- @field UndressAgent fun(timePassed:number)
---- @field ImbueLast fun()
---- @field UnravelItem fun()
---- @field EnhanceItem fun()
---- @field SmeltItem fun()
---- @field AlterItem fun()
---- @field MakeLast fun()
---- @field RepairItem fun()
-
----@class ActionsWrapper : DefaultComponent
-local ActionsWrapper = {}
-ActionsWrapper.__index = ActionsWrapper
-setmetatable(ActionsWrapper, { __index = DefaultComponent })
-
----@return ActionsWrapper
-function ActionsWrapper:new()
-    local instance = DefaultComponent.new(self, "Actions") --[[@as ActionsWrapper]]
-    return instance
-end
-
----@return Actions
-function ActionsWrapper:getDefault()
-    return Actions
-end
-
-function ActionsWrapper:asComponent()
-    return self:getDefault()
-end
-
---- @class MainMenuWindow
---- @field TID table
---- @field Initialize fun()
---- @field Shutdown fun()
---- @field OnLogOut fun()
---- @field OnOpenUserSettings fun()
---- @field OnOpenMacros fun()
---- @field OnOpenActions fun()
---- @field OnOpenBugReportItem fun()
---- @field OnOpenHelp fun()
---- @field OnOpenUOStore fun()
---- @field ToggleSettingsWindow fun()
---- @field ToggleBugReportWindow fun()
---- @field OnToggleAgentsSettings fun()
-
----@class MainMenuWindowWrapper : DefaultComponent
-local MainMenuWindowWrapper = {}
-MainMenuWindowWrapper.__index = MainMenuWindowWrapper
-setmetatable(MainMenuWindowWrapper, { __index = DefaultComponent })
-
----@return MainMenuWindowWrapper
-function MainMenuWindowWrapper:new()
-    local instance = DefaultComponent.new(self, "MainMenuWindow") --[[@as MainMenuWindowWrapper]]
-    return instance
-end
-
----@return MainMenuWindow
-function MainMenuWindowWrapper:getDefault()
-    return MainMenuWindow
-end
-
----@return Window
-function MainMenuWindowWrapper:asComponent()
-    return Window:new { Name = self.name }
-end
-
---- @class StatusWindow
---- @field CurPlayerId integer
---- @field Skills table
---- @field Notoriety table
---- @field TextColors table
---- @field Locked boolean
---- @field HPLocked boolean
---- @field MANALocked boolean
---- @field STAMLocked boolean
---- @field DisableDelta number
---- @field TempDisabled boolean
---- @field TCToolsHandle boolean
---- @field MPHeight integer
---- @field MPWidth integer
---- @field LastMPHeight integer
---- @field HPHeight integer
---- @field HPWidth integer
---- @field LastHPHeight integer
---- @field Initialize fun(reinit:any)
---- @field Shutdown fun()
---- @field Latency_OnMouseOver fun()
---- @field LockTooltip fun()
---- @field Lock fun()
---- @field LockTooltipHP fun()
---- @field LockHP fun()
---- @field LockTooltipMANA fun()
---- @field LockMANA fun()
---- @field LockTooltipSTAM fun()
---- @field LockSTAM fun()
---- @field MenuTooltip fun()
---- @field Menu fun()
---- @field UpdateLatency fun()
---- @field ClickOutside fun()
---- @field EnableInput fun(timePassed:number)
---- @field UpdateStatus fun()
---- @field OnLButtonUp fun()
---- @field OnLButtonDown fun()
---- @field OnHPLButtonUp fun()
---- @field OnHPLButtonDown fun()
---- @field OnMLANAButtonUp fun()
---- @field OnMANALButtonDown fun()
---- @field OnSTAMLButtonUp fun()
---- @field OnSTAMLButtonDown fun()
---- @field GuardsButton_OnLButtonUp fun()
---- @field GuardsButton_OnMouseOver fun()
---- @field OnRButtonUp fun()
---- @field UpdateLabelContent fun()
---- @field OnMouseOver fun()
---- @field OnMouseOverEnd fun()
---- @field ToggleStrLabel fun()
---- @field OnMouseDlbClk fun()
---- @field TCTools fun()
---- @field TCContextMenuCallback fun(returnCode:any, param:any)
---- @field EditSkill fun(id:any, value:any, max:any, min:any)
---- @field EditStr fun(id:any, value:any, max:any, min:any)
---- @field TCToolsTooltip fun()
---- @field TCToolsOver fun()
---- @field TCToolsOnLButtonDown fun()
---- @field TCToolsOverend fun()
---- @field SetMana fun(current:number, maximum:number)
---- @field SetHealth fun(current:number, maximum:number)
---- @field ChangeStyle fun(style:any)
---- @field ToggleButtons fun()
-
----@class StatusWindowWrapper : DefaultComponent
-local StatusWindowWrapper = {}
-StatusWindowWrapper.__index = StatusWindowWrapper
-setmetatable(StatusWindowWrapper, { __index = DefaultComponent })
-
----@return StatusWindowWrapper
-function StatusWindowWrapper:new()
-    local instance = DefaultComponent.new(self, "StatusWindow") --[[@as StatusWindowWrapper]]
-    return instance
-end
-
----@return StatusWindow
-function StatusWindowWrapper:getDefault()
-    return StatusWindow
-end
-
----@return Window
-function StatusWindowWrapper:asComponent()
-    return Window:new { Name = self.name }
-end
-
-Components.Defaults.Actions = ActionsWrapper:new()
-Components.Defaults.MainMenuWindow = MainMenuWindowWrapper:new()
-Components.Defaults.StatusWindow = StatusWindowWrapper:new()
+Components.Defaults.Actions = DefaultActionsComponent:new()
+Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
+Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
