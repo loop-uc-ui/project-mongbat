@@ -6892,7 +6892,7 @@ end
 
 local EventHandler = {}
 
----@type table<string, View>
+---@type table<string, EventReceiver>
 local Windows = {}
 
 function EventHandler.OnInitialize()
@@ -7007,6 +7007,89 @@ function Component:getName()
     return self.name
 end
 
+---@class EventReceiver : Component
+local EventReceiver = {}
+EventReceiver.__index = EventReceiver
+setmetatable(EventReceiver, { __index = Component })
+
+---@param name string
+---@return EventReceiver
+function EventReceiver:new(name)
+    local instance = Component.new(self, name) --[[@as EventReceiver]]
+    return instance
+end
+
+function EventReceiver:onInitialize()
+    return self
+end
+
+function EventReceiver:onShutdown()
+    return self
+end
+
+function EventReceiver:onLButtonUp(flags, x, y)
+    return self, flags, x, y
+end
+
+function EventReceiver:onLButtonDown(flags, x, y)
+    return self, flags, x, y
+end
+
+function EventReceiver:onRButtonUp(flags, x, y)
+    return self, flags, x, y
+end
+
+function EventReceiver:onRButtonDown(flags, x, y)
+    return self, flags, x, y
+end
+
+function EventReceiver:onHidden()
+    return self
+end
+
+function EventReceiver:onShown()
+    return self
+end
+
+function EventReceiver:onUpdate(timePassed)
+    return self, timePassed
+end
+
+function EventReceiver:onUpdateMobileName(windowData)
+    return self, windowData
+end
+
+function EventReceiver:onLButtonDblClk(flags, x, y)
+    return self, flags, x, y
+end
+
+function EventReceiver:onMouseOver()
+    return self
+end
+
+function EventReceiver:onMouseOverEnd()
+    return self
+end
+
+function EventReceiver:onMouseDrag()
+    return self
+end
+
+function EventReceiver:onUpdatePlayerStatus(playerStatus)
+    return self, playerStatus
+end
+
+function EventReceiver:onUpdateMobileStatus(mobileStatus)
+    return self, mobileStatus
+end
+
+function EventReceiver:onUpdateHealthBarColor(healthBarColor)
+    return self, healthBarColor
+end
+
+function EventReceiver:onEndHealthBarDrag()
+    return self
+end
 
 -- ========================================================================== --
 -- UI - View
@@ -7035,17 +7118,17 @@ end
 ---@field OnEndHealthBarDrag fun(self: View)?
 
 
----@class View : Component
+---@class View : EventReceiver
 ---@field private _model ViewModel
 local View = {}
 View.__index = View
-setmetatable(View, { __index = Component })
+setmetatable(View, { __index = EventReceiver })
 
 ---@param model ViewModel
 ---@return View
 function View:new(model)
     local name = model.Name or Utils.String.Random()
-    local instance = Component.new(self, name) --[[@as View]]
+    local instance = EventReceiver.new(self, name) --[[@as View]]
     instance._model = model
     return instance
 end
@@ -7267,10 +7350,6 @@ function View:matchParentWidth(percent)
     self:setDimensions(parentDimen.x * percent, dimen.y)
 end
 
-function View:isParentRoot()
-    return self:getParent() == "Root"
-end
-
 function View:registerCoreEventHandler(event, callback)
     Api.Window.RegisterCoreEventHandler(self.name, event, callback)
 end
@@ -7452,6 +7531,128 @@ function View:unregisterData(type)
     Api.Window.UnregisterData(type, self:getId())
 end
 
+function View:isParentRoot()
+    return self:getParent() == "Root"
+end
+
+
+---@class ViewBuilder
+---@field _model ViewModel
+local ViewBuilder = {}
+ViewBuilder.__index = ViewBuilder
+
+function ViewBuilder:new()
+    local instance = setmetatable({}, self)
+    instance._model = {}
+    return instance
+end
+
+function ViewBuilder:withName(name)
+    self._model.Name = name
+    return self
+end
+
+function ViewBuilder:withTemplate(template)
+    self._model.Template = template
+    return self
+end
+
+function ViewBuilder:onInitialize(onInitialize)
+    self._model.OnInitialize = onInitialize
+    return self
+end
+
+function ViewBuilder:onLButtonUp(onLButtonUp)
+    self._model.OnLButtonUp = onLButtonUp
+    return self
+end
+
+function ViewBuilder:onRButtonUp(onRButtonUp)
+    self._model.OnRButtonUp = onRButtonUp
+    return self
+end
+
+function ViewBuilder:onShutdown(onShutdown)
+    self._model.OnShutdown = onShutdown
+    return self
+end
+
+function ViewBuilder:onHidden(onHidden)
+    self._model.OnHidden = onHidden
+    return self
+end
+
+function ViewBuilder:onShown(onShown)
+    self._model.OnShown = onShown
+    return self
+end
+
+function ViewBuilder:onLButtonDown(onLButtonDown)
+    self._model.OnLButtonDown = onLButtonDown
+    return self
+end
+
+function ViewBuilder:onRButtonDown(onRButtonDown)
+    self._model.OnRButtonDown = onRButtonDown
+    return self
+end
+
+function ViewBuilder:onUpdate(onUpdate)
+    self._model.OnUpdate = onUpdate
+    return self
+end
+
+function ViewBuilder:onUpdateMobileName(onUpdateMobileName)
+    self._model.OnUpdateMobileName = onUpdateMobileName
+    return self
+end
+
+function ViewBuilder:onLButtonDblClk(onLButtonDblClk)
+    self._model.OnLButtonDblClk = onLButtonDblClk
+    return self
+end
+
+function ViewBuilder:onMouseOver(onMouseOver)
+    self._model.OnMouseOver = onMouseOver
+    return self
+end
+
+function ViewBuilder:onMouseOverEnd(onMouseOverEnd)
+    self._model.OnMouseOverEnd = onMouseOverEnd
+    return self
+end
+
+function ViewBuilder:onMouseDrag(onMouseDrag)
+    self._model.OnMouseDrag = onMouseDrag
+    return self
+end
+
+function ViewBuilder:onUpdatePlayerStatus(onUpdatePlayerStatus)
+    self._model.OnUpdatePlayerStatus = onUpdatePlayerStatus
+    return self
+end
+
+function ViewBuilder:onUpdateMobileStatus(onUpdateMobileStatus)
+    self._model.OnUpdateMobileStatus = onUpdateMobileStatus
+    return self
+end
+
+function ViewBuilder:onUpdateHealthBarColor(onUpdateHealthBarColor)
+    self._model.OnUpdateHealthBarColor = onUpdateHealthBarColor
+    return self
+end
+
+function ViewBuilder:onEndHealthBarDrag(onEndHealthBarDrag)
+    self._model.OnEndHealthBarDrag = onEndHealthBarDrag
+    return self
+end
+
+function ViewBuilder:build()
+    local view = View:new(self._model)
+    Windows[view:getName()] = view
+    return view
+end
+
 
 -- ========================================================================== --
 -- UI - Window
@@ -7460,7 +7661,6 @@ end
 ---@class WindowModel : ViewModel
 ---@field Name string? The name of the window. If not provided, a random name will be generated.
 ---@field Template string? The template to use for the window. Defaults to "MongbatWindow"
----@field PersistPosition boolean? If true, the window will save its position when closed and restore it when opened again
 ---@field OnInitialize fun(self: Window)?
 ---@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
@@ -7485,7 +7685,6 @@ end
 ---@field _children Window[] A list of child windows.
 ---@field _frame string The name of the window's frame component.
 ---@field _background string The name of the window's background component.
----@field _persistPosition boolean If true, the window will save its position when closed and restore it when opened again.
 local Window = {}
 Window.__index = Window
 setmetatable(Window, { __index = View })
@@ -7499,215 +7698,76 @@ function Window:new(model)
     instance._children = {}
     instance._frame = instance.name .. "Frame"
     instance._background = instance.name .. "Background"
-    instance._persistPosition = model.PersistPosition or false
-
+    instance._model.OnRButtonUp = model.OnRButtonUp or function (window)
+        if window:isParentRoot() then
+            window:destroy()
+        end
+    end
     return instance
 end
 
 function Window:onInitialize()
     View.onInitialize(self)
-    if self:isParentRoot() and self._model.OnRButtonUp == nil then
-        self:registerCoreEventHandler(
-            Constants.CoreEvents.OnRButtonUp,
-            "Mongbat.EventHandler." .. Constants.CoreEvents.OnRButtonUp
-        )
-    end
 
-    self:restorePosition()
+    local isParentRoot = self:isParentRoot()
+    self:toggleBackground(isParentRoot)
+    self:toggleFrame(isParentRoot)
+
+    if isParentRoot then
+        Api.Window.RestorePosition(self.name)
+    end
 
     Utils.Array.ForEach(
         self._children,
         function (item, index)
-            item:create(true)
-            item:setParent(self:getName())
-            item:onInitialize()
-            if index > 1 then
-                item:addAnchor(
-                    "bottomleft",
-                    self._children[index - 1]:getName(),
-                    "topleft",
-                    0,
-                    8
-                )
+            --- For each child, override its onInitialize to set its parent and anchors
+            local onChildInitialize = item._model.OnInitialize
+
+            item._model.OnInitialize = function (child)
+                child:setParent(self:getName())
+                if index > 1 then
+                    child:addAnchor(
+                        "bottomleft",
+                        self._children[index - 1]:getName(),
+                        "topleft",
+                        0,
+                        8
+                    )
+                end
+
+                if onChildInitialize ~= nil then
+                    onChildInitialize(child)
+                end
             end
+
+            --- For each child propagate the onRButtonUp event to the parent
+            local onChildRButtonUp = item._model.OnRButtonUp
+
+            item._model.OnRButtonUp = function (child, flags, x, y)
+                if onChildRButtonUp ~= nil then
+                    onChildRButtonUp(child, flags, x, y)
+                end
+
+                if not child:isParentRoot() then
+                    self:onRButtonUp(flags, x, y)
+                end
+            end
+
+            item:create()
+            item:onInitialize()
         end
     )
-
-    self:toggleBackground(self:isParentRoot())
-    self:toggleFrame(self:isParentRoot())
 end
 
 function Window:onShutdown()
-    self:savePosition()
+    if self:isParentRoot() then
+        Api.Window.SavePosition(self.name)
+    end
 
     Utils.Array.ForEach(self._children, function (item)
         item:destroy()
     end)
-
     View.onShutdown(self)
-end
-
-function Window:onLButtonUp(flags, x, y)
-    View.onLButtonUp(self, flags, x, y)
-
-    local child = Utils.Array.Find(
-        self._children,
-        function (item)
-            return item:getName() == Active.window()
-        end
-    )
-
-    if child ~= nil then
-        child:onLButtonUp(flags, x, y)
-    end
-end
-
-function Window:onLButtonDown(flags, x, y)
-    View.onLButtonDown(self, flags, x, y)
-
-    local child = Utils.Array.Find(
-        self._children,
-        function (item)
-            return item:getName() == Active.window()
-        end
-    )
-
-    if child ~= nil then
-        child:onLButtonDown(flags, x, y)
-    end
-end
-
-function Window:onRButtonUp(flags, x, y)
-    if self._model.OnRButtonUp ~= nil then
-        self._model.OnRButtonUp(self, flags, x, y)
-
-        local child = Utils.Array.Find(
-            self._children,
-            function (item)
-                return item:getName() == Active.window()
-            end
-        )
-
-        if child ~= nil then
-            child:onRButtonUp(flags, x, y)
-        end
-    elseif self:isParentRoot() then
-        self:destroy()
-    end
-end
-
-function Window:onRButtonDown(flags, x, y)
-    View.onRButtonDown(self, flags, x, y)
-
-    local child = Utils.Array.Find(
-        self._children,
-        function (item)
-            return item:getName() == Active.window()
-        end
-    )
-
-    if child ~= nil then
-        child:onRButtonDown(flags, x, y)
-    end
-end
-
-function Window:onHidden()
-    View.onHidden(self)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onHidden()
-        end
-    )
-end
-
-function Window:onShown()
-    View.onShown(self)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onShown()
-        end
-    )
-end
-
-function Window:onUpdate(timePassed, systemData, windowData)
-    View.onUpdate(self, timePassed, systemData, windowData)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onUpdate(timePassed, systemData, windowData)
-        end
-    )
-end
-
-function Window:onUpdateMobileName()
-    View.onUpdateMobileName(self)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onUpdateMobileName()
-        end
-    )
-end
-
-function Window:onLButtonDblClk(flags, x, y)
-    View.onLButtonDblClk(self, flags, x, y)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onLButtonDblClk(flags, x, y)
-        end
-    )
-end
-
-function Window:onUpdatePlayerStatus()
-    View.onUpdatePlayerStatus(self)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onUpdatePlayerStatus()
-        end
-    )
-end
-
-function Window:onUpdateMobileStatus()
-    View.onUpdateMobileStatus(self)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onUpdateMobileStatus()
-        end
-    )
-end
-
-function Window:onUpdateHealthBarColor()
-    View.onUpdateHealthBarColor(self)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onUpdateHealthBarColor()
-        end
-    )
-end
-
-function Window:onEndHealthBarDrag()
-    View.onEndHealthBarDrag(self)
-
-    Utils.Array.ForEach(
-        self._children,
-        function (item)
-            item:onEndHealthBarDrag()
-        end
-    )
 end
 
 ---@return Window
@@ -7746,24 +7806,46 @@ function Window:setChildren(children)
     self._children = children
 end
 
-function Window:restorePosition()
-    if self._persistPosition and self:isParentRoot() then
-        Api.Window.RestorePosition(self.name)
-    end
+---@class WindowBuilder : ViewBuilder
+---@field _model WindowModel
+---@field withName fun(self: WindowBuilder, name: string): WindowBuilder
+---@field onInitialize fun(self: WindowBuilder, onInitialize: fun(self: Window)): WindowBuilder
+---@field onLButtonUp fun(self: WindowBuilder, onLButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onRButtonUp fun(self: WindowBuilder, onRButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onShutdown fun(self: WindowBuilder, onShutdown: fun(self: Window)): WindowBuilder
+---@field onHidden fun(self: WindowBuilder, onHidden: fun(self: Window)): WindowBuilder
+---@field onShown fun(self: WindowBuilder, onShown: fun(self: Window)): WindowBuilder
+---@field onLButtonDown fun(self: WindowBuilder, onLButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onRButtonDown fun(self: WindowBuilder, onRButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onUpdate fun(self: WindowBuilder, onUpdate: fun(self: Window, timePassed: integer)): WindowBuilder
+---@field onUpdateMobileName fun(self: WindowBuilder, onUpdateMobileName: fun(self: Window, windowData: MobileNameWrapper)): WindowBuilder
+---@field onLButtonDblClk fun(self: WindowBuilder, onLButtonDblClk: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
+---@field onMouseOver fun(self: WindowBuilder, onMouseOver: fun(self: Window)): WindowBuilder
+---@field onMouseOverEnd fun(self: WindowBuilder, onMouseOverEnd: fun(self: Window)): WindowBuilder
+---@field onMouseDrag fun(self: WindowBuilder, onMouseDrag: fun(self: Window)): WindowBuilder
+---@field onUpdatePlayerStatus fun(self: WindowBuilder, onUpdatePlayerStatus: fun(self: Window, playerStatus: PlayerStatusWrapper)): WindowBuilder
+---@field onUpdateMobileStatus fun(self: WindowBuilder, onUpdateMobileStatus: fun(self: Window, mobileStatus: MobileStatusWrapper)): WindowBuilder
+---@field onUpdateHealthBarColor fun(self: WindowBuilder, onUpdateHealthBarColor: fun(self: Window, healthBarColor: HealthBarColorWrapper)): WindowBuilder
+---@field onEndHealthBarDrag fun(self: WindowBuilder, onEndHealthBarDrag: fun(self: Window)): WindowBuilder
+local WindowBuilder = {}
+WindowBuilder.__index = WindowBuilder
+setmetatable(WindowBuilder, { __index = ViewBuilder })
+
+function WindowBuilder:new()
+    local instance = ViewBuilder.new(self) --[[@as WindowBuilder]]
+    instance._model = {}
+    return instance
 end
 
-function Window:savePosition()
-    if self._persistPosition and self:isParentRoot() then
-        Api.Window.SavePosition(self.name)
-    end
-end
-
----@param model WindowModel?
----@return Window
-function Components.Window(model)
-   local window = Window:new(model)
+function WindowBuilder:build()
+    local window = Window:new(self._model)
     Windows[window:getName()] = window
     return window
+end
+
+---@return WindowBuilder
+function Components.Window()
+    return WindowBuilder:new()
 end
 
 -- ========================================================================== --
@@ -7824,12 +7906,47 @@ function Button:setTextColor(state, color)
     Api.Button.SetTextColor(self:getName(), state, color.r, color.g, color.b)
 end
 
----@param model ButtonModel?
----@return Button
-function Components.Button(model)
-    local button = Button:new(model)
+
+---@class ButtonBuilder : WindowBuilder
+---@field _model ButtonModel
+---@field withName fun(self: ButtonBuilder, name: string): ButtonBuilder
+---@field onInitialize fun(self: ButtonBuilder, onInitialize: fun(self: Button)): ButtonBuilder
+---@field onLButtonUp fun(self: ButtonBuilder, onLButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onRButtonUp fun(self: ButtonBuilder, onRButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onShutdown fun(self: ButtonBuilder, onShutdown: fun(self: Button)): ButtonBuilder
+---@field onHidden fun(self: ButtonBuilder, onHidden: fun(self: Button)): ButtonBuilder
+---@field onShown fun(self: ButtonBuilder, onShown: fun(self: Button)): ButtonBuilder
+---@field onLButtonDown fun(self: ButtonBuilder, onLButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onRButtonDown fun(self: ButtonBuilder, onRButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onUpdate fun(self: ButtonBuilder, onUpdate: fun(self: Button, timePassed: integer)): ButtonBuilder
+---@field onUpdateMobileName fun(self: ButtonBuilder, onUpdateMobileName: fun(self: Button, windowData: MobileNameWrapper)): ButtonBuilder
+---@field onLButtonDblClk fun(self: ButtonBuilder, onLButtonDblClk: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
+---@field onMouseOver fun(self: ButtonBuilder, onMouseOver: fun(self: Button)): ButtonBuilder
+---@field onMouseOverEnd fun(self: ButtonBuilder, onMouseOverEnd: fun(self: Button)): ButtonBuilder
+---@field onMouseDrag fun(self: ButtonBuilder, onMouseDrag: fun(self: Button)): ButtonBuilder
+---@field onUpdatePlayerStatus fun(self: ButtonBuilder, onUpdatePlayerStatus: fun(self: Button, playerStatus: PlayerStatusWrapper)): ButtonBuilder
+---@field onUpdateMobileStatus fun(self: ButtonBuilder, onUpdateMobileStatus: fun(self: Button, mobileStatus: MobileStatusWrapper)): ButtonBuilder
+---@field onUpdateHealthBarColor fun(self: ButtonBuilder, onUpdateHealthBarColor: fun(self: Button, healthBarColor: HealthBarColorWrapper)): ButtonBuilder
+---@field onEndHealthBarDrag fun(self: ButtonBuilder, onEndHealthBarDrag: fun(self: Button)): ButtonBuilder
+local ButtonBuilder = {}
+ButtonBuilder.__index = ButtonBuilder
+setmetatable(ButtonBuilder, { __index = WindowBuilder })
+
+function ButtonBuilder:new()
+    local instance = WindowBuilder.new(self) --[[@as ButtonBuilder]]
+    instance._model = {}
+    return instance
+end
+
+function ButtonBuilder:build()
+    local button = Button:new(self._model)
     Windows[button:getName()] = button
     return button
+end
+
+---@return ButtonBuilder
+function Components.Button(model)
+    return ButtonBuilder:new()
 end
 
 -- ========================================================================== --
@@ -7882,13 +7999,13 @@ end
 function EditTextBox:setTextColor(color)
     Api.EditTextBox.SetTextColor(self:getName(), color.r, color.g, color.b)
 end
-    
----@param model ButtonModel?
----@return Button
+
+---@param model EditTextBoxModel?
+---@return EditTextBox
 function Components.EditTextBox(model)
-    local button = Button:new(model)
-    Windows[button:getName()] = button
-    return button
+    local editTextBox = EditTextBox:new(model)
+    Windows[editTextBox:getName()] = editTextBox
+    return editTextBox
 end
 
 -- ========================================================================== --
@@ -8082,12 +8199,46 @@ function StatusBar:setForegroundTint(tint)
     Api.StatusBar.SetForegroundTint(self:getName(), tint)
 end
 
----@param model StatusBarModel?
----@return StatusBar
-function Components.StatusBar(model)
-    local statusBar = StatusBar:new(model)
+---@class StatusBarBuilder : ViewBuilder
+---@field _model StatusBarModel
+---@field withName fun(self: StatusBarBuilder, name: string): StatusBarBuilder
+---@field onInitialize fun(self: StatusBarBuilder, onInitialize: fun(self: StatusBar)): StatusBarBuilder
+---@field onLButtonUp fun(self: StatusBarBuilder, onLButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onRButtonUp fun(self: StatusBarBuilder, onRButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onShutdown fun(self: StatusBarBuilder, onShutdown: fun(self: StatusBar)): StatusBarBuilder
+---@field onHidden fun(self: StatusBarBuilder, onHidden: fun(self: StatusBar)): StatusBarBuilder
+---@field onShown fun(self: StatusBarBuilder, onShown: fun(self: StatusBar)): StatusBarBuilder
+---@field onLButtonDown fun(self: StatusBarBuilder, onLButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onRButtonDown fun(self: StatusBarBuilder, onRButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onUpdate fun(self: StatusBarBuilder, onUpdate: fun(self: StatusBar, timePassed: integer)): StatusBarBuilder
+---@field onUpdateMobileName fun(self: StatusBarBuilder, onUpdateMobileName: fun(self: StatusBar, windowData: MobileNameWrapper)): StatusBarBuilder
+---@field onLButtonDblClk fun(self: StatusBarBuilder, onLButtonDblClk: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
+---@field onMouseOver fun(self: StatusBarBuilder, onMouseOver: fun(self: StatusBar)): StatusBarBuilder
+---@field onMouseOverEnd fun(self: StatusBarBuilder, onMouseOverEnd: fun(self: StatusBar)): StatusBarBuilder
+---@field onMouseDrag fun(self: StatusBarBuilder, onMouseDrag: fun(self: StatusBar)): StatusBarBuilder
+---@field onUpdatePlayerStatus fun(self: StatusBarBuilder, onUpdatePlayerStatus: fun(self: StatusBar, playerStatus: PlayerStatusWrapper)): StatusBarBuilder
+---@field onUpdateMobileStatus fun(self: StatusBarBuilder, onUpdateMobileStatus: fun(self: StatusBar, mobileStatus: MobileStatusWrapper)): StatusBarBuilder
+---@field onUpdateHealthBarColor fun(self: StatusBarBuilder, onUpdateHealthBarColor: fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)): StatusBarBuilder
+---@field onEndHealthBarDrag fun(self: StatusBarBuilder, onEndHealthBarDrag: fun(self: StatusBar)): StatusBarBuilder
+local StatusBarBuilder = {}
+StatusBarBuilder.__index = StatusBarBuilder
+setmetatable(StatusBarBuilder, { __index = ViewBuilder })
+
+function StatusBarBuilder:new()
+    local instance = ViewBuilder.new(self) --[[@as StatusBarBuilder]]
+    instance._model = {}
+    return instance
+end
+
+function StatusBarBuilder:build()
+    local statusBar = StatusBar:new(self._model)
     Windows[statusBar:getName()] = statusBar
     return statusBar
+end
+
+---@return StatusBarBuilder
+function Components.StatusBar()
+    return StatusBarBuilder:new()
 end
 
 -- ========================================================================== --
@@ -8406,7 +8557,7 @@ end
 
 ---@return Window
 function MainMenuWindowWrapper:asComponent()
-    return Components.Window { Name = self.name }
+    return Window:new { Name = self.name }
 end
 
 --- @class StatusWindow
@@ -8491,7 +8642,7 @@ end
 
 ---@return Window
 function StatusWindowWrapper:asComponent()
-    return Components.Window { Name = self.name }
+    return Window:new { Name = self.name }
 end
 
 Components.Defaults.Actions = ActionsWrapper:new()

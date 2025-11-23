@@ -5,24 +5,22 @@ Mongbat.Mod {
         local default = context.Components.Defaults.MainMenuWindow:asComponent()
 
         local Button = function (text, onLButtonUp, onShown)
-            return context.Components.Button {
-                OnLButtonUp = onLButtonUp,
-
-                OnInitialize = function (self)
+            return context.Components.Button()
+                :onLButtonUp(onLButtonUp)
+                :onInitialize(function (self)
                     self:setDimensions(130, 41)
                     self:setText(text)
                     if onShown ~= nil then
                         onShown(self)
                     end
-                end
-            }
+                end)
+                :build()
         end
 
         local Window = function ()
-            return context.Components.Window {
-                Name = default:getName(),
-                ---@param self Window
-                OnInitialize = function (self)
+            return context.Components.Window()
+                :withName(default:getName())
+                :onInitialize(function (self)
                     self:setDimensions(214, 440)
                     self:anchorToParentCenter()
                     self:setChildren {
@@ -92,11 +90,11 @@ Mongbat.Mod {
                             end
                         )
                     }
-                end,
-                OnRButtonUp = function (self)
+                end)
+                :onRButtonUp(function (self)
                     self:setShowing(false)
-                end
-            }
+                end)
+                :build()
         end
 
         default:destroy()
