@@ -7541,20 +7541,14 @@ end
 local ViewBuilder = {}
 ViewBuilder.__index = ViewBuilder
 
-function ViewBuilder:new()
+---@param name string?
+---@param template string?
+function ViewBuilder:new(name, template)
     local instance = setmetatable({}, self)
     instance._model = {}
+    instance._model.Name = name
+    instance._model.Template = template
     return instance
-end
-
-function ViewBuilder:withName(name)
-    self._model.Name = name
-    return self
-end
-
-function ViewBuilder:withTemplate(template)
-    self._model.Template = template
-    return self
 end
 
 function ViewBuilder:onInitialize(onInitialize)
@@ -7733,7 +7727,19 @@ function Window:onInitialize()
                         0,
                         8
                     )
+                else
+                    child:addAnchor(
+                        "topleft",
+                        self:getName(),
+                        "topleft",
+                        16,
+                        16
+                    )
                 end
+                local childWidth = self:getDimensions().x - 32
+                local childSpaceOffset = (#self._children - 1) * 8
+                local childHeight =  (self:getDimensions().y - 32 - childSpaceOffset) / #self._children
+                child:setDimensions(childWidth, childHeight)
 
                 if onChildInitialize ~= nil then
                     onChildInitialize(child)
@@ -7808,7 +7814,6 @@ end
 
 ---@class WindowBuilder : ViewBuilder
 ---@field _model WindowModel
----@field withName fun(self: WindowBuilder, name: string): WindowBuilder
 ---@field onInitialize fun(self: WindowBuilder, onInitialize: fun(self: Window)): WindowBuilder
 ---@field onLButtonUp fun(self: WindowBuilder, onLButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
 ---@field onRButtonUp fun(self: WindowBuilder, onRButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
@@ -7831,9 +7836,10 @@ local WindowBuilder = {}
 WindowBuilder.__index = WindowBuilder
 setmetatable(WindowBuilder, { __index = ViewBuilder })
 
-function WindowBuilder:new()
-    local instance = ViewBuilder.new(self) --[[@as WindowBuilder]]
-    instance._model = {}
+---@param name string?
+---@param template string?
+function WindowBuilder:new(name, template)
+    local instance = ViewBuilder.new(self, name, template) --[[@as WindowBuilder]]
     return instance
 end
 
@@ -7844,8 +7850,8 @@ function WindowBuilder:build()
 end
 
 ---@return WindowBuilder
-function Components.Window()
-    return WindowBuilder:new()
+function Components.Window(name, template)
+    return WindowBuilder:new(name, template)
 end
 
 -- ========================================================================== --
@@ -7909,7 +7915,6 @@ end
 
 ---@class ButtonBuilder : WindowBuilder
 ---@field _model ButtonModel
----@field withName fun(self: ButtonBuilder, name: string): ButtonBuilder
 ---@field onInitialize fun(self: ButtonBuilder, onInitialize: fun(self: Button)): ButtonBuilder
 ---@field onLButtonUp fun(self: ButtonBuilder, onLButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
 ---@field onRButtonUp fun(self: ButtonBuilder, onRButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
@@ -7932,9 +7937,10 @@ local ButtonBuilder = {}
 ButtonBuilder.__index = ButtonBuilder
 setmetatable(ButtonBuilder, { __index = WindowBuilder })
 
-function ButtonBuilder:new()
-    local instance = WindowBuilder.new(self) --[[@as ButtonBuilder]]
-    instance._model = {}
+---@param name string?
+---@param template string?
+function ButtonBuilder:new(name, template)
+    local instance = WindowBuilder.new(self, name, template) --[[@as ButtonBuilder]]
     return instance
 end
 
@@ -7944,9 +7950,11 @@ function ButtonBuilder:build()
     return button
 end
 
+---@param name string?
+---@param template string?
 ---@return ButtonBuilder
-function Components.Button(model)
-    return ButtonBuilder:new()
+function Components.Button(name, template)
+    return ButtonBuilder:new(name, template)
 end
 
 -- ========================================================================== --
@@ -8201,7 +8209,6 @@ end
 
 ---@class StatusBarBuilder : ViewBuilder
 ---@field _model StatusBarModel
----@field withName fun(self: StatusBarBuilder, name: string): StatusBarBuilder
 ---@field onInitialize fun(self: StatusBarBuilder, onInitialize: fun(self: StatusBar)): StatusBarBuilder
 ---@field onLButtonUp fun(self: StatusBarBuilder, onLButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
 ---@field onRButtonUp fun(self: StatusBarBuilder, onRButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
@@ -8224,9 +8231,10 @@ local StatusBarBuilder = {}
 StatusBarBuilder.__index = StatusBarBuilder
 setmetatable(StatusBarBuilder, { __index = ViewBuilder })
 
-function StatusBarBuilder:new()
-    local instance = ViewBuilder.new(self) --[[@as StatusBarBuilder]]
-    instance._model = {}
+---@param name string?
+---@param template string?
+function StatusBarBuilder:new(name, template)
+    local instance = ViewBuilder.new(self, name, template) --[[@as StatusBarBuilder]]
     return instance
 end
 
@@ -8236,9 +8244,11 @@ function StatusBarBuilder:build()
     return statusBar
 end
 
+---@param name string?
+---@param template string?
 ---@return StatusBarBuilder
-function Components.StatusBar()
-    return StatusBarBuilder:new()
+function Components.StatusBar(name, template)
+    return StatusBarBuilder:new(name, template)
 end
 
 -- ========================================================================== --

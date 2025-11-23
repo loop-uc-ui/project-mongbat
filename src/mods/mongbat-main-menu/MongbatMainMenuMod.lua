@@ -8,7 +8,6 @@ Mongbat.Mod {
             return context.Components.Button()
                 :onLButtonUp(onLButtonUp)
                 :onInitialize(function (self)
-                    self:setDimensions(130, 41)
                     self:setText(text)
                     if onShown ~= nil then
                         onShown(self)
@@ -18,8 +17,7 @@ Mongbat.Mod {
         end
 
         local Window = function ()
-            return context.Components.Window()
-                :withName(default:getName())
+            return context.Components.Window(default:getName())
                 :onInitialize(function (self)
                     self:setDimensions(214, 440)
                     self:anchorToParentCenter()
@@ -28,10 +26,6 @@ Mongbat.Mod {
                             3000128,
                             function ()
                                 context.Api.Event.Logout()
-                            end,
-                            ---@param button Button
-                            function (button)
-                                button:anchorToParentTop()
                             end
                         ),
                         Button(

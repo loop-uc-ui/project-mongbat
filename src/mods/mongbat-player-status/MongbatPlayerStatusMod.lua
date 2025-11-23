@@ -10,11 +10,7 @@ Mongbat.Mod {
         ---@param name string
         ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
         local function StatusBar(name, onUpdatePlayerStatus)
-            return context.Components.StatusBar()
-                :withName(statusWindow .. name)
-                :onInitialize(function (self)
-                    self:setDimensions(280, 24)
-                end)
+            return context.Components.StatusBar(statusWindow .. name)
                 :onUpdatePlayerStatus(onUpdatePlayerStatus)
                 :build()
         end
@@ -41,8 +37,7 @@ Mongbat.Mod {
         end
 
         local function Window()
-            return context.Components.Window()
-                :withName(statusWindow)
+            return context.Components.Window(statusWindow)
                 :onInitialize(function (self)
                     self:setDimensions(300, 150)
                     self:setChildren {
