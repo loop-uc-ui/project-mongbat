@@ -4,21 +4,19 @@ Mongbat.Mod {
     OnInitialize = function (context)
         local default = context.Components.Defaults.MainMenuWindow:asComponent()
 
-        local Button = function (text, onLButtonUp, onShown)
-            return context.Components.Button()
-                :onLButtonUp(onLButtonUp)
-                :onInitialize(function (self)
+        local function Button(text, onLButtonUp)
+            return context.Components.Button {
+                OnInitialize = function (self)
                     self:setText(text)
-                    if onShown ~= nil then
-                        onShown(self)
-                    end
-                end)
-                :build()
+                end,
+                OnLButtonUp = onLButtonUp,
+            }
         end
 
-        local Window = function ()
-            return context.Components.Window(default:getName())
-                :onInitialize(function (self)
+        local function Window ()
+            return context.Components.Window {
+                Name = default:getName(),
+                OnInitialize = function (self)
                     self:setDimensions(214, 440)
                     self:anchorToParentCenter()
                     self:setChildren {
@@ -72,8 +70,7 @@ Mongbat.Mod {
                         Button(
                             1061037,
                             function ()
-                                context.Api.Event.OpenHelpMenu()
-                                self:setShowing(false)
+                                Mongbat.ModManager.Window:create(true)
                             end
                         ),
                         Button(
@@ -84,14 +81,18 @@ Mongbat.Mod {
                             end
                         )
                     }
-                end)
-                :onRButtonUp(function (self)
+                end,
+                OnRButtonUp = function (self)
                     self:setShowing(false)
-                end)
-                :build()
+                end
+            }
         end
 
         default:destroy()
         Window():create(false)
+    end,
+    OnShutdown = function (context)
+        local default = context.Components.Defaults.MainMenuWindow:asComponent()
+        default:destroy()
     end
 }

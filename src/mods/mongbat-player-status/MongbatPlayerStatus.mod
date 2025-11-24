@@ -14,7 +14,7 @@
 		</Files>
 
 		<OnInitialize>
-			<CallFunction name="Mongbat.ModInitializer.MongbatPlayerStatus" />
+			<CallFunction name="Mongbat.ModManager.MongbatPlayerStatus.OnInitialize" />
 		</OnInitialize>
 	</UiMod>
 </ModuleFile>

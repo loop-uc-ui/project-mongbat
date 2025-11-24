@@ -14,7 +14,10 @@
 		</Files>
 
 		<OnInitialize>
-			<CallFunction name="Mongbat.ModInitializer.MongbatMainMenu" />
+			<CallFunction name="Mongbat.ModManager.MongbatMainMenu.OnInitialize" />
 		</OnInitialize>
+		<OnShutdown>
+			<CallFunction name="Mongbat.ModManager.MongbatMainMenu.OnShutdown" />
+		</OnShutdown>
 	</UiMod>
 </ModuleFile>

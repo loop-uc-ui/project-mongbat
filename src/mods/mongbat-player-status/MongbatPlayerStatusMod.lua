@@ -10,9 +10,10 @@ Mongbat.Mod {
         ---@param name string
         ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
         local function StatusBar(name, onUpdatePlayerStatus)
-            return context.Components.StatusBar(statusWindow .. name)
-                :onUpdatePlayerStatus(onUpdatePlayerStatus)
-                :build()
+            return context.Components.StatusBar {
+                Name = statusWindow .. name,
+                OnUpdatePlayerStatus = onUpdatePlayerStatus
+            }
         end
 
         local function HealthStatusBar()
@@ -37,21 +38,25 @@ Mongbat.Mod {
         end
 
         local function Window()
-            return context.Components.Window(statusWindow)
-                :onInitialize(function (self)
+            return context.Components.Window {
+                Name = statusWindow,
+                OnInitialize = function (self)
                     self:setDimensions(300, 150)
                     self:setChildren {
                         HealthStatusBar(),
                         ManaStatusBar(),
                         StaminaStatusBar()
                     }
-                end)
-                :onRButtonUp(function () end)
-                :build()
+                end,
+                OnRButtonUp = function () end
+            }
         end
 
         original:getDefault().UpdateLatency = function () end
         original:asComponent():destroy()
         Window():create(true)
+    end,
+    OnShutdown = function (self)
+        
     end
 }

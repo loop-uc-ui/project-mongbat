@@ -6103,6 +6103,23 @@ function Utils.Table.OverrideFunctions(table)
     return table
 end
 
+---@generic T
+---@generic V
+---@generic R
+---@param table table<T, V>
+---@param forEach fun(k: T, v: V): R
+---@return R[]
+function Utils.Table.MapToArray(table, forEach)
+    local array = {}
+    Utils.Table.ForEach(
+        table,
+        function (k, v)
+            array.insert(array, forEach(k, v))
+        end
+    )
+    return array
+end
+
 -- ========================================================================== --
 -- Utils - String
 -- ========================================================================== --
@@ -6919,29 +6936,6 @@ local Windows = {}
 local Button = {}
 Button.__index = Button
 
----@class ButtonBuilder : WindowBuilder
----@field _model ButtonModel
----@field onInitialize fun(self: ButtonBuilder, onInitialize: fun(self: Button)): ButtonBuilder
----@field onLButtonUp fun(self: ButtonBuilder, onLButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onRButtonUp fun(self: ButtonBuilder, onRButtonUp: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onShutdown fun(self: ButtonBuilder, onShutdown: fun(self: Button)): ButtonBuilder
----@field onHidden fun(self: ButtonBuilder, onHidden: fun(self: Button)): ButtonBuilder
----@field onShown fun(self: ButtonBuilder, onShown: fun(self: Button)): ButtonBuilder
----@field onLButtonDown fun(self: ButtonBuilder, onLButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onRButtonDown fun(self: ButtonBuilder, onRButtonDown: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onUpdate fun(self: ButtonBuilder, onUpdate: fun(self: Button, timePassed: integer)): ButtonBuilder
----@field onUpdateMobileName fun(self: ButtonBuilder, onUpdateMobileName: fun(self: Button, windowData: MobileNameWrapper)): ButtonBuilder
----@field onLButtonDblClk fun(self: ButtonBuilder, onLButtonDblClk: fun(self: Button, flags: integer, x: integer, y: integer)): ButtonBuilder
----@field onMouseOver fun(self: ButtonBuilder, onMouseOver: fun(self: Button)): ButtonBuilder
----@field onMouseOverEnd fun(self: ButtonBuilder, onMouseOverEnd: fun(self: Button)): ButtonBuilder
----@field onMouseDrag fun(self: ButtonBuilder, onMouseDrag: fun(self: Button)): ButtonBuilder
----@field onUpdatePlayerStatus fun(self: ButtonBuilder, onUpdatePlayerStatus: fun(self: Button, playerStatus: PlayerStatusWrapper)): ButtonBuilder
----@field onUpdateMobileStatus fun(self: ButtonBuilder, onUpdateMobileStatus: fun(self: Button, mobileStatus: MobileStatusWrapper)): ButtonBuilder
----@field onUpdateHealthBarColor fun(self: ButtonBuilder, onUpdateHealthBarColor: fun(self: Button, healthBarColor: HealthBarColorWrapper)): ButtonBuilder
----@field onEndHealthBarDrag fun(self: ButtonBuilder, onEndHealthBarDrag: fun(self: Button)): ButtonBuilder
-local ButtonBuilder = {}
-ButtonBuilder.__index = ButtonBuilder
-
 ---@class DefaultComponent : Component
 local DefaultComponent = {}
 DefaultComponent.__index = DefaultComponent
@@ -7343,38 +7337,10 @@ LogDisplay.__index = LogDisplay
 local StatusBar = {}
 StatusBar.__index = StatusBar
 
----@class StatusBarBuilder : ViewBuilder
----@field _model StatusBarModel
----@field onInitialize fun(self: StatusBarBuilder, onInitialize: fun(self: StatusBar)): StatusBarBuilder
----@field onLButtonUp fun(self: StatusBarBuilder, onLButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onRButtonUp fun(self: StatusBarBuilder, onRButtonUp: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onShutdown fun(self: StatusBarBuilder, onShutdown: fun(self: StatusBar)): StatusBarBuilder
----@field onHidden fun(self: StatusBarBuilder, onHidden: fun(self: StatusBar)): StatusBarBuilder
----@field onShown fun(self: StatusBarBuilder, onShown: fun(self: StatusBar)): StatusBarBuilder
----@field onLButtonDown fun(self: StatusBarBuilder, onLButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onRButtonDown fun(self: StatusBarBuilder, onRButtonDown: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onUpdate fun(self: StatusBarBuilder, onUpdate: fun(self: StatusBar, timePassed: integer)): StatusBarBuilder
----@field onUpdateMobileName fun(self: StatusBarBuilder, onUpdateMobileName: fun(self: StatusBar, windowData: MobileNameWrapper)): StatusBarBuilder
----@field onLButtonDblClk fun(self: StatusBarBuilder, onLButtonDblClk: fun(self: StatusBar, flags: integer, x: integer, y: integer)): StatusBarBuilder
----@field onMouseOver fun(self: StatusBarBuilder, onMouseOver: fun(self: StatusBar)): StatusBarBuilder
----@field onMouseOverEnd fun(self: StatusBarBuilder, onMouseOverEnd: fun(self: StatusBar)): StatusBarBuilder
----@field onMouseDrag fun(self: StatusBarBuilder, onMouseDrag: fun(self: StatusBar)): StatusBarBuilder
----@field onUpdatePlayerStatus fun(self: StatusBarBuilder, onUpdatePlayerStatus: fun(self: StatusBar, playerStatus: PlayerStatusWrapper)): StatusBarBuilder
----@field onUpdateMobileStatus fun(self: StatusBarBuilder, onUpdateMobileStatus: fun(self: StatusBar, mobileStatus: MobileStatusWrapper)): StatusBarBuilder
----@field onUpdateHealthBarColor fun(self: StatusBarBuilder, onUpdateHealthBarColor: fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)): StatusBarBuilder
----@field onEndHealthBarDrag fun(self: StatusBarBuilder, onEndHealthBarDrag: fun(self: StatusBar)): StatusBarBuilder
-local StatusBarBuilder = {}
-StatusBarBuilder.__index = StatusBarBuilder
-
 ---@class View : EventReceiver
 ---@field private _model ViewModel
 local View = {}
 View.__index = View
-
----@class ViewBuilder
----@field _model ViewModel
-local ViewBuilder = {}
-ViewBuilder.__index = ViewBuilder
 
 ---@class Window : View
 ---@field _model WindowModel?
@@ -7383,29 +7349,6 @@ ViewBuilder.__index = ViewBuilder
 ---@field _background string The name of the window's background component.
 local Window = {}
 Window.__index = Window
-
----@class WindowBuilder : ViewBuilder
----@field _model WindowModel
----@field onInitialize fun(self: WindowBuilder, onInitialize: fun(self: Window)): WindowBuilder
----@field onLButtonUp fun(self: WindowBuilder, onLButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onRButtonUp fun(self: WindowBuilder, onRButtonUp: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onShutdown fun(self: WindowBuilder, onShutdown: fun(self: Window)): WindowBuilder
----@field onHidden fun(self: WindowBuilder, onHidden: fun(self: Window)): WindowBuilder
----@field onShown fun(self: WindowBuilder, onShown: fun(self: Window)): WindowBuilder
----@field onLButtonDown fun(self: WindowBuilder, onLButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onRButtonDown fun(self: WindowBuilder, onRButtonDown: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onUpdate fun(self: WindowBuilder, onUpdate: fun(self: Window, timePassed: integer)): WindowBuilder
----@field onUpdateMobileName fun(self: WindowBuilder, onUpdateMobileName: fun(self: Window, windowData: MobileNameWrapper)): WindowBuilder
----@field onLButtonDblClk fun(self: WindowBuilder, onLButtonDblClk: fun(self: Window, flags: integer, x: integer, y: integer)): WindowBuilder
----@field onMouseOver fun(self: WindowBuilder, onMouseOver: fun(self: Window)): WindowBuilder
----@field onMouseOverEnd fun(self: WindowBuilder, onMouseOverEnd: fun(self: Window)): WindowBuilder
----@field onMouseDrag fun(self: WindowBuilder, onMouseDrag: fun(self: Window)): WindowBuilder
----@field onUpdatePlayerStatus fun(self: WindowBuilder, onUpdatePlayerStatus: fun(self: Window, playerStatus: PlayerStatusWrapper)): WindowBuilder
----@field onUpdateMobileStatus fun(self: WindowBuilder, onUpdateMobileStatus: fun(self: Window, mobileStatus: MobileStatusWrapper)): WindowBuilder
----@field onUpdateHealthBarColor fun(self: WindowBuilder, onUpdateHealthBarColor: fun(self: Window, healthBarColor: HealthBarColorWrapper)): WindowBuilder
----@field onEndHealthBarDrag fun(self: WindowBuilder, onEndHealthBarDrag: fun(self: Window)): WindowBuilder
-local WindowBuilder = {}
-WindowBuilder.__index = WindowBuilder
 
 -- ========================================================================== --
 -- Components - Button
@@ -7440,34 +7383,17 @@ function Button:setTextColor(state, color)
     Api.Button.SetTextColor(self:getName(), state, color.r, color.g, color.b)
 end
 
--- ========================================================================== --
--- Components - Button Builder
--- ========================================================================== --
-
----@param name string?
----@param template string?
-function ButtonBuilder:new(name, template)
-    local instance = WindowBuilder.new(self, name, template) --[[@as ButtonBuilder]]
-    return instance
-end
-
-function ButtonBuilder:build()
-    local button = Button:new(self._model)
+---@param model ButtonModel?
+---@return Button
+function Components.Button(model)
+    local button = Button:new(model)
     Windows[button:getName()] = button
     return button
-end
-
----@param name string?
----@param template string?
----@return ButtonBuilder
-function Components.Button(name, template)
-    return ButtonBuilder:new(name, template)
 end
 
 -- ========================================================================== --
 -- Components - Component
 -- ========================================================================== --
-
 
 ---@param name string
 ---@return Component
@@ -7480,7 +7406,6 @@ end
 function Component:getName()
     return self.name
 end
-
 
 -- ========================================================================== --
 -- Components - Default
@@ -7953,28 +7878,12 @@ function StatusBar:setForegroundTint(tint)
     Api.StatusBar.SetForegroundTint(self:getName(), tint)
 end
 
--- ========================================================================== --
--- Components - Status Bar Builder
--- ========================================================================== --
-
----@param name string?
----@param template string?
-function StatusBarBuilder:new(name, template)
-    local instance = ViewBuilder.new(self, name, template) --[[@as StatusBarBuilder]]
-    return instance
-end
-
-function StatusBarBuilder:build()
-    local statusBar = StatusBar:new(self._model)
+---@param model StatusBarModel?
+---@return StatusBar
+function Components.StatusBar(model)
+    local statusBar = StatusBar:new(model)
     Windows[statusBar:getName()] = statusBar
     return statusBar
-end
-
----@param name string?
----@param template string?
----@return StatusBarBuilder
-function Components.StatusBar(name, template)
-    return StatusBarBuilder:new(name, template)
 end
 
 -- ========================================================================== --
@@ -8393,117 +8302,6 @@ function View:isParentRoot()
 end
 
 -- ========================================================================== --
--- Components - View Builder
--- ========================================================================== --
-
----@param name string?
----@param template string?
-function ViewBuilder:new(name, template)
-    local instance = setmetatable({}, self)
-    instance._model = {}
-    instance._model.Name = name
-    instance._model.Template = template
-    return instance
-end
-
-function ViewBuilder:onInitialize(onInitialize)
-    self._model.OnInitialize = onInitialize
-    return self
-end
-
-function ViewBuilder:onLButtonUp(onLButtonUp)
-    self._model.OnLButtonUp = onLButtonUp
-    return self
-end
-
-function ViewBuilder:onRButtonUp(onRButtonUp)
-    self._model.OnRButtonUp = onRButtonUp
-    return self
-end
-
-function ViewBuilder:onShutdown(onShutdown)
-    self._model.OnShutdown = onShutdown
-    return self
-end
-
-function ViewBuilder:onHidden(onHidden)
-    self._model.OnHidden = onHidden
-    return self
-end
-
-function ViewBuilder:onShown(onShown)
-    self._model.OnShown = onShown
-    return self
-end
-
-function ViewBuilder:onLButtonDown(onLButtonDown)
-    self._model.OnLButtonDown = onLButtonDown
-    return self
-end
-
-function ViewBuilder:onRButtonDown(onRButtonDown)
-    self._model.OnRButtonDown = onRButtonDown
-    return self
-end
-
-function ViewBuilder:onUpdate(onUpdate)
-    self._model.OnUpdate = onUpdate
-    return self
-end
-
-function ViewBuilder:onUpdateMobileName(onUpdateMobileName)
-    self._model.OnUpdateMobileName = onUpdateMobileName
-    return self
-end
-
-function ViewBuilder:onLButtonDblClk(onLButtonDblClk)
-    self._model.OnLButtonDblClk = onLButtonDblClk
-    return self
-end
-
-function ViewBuilder:onMouseOver(onMouseOver)
-    self._model.OnMouseOver = onMouseOver
-    return self
-end
-
-function ViewBuilder:onMouseOverEnd(onMouseOverEnd)
-    self._model.OnMouseOverEnd = onMouseOverEnd
-    return self
-end
-
-function ViewBuilder:onMouseDrag(onMouseDrag)
-    self._model.OnMouseDrag = onMouseDrag
-    return self
-end
-
-function ViewBuilder:onUpdatePlayerStatus(onUpdatePlayerStatus)
-    self._model.OnUpdatePlayerStatus = onUpdatePlayerStatus
-    return self
-end
-
-function ViewBuilder:onUpdateMobileStatus(onUpdateMobileStatus)
-    self._model.OnUpdateMobileStatus = onUpdateMobileStatus
-    return self
-end
-
-function ViewBuilder:onUpdateHealthBarColor(onUpdateHealthBarColor)
-    self._model.OnUpdateHealthBarColor = onUpdateHealthBarColor
-    return self
-end
-
-function ViewBuilder:onEndHealthBarDrag(onEndHealthBarDrag)
-    self._model.OnEndHealthBarDrag = onEndHealthBarDrag
-    return self
-end
-
-function ViewBuilder:build()
-    local view = View:new(self._model)
-    Windows[view:getName()] = view
-    return view
-end
-
-
--- ========================================================================== --
 -- Components - Window
 -- ========================================================================== --
 
@@ -8636,39 +8434,22 @@ function Window:setChildren(children)
     self._children = children
 end
 
--- ========================================================================== --
--- Components - Window Builder
--- ========================================================================== --
-
----@param name string?
----@param template string?
-function WindowBuilder:new(name, template)
-    local instance = ViewBuilder.new(self, name, template) --[[@as WindowBuilder]]
-    return instance
-end
-
-function WindowBuilder:build()
-    local window = Window:new(self._model)
+---@param model WindowModel?
+---@return Window
+function Components.Window(model)
+    local window = Window:new(model)
     Windows[window:getName()] = window
     return window
-end
-
----@return WindowBuilder
-function Components.Window(name, template)
-    return WindowBuilder:new(name, template)
 end
 
 setmetatable(EventReceiver, { __index = Component })
 setmetatable(View, { __index = EventReceiver })
 setmetatable(Window, { __index = View })
-setmetatable(WindowBuilder, { __index = ViewBuilder })
 setmetatable(Button, { __index = Window })
-setmetatable(ButtonBuilder, { __index = WindowBuilder })
 setmetatable(EditTextBox, { __index = View })
 setmetatable(Label, { __index = View })
 setmetatable(LogDisplay, { __index = View })
 setmetatable(StatusBar, { __index = View })
-setmetatable(StatusBarBuilder, { __index = ViewBuilder })
 setmetatable(Gump, { __index = Window })
 setmetatable(DefaultComponent, { __index = Component })
 setmetatable(DefaultActionsComponent, { __index = DefaultComponent })
@@ -8691,6 +8472,7 @@ Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
 ---@field Path string Path to the mod resources
 ---@field Files string[]? list of files to load
 ---@field _onInitialize fun(self: Context) Initializes the mod
+---@field _onShutdown fun(self: Context) Shutdown the mod
 local Mod = {}
 Mod.__index = Mod
 
@@ -8699,18 +8481,25 @@ Mod.__index = Mod
 ---@field Path string Path to the mod resources
 ---@field Files string[]? list of files to load
 ---@field OnInitialize fun(self: Context) Initializes the mod
+---@field OnShutdown fun(self: Context) Shutdown the mod
 
+---@param model ModModel
 function Mod:new(model)
     local mod = setmetatable({}, self)
     mod.Name = model.Name
     mod.Path = model.Path
     mod.Files = model.Files or {}
     mod._onInitialize = model.OnInitialize or function() end
+    mod._onShutdown = model.OnShutdown or function() end
     return mod
 end
 
 function Mod:initialize()
     Api.Mod.Initialize(self.Name)
+end
+
+function Mod:setEnabled(isEnabled)
+    Api.Mod.SetEnabled(self.Name, isEnabled)
 end
 
 function Mod:loadResources()
@@ -8731,13 +8520,9 @@ function Mod:onInitialize()
     self._onInitialize(Context)
 end
 
-local ModManager = {}
-
----@type table<string, Mod>
-ModManager.Mods = {}
-
----@type table<string, function>
-ModManager.Initializers = {}
+function Mod:onShutdown()
+    self._onShutdown(Context)
+end
 
 -- ========================================================================== --
 -- Mongbat
@@ -8745,7 +8530,29 @@ ModManager.Initializers = {}
 
 Mongbat = {}
 
-Mongbat.ModInitializer = ModManager.Initializers
+---@type table<string, Mod>
+local Mods = {}
+
+Mongbat.ModManager = {}
+Mongbat.ModManager.Window = Components.Window {
+    Name = "MongbatModManagerWindow",
+    OnInitialize = function (self)
+        self:setDimensions(400, 300)
+        self:setChildren(
+            Utils.Table.MapToArray(
+                Mods,
+                function (name, mod)
+                    return Components.Button {
+                        Name = "MongbatModManagerButton" .. name,
+                        OnInitialize = function (button)
+                            button:setText("Enable " .. name)
+                        end
+                    }
+                end
+            )
+        )
+    end
+}
 
 Mongbat.EventHandler = EventHandler
 
@@ -8753,10 +8560,15 @@ Mongbat.EventHandler = EventHandler
 ---@return Mod
 function Mongbat.Mod(model)
     local mod = Mod:new(model)
-    ModManager.Mods[model.Name] = mod
-    ModManager.Initializers[model.Name] = function ()
-        mod:onInitialize()
-    end
+    Mods[model.Name] = mod
+    Mongbat.ModManager[mod.Name] = {
+        OnInitialize = function()
+            mod:onInitialize()
+        end,
+        OnShutdown = function()
+            mod:onShutdown()
+        end
+    }
     return mod
 end
 
@@ -8767,7 +8579,6 @@ Mod:new {
     Files = {
         "Mongbat.xml"
     },
-    OnInitialize = function (_)
-        Debug.Print("Mongbat Initialized")
-    end
+    OnInitialize = function () end,
+    OnShutdown = function () end
 }:onInitialize()
