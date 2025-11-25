@@ -3513,12 +3513,14 @@ local Data = {}
 local Utils = {}
 
 ---@class Context
+---@field Cache table<string, EventReceiver>
 local Context = {
     Api = Api,
     Data = Data,
     Utils = Utils,
     Constants = Constants,
-    Components = Components
+    Components = Components,
+    Cache = {}
 }
 
 -- ========================================================================== --
@@ -5792,6 +5794,35 @@ function Api.InterfaCore.GetScaleFactor()
     return 1 / InterfaceCore.scale
 end
 
+-- ========================================================================== --
+-- Api - Interface
+-- ========================================================================== --
+
+Api.Interface = {}
+
+function Api.Interface.SaveString(key, value)
+    Interface.SaveString(key, value)
+end
+
+function Api.Interface.LoadString(key, default)
+    return Interface.LoadString(key, default)
+end
+
+function Api.Interface.SaveNumber(key, value)
+    Interface.SaveNumber(key, value)
+end
+
+function Api.Interface.LoadNumber(key, default)
+    return Interface.LoadNumber(key, default)
+end
+
+function Api.Interface.SaveBoolean(key, value)
+    Interface.SaveBoolean(key, value)
+end
+
+function Api.Interface.LoadBoolean(key, default)
+    return Interface.LoadBoolean(key, default)
+end
 
 -- ========================================================================== --
 -- Utils
@@ -6106,15 +6137,15 @@ end
 ---@generic T
 ---@generic V
 ---@generic R
----@param table table<T, V>
+---@param _table table<T, V>
 ---@param forEach fun(k: T, v: V): R
 ---@return R[]
-function Utils.Table.MapToArray(table, forEach)
+function Utils.Table.MapToArray(_table, forEach)
     local array = {}
     Utils.Table.ForEach(
-        table,
+        _table,
         function (k, v)
-            array.insert(array, forEach(k, v))
+            table.insert(array, forEach(k, v))
         end
     )
     return array
@@ -6909,9 +6940,6 @@ Components.Defaults = {}
 
 local EventHandler = {}
 
----@type table<string, EventReceiver>
-local Windows = {}
-
 ---@class ButtonModel : WindowModel
 ---@field OnInitialize fun(self: Button)?
 ---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
@@ -7387,7 +7415,7 @@ end
 ---@return Button
 function Components.Button(model)
     local button = Button:new(model)
-    Windows[button:getName()] = button
+    Context.Cache[button:getName()] = button
     return button
 end
 
@@ -7511,7 +7539,7 @@ end
 ---@return EditTextBox
 function Components.EditTextBox(model)
     local editTextBox = EditTextBox:new(model)
-    Windows[editTextBox:getName()] = editTextBox
+    Context.Cache[editTextBox:getName()] = editTextBox
     return editTextBox
 end
 
@@ -7520,93 +7548,94 @@ end
 -- ========================================================================== --
 
 function EventHandler.OnInitialize()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onInitialize()
 end
 
 function EventHandler.OnShutdown()
-    local window = Windows[Active.window()]
+    local activeWindowName = Active.window()
+    local window = Context.Cache[activeWindowName]
+    Context.Cache[activeWindowName] = nil
     window:onShutdown()
-    Windows[Active.window()] = nil
 end
 
 function EventHandler.OnLButtonUp(flags, x, y)
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onLButtonUp(flags, x, y)
 end
 
 function EventHandler.OnLButtonDown(flags, x, y)
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onLButtonDown(flags, x, y)
 end
 
 function EventHandler.OnRButtonDown(flags, x, y)
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onRButtonDown(flags, x, y)
 end
 
 function EventHandler.OnRButtonUp(flags, x, y)
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onRButtonUp(flags, x, y)
 end
 
 function EventHandler.OnHidden()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onHidden()
 end
 
 function EventHandler.OnShown()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onShown()
 end
 
 function EventHandler.OnUpdate(timePassed)
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onUpdate(timePassed)
 end
 
 function EventHandler.OnUpdateMobileName()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onUpdateMobileName()
 end
 
 function EventHandler.OnLButtonDblClk(flags, x, y)
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onLButtonDblClk(flags, x, y)
 end
 
 function EventHandler.OnMouseOver()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onMouseOver()
 end
 
 function EventHandler.OnMouseOverEnd()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onMouseOverEnd()
 end
 
 function EventHandler.OnMouseDrag()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onMouseDrag()
 end
 
 function EventHandler.OnUpdatePlayerStatus()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onUpdatePlayerStatus()
 end
 
 function EventHandler.OnUpdateMobileStatus()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onUpdateMobileStatus()
 end
 
 function EventHandler.OnUpdateHealthBarColor()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onUpdateHealthBarColor()
 end
 
 function EventHandler.OnEndHealthBarDrag()
-    local window = Windows[Active.window()]
+    local window = Context.Cache[Active.window()]
     window:onEndHealthBarDrag()
 end
 
@@ -7793,7 +7822,7 @@ end
 ---@return Label
 function Components.Label(model)
     local label = Label:new(model)
-    Windows[label:getName()] = label
+    Context.Cache[label:getName()] = label
     return label
 end
 
@@ -7844,7 +7873,7 @@ end
 ---@return LogDisplay
 function Components.LogDisplay(model)
     local logDisplay = LogDisplay:new(model)
-    Windows[logDisplay:getName()] = logDisplay
+    Context.Cache[logDisplay:getName()] = logDisplay
     return logDisplay
 end
 
@@ -7882,7 +7911,7 @@ end
 ---@return StatusBar
 function Components.StatusBar(model)
     local statusBar = StatusBar:new(model)
-    Windows[statusBar:getName()] = statusBar
+    Context.Cache[statusBar:getName()] = statusBar
     return statusBar
 end
 
@@ -8438,7 +8467,7 @@ end
 ---@return Window
 function Components.Window(model)
     local window = Window:new(model)
-    Windows[window:getName()] = window
+    Context.Cache[window:getName()] = window
     return window
 end
 
@@ -8500,6 +8529,11 @@ end
 
 function Mod:setEnabled(isEnabled)
     Api.Mod.SetEnabled(self.Name, isEnabled)
+    Api.Interface.SaveBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", isEnabled)
+end
+
+function Mod:isEnabled()
+    return Api.Interface.LoadBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", true)
 end
 
 function Mod:loadResources()
@@ -8534,6 +8568,7 @@ Mongbat = {}
 local Mods = {}
 
 Mongbat.ModManager = {}
+Mongbat.ModManager.Mods = {}
 Mongbat.ModManager.Window = Components.Window {
     Name = "MongbatModManagerWindow",
     OnInitialize = function (self)
@@ -8543,17 +8578,24 @@ Mongbat.ModManager.Window = Components.Window {
                 Mods,
                 function (name, mod)
                     return Components.Button {
-                        Name = "MongbatModManagerButton" .. name,
                         OnInitialize = function (button)
-                            button:setText("Enable " .. name)
+                            button:setDimensions(100, 100)
+                            local status = mod:isEnabled() == nil or mod:isEnabled()
+                            local statusText = "Disabled"
+                            if status then
+                                statusText = "Enabled"
+                            end
+                            button:setText("Enable " .. name .. " (" .. statusText .. ")")
                         end
                     }
                 end
             )
         )
+    end,
+    OnShutdown = function (self)
+        Context.Cache[self:getName()] = self
     end
 }
-
 Mongbat.EventHandler = EventHandler
 
 ---@param model ModModel
@@ -8561,6 +8603,9 @@ Mongbat.EventHandler = EventHandler
 function Mongbat.Mod(model)
     local mod = Mod:new(model)
     Mods[model.Name] = mod
+    if mod:isEnabled() == nil then
+        mod:setEnabled(true)
+    end
     Mongbat.ModManager[mod.Name] = {
         OnInitialize = function()
             mod:onInitialize()
