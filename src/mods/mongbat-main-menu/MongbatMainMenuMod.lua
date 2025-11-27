@@ -70,7 +70,7 @@ Mongbat.Mod {
                         Button(
                             1061037,
                             function ()
-                                Mongbat.ModManager.Window:create(true)
+                                Mongbat.ModManager.Window():create(true)
                             end
                         ),
                         Button(

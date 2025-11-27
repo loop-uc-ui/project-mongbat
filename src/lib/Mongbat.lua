@@ -3513,14 +3513,12 @@ local Data = {}
 local Utils = {}
 
 ---@class Context
----@field Cache table<string, EventReceiver>
 local Context = {
     Api = Api,
     Data = Data,
     Utils = Utils,
     Constants = Constants,
-    Components = Components,
-    Cache = {}
+    Components = Components
 }
 
 -- ========================================================================== --
@@ -6940,6 +6938,9 @@ Components.Defaults = {}
 
 local EventHandler = {}
 
+---@type table<string, table<string, any>>
+local Cache = {}
+
 ---@class ButtonModel : WindowModel
 ---@field OnInitialize fun(self: Button)?
 ---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
@@ -7375,6 +7376,8 @@ View.__index = View
 ---@field _children Window[] A list of child windows.
 ---@field _frame string The name of the window's frame component.
 ---@field _background string The name of the window's background component.
+---@field _startDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
+---@field _endDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
 local Window = {}
 Window.__index = Window
 
@@ -7415,7 +7418,7 @@ end
 ---@return Button
 function Components.Button(model)
     local button = Button:new(model)
-    Context.Cache[button:getName()] = button
+    Cache[button:getName()] = button
     return button
 end
 
@@ -7539,7 +7542,7 @@ end
 ---@return EditTextBox
 function Components.EditTextBox(model)
     local editTextBox = EditTextBox:new(model)
-    Context.Cache[editTextBox:getName()] = editTextBox
+    Cache[editTextBox:getName()] = editTextBox
     return editTextBox
 end
 
@@ -7548,94 +7551,94 @@ end
 -- ========================================================================== --
 
 function EventHandler.OnInitialize()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onInitialize()
 end
 
 function EventHandler.OnShutdown()
     local activeWindowName = Active.window()
-    local window = Context.Cache[activeWindowName]
-    Context.Cache[activeWindowName] = nil
+    local window = Cache[activeWindowName]
+    Cache[activeWindowName] = nil
     window:onShutdown()
 end
 
 function EventHandler.OnLButtonUp(flags, x, y)
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onLButtonUp(flags, x, y)
 end
 
 function EventHandler.OnLButtonDown(flags, x, y)
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onLButtonDown(flags, x, y)
 end
 
 function EventHandler.OnRButtonDown(flags, x, y)
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onRButtonDown(flags, x, y)
 end
 
 function EventHandler.OnRButtonUp(flags, x, y)
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onRButtonUp(flags, x, y)
 end
 
 function EventHandler.OnHidden()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onHidden()
 end
 
 function EventHandler.OnShown()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onShown()
 end
 
 function EventHandler.OnUpdate(timePassed)
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onUpdate(timePassed)
 end
 
 function EventHandler.OnUpdateMobileName()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onUpdateMobileName()
 end
 
 function EventHandler.OnLButtonDblClk(flags, x, y)
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onLButtonDblClk(flags, x, y)
 end
 
 function EventHandler.OnMouseOver()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onMouseOver()
 end
 
 function EventHandler.OnMouseOverEnd()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onMouseOverEnd()
 end
 
 function EventHandler.OnMouseDrag()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onMouseDrag()
 end
 
 function EventHandler.OnUpdatePlayerStatus()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onUpdatePlayerStatus()
 end
 
 function EventHandler.OnUpdateMobileStatus()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onUpdateMobileStatus()
 end
 
 function EventHandler.OnUpdateHealthBarColor()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onUpdateHealthBarColor()
 end
 
 function EventHandler.OnEndHealthBarDrag()
-    local window = Context.Cache[Active.window()]
+    local window = Cache[Active.window()]
     window:onEndHealthBarDrag()
 end
 
@@ -7822,7 +7825,7 @@ end
 ---@return Label
 function Components.Label(model)
     local label = Label:new(model)
-    Context.Cache[label:getName()] = label
+    Cache[label:getName()] = label
     return label
 end
 
@@ -7873,7 +7876,7 @@ end
 ---@return LogDisplay
 function Components.LogDisplay(model)
     local logDisplay = LogDisplay:new(model)
-    Context.Cache[logDisplay:getName()] = logDisplay
+    Cache[logDisplay:getName()] = logDisplay
     return logDisplay
 end
 
@@ -7911,7 +7914,7 @@ end
 ---@return StatusBar
 function Components.StatusBar(model)
     local statusBar = StatusBar:new(model)
-    Context.Cache[statusBar:getName()] = statusBar
+    Cache[statusBar:getName()] = statusBar
     return statusBar
 end
 
@@ -7963,13 +7966,6 @@ function View:onInitialize()
 
     if self._model.OnInitialize ~= nil then
         self._model.OnInitialize(self)
-    end
-
-    for k, _ in pairs(Constants.DataEvents) do
-        local m = self[k]
-        if type(m) == "function" then
-            m(self)
-        end
     end
 end
 
@@ -8348,6 +8344,7 @@ function Window:new(model)
             window:destroy()
         end
     end
+    instance._startDrag = { x = 0, y = 0 }
     return instance
 end
 
@@ -8397,16 +8394,39 @@ function Window:onInitialize()
                 end
             end
 
-            --- For each child propagate the onRButtonUp event to the parent
             local onChildRButtonUp = item._model.OnRButtonUp
 
+            --- For each child propagate the onRButtonUp event to the parent
+            --- This is to allow closing the parent window when right-clicking on any child
             item._model.OnRButtonUp = function (child, flags, x, y)
+                self:onRButtonUp(flags, x, y)
                 if onChildRButtonUp ~= nil then
                     onChildRButtonUp(child, flags, x, y)
                 end
+            end
 
-                if not child:isParentRoot() then
-                    self:onRButtonUp(flags, x, y)
+            local onChildLButtonDown = item._model.OnLButtonDown
+
+            --- For each child propagate the onLButtonDown event to the parent
+            --- This is to allow moving the parent window when left-clicking on any child
+            item._model.OnLButtonDown = function (child, flags, x, y)
+                if onChildLButtonDown ~= nil then
+                    onChildLButtonDown(child, flags, x, y)
+                end
+                self:onLButtonDown(flags, x, y)
+                self._startDrag = { x = x, y = y }
+            end
+
+            local onChildLButtonUp = item._model.OnLButtonUp
+
+            --- For each child propagate the onLButtonUp event to the parent
+            --- This is to allow stopping moving the parent window when releasing left-click on any child
+            item._model.OnLButtonUp = function (child, flags, x, y)
+                self:onLButtonUp(flags, x, y)
+                local isDragged = self._startDrag.x ~= x or
+                    self._startDrag.y ~= y
+                if onChildLButtonUp ~= nil and not isDragged then
+                    onChildLButtonUp(child, flags, x, y)
                 end
             end
 
@@ -8414,6 +8434,11 @@ function Window:onInitialize()
             item:onInitialize()
         end
     )
+end
+
+function Window:setMoving(isMoving)
+    View.setMoving(self, isMoving)
+    local pos = self:getPosition()
 end
 
 function Window:onShutdown()
@@ -8455,6 +8480,21 @@ function Window:toggleBackground(doShow)
     end
 end
 
+function Window:onLButtonDown(flags, x, y)
+    View.onLButtonDown(self, flags, x, y)
+    self:setMoving(self:isParentRoot())
+end
+
+function Window:onLButtonUp(flags, x, y)
+    View.onLButtonUp(self, flags, x, y)
+    self:setMoving(false)
+end
+
+function Window:onMouseOverEnd()
+    View.onMouseOverEnd(self)
+    self:setMoving(false)
+end
+
 function Window:attachToObject()
     Api.Window.AttachToWorldObject(self:getId(), self:getName())
 end
@@ -8467,7 +8507,7 @@ end
 ---@return Window
 function Components.Window(model)
     local window = Window:new(model)
-    Context.Cache[window:getName()] = window
+    Cache[window:getName()] = window
     return window
 end
 
@@ -8568,34 +8608,35 @@ Mongbat = {}
 local Mods = {}
 
 Mongbat.ModManager = {}
+
 Mongbat.ModManager.Mods = {}
-Mongbat.ModManager.Window = Components.Window {
-    Name = "MongbatModManagerWindow",
-    OnInitialize = function (self)
-        self:setDimensions(400, 300)
-        self:setChildren(
-            Utils.Table.MapToArray(
-                Mods,
-                function (name, mod)
-                    return Components.Button {
-                        OnInitialize = function (button)
-                            button:setDimensions(100, 100)
-                            local status = mod:isEnabled() == nil or mod:isEnabled()
-                            local statusText = "Disabled"
-                            if status then
-                                statusText = "Enabled"
+
+function Mongbat.ModManager.Window()
+    return Components.Window {
+        Name = "MongbatModManagerWindow",
+        OnInitialize = function (self)
+            self:setDimensions(400, 300)
+            self:setChildren(
+                Utils.Table.MapToArray(
+                    Mods,
+                    function (name, mod)
+                        return Components.Button {
+                            OnInitialize = function (button)
+                                local status = mod:isEnabled() == nil or mod:isEnabled()
+                                local statusText = "Disabled"
+                                if status then
+                                    statusText = "Enabled"
+                                end
+                                button:setText("Enable " .. name .. " (" .. statusText .. ")")
                             end
-                            button:setText("Enable " .. name .. " (" .. statusText .. ")")
-                        end
-                    }
-                end
+                        }
+                    end
+                )
             )
-        )
-    end,
-    OnShutdown = function (self)
-        Context.Cache[self:getName()] = self
-    end
-}
+        end
+    }
+end
+
 Mongbat.EventHandler = EventHandler
 
 ---@param model ModModel
