@@ -4837,21 +4837,6 @@ function Api.ScrollWindow.UpdateScrollRect(id)
 end
 
 -- ========================================================================== --
--- Api - Settings
--- ========================================================================== --
-
-Api.Settings = {}
-
----
---- Notifies that the user settings have changed.
----@return boolean Whether the settings need to be reloaded.
-function Api.Settings.NotifyChange()
-    --This is some variable that the client understands
-    needsReload = UserSettingsChanged()
-    return needsReload
-end
-
--- ========================================================================== --
 -- Api - Slider
 -- ========================================================================== --
 
@@ -5783,13 +5768,17 @@ end
 -- ========================================================================== --
 
 
-Api.InterfaCore = {}
+Api.InterfaceCore = {}
 
 ---
 --- Gets the scale factor of the interface.
 ---@return number The scale factor.
-function Api.InterfaCore.GetScaleFactor()
+function Api.InterfaceCore.GetScaleFactor()
     return 1 / InterfaceCore.scale
+end
+
+function Api.InterfaceCore.ReloadUI()
+    InterfaceCore.ReloadUI()
 end
 
 -- ========================================================================== --
@@ -8568,7 +8557,6 @@ function Mod:initialize()
 end
 
 function Mod:setEnabled(isEnabled)
-    Api.Mod.SetEnabled(self.Name, isEnabled)
     Api.Interface.SaveBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", isEnabled)
 end
 
@@ -8590,6 +8578,10 @@ function Mod:loadResources()
 end
 
 function Mod:onInitialize()
+    if self:isEnabled() ~= nil and self:isEnabled() == false then
+        return
+    end
+
     self:loadResources()
     self._onInitialize(Context)
 end
@@ -8628,6 +8620,11 @@ function Mongbat.ModManager.Window()
                                     statusText = "Enabled"
                                 end
                                 button:setText("Enable " .. name .. " (" .. statusText .. ")")
+                            end,
+                            OnLButtonUp = function (button)
+                                local status = mod:isEnabled() == nil or mod:isEnabled()
+                                mod:setEnabled(not status)
+                                Api.InterfaceCore.ReloadUI()
                             end
                         }
                     end

@@ -56,7 +56,8 @@ Mongbat.Mod {
         original:asComponent():destroy()
         Window():create(true)
     end,
-    OnShutdown = function (self)
-        
+    OnShutdown = function (context)
+        context.Api.Window.DestroyWindow("StatusWindow")
+        context.Components.Defaults.StatusWindow:asComponent():create(true)
     end
 }
