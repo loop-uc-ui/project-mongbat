@@ -79,10 +79,11 @@ Mongbat.Mod {
         local function Window()
             return context.Components.Window {
                 Name = statusWindow,
+                Id = context.Data.PlayerStatus():getId(),
                 OnInitialize = function (self)
                     self:setDimensions(300, 150)
                     self:setChildren {
-                        PlayerName(context.Data.PlayerStatus():getId()),
+                        PlayerName(self:getId()),
                         HealthStatusBar(),
                         ManaStatusBar(),
                         StaminaStatusBar()
@@ -96,6 +97,9 @@ Mongbat.Mod {
                     else
                         frame:setColor(context.Constants.Colors.Notoriety[1])
                     end
+                end,
+                OnLButtonDblClk = function (self)
+                    context.Api.UserAction.UseItem(self:getId())
                 end
             }
         end

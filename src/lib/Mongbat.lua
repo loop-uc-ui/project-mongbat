@@ -5047,8 +5047,9 @@ Api.UserAction = {}
 ---
 --- Uses an item.
 ---@param id number The ID of the item.
----@param flag boolean A flag.
+---@param flag boolean? A flag.
 function Api.UserAction.UseItem(id, flag)
+    flag = flag or false
     UserActionUseItem(id, flag)
 end
 
@@ -8495,6 +8496,16 @@ function Window:onInitialize()
                     self._startDrag.y ~= y
                 if onChildLButtonUp ~= nil and not isDragged then
                     onChildLButtonUp(child, flags, x, y)
+                end
+            end
+
+            local onChildLButtonDblClk = item._model.OnLButtonDblClk
+
+            --- For each child propagate the onLButtonDblClk event to the parent
+            item._model.OnLButtonDblClk = function (child, flags, x, y)
+                self:onLButtonDblClk(flags, x, y)
+                if onChildLButtonDblClk ~= nil then
+                    onChildLButtonDblClk(child, flags, x, y)
                 end
             end
 

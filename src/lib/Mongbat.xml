@@ -24,7 +24,7 @@
 			</TexCoords>
 		</HorizontalResizeImage>
     
-        <StatusBar name="MongbatStatusBar" foreground="StatusBarForground" handleinput="false">
+        <StatusBar name="MongbatStatusBar" foreground="StatusBarForground">
             <Size>
                 <AbsPoint x="168" y="24"/>
             </Size>
