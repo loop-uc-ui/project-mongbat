@@ -62,10 +62,19 @@ Mongbat.Mod {
                         StaminaStatusBar()
                     }
                 end,
-                OnRButtonUp = function () end
+                OnRButtonUp = function () end,
+                OnUpdatePlayerStatus = function (self, playerStatus)
+                    local frame = self:getFrame()
+                    if playerStatus:isInWarMode() then
+                        frame:setColor(context.Constants.Colors.Notoriety[6])
+                    else
+                        frame:setColor(context.Constants.Colors.Notoriety[1])
+                    end
+                end
             }
         end
 
+        context.Components.Defaults.WarShield:asComponent():setShowing(false)
         original:getDefault().UpdateLatency = function () end
         original:asComponent():destroy()
         Window():create(true)
@@ -73,5 +82,6 @@ Mongbat.Mod {
     OnShutdown = function (context)
         context.Api.Window.DestroyWindow("StatusWindow")
         context.Components.Defaults.StatusWindow:asComponent():create(true)
+        context.Components.Defaults.WarShield:asComponent():setShowing(true)
     end
 }

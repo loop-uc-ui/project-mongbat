@@ -7097,6 +7097,10 @@ DefaultActionsComponent.__index = DefaultActionsComponent
 --- @field ToggleBugReportWindow fun()
 --- @field OnToggleAgentsSettings fun()
 
+---@class DefaultInterfaceComponent : DefaultComponent
+local DefaultInterfaceComponent = {}
+DefaultInterfaceComponent.__index = DefaultInterfaceComponent
+
 ---@class DefaultMainMenuWindowComponent : DefaultComponent
 local DefaultMainMenuWindowComponent = {}
 DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
@@ -7168,6 +7172,10 @@ DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
 ---@class DefaultStatusWindowComponent : DefaultComponent
 local DefaultStatusWindowComponent = {}
 DefaultStatusWindowComponent.__index = DefaultStatusWindowComponent
+
+---@class DefaultWarShieldComponent : DefaultComponent
+local DefaultWarShieldComponent = {}
+DefaultWarShieldComponent.__index = DefaultWarShieldComponent
 
 ---@class Component
 ---@field name string
@@ -7463,6 +7471,21 @@ function DefaultActionsComponent:getDefault()
     return Actions
 end
 
+-- ========================================================================= --
+-- Components - Default - Interface
+-- ========================================================================= --
+
+---@return DefaultInterfaceComponent
+function DefaultInterfaceComponent:new()
+    local instance = DefaultComponent.new(self, "Interface") --[[@as DefaultInterfaceComponent]]
+    return instance
+end
+
+---@return Interface
+function DefaultInterfaceComponent:getDefault()
+    return Interface
+end
+
 -- ========================================================================== --
 -- Components - Default - Main Menu Window
 -- ========================================================================== --
@@ -7502,6 +7525,26 @@ end
 function DefaultStatusWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
+
+-- ========================================================================== --
+-- Components - Default - War Shield
+-- ========================================================================== --
+
+---@return DefaultWarShieldComponent
+function DefaultWarShieldComponent:new()
+    local instance = DefaultComponent.new(self, "WarShield") --[[@as DefaultWarShieldComponent]]
+    return instance
+end
+
+---@return Window
+function DefaultWarShieldComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+function DefaultWarShieldComponent:getDefault()
+    return WarShield
+end
+
 
 -- ========================================================================== --
 -- Components - Edit Text Box
@@ -8094,8 +8137,6 @@ function View:onUpdateMobileStatus()
         )
 
         if not success then
-            Debug.Print("error")
-            Debug.Print(self:getId())
             self:registerData(Constants.DataEvents.MobileStatus.getType())
         end
         return true
@@ -8525,10 +8566,14 @@ setmetatable(DefaultComponent, { __index = Component })
 setmetatable(DefaultActionsComponent, { __index = DefaultComponent })
 setmetatable(DefaultMainMenuWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultStatusWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
+setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
 Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
+Components.Defaults.WarShield = DefaultWarShieldComponent:new()
+Components.Defaults.Interface = DefaultInterfaceComponent:new()
 
 -- ========================================================================== --
 -- Mod
