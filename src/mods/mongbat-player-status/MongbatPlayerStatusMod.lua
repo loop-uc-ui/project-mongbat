@@ -21,33 +21,59 @@ Mongbat.Mod {
         end
 
         ---@param name string
+        ---@param onInitialize fun(self: StatusBar)
         ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
-        local function StatusBar(name, onUpdatePlayerStatus)
+        ---@param onUpdateHealthBarColor fun(self: StatusBar, playerStatus: HealthBarColorWrapper)?
+        local function StatusBar(name, onInitialize, onUpdatePlayerStatus, onUpdateHealthBarColor)
             return context.Components.StatusBar {
                 Name = statusWindow .. name,
-                OnUpdatePlayerStatus = onUpdatePlayerStatus
+                OnInitialize = onInitialize,
+                OnUpdatePlayerStatus = onUpdatePlayerStatus,
+                OnUpdateHealthBarColor = onUpdateHealthBarColor
             }
         end
 
         local function HealthStatusBar()
-            return StatusBar("HealthBar", function (self, playerStatus)
-                self:setCurrentValue(playerStatus:getCurrentHealth())
-                self:setMaxValue(playerStatus:getMaxHealth())
-            end)
+            return StatusBar(
+                "HealthBar",
+                function (self)
+                    self:setColor(context.Constants.Colors.Red)
+                end,
+                function (self, playerStatus)
+                    self:setId(playerStatus:getId())
+                    self:setCurrentValue(playerStatus:getCurrentHealth())
+                    self:setMaxValue(playerStatus:getMaxHealth())
+                end,
+                function (self, healthBarColor)
+                    self:setColor(healthBarColor:getVisualStateColor())
+                end
+            )
         end
 
         local function ManaStatusBar()
-            return StatusBar("ManaBar", function (self, playerStatus)
-                self:setCurrentValue(playerStatus:getCurrentMana())
-                self:setMaxValue(playerStatus:getMaxMana())
-            end)
+            return StatusBar(
+                "ManaBar",
+                function (self)
+                    self:setColor(context.Constants.Colors.Blue)
+                end,
+                function (self, playerStatus)
+                    self:setCurrentValue(playerStatus:getCurrentMana())
+                    self:setMaxValue(playerStatus:getMaxMana())
+                end
+            )
         end
 
         local function StaminaStatusBar()
-            return StatusBar("StaminaBar", function (self, playerStatus)
-                self:setCurrentValue(playerStatus:getCurrentStamina())
-                self:setMaxValue(playerStatus:getMaxStamina())
-            end)
+            return StatusBar(
+                "StaminaBar",
+                function (self)
+                    self:setColor(context.Constants.Colors.YellowDark)
+                end,
+                function (self, playerStatus)
+                    self:setCurrentValue(playerStatus:getCurrentStamina())
+                    self:setMaxValue(playerStatus:getMaxStamina())
+                end
+            )
         end
 
         local function Window()

@@ -8146,7 +8146,14 @@ end
 
 function View:onUpdateHealthBarColor()
     if self._model.OnUpdateHealthBarColor ~= nil then
-        self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
+        local success = pcall(
+            function ()
+                self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
+            end
+        )
+        if not success then
+            self:registerData(Constants.DataEvents.HealthBarColor.getType())
+        end
         return true
     end
     return false
