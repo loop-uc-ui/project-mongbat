@@ -8122,7 +8122,14 @@ end
 
 function View:onUpdatePlayerStatus()
     if self._model.OnUpdatePlayerStatus ~= nil then
-        self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
+        local success = pcall(
+            function ()
+                self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
+            end
+        )
+        if not success then
+            self:registerData(Constants.DataEvents.OnUpdatePlayerStatus.getType())
+        end
         return true
     end
     return false
@@ -8364,11 +8371,23 @@ function View:create(doShow)
 end
 
 function View:registerData(type)
-    Api.Window.RegisterData(type, self:getId())
+    local id = self:getId()
+
+    if type == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
+        id = 0
+    end
+
+    Api.Window.RegisterData(type, id)
 end
 
 function View:unregisterData(type)
-    Api.Window.UnregisterData(type, self:getId())
+    local id = self:getId()
+
+    if type == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
+        id = 0
+    end
+
+    Api.Window.UnregisterData(type, id)
 end
 
 function View:isParentRoot()
