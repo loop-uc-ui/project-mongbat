@@ -7,6 +7,19 @@ Mongbat.Mod {
         local original = context.Components.Defaults.StatusWindow
         local statusWindow = original:getName()
 
+        local function PlayerName(playerId)
+            return context.Components.Label {
+                Name = statusWindow .. "PlayerNameLabel",
+                Id = playerId,
+                OnUpdatePlayerStatus = function (self, playerStatus)
+                    self:setId(playerStatus:getId())
+                end,
+                OnUpdateMobileStatus = function (self, mobileStatus)
+                    self:setText(mobileStatus:getName())
+                end
+            }
+        end
+
         ---@param name string
         ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
         local function StatusBar(name, onUpdatePlayerStatus)
@@ -43,6 +56,7 @@ Mongbat.Mod {
                 OnInitialize = function (self)
                     self:setDimensions(300, 150)
                     self:setChildren {
+                        PlayerName(context.Data.PlayerStatus():getId()),
                         HealthStatusBar(),
                         ManaStatusBar(),
                         StaminaStatusBar()

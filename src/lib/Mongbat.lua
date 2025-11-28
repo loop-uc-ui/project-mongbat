@@ -6927,7 +6927,7 @@ Components.Defaults = {}
 
 local EventHandler = {}
 
----@type table<string, table<string, any>>
+---@type table<string, View>
 local Cache = {}
 
 ---@class ButtonModel : WindowModel
@@ -7204,6 +7204,7 @@ EventReceiver.__index = EventReceiver
 
 ---@class WindowModel : ViewModel
 ---@field Name string? The name of the window. If not provided, a random name will be generated.
+---@field Id integer?
 ---@field Template string? The template to use for the window. Defaults to "MongbatWindow"
 ---@field OnInitialize fun(self: Window)?
 ---@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
@@ -7312,6 +7313,7 @@ LogDisplay.__index = LogDisplay
 ---@class ViewModel
 ---@field Name string?
 ---@field Template string?
+---@field Id integer?
 ---@field OnInitialize fun(self: View)?
 ---@field OnLButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
@@ -7921,7 +7923,7 @@ function View:new(model)
 end
 
 function View:onInitialize()
-    local id = Utils.String.ExtractNumber(self:getName())
+    local id = self._model.Id or Utils.String.ExtractNumber(self:getName())
 
     if id ~= 0 then
         self:setId(id)
@@ -8085,7 +8087,17 @@ end
 
 function View:onUpdateMobileStatus()
     if self._model.OnUpdateMobileStatus ~= nil then
-        self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
+        local success = pcall(
+            function ()
+                self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
+            end
+        )
+
+        if not success then
+            Debug.Print("error")
+            Debug.Print(self:getId())
+            self:registerData(Constants.DataEvents.MobileStatus.getType())
+        end
         return true
     end
     return false
