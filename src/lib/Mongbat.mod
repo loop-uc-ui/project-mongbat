@@ -8,5 +8,13 @@
 		<Files>
             <File name="Mongbat.lua"/>
 		</Files>
+
+		<OnInitialize>
+			<CallFunction name="_Mongbat.OnInitialize"/>
+		</OnInitialize>
+
+		<OnShutdown>
+			<CallFunction name="_Mongbat.OnShutdown"/>
+		</OnShutdown>
 	</UiMod>
 </ModuleFile>

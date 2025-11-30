@@ -1,9 +1,7 @@
-
-
 Mongbat.Mod {
     Name = "MongbatPlayerStatus",
     Path = "/src/mods/mongbat-player-status",
-    OnInitialize = function (context)
+    OnInitialize = function(context)
         local original = context.Components.Defaults.StatusWindow
         local statusWindow = original:getName()
 
@@ -11,10 +9,10 @@ Mongbat.Mod {
             return context.Components.Label {
                 Name = statusWindow .. "PlayerNameLabel",
                 Id = playerId,
-                OnUpdatePlayerStatus = function (self, playerStatus)
+                OnUpdatePlayerStatus = function(self, playerStatus)
                     self:setId(playerStatus:getId())
                 end,
-                OnUpdateMobileStatus = function (self, mobileStatus)
+                OnUpdateMobileStatus = function(self, mobileStatus)
                     self:setText(mobileStatus:getName())
                 end
             }
@@ -36,15 +34,15 @@ Mongbat.Mod {
         local function HealthStatusBar()
             return StatusBar(
                 "HealthBar",
-                function (self)
+                function(self)
                     self:setColor(context.Constants.Colors.Red)
                 end,
-                function (self, playerStatus)
+                function(self, playerStatus)
                     self:setId(playerStatus:getId())
                     self:setCurrentValue(playerStatus:getCurrentHealth())
                     self:setMaxValue(playerStatus:getMaxHealth())
                 end,
-                function (self, healthBarColor)
+                function(self, healthBarColor)
                     self:setColor(healthBarColor:getVisualStateColor())
                 end
             )
@@ -53,10 +51,10 @@ Mongbat.Mod {
         local function ManaStatusBar()
             return StatusBar(
                 "ManaBar",
-                function (self)
+                function(self)
                     self:setColor(context.Constants.Colors.Blue)
                 end,
-                function (self, playerStatus)
+                function(self, playerStatus)
                     self:setCurrentValue(playerStatus:getCurrentMana())
                     self:setMaxValue(playerStatus:getMaxMana())
                 end
@@ -66,10 +64,10 @@ Mongbat.Mod {
         local function StaminaStatusBar()
             return StatusBar(
                 "StaminaBar",
-                function (self)
+                function(self)
                     self:setColor(context.Constants.Colors.YellowDark)
                 end,
-                function (self, playerStatus)
+                function(self, playerStatus)
                     self:setCurrentValue(playerStatus:getCurrentStamina())
                     self:setMaxValue(playerStatus:getMaxStamina())
                 end
@@ -79,37 +77,40 @@ Mongbat.Mod {
         local function Window()
             return context.Components.Window {
                 Name = statusWindow,
-                Id = context.Data.PlayerStatus():getId(),
-                OnInitialize = function (self)
+                OnInitialize = function(self)
                     self:setDimensions(300, 150)
                     self:setChildren {
-                        PlayerName(self:getId()),
+                        PlayerName(context.Data.PlayerStatus():getId()),
                         HealthStatusBar(),
                         ManaStatusBar(),
                         StaminaStatusBar()
                     }
                 end,
-                OnRButtonUp = function () end,
-                OnUpdatePlayerStatus = function (self, playerStatus)
+                OnRButtonUp = function() end,
+                OnUpdatePlayerStatus = function(self, playerStatus)
                     local frame = self:getFrame()
+                    self:setId(playerStatus:getId())
                     if playerStatus:isInWarMode() then
                         frame:setColor(context.Constants.Colors.Notoriety[6])
                     else
                         frame:setColor(context.Constants.Colors.Notoriety[1])
                     end
                 end,
-                OnLButtonDblClk = function (self)
+                OnLButtonDblClk = function(self)
                     context.Api.UserAction.UseItem(self:getId())
+                end,
+                OnLButtonUp = function(self)
+                    context.Api.Target.LeftClick(self:getId())
                 end
             }
         end
 
         context.Components.Defaults.WarShield:asComponent():setShowing(false)
-        original:getDefault().UpdateLatency = function () end
+        original:getDefault().UpdateLatency = function() end
         original:asComponent():destroy()
         Window():create(true)
     end,
-    OnShutdown = function (context)
+    OnShutdown = function(context)
         context.Api.Window.DestroyWindow("StatusWindow")
         context.Components.Defaults.StatusWindow:asComponent():create(true)
         context.Components.Defaults.WarShield:asComponent():setShowing(true)

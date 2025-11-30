@@ -16,5 +16,9 @@
 		<OnInitialize>
 			<CallFunction name="Mongbat.ModManager.MongbatPlayerStatus.OnInitialize" />
 		</OnInitialize>
+
+		<OnShutdown>
+			<CallFunction name="Mongbat.ModManager.MongbatPlayerStatus.OnShutdown" />
+		</OnShutdown>
 	</UiMod>
 </ModuleFile>

@@ -8489,9 +8489,13 @@ function Window:onInitialize()
             --- For each child propagate the onLButtonUp event to the parent
             --- This is to allow stopping moving the parent window when releasing left-click on any child
             item._model.OnLButtonUp = function(child, flags, x, y)
-                self:onLButtonUp(flags, x, y)
                 local isDragged = self._startDrag.x ~= x or
                     self._startDrag.y ~= y
+
+                if not isDragged then
+                    self:onLButtonUp(flags, x, y)
+                end
+
                 if onChildLButtonUp ~= nil and not isDragged then
                     onChildLButtonUp(child, flags, x, y)
                 end
@@ -8748,7 +8752,7 @@ function Mongbat.Mod(model)
 end
 
 --Init the mod
-Mod:new {
+local mod = Mod:new {
     Name = "Mongbat",
     Path = "/src/lib",
     Files = {
@@ -8757,5 +8761,18 @@ Mod:new {
     OnInitialize = function()
         Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
     end,
-    OnShutdown = function() end
-}:onInitialize()
+    OnShutdown = function()
+        Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+        Cache = {}
+    end
+}
+
+_Mongbat = {}
+
+function _Mongbat.OnInitialize()
+    mod:onInitialize()
+end
+
+function _Mongbat.OnShutdown()
+    mod:onShutdown()
+end
