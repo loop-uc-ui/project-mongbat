@@ -8470,12 +8470,6 @@ function Window:new(model)
             window:destroy()
         end
     end
-    instance._model.OnLButtonDown = model.OnLButtonDown or function(window)
-        window:setMoving(window:isParentRoot())
-    end
-    instance._model.OnLButtonUp = model.OnLButtonUp or function(window)
-        window:setMoving(false)
-    end
     return instance
 end
 
@@ -8545,7 +8539,6 @@ function Window:onInitialize()
                     onChildLButtonDown(child, flags, x, y)
                 end
                 self:onLButtonDown(flags, x, y)
-                self._startDrag = { x = x, y = y }
             end
 
             local onChildLButtonUp = item._model.OnLButtonUp
@@ -8553,20 +8546,10 @@ function Window:onInitialize()
             --- For each child propagate the onLButtonUp event to the parent
             --- This is to allow stopping moving the parent window when releasing left-click on any child
             item._model.OnLButtonUp = function(child, flags, x, y)
-                local moved = (self._startDrag.x >= 0 and self._startDrag.x ~= x) or
-                    (self._startDrag.y >= 0 and self._startDrag.y ~= y)
-                local isDraggingItem = Data.Drag():isDraggingItem()
-                local shouldFire = (not moved) or isDraggingItem
-
-                if shouldFire then
-                    self:onLButtonUp(flags, x, y)
-                end
-
-                if onChildLButtonUp ~= nil and shouldFire then
+                if onChildLButtonUp ~= nil then
                     onChildLButtonUp(child, flags, x, y)
                 end
-
-                self._startDrag = { x = -1, y = -1 }
+                self:onLButtonUp(flags, x, y)
             end
 
             local onChildLButtonDblClk = item._model.OnLButtonDblClk
@@ -8583,6 +8566,22 @@ function Window:onInitialize()
             item:onInitialize()
         end
     )
+end
+
+function Window:onLButtonDown(flags, x, y)
+    View.onLButtonDown(self, flags, x, y)
+    self._startDrag = { x = x, y = y }
+end
+
+function Window:onLButtonUp(flags, x, y)
+    local moved = (self._startDrag.x >= 0 and self._startDrag.x ~= x) or
+                    (self._startDrag.y >= 0 and self._startDrag.y ~= y)
+    local isDraggingItem = Data.Drag():isDraggingItem()
+    local shouldFire = (not moved) or isDraggingItem
+    if shouldFire then
+        View.onLButtonUp(self, flags, x, y)
+    end
+    self._startDrag = { x = -1, y = -1 }
 end
 
 function Window:onShutdown()
