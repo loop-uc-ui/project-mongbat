@@ -4178,6 +4178,14 @@ function Api.Event.ExitGame()
     Api.Event.Broadcast(SystemData.Events.EXIT_GAME)
 end
 
+function Api.Event.RegisterEventHandler(event, callback)
+    RegisterEventHandler(event, callback)
+end
+
+function Api.Event.UnregisterEventHandler(event, callback)
+    UnregisterEventHandler(event, callback)
+end
+
 -- ========================================================================== --
 -- Api - Gump
 -- ========================================================================== --
@@ -6303,6 +6311,20 @@ Constants.SystemEvents.OnEndHealthBarDrag = {
     name = "OnEndHealthBarDrag"
 }
 
+Constants.SystemEvents.OnLButtonUpProcessed = {
+    getEvent = function()
+        return SystemData.Events["L_BUTTON_UP_PROCESSED"]
+    end,
+    name = "OnLButtonUpProcessed"
+}
+
+Constants.SystemEvents.OnLButtonDownProcessed = {
+    getEvent = function()
+        return SystemData.Events["L_BUTTON_DOWN_PROCESSED"]
+    end,
+    name = "OnLButtonDownProcessed"
+}
+
 Constants.CoreEvents = {}
 Constants.CoreEvents.OnInitialize = "OnInitialize"
 Constants.CoreEvents.OnShown = "OnShown"
@@ -7583,6 +7605,30 @@ end
 -- Components - Event Handler
 -- ========================================================================== --
 
+
+---@param onFind fun(window: View)
+local function doIfMouseOverNotNil(onFind)
+    local mouseOverWindow = SystemData.MouseOverWindow
+
+    if mouseOverWindow == nil then
+        return
+    end
+
+    local name = mouseOverWindow.name
+
+    if name == nil or name == "" then
+        return
+    end
+
+    local window = Cache[name]
+
+    if window == nil then
+        return
+    end
+
+    onFind(window)
+end
+
 function EventHandler.OnInitialize()
     local window = Cache[Active.window()]
     window:onInitialize()
@@ -7596,13 +7642,19 @@ function EventHandler.OnShutdown()
 end
 
 function EventHandler.OnLButtonUp(flags, x, y)
-    local window = Cache[Active.window()]
-    window:onLButtonUp(flags, x, y)
+    doIfMouseOverNotNil(
+        function(window)
+            window:onLButtonUp(flags, x, y)
+        end
+    )
 end
 
 function EventHandler.OnLButtonDown(flags, x, y)
-    local window = Cache[Active.window()]
-    window:onLButtonDown(flags, x, y)
+    doIfMouseOverNotNil(
+        function(window)
+            window:onLButtonDown(flags, x, y)
+        end
+    )
 end
 
 function EventHandler.OnRButtonDown(flags, x, y)
@@ -7972,7 +8024,9 @@ function View:onInitialize()
         local systemEvent = Constants.SystemEvents[k]
         local isCore = Constants.CoreEvents[k] ~= nil
         local skip = k == Constants.CoreEvents.OnInitialize or
-            k == Constants.CoreEvents.OnShutdown
+            k == Constants.CoreEvents.OnShutdown or
+            k == Constants.CoreEvents.OnLButtonDown or
+            k == Constants.CoreEvents.OnLButtonUp
 
         local functionName = prefix .. k
 
@@ -8005,7 +8059,10 @@ function View:onShutdown()
     for k, _ in pairs(self._model) do
         local dataEvent = Constants.DataEvents[k]
         local systemEvent = Constants.SystemEvents[k]
-        local isCore = Constants.CoreEvents[k] ~= nil
+        local isCore = k == Constants.CoreEvents.OnInitialize or
+            k == Constants.CoreEvents.OnShutdown or
+            k == Constants.CoreEvents.OnLButtonDown or
+            k == Constants.CoreEvents.OnLButtonUp
 
         if isCore then
             self:unregisterCoreEventHandler(k)
@@ -8406,12 +8463,19 @@ function Window:new(model)
     instance._children = {}
     instance._frame = instance.name .. "Frame"
     instance._background = instance.name .. "Background"
+    instance._startDrag = { x = -1, y = -1 }
+
     instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
         if window:isParentRoot() then
             window:destroy()
         end
     end
-    instance._startDrag = { x = 0, y = 0 }
+    instance._model.OnLButtonDown = model.OnLButtonDown or function(window)
+        window:setMoving(window:isParentRoot())
+    end
+    instance._model.OnLButtonUp = model.OnLButtonUp or function(window)
+        window:setMoving(false)
+    end
     return instance
 end
 
@@ -8489,16 +8553,20 @@ function Window:onInitialize()
             --- For each child propagate the onLButtonUp event to the parent
             --- This is to allow stopping moving the parent window when releasing left-click on any child
             item._model.OnLButtonUp = function(child, flags, x, y)
-                local isDragged = self._startDrag.x ~= x or
-                    self._startDrag.y ~= y
+                local moved = (self._startDrag.x >= 0 and self._startDrag.x ~= x) or
+                    (self._startDrag.y >= 0 and self._startDrag.y ~= y)
+                local isDraggingItem = Data.Drag():isDraggingItem()
+                local shouldFire = (not moved) or isDraggingItem
 
-                if not isDragged then
+                if shouldFire then
                     self:onLButtonUp(flags, x, y)
                 end
 
-                if onChildLButtonUp ~= nil and not isDragged then
+                if onChildLButtonUp ~= nil and shouldFire then
                     onChildLButtonUp(child, flags, x, y)
                 end
+
+                self._startDrag = { x = -1, y = -1 }
             end
 
             local onChildLButtonDblClk = item._model.OnLButtonDblClk
@@ -8515,11 +8583,6 @@ function Window:onInitialize()
             item:onInitialize()
         end
     )
-end
-
-function Window:setMoving(isMoving)
-    View.setMoving(self, isMoving)
-    local pos = self:getPosition()
 end
 
 function Window:onShutdown()
@@ -8559,21 +8622,6 @@ function Window:toggleBackground(doShow)
     if Api.Window.DoesExist(self._background) then
         Api.Window.SetShowing(self._background, doShow)
     end
-end
-
-function Window:onLButtonDown(flags, x, y)
-    View.onLButtonDown(self, flags, x, y)
-    self:setMoving(self:isParentRoot())
-end
-
-function Window:onLButtonUp(flags, x, y)
-    View.onLButtonUp(self, flags, x, y)
-    self:setMoving(false)
-end
-
-function Window:onMouseOverEnd()
-    View.onMouseOverEnd(self)
-    self:setMoving(false)
 end
 
 function Window:attachToObject()
@@ -8760,9 +8808,22 @@ local mod = Mod:new {
     },
     OnInitialize = function()
         Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+
+        --- We are using SystemEvents for onLButtonUp and onLButtonDown to facilitate the
+        --- dragging and dropping of items onto another window. In this scenario, the onLButtonUp attached
+        --- to the window is not activated. For example, if you drag an item from the inventory
+        --- to the status window, the onLButtonUp attached to the status window will not be activated.
+        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
+            "Mongbat.EventHandler.OnLButtonUp")
+        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
+            "Mongbat.EventHandler.OnLButtonDown")
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
+            "Mongbat.EventHandler.OnLButtonUp")
+        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
+            "Mongbat.EventHandler.OnLButtonDown")
         Cache = {}
     end
 }

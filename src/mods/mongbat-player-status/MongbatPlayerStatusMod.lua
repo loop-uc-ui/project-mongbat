@@ -5,10 +5,9 @@ Mongbat.Mod {
         local original = context.Components.Defaults.StatusWindow
         local statusWindow = original:getName()
 
-        local function PlayerName(playerId)
+        local function PlayerName()
             return context.Components.Label {
                 Name = statusWindow .. "PlayerNameLabel",
-                Id = playerId,
                 OnUpdatePlayerStatus = function(self, playerStatus)
                     self:setId(playerStatus:getId())
                 end,
@@ -38,7 +37,6 @@ Mongbat.Mod {
                     self:setColor(context.Constants.Colors.Red)
                 end,
                 function(self, playerStatus)
-                    self:setId(playerStatus:getId())
                     self:setCurrentValue(playerStatus:getCurrentHealth())
                     self:setMaxValue(playerStatus:getMaxHealth())
                 end,
@@ -80,7 +78,7 @@ Mongbat.Mod {
                 OnInitialize = function(self)
                     self:setDimensions(300, 150)
                     self:setChildren {
-                        PlayerName(context.Data.PlayerStatus():getId()),
+                        PlayerName(),
                         HealthStatusBar(),
                         ManaStatusBar(),
                         StaminaStatusBar()
@@ -100,7 +98,11 @@ Mongbat.Mod {
                     context.Api.UserAction.UseItem(self:getId())
                 end,
                 OnLButtonUp = function(self)
-                    context.Api.Target.LeftClick(self:getId())
+                    if context.Data.Drag():isDraggingItem() then
+                        context.Api.Drag.DragToObject(self:getId())
+                    else
+                        context.Api.Target.LeftClick(self:getId())
+                    end
                 end
             }
         end
