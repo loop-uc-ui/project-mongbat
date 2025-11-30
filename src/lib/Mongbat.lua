@@ -3528,7 +3528,7 @@ local Context = {
 --[[
     In order to reduce errors as we override parts of the default UI, we override
     certain global functions to add safety checks.
-]]--
+]] --
 
 -- Save the original function
 local old_WindowGetShowing = WindowGetShowing
@@ -3567,7 +3567,7 @@ local old_CircleImageSetTextureScale = CircleImageSetTextureScale
 -- Override the global
 function CircleImageSetTextureScale(imageName, scale)
     if Api.Window.DoesExist(imageName) then
-         old_CircleImageSetTextureScale(imageName, scale)
+        old_CircleImageSetTextureScale(imageName, scale)
     end
 end
 
@@ -4056,7 +4056,7 @@ Api.EditTextBox = {}
 ---@param editBoxName string The name of the edit box.
 ---@param text string The text to set.
 function Api.EditTextBox.SetText(editBoxName, text)
-    TextEditBoxSetText(editBoxName, text or L"")
+    TextEditBoxSetText(editBoxName, text or L "")
 end
 
 ---
@@ -5283,7 +5283,7 @@ end
 ---@return table The dimensions of the window.
 function Api.Window.GetDimensions(windowName)
     local x, y = WindowGetDimensions(windowName)
-    return { x = x, y = y}
+    return { x = x, y = y }
 end
 
 ---
@@ -5380,7 +5380,8 @@ end
 ---@param setStartBeforeDelay boolean Whether to set the start before the delay.
 ---@param delay number The delay before the animation starts.
 ---@param numLoop number The number of times to loop the animation.
-function Api.Window.StartAlphaAnimation(windowName, animType, startAlpha, endAlpha, duration, setStartBeforeDelay, delay, numLoop)
+function Api.Window.StartAlphaAnimation(windowName, animType, startAlpha, endAlpha, duration, setStartBeforeDelay, delay,
+                                        numLoop)
     WindowStartAlphaAnimation(windowName, animType, startAlpha, endAlpha, duration, setStartBeforeDelay,
         delay, numLoop)
 end
@@ -5411,7 +5412,8 @@ end
 ---@param setStartBeforeDelay boolean Whether to set the start before the delay.
 ---@param delay number The delay before the animation starts.
 ---@param numLoop number The number of times to loop the animation.
-function Api.Window.StartScaleAnimation(windowName, animType, startX, startY, endX, endY, duration, setStartBeforeDelay, delay, numLoop)
+function Api.Window.StartScaleAnimation(windowName, animType, startX, startY, endX, endY, duration, setStartBeforeDelay,
+                                        delay, numLoop)
     WindowStartScaleAnimation(
         windowName,
         animType,
@@ -5832,7 +5834,7 @@ function Utils.Array.MapToArray(array, mapper)
 
     Utils.Array.ForEach(
         array,
-        function (k, index)
+        function(k, index)
             table.insert(newArray, mapper(k, index))
         end
     )
@@ -5856,10 +5858,10 @@ function Utils.Array.Concat(arrays)
 
     Utils.Array.ForEach(
         arrays,
-        function (item, _)
+        function(item, _)
             Utils.Array.ForEach(
                 item,
-                function (subItem, _)
+                function(subItem, _)
                     table.insert(newArray, subItem)
                 end
             )
@@ -5881,7 +5883,7 @@ function Utils.Array.MapToTable(array, getKey, getValue)
 
     Utils.Array.ForEach(
         array,
-        function (item, index)
+        function(item, index)
             newTable[getKey(item, index)] = getValue(item, index)
         end
     )
@@ -6116,7 +6118,7 @@ end
 function Utils.Table.OverrideFunctions(table)
     for k, v in pairs(table) do
         if type(v) == "function" then
-            table[k] = function () end
+            table[k] = function() end
         end
     end
     return table
@@ -6132,7 +6134,7 @@ function Utils.Table.MapToArray(_table, forEach)
     local array = {}
     Utils.Table.ForEach(
         _table,
-        function (k, v)
+        function(k, v)
             table.insert(array, forEach(k, v))
         end
     )
@@ -6195,7 +6197,6 @@ function Utils.String.Upper(text)
     end
 end
 
-
 -- ========================================================================== --
 -- Constants
 -- ========================================================================== --
@@ -6228,7 +6229,6 @@ function Constants.Broadcasts.BeginHealthBarDrag()
     return SystemData.Events["BEGIN_DRAG_HEALTHBAR_WINDOW"]
 end
 
-
 function Constants.Broadcasts.EscapeKeyProcessed()
     return SystemData.Events["ESCAPE_KEY_PROCESSED"]
 end
@@ -6250,40 +6250,40 @@ end
 Constants.DataEvents = {}
 
 Constants.DataEvents.OnUpdateMobileName = {
-    getType = function ()
+    getType = function()
         return WindowData.MobileName.Type
     end,
-    getEvent = function ()
+    getEvent = function()
         return WindowData.MobileName.Event
     end,
     name = "OnUpdateMobileName"
 }
 
 Constants.DataEvents.OnUpdatePlayerStatus = {
-    getType = function ()
+    getType = function()
         return WindowData.PlayerStatus.Type
     end,
-    getEvent = function ()
+    getEvent = function()
         return WindowData.PlayerStatus.Event
     end,
     name = "OnUpdatePlayerStatus"
 }
 
 Constants.DataEvents.OnUpdateHealthBarColor = {
-    getType = function ()
+    getType = function()
         return WindowData.HealthBarColor.Type
     end,
-    getEvent = function ()
-            return WindowData.HealthBarColor.Event
-        end,
+    getEvent = function()
+        return WindowData.HealthBarColor.Event
+    end,
     name = "OnUpdateHealthBarColor"
 }
 
 Constants.DataEvents.OnUpdateMobileStatus = {
-    getType = function ()
+    getType = function()
         return WindowData.MobileStatus.Type
     end,
-    getEvent = function ()
+    getEvent = function()
         return WindowData.MobileStatus.Event
     end,
     name = "OnUpdateMobileStatus"
@@ -6297,7 +6297,7 @@ Constants.DataEvents.OnUpdateMobileStatus = {
 Constants.SystemEvents = {}
 
 Constants.SystemEvents.OnEndHealthBarDrag = {
-    getEvent = function ()
+    getEvent = function()
         return SystemData.Events["END_DRAG_HEALTHBAR_WINDOW"]
     end,
     name = "OnEndHealthBarDrag"
@@ -6351,22 +6351,22 @@ Constants.Colors.OffBlack = {
 }
 Constants.Colors.White = { r = 255, g = 255, b = 255 }
 Constants.Colors.OffWhite = { r = 206, g = 217, b = 242 }
-Constants.Colors.Red = { r = 164, g = 32,   b = 32 }
+Constants.Colors.Red = { r = 164, g = 32, b = 32 }
 Constants.Colors.YellowDark = { r = 164, g = 164, b = 32 }
 Constants.Colors.Blue = { r = 32, g = 32, b = 164 }
 Constants.Colors.HealhBar = {
-    { r = 164, g = 32, b = 32 }, -- Healthy
-    { r = 32, g = 164, b = 32 }, -- Poisoned
+    { r = 164, g = 32,  b = 32 }, -- Healthy
+    { r = 32,  g = 164, b = 32 }, -- Poisoned
     { r = 128, g = 128, b = 128 } -- Cursed
 }
 Constants.Colors.Notoriety = {
     { r = 128, g = 200, b = 255 }, -- Innocent
-    { r = 0,   g = 180, b = 0   }, -- Friendly
+    { r = 0,   g = 180, b = 0 },   -- Friendly
     { r = 225, g = 225, b = 225 }, -- Attackable
     { r = 225, g = 225, b = 225 }, -- Criminal
-    { r = 242, g = 159, b = 77  }, -- Enemy
-    { r = 255, g = 64,  b = 64  }, -- Murderer
-    { r = 255, g = 255, b = 0   } -- Invulnerable
+    { r = 242, g = 159, b = 77 },  -- Enemy
+    { r = 255, g = 64,  b = 64 },  -- Murderer
+    { r = 255, g = 255, b = 0 }    -- Invulnerable
 }
 
 Constants.TextAlignment = {}
@@ -6408,7 +6408,6 @@ end
 function Data.ActiveMobile()
     return ActiveMobile:new()
 end
-
 
 -- ========================================================================== --
 -- Data - Current Target
@@ -6756,18 +6755,18 @@ function ObjectHandles:getHandles()
 
     return Utils.Array.MapToTable(
         windowData.ObjectId,
-        function (item)
+        function(item)
             return item
         end,
-        function (item, index)
+        function(item, index)
             return {
                 id = item,
                 name = Utils.String.FromWString(windowData.Names[index]),
                 notoriety = windowData.Notoriety[index],
                 isMobile = windowData.IsMobile[index],
-                isValid = function ()
+                isValid = function()
                     return Data.Object(item):isValid()
-                        and Utils.Array.Find(windowData.ObjectId, function (id)
+                        and Utils.Array.Find(windowData.ObjectId, function(id)
                             return id == item
                         end)
                 end
@@ -7546,7 +7545,6 @@ function DefaultWarShieldComponent:getDefault()
     return WarShield
 end
 
-
 -- ========================================================================== --
 -- Components - Edit Text Box
 -- ========================================================================== --
@@ -7760,7 +7758,6 @@ function EventReceiver:onEndHealthBarDrag()
     return self
 end
 
-
 -- ========================================================================== --
 -- Components - Gump
 -- ========================================================================== --
@@ -7773,14 +7770,14 @@ function Gump:new(gump, id)
 
     instance.buttons = Utils.Array.MapToArray(
         gump.Buttons,
-        function (buttonName)
+        function(buttonName)
             return Button:new({ Name = buttonName })
         end
     )
 
     instance.textEntries = Utils.Array.MapToArray(
         gump.TextEntry,
-        function (textEntryName)
+        function(textEntryName)
             return EditTextBox:new({ Name = textEntryName })
         end
     )
@@ -7814,7 +7811,7 @@ function Components.Gump(name)
 
     local gump = Utils.Table.Find(
         GumpData.Gumps,
-        function (k, v)
+        function(k, v)
             id = k
             return v.windowName == name
         end
@@ -7863,7 +7860,6 @@ function Components.Label(model)
     Cache[label:getName()] = label
     return label
 end
-
 
 -- ========================================================================== --
 -- Components - Log Display
@@ -7914,7 +7910,6 @@ function Components.LogDisplay(model)
     Cache[logDisplay:getName()] = logDisplay
     return logDisplay
 end
-
 
 -- ========================================================================== --
 -- Components - Status Bar
@@ -7968,10 +7963,7 @@ end
 
 function View:onInitialize()
     local id = self._model.Id or Utils.String.ExtractNumber(self:getName())
-
-    if id ~= 0 then
-        self:setId(id)
-    end
+    self:setId(id)
 
     local prefix = "Mongbat.EventHandler."
 
@@ -7989,7 +7981,6 @@ function View:onInitialize()
         elseif systemEvent ~= nil then
             self:registerEventHandler(systemEvent.getEvent(), functionName)
         elseif dataEvent ~= nil then
-            self:registerData(dataEvent.getType())
             self:registerEventHandler(dataEvent.getEvent(), functionName)
         end
     end
@@ -8009,6 +8000,8 @@ function View:onShutdown()
         self._model.OnShutdown(self)
     end
 
+    self:setId(0)
+
     for k, _ in pairs(self._model) do
         local dataEvent = Constants.DataEvents[k]
         local systemEvent = Constants.SystemEvents[k]
@@ -8019,7 +8012,6 @@ function View:onShutdown()
         elseif systemEvent ~= nil then
             self:unregisterEventHandler(systemEvent.getEvent())
         elseif dataEvent ~= nil then
-            self:unregisterData(dataEvent.getType())
             self:unregisterEventHandler(dataEvent.getEvent())
         end
     end
@@ -8123,14 +8115,7 @@ end
 
 function View:onUpdatePlayerStatus()
     if self._model.OnUpdatePlayerStatus ~= nil then
-        local success = pcall(
-            function ()
-                self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
-            end
-        )
-        if not success then
-            self:registerData(Constants.DataEvents.OnUpdatePlayerStatus.getType())
-        end
+        self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
         return true
     end
     return false
@@ -8138,15 +8123,7 @@ end
 
 function View:onUpdateMobileStatus()
     if self._model.OnUpdateMobileStatus ~= nil then
-        local success = pcall(
-            function ()
-                self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
-            end
-        )
-
-        if not success then
-            self:registerData(Constants.DataEvents.MobileStatus.getType())
-        end
+        self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
         return true
     end
     return false
@@ -8154,14 +8131,7 @@ end
 
 function View:onUpdateHealthBarColor()
     if self._model.OnUpdateHealthBarColor ~= nil then
-        local success = pcall(
-            function ()
-                self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
-            end
-        )
-        if not success then
-            self:registerData(Constants.DataEvents.HealthBarColor.getType())
-        end
+        self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
         return true
     end
     return false
@@ -8180,6 +8150,34 @@ function View:getId()
 end
 
 function View:setId(id)
+    local oldId = self:getId()
+
+    if id == oldId then
+        return
+    end
+
+    if id == 0 and oldId ~= 0 then
+        Utils.Table.ForEach(
+            Constants.DataEvents,
+            function(k, v)
+                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
+                    Api.Window.UnregisterData(v.getType(), oldId)
+                end
+            end
+        )
+    end
+
+    if id ~= 0 then
+        Utils.Table.ForEach(
+            Constants.DataEvents,
+            function(k, v)
+                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
+                    Api.Window.RegisterData(v.getType(), id)
+                end
+            end
+        )
+    end
+
     Api.Window.SetId(self.name, id)
 end
 
@@ -8408,7 +8406,7 @@ function Window:new(model)
     instance._children = {}
     instance._frame = instance.name .. "Frame"
     instance._background = instance.name .. "Background"
-    instance._model.OnRButtonUp = model.OnRButtonUp or function (window)
+    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
         if window:isParentRoot() then
             window:destroy()
         end
@@ -8430,11 +8428,11 @@ function Window:onInitialize()
 
     Utils.Array.ForEach(
         self._children,
-        function (item, index)
+        function(item, index)
             --- For each child, override its onInitialize to set its parent and anchors
             local onChildInitialize = item._model.OnInitialize
 
-            item._model.OnInitialize = function (child)
+            item._model.OnInitialize = function(child)
                 child:setParent(self:getName())
                 if index > 1 then
                     child:addAnchor(
@@ -8455,7 +8453,7 @@ function Window:onInitialize()
                 end
                 local childWidth = self:getDimensions().x - 32
                 local childSpaceOffset = (#self._children - 1) * 8
-                local childHeight =  (self:getDimensions().y - 32 - childSpaceOffset) / #self._children
+                local childHeight = (self:getDimensions().y - 32 - childSpaceOffset) / #self._children
                 child:setDimensions(childWidth, childHeight)
 
                 if onChildInitialize ~= nil then
@@ -8467,7 +8465,7 @@ function Window:onInitialize()
 
             --- For each child propagate the onRButtonUp event to the parent
             --- This is to allow closing the parent window when right-clicking on any child
-            item._model.OnRButtonUp = function (child, flags, x, y)
+            item._model.OnRButtonUp = function(child, flags, x, y)
                 self:onRButtonUp(flags, x, y)
                 if onChildRButtonUp ~= nil then
                     onChildRButtonUp(child, flags, x, y)
@@ -8478,7 +8476,7 @@ function Window:onInitialize()
 
             --- For each child propagate the onLButtonDown event to the parent
             --- This is to allow moving the parent window when left-clicking on any child
-            item._model.OnLButtonDown = function (child, flags, x, y)
+            item._model.OnLButtonDown = function(child, flags, x, y)
                 if onChildLButtonDown ~= nil then
                     onChildLButtonDown(child, flags, x, y)
                 end
@@ -8490,7 +8488,7 @@ function Window:onInitialize()
 
             --- For each child propagate the onLButtonUp event to the parent
             --- This is to allow stopping moving the parent window when releasing left-click on any child
-            item._model.OnLButtonUp = function (child, flags, x, y)
+            item._model.OnLButtonUp = function(child, flags, x, y)
                 self:onLButtonUp(flags, x, y)
                 local isDragged = self._startDrag.x ~= x or
                     self._startDrag.y ~= y
@@ -8502,7 +8500,7 @@ function Window:onInitialize()
             local onChildLButtonDblClk = item._model.OnLButtonDblClk
 
             --- For each child propagate the onLButtonDblClk event to the parent
-            item._model.OnLButtonDblClk = function (child, flags, x, y)
+            item._model.OnLButtonDblClk = function(child, flags, x, y)
                 self:onLButtonDblClk(flags, x, y)
                 if onChildLButtonDblClk ~= nil then
                     onChildLButtonDblClk(child, flags, x, y)
@@ -8525,7 +8523,7 @@ function Window:onShutdown()
         Api.Window.SavePosition(self.name)
     end
 
-    Utils.Array.ForEach(self._children, function (item)
+    Utils.Array.ForEach(self._children, function(item)
         item:destroy()
     end)
     View.onShutdown(self)
@@ -8617,7 +8615,7 @@ Components.Defaults.Interface = DefaultInterfaceComponent:new()
 -- ========================================================================== --
 
 ---@class ModInitializer
----@field OnInitialize fun(): Mod Initializes the mod 
+---@field OnInitialize fun(): Mod Initializes the mod
 
 ---@class Mod
 ---@field Name string Name of the mod
@@ -8700,14 +8698,14 @@ Mongbat.ModManager.Mods = {}
 function Mongbat.ModManager.Window()
     return Components.Window {
         Name = "MongbatModManagerWindow",
-        OnInitialize = function (self)
+        OnInitialize = function(self)
             self:setDimensions(400, 300)
             self:setChildren(
                 Utils.Table.MapToArray(
                     Mods,
-                    function (name, mod)
+                    function(name, mod)
                         return Components.Button {
-                            OnInitialize = function (button)
+                            OnInitialize = function(button)
                                 local status = mod:isEnabled() == nil or mod:isEnabled()
                                 local statusText = "Disabled"
                                 if status then
@@ -8715,7 +8713,7 @@ function Mongbat.ModManager.Window()
                                 end
                                 button:setText("Enable " .. name .. " (" .. statusText .. ")")
                             end,
-                            OnLButtonUp = function (button)
+                            OnLButtonUp = function(button)
                                 local status = mod:isEnabled() == nil or mod:isEnabled()
                                 mod:setEnabled(not status)
                                 Api.InterfaceCore.ReloadUI()
@@ -8749,13 +8747,15 @@ function Mongbat.Mod(model)
     return mod
 end
 
---Init the mod 
+--Init the mod
 Mod:new {
     Name = "Mongbat",
     Path = "/src/lib",
     Files = {
         "Mongbat.xml"
     },
-    OnInitialize = function () end,
-    OnShutdown = function () end
+    OnInitialize = function()
+        Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+    end,
+    OnShutdown = function() end
 }:onInitialize()
