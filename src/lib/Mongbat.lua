@@ -6962,14 +6962,10 @@ local Cache = {}
 ---@field OnLButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: Button, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: Button, timePassed: integer)?
----@field OnUpdateMobileName fun(self: Button, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: Button, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Button)?
 ---@field OnMouseOverEnd fun(self: Button)?
 ---@field OnMouseDrag fun(self: Button)?
----@field OnUpdatePlayerStatus fun(self: Button, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: Button, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: Button, healthBarColor: HealthBarColorWrapper)?
 ---@field OnEndHealthBarDrag fun(self: Button)?
 
 ---@class Button: Window
@@ -7214,14 +7210,10 @@ Component.__index = Component
 ---@field OnLButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: EditTextBox, timePassed: integer)?
----@field OnUpdateMobileName fun(self: EditTextBox, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: EditTextBox)?
 ---@field OnMouseOverEnd fun(self: EditTextBox)?
 ---@field OnMouseDrag fun(self: EditTextBox)?
----@field OnUpdatePlayerStatus fun(self: EditTextBox, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: EditTextBox, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: EditTextBox, healthBarColor: HealthBarColorWrapper)?
 ---@field OnEndHealthBarDrag fun(self: EditTextBox)?
 
 ---@class EditTextBox: View
@@ -7245,14 +7237,10 @@ EventReceiver.__index = EventReceiver
 ---@field OnLButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: Window, timePassed: integer)?
----@field OnUpdateMobileName fun(self: Window, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: Window, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Window)?
 ---@field OnMouseOverEnd fun(self: Window)?
 ---@field OnMouseDrag fun(self: Window)?
----@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
 ---@field OnEndHealthBarDrag fun(self: Window)?
 
 ---@class LabelModel : ViewModel
@@ -7265,14 +7253,10 @@ EventReceiver.__index = EventReceiver
 ---@field OnLButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: Label, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: Label, timePassed: integer)?
----@field OnUpdateMobileName fun(self: Label, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: Label, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Label)?
 ---@field OnMouseOverEnd fun(self: Label)?
 ---@field OnMouseDrag fun(self: Label)?
----@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
 ---@field OnEndHealthBarDrag fun(self: Label)?
 
 ---@class GumpItem
@@ -7295,15 +7279,10 @@ EventReceiver.__index = EventReceiver
 ---@field OnLButtonDown fun(self: Gump, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: Gump, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: Gump, timePassed: integer)?
----@field OnUpdateMobileName fun(self: Gump, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: Gump, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Gump)?
 ---@field OnMouseOverEnd fun(self: Gump)?
 ---@field OnMouseDrag fun(self: Gump)?
----@field OnUpdatePlayerStatus fun(self: Gump, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: Gump, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: Gump, healthBarColor: HealthBarColorWrapper)?
----@field OnEndHealthBarDrag fun(self: Gump)?
 
 ---@class Gump : Window
 ---@field buttons Button[]
@@ -7326,14 +7305,10 @@ Label.__index = Label
 ---@field OnLButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: LogDisplay, timePassed: integer)?
----@field OnUpdateMobileName fun(self: LogDisplay, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: LogDisplay)?
 ---@field OnMouseOverEnd fun(self: LogDisplay)?
 ---@field OnMouseDrag fun(self: LogDisplay)?
----@field OnUpdatePlayerStatus fun(self: LogDisplay, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: LogDisplay, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: LogDisplay, healthBarColor: HealthBarColorWrapper)?
 ---@field OnEndHealthBarDrag fun(self: LogDisplay)?
 
 ---@class LogDisplay: View
@@ -7353,14 +7328,10 @@ LogDisplay.__index = LogDisplay
 ---@field OnLButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: View, timePassed: integer)?
----@field OnUpdateMobileName fun(self: View, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: View, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: View)?
 ---@field OnMouseOverEnd fun(self: View)?
 ---@field OnMouseDrag fun(self: View)?
----@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
 ---@field OnEndHealthBarDrag fun(self: View)?
 
 ---@class StatusBarModel : ViewModel
@@ -7373,14 +7344,10 @@ LogDisplay.__index = LogDisplay
 ---@field OnLButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonDown fun(self: StatusBar, flags: integer, x: integer, y: integer)?
 ---@field OnUpdate fun(self: StatusBar, timePassed: integer)?
----@field OnUpdateMobileName fun(self: StatusBar, windowData: MobileNameWrapper)?
 ---@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: StatusBar)?
 ---@field OnMouseOverEnd fun(self: StatusBar)?
 ---@field OnMouseDrag fun(self: StatusBar)?
----@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
 ---@field OnEndHealthBarDrag fun(self: StatusBar)?
 
 ---@class StatusBar: View
@@ -7682,11 +7649,6 @@ function EventHandler.OnUpdate(timePassed)
     window:onUpdate(timePassed)
 end
 
-function EventHandler.OnUpdateMobileName()
-    local window = Cache[Active.window()]
-    window:onUpdateMobileName()
-end
-
 function EventHandler.OnLButtonDblClk(flags, x, y)
     local window = Cache[Active.window()]
     window:onLButtonDblClk(flags, x, y)
@@ -7705,21 +7667,6 @@ end
 function EventHandler.OnMouseDrag()
     local window = Cache[Active.window()]
     window:onMouseDrag()
-end
-
-function EventHandler.OnUpdatePlayerStatus()
-    local window = Cache[Active.window()]
-    window:onUpdatePlayerStatus()
-end
-
-function EventHandler.OnUpdateMobileStatus()
-    local window = Cache[Active.window()]
-    window:onUpdateMobileStatus()
-end
-
-function EventHandler.OnUpdateHealthBarColor()
-    local window = Cache[Active.window()]
-    window:onUpdateHealthBarColor()
 end
 
 function EventHandler.OnEndHealthBarDrag()
@@ -7792,18 +7739,6 @@ end
 
 function EventReceiver:onMouseDrag()
     return self
-end
-
-function EventReceiver:onUpdatePlayerStatus(playerStatus)
-    return self, playerStatus
-end
-
-function EventReceiver:onUpdateMobileStatus(mobileStatus)
-    return self, mobileStatus
-end
-
-function EventReceiver:onUpdateHealthBarColor(healthBarColor)
-    return self, healthBarColor
 end
 
 function EventReceiver:onEndHealthBarDrag()
@@ -8020,7 +7955,6 @@ function View:onInitialize()
     local prefix = "Mongbat.EventHandler."
 
     for k, _ in pairs(self._model) do
-        local dataEvent = Constants.DataEvents[k]
         local systemEvent = Constants.SystemEvents[k]
         local isCore = Constants.CoreEvents[k] ~= nil
         local skip = k == Constants.CoreEvents.OnInitialize or
@@ -8034,8 +7968,6 @@ function View:onInitialize()
             self:registerCoreEventHandler(k, functionName)
         elseif systemEvent ~= nil then
             self:registerEventHandler(systemEvent.getEvent(), functionName)
-        elseif dataEvent ~= nil then
-            self:registerEventHandler(dataEvent.getEvent(), functionName)
         end
     end
 
@@ -8057,7 +7989,6 @@ function View:onShutdown()
     self:setId(0)
 
     for k, _ in pairs(self._model) do
-        local dataEvent = Constants.DataEvents[k]
         local systemEvent = Constants.SystemEvents[k]
         local isCore = k == Constants.CoreEvents.OnInitialize or
             k == Constants.CoreEvents.OnShutdown or
@@ -8068,8 +7999,6 @@ function View:onShutdown()
             self:unregisterCoreEventHandler(k)
         elseif systemEvent ~= nil then
             self:unregisterEventHandler(systemEvent.getEvent())
-        elseif dataEvent ~= nil then
-            self:unregisterEventHandler(dataEvent.getEvent())
         end
     end
 end
@@ -8124,10 +8053,9 @@ end
 
 function View:onUpdate(timePassed, systemData, windowData)
     if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed, systemData, windowData)
-        return true
+        self._model.OnUpdate(self, timePassed)
     end
-    return false
+    return true
 end
 
 function View:onUpdateMobileName()
@@ -8165,30 +8093,6 @@ end
 function View:onMouseDrag()
     if self._model.OnMouseDrag ~= nil then
         self._model.OnMouseDrag(self)
-        return true
-    end
-    return false
-end
-
-function View:onUpdatePlayerStatus()
-    if self._model.OnUpdatePlayerStatus ~= nil then
-        self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
-        return true
-    end
-    return false
-end
-
-function View:onUpdateMobileStatus()
-    if self._model.OnUpdateMobileStatus ~= nil then
-        self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
-        return true
-    end
-    return false
-end
-
-function View:onUpdateHealthBarColor()
-    if self._model.OnUpdateHealthBarColor ~= nil then
-        self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
         return true
     end
     return false
@@ -8575,7 +8479,7 @@ end
 
 function Window:onLButtonUp(flags, x, y)
     local moved = (self._startDrag.x >= 0 and self._startDrag.x ~= x) or
-                    (self._startDrag.y >= 0 and self._startDrag.y ~= y)
+        (self._startDrag.y >= 0 and self._startDrag.y ~= y)
     local isDraggingItem = Data.Drag():isDraggingItem()
     local shouldFire = (not moved) or isDraggingItem
     if shouldFire then

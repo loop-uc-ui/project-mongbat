@@ -8,25 +8,19 @@ Mongbat.Mod {
         local function PlayerName()
             return context.Components.Label {
                 Name = statusWindow .. "PlayerNameLabel",
-                OnUpdatePlayerStatus = function(self, playerStatus)
-                    self:setId(playerStatus:getId())
-                end,
-                OnUpdateMobileStatus = function(self, mobileStatus)
-                    self:setText(mobileStatus:getName())
+                OnUpdate = function(self)
+                    self:setId(context.Data.PlayerStatus():getId())
+                    self:setText(context.Data.MobileStatus(self:getId()):getName())
                 end
             }
         end
 
         ---@param name string
-        ---@param onInitialize fun(self: StatusBar)
         ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
-        ---@param onUpdateHealthBarColor fun(self: StatusBar, playerStatus: HealthBarColorWrapper)?
-        local function StatusBar(name, onInitialize, onUpdatePlayerStatus, onUpdateHealthBarColor)
+        local function StatusBar(name, onUpdatePlayerStatus, onUpdateHealthBarColor)
             return context.Components.StatusBar {
                 Name = statusWindow .. name,
-                OnInitialize = onInitialize,
-                OnUpdatePlayerStatus = onUpdatePlayerStatus,
-                OnUpdateHealthBarColor = onUpdateHealthBarColor
+                OnUpdate = onUpdatePlayerStatus,
             }
         end
 
@@ -34,14 +28,10 @@ Mongbat.Mod {
             return StatusBar(
                 "HealthBar",
                 function(self)
-                    self:setColor(context.Constants.Colors.Red)
-                end,
-                function(self, playerStatus)
+                    local playerStatus = context.Data.PlayerStatus()
                     self:setCurrentValue(playerStatus:getCurrentHealth())
                     self:setMaxValue(playerStatus:getMaxHealth())
-                end,
-                function(self, healthBarColor)
-                    self:setColor(healthBarColor:getVisualStateColor())
+                    self:setColor(context.Data.HealthBarColor(playerStatus:getId()):getVisualStateColor())
                 end
             )
         end
@@ -51,10 +41,8 @@ Mongbat.Mod {
                 "ManaBar",
                 function(self)
                     self:setColor(context.Constants.Colors.Blue)
-                end,
-                function(self, playerStatus)
-                    self:setCurrentValue(playerStatus:getCurrentMana())
-                    self:setMaxValue(playerStatus:getMaxMana())
+                    self:setCurrentValue(context.Data.PlayerStatus():getCurrentMana())
+                    self:setMaxValue(context.Data.PlayerStatus():getMaxMana())
                 end
             )
         end
@@ -64,10 +52,8 @@ Mongbat.Mod {
                 "StaminaBar",
                 function(self)
                     self:setColor(context.Constants.Colors.YellowDark)
-                end,
-                function(self, playerStatus)
-                    self:setCurrentValue(playerStatus:getCurrentStamina())
-                    self:setMaxValue(playerStatus:getMaxStamina())
+                    self:setCurrentValue(context.Data.PlayerStatus():getCurrentStamina())
+                    self:setMaxValue(context.Data.PlayerStatus():getMaxStamina())
                 end
             )
         end
@@ -85,7 +71,8 @@ Mongbat.Mod {
                     }
                 end,
                 OnRButtonUp = function() end,
-                OnUpdatePlayerStatus = function(self, playerStatus)
+                OnUpdate = function(self)
+                    local playerStatus = context.Data.PlayerStatus()
                     local frame = self:getFrame()
                     self:setId(playerStatus:getId())
                     if playerStatus:isInWarMode() then
