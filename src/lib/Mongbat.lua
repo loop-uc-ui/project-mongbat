@@ -2138,9 +2138,6 @@ local DefaultUIClasses = {
     ---@field Initialize fun() Initializes the new player guide window and starts at the first step
     ---@field Shutdown fun() Shuts down the new player guide and resets the step
 
-    ---@class ObjectHandle
-    ---@field DestroyObjectWindow fun(objectId: integer) Destroys the object handle window for a given object ID
-
     ---@class OrganizerWindow
     ---@field VisibleItems integer Number of visible items in the organizer list
     ---@field Combo table Array of agent combo names
@@ -5744,7 +5741,7 @@ end
 ---@param data any The data to register.
 ---@param id number The ID of the data.
 function Api.Window.RegisterData(data, id)
-    RegisterWindowData(data, id or 0)
+    -- RegisterWindowData(data, id or 0)
 end
 
 ---
@@ -5752,7 +5749,7 @@ end
 ---@param data any The data to unregister.
 ---@param id number The ID of the data.
 function Api.Window.UnregisterData(data, id)
-    UnregisterWindowData(data, id or 0)
+    -- UnregisterWindowData(data, id or 0)
 end
 
 ---
@@ -6967,6 +6964,10 @@ local Cache = {}
 ---@field OnMouseOverEnd fun(self: Button)?
 ---@field OnMouseDrag fun(self: Button)?
 ---@field OnEndHealthBarDrag fun(self: Button)?
+---@field OnUpdatePlayerStatus fun(self: Button, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: Button, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Button, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: Button, mobileStatus: MobileStatusWrapper)?
 
 ---@class Button: Window
 local Button = {}
@@ -7195,6 +7196,14 @@ DefaultStatusWindowComponent.__index = DefaultStatusWindowComponent
 local DefaultWarShieldComponent = {}
 DefaultWarShieldComponent.__index = DefaultWarShieldComponent
 
+---@class DefaultObjectHandle
+---@field CreateObjectHandles fun()
+---@field DestroyObjectHandles fun()
+
+---@class DefaultObjectHandleComponent : DefaultComponent
+local DefaultObjectHandleComponent = {}
+DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
 ---@class Component
 ---@field name string
 local Component = {}
@@ -7215,6 +7224,10 @@ Component.__index = Component
 ---@field OnMouseOverEnd fun(self: EditTextBox)?
 ---@field OnMouseDrag fun(self: EditTextBox)?
 ---@field OnEndHealthBarDrag fun(self: EditTextBox)?
+---@field OnUpdatePlayerStatus fun(self: EditTextBox, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: EditTextBox, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: EditTextBox, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: EditTextBox, mobileStatus: MobileStatusWrapper)?
 
 ---@class EditTextBox: View
 local EditTextBox = {}
@@ -7242,6 +7255,10 @@ EventReceiver.__index = EventReceiver
 ---@field OnMouseOverEnd fun(self: Window)?
 ---@field OnMouseDrag fun(self: Window)?
 ---@field OnEndHealthBarDrag fun(self: Window)?
+---@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: Window, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
 
 ---@class LabelModel : ViewModel
 ---@field OnInitialize fun(self: Label)?
@@ -7258,6 +7275,10 @@ EventReceiver.__index = EventReceiver
 ---@field OnMouseOverEnd fun(self: Label)?
 ---@field OnMouseDrag fun(self: Label)?
 ---@field OnEndHealthBarDrag fun(self: Label)?
+---@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: Label, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -7283,6 +7304,10 @@ EventReceiver.__index = EventReceiver
 ---@field OnMouseOver fun(self: Gump)?
 ---@field OnMouseOverEnd fun(self: Gump)?
 ---@field OnMouseDrag fun(self: Gump)?
+---@field OnUpdatePlayerStatus fun(self: Gump, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: Gump, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: Gump, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: Gump, mobileStatus: MobileStatusWrapper)?
 
 ---@class Gump : Window
 ---@field buttons Button[]
@@ -7310,6 +7335,10 @@ Label.__index = Label
 ---@field OnMouseOverEnd fun(self: LogDisplay)?
 ---@field OnMouseDrag fun(self: LogDisplay)?
 ---@field OnEndHealthBarDrag fun(self: LogDisplay)?
+---@field OnUpdatePlayerStatus fun(self: LogDisplay, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: LogDisplay, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: LogDisplay, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: LogDisplay, mobileStatus: MobileStatusWrapper)?
 
 ---@class LogDisplay: View
 local LogDisplay = {}
@@ -7333,6 +7362,10 @@ LogDisplay.__index = LogDisplay
 ---@field OnMouseOverEnd fun(self: View)?
 ---@field OnMouseDrag fun(self: View)?
 ---@field OnEndHealthBarDrag fun(self: View)?
+---@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: View, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
 
 ---@class StatusBarModel : ViewModel
 ---@field OnInitialize fun(self: StatusBar)?
@@ -7349,6 +7382,10 @@ LogDisplay.__index = LogDisplay
 ---@field OnMouseOverEnd fun(self: StatusBar)?
 ---@field OnMouseDrag fun(self: StatusBar)?
 ---@field OnEndHealthBarDrag fun(self: StatusBar)?
+---@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: StatusBar, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
 
 ---@class StatusBar: View
 local StatusBar = {}
@@ -7492,6 +7529,26 @@ end
 
 ---@return Window
 function DefaultMainMenuWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Object Handle
+-- ========================================================================== --
+
+---@return DefaultObjectHandleComponent
+function DefaultObjectHandleComponent:new()
+    local instance = DefaultComponent.new(self, "ObjectHandle") --[[@as DefaultObjectHandleComponent]]
+    return instance
+end
+
+---@return DefaultObjectHandle
+function DefaultObjectHandleComponent:getDefault()
+    return ObjectHandleWindow
+end
+
+---@return Window
+function DefaultObjectHandleComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -7642,6 +7699,26 @@ end
 function EventHandler.OnShown()
     local window = Cache[Active.window()]
     window:onShown()
+end
+
+function EventHandler.OnUpdatePlayerStatus()
+    local window = Cache[Active.window()]
+    window:onUpdatePlayerStatus()
+end
+
+function EventHandler.OnUpdateMobileName()
+    local window = Cache[Active.window()]
+    window:onUpdateMobileName()
+end
+
+function EventHandler.OnUpdateHealthBarColor()
+    local window = Cache[Active.window()]
+    window:onUpdateHealthBarColor()
+end
+
+function EventHandler.OnUpdateMobileStatus()
+    local window = Cache[Active.window()]
+    window:onUpdateMobileStatus()
 end
 
 function EventHandler.OnUpdate(timePassed)
@@ -7957,6 +8034,7 @@ function View:onInitialize()
     for k, _ in pairs(self._model) do
         local systemEvent = Constants.SystemEvents[k]
         local isCore = Constants.CoreEvents[k] ~= nil
+        local dataEvent = Constants.DataEvents[k]
         local skip = k == Constants.CoreEvents.OnInitialize or
             k == Constants.CoreEvents.OnShutdown or
             k == Constants.CoreEvents.OnLButtonDown or
@@ -7968,6 +8046,8 @@ function View:onInitialize()
             self:registerCoreEventHandler(k, functionName)
         elseif systemEvent ~= nil then
             self:registerEventHandler(systemEvent.getEvent(), functionName)
+        elseif dataEvent ~= nil then
+            self:registerEventHandler(dataEvent.getEvent(), functionName)
         end
     end
 
@@ -7986,10 +8066,16 @@ function View:onShutdown()
         self._model.OnShutdown(self)
     end
 
-    self:setId(0)
+    Utils.Table.ForEach(
+        Constants.DataEvents,
+        function(k, v)
+            Api.Window.UnregisterData(v.getType(), self:getId())
+        end
+    )
 
     for k, _ in pairs(self._model) do
         local systemEvent = Constants.SystemEvents[k]
+        local dataEvent = Constants.DataEvents[k]
         local isCore = k == Constants.CoreEvents.OnInitialize or
             k == Constants.CoreEvents.OnShutdown or
             k == Constants.CoreEvents.OnLButtonDown or
@@ -7999,6 +8085,8 @@ function View:onShutdown()
             self:unregisterCoreEventHandler(k)
         elseif systemEvent ~= nil then
             self:unregisterEventHandler(systemEvent.getEvent())
+        elseif dataEvent ~= nil then
+            self:unregisterEventHandler(dataEvent.getEvent())
         end
     end
 end
@@ -8051,9 +8139,9 @@ function View:onShown()
     return false
 end
 
-function View:onUpdate(timePassed, systemData, windowData)
+function View:onUpdate(timePassed, windowData)
     if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed)
+        self._model.OnUpdate(self, timePassed, windowData)
     end
     return true
 end
@@ -8061,6 +8149,30 @@ end
 function View:onUpdateMobileName()
     if self._model.OnUpdateMobileName ~= nil then
         self._model.OnUpdateMobileName(self, Data.MobileName(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdatePlayerStatus()
+    if self._model.OnUpdatePlayerStatus ~= nil then
+        self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
+        return true
+    end
+    return false
+end
+
+function View:onUpdateHealthBarColor()
+    if self._model.OnUpdateHealthBarColor ~= nil then
+        self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateMobileStatus()
+    if self._model.OnUpdateMobileStatus ~= nil then
+        self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
         return true
     end
     return false
@@ -8115,29 +8227,21 @@ function View:setId(id)
 
     if id == oldId then
         return
-    end
-
-    if id == 0 and oldId ~= 0 then
+    else
         Utils.Table.ForEach(
             Constants.DataEvents,
             function(k, v)
-                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
-                    Api.Window.UnregisterData(v.getType(), oldId)
-                end
+                Api.Window.UnregisterData(v.getType(), oldId)
             end
         )
     end
 
-    if id ~= 0 then
-        Utils.Table.ForEach(
-            Constants.DataEvents,
-            function(k, v)
-                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
-                    Api.Window.RegisterData(v.getType(), id)
-                end
-            end
-        )
-    end
+    Utils.Table.ForEach(
+        Constants.DataEvents,
+        function(_, v)
+            Api.Window.RegisterData(v.getType(), id)
+        end
+    )
 
     Api.Window.SetId(self.name, id)
 end
@@ -8332,21 +8436,11 @@ end
 
 function View:registerData(type)
     local id = self:getId()
-
-    if type == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
-        id = 0
-    end
-
     Api.Window.RegisterData(type, id)
 end
 
 function View:unregisterData(type)
     local id = self:getId()
-
-    if type == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
-        id = 0
-    end
-
     Api.Window.UnregisterData(type, id)
 end
 
@@ -8558,12 +8652,14 @@ setmetatable(DefaultMainMenuWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultStatusWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
+setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
 Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
 Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
+Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 
 -- ========================================================================== --
 -- Mod
@@ -8710,8 +8806,6 @@ local mod = Mod:new {
         "Mongbat.xml"
     },
     OnInitialize = function()
-        Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
-
         --- We are using SystemEvents for onLButtonUp and onLButtonDown to facilitate the
         --- dragging and dropping of items onto another window. In this scenario, the onLButtonUp attached
         --- to the window is not activated. For example, if you drag an item from the inventory
@@ -8722,7 +8816,6 @@ local mod = Mod:new {
             "Mongbat.EventHandler.OnLButtonDown")
     end,
     OnShutdown = function()
-        Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
