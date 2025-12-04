@@ -5741,7 +5741,10 @@ end
 ---@param data any The data to register.
 ---@param id number The ID of the data.
 function Api.Window.RegisterData(data, id)
-    -- RegisterWindowData(data, id or 0)
+    if data == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
+        id = 0
+    end
+    RegisterWindowData(data, id or 0)
 end
 
 ---
@@ -5749,7 +5752,10 @@ end
 ---@param data any The data to unregister.
 ---@param id number The ID of the data.
 function Api.Window.UnregisterData(data, id)
-    -- UnregisterWindowData(data, id or 0)
+    if data == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
+        id = 0
+    end
+    UnregisterWindowData(data, id or 0)
 end
 
 ---
@@ -6254,16 +6260,6 @@ end
 ---@type table<string, DataEvent>
 Constants.DataEvents = {}
 
-Constants.DataEvents.OnUpdateMobileName = {
-    getType = function()
-        return WindowData.MobileName.Type
-    end,
-    getEvent = function()
-        return WindowData.MobileName.Event
-    end,
-    name = "OnUpdateMobileName"
-}
-
 Constants.DataEvents.OnUpdatePlayerStatus = {
     getType = function()
         return WindowData.PlayerStatus.Type
@@ -6272,6 +6268,16 @@ Constants.DataEvents.OnUpdatePlayerStatus = {
         return WindowData.PlayerStatus.Event
     end,
     name = "OnUpdatePlayerStatus"
+}
+
+Constants.DataEvents.OnUpdateMobileName = {
+    getType = function()
+        return WindowData.MobileName.Type
+    end,
+    getEvent = function()
+        return WindowData.MobileName.Event
+    end,
+    name = "OnUpdateMobileName"
 }
 
 Constants.DataEvents.OnUpdateHealthBarColor = {
@@ -7702,23 +7708,31 @@ function EventHandler.OnShown()
 end
 
 function EventHandler.OnUpdatePlayerStatus()
-    local window = Cache[Active.window()]
-    window:onUpdatePlayerStatus()
+    pcall(function ()
+        local window = Cache[Active.window()]
+        window:onUpdatePlayerStatus()
+    end)
 end
 
 function EventHandler.OnUpdateMobileName()
-    local window = Cache[Active.window()]
-    window:onUpdateMobileName()
+    pcall(function ()
+        local window = Cache[Active.window()]
+        window:onUpdateMobileName()
+    end)
 end
 
 function EventHandler.OnUpdateHealthBarColor()
-    local window = Cache[Active.window()]
-    window:onUpdateHealthBarColor()
+    pcall(function ()
+        local window = Cache[Active.window()]
+        window:onUpdateHealthBarColor()
+    end)
 end
 
 function EventHandler.OnUpdateMobileStatus()
-    local window = Cache[Active.window()]
-    window:onUpdateMobileStatus()
+    pcall(function ()
+        local window = Cache[Active.window()]
+        window:onUpdateMobileStatus()
+    end)
 end
 
 function EventHandler.OnUpdate(timePassed)
@@ -8059,6 +8073,13 @@ function View:onInitialize()
     if self._model.OnInitialize ~= nil then
         self._model.OnInitialize(self)
     end
+
+    pcall(function ()
+        self:onUpdatePlayerStatus()
+        self:onUpdateMobileName()
+        self:onUpdateMobileStatus()
+        self:onUpdateHealthBarColor()
+    end)
 end
 
 function View:onShutdown()
@@ -8225,16 +8246,16 @@ end
 function View:setId(id)
     local oldId = self:getId()
 
-    if id == oldId then
+    if oldId == id and oldId ~= 0 then
         return
-    else
-        Utils.Table.ForEach(
-            Constants.DataEvents,
-            function(k, v)
-                Api.Window.UnregisterData(v.getType(), oldId)
-            end
-        )
     end
+
+    Utils.Table.ForEach(
+        Constants.DataEvents,
+        function(_, v)
+            Api.Window.UnregisterData(v.getType(), oldId)
+        end
+    )
 
     Utils.Table.ForEach(
         Constants.DataEvents,

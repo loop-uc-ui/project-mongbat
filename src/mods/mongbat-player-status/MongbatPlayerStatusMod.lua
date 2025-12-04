@@ -5,10 +5,12 @@ Mongbat.Mod {
         local original = context.Components.Defaults.StatusWindow
         local statusWindow = original:getName()
 
-        local function PlayerName(id)
+        local function PlayerName()
             return context.Components.Label {
                 Name = statusWindow .. "PlayerNameLabel",
-                Id = id,
+                OnUpdatePlayerStatus = function(self, playerStatus)
+                    self:setId(playerStatus:getId())
+                end,
                 OnUpdateMobileStatus = function(self, mobileStatus)
                     self:setText(mobileStatus:getName())
                 end
@@ -16,22 +18,19 @@ Mongbat.Mod {
         end
 
         ---@param name string
-        ---@param id integer
         ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
         ---@param onUpdateHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
-        local function StatusBar(name, id, onUpdatePlayerStatus, onUpdateHealthBarColor)
+        local function StatusBar(name, onUpdatePlayerStatus, onUpdateHealthBarColor)
             return context.Components.StatusBar {
                 Name = statusWindow .. name,
-                Id = id,
                 OnUpdatePlayerStatus = onUpdatePlayerStatus,
                 OnUpdateHealthBarColor = onUpdateHealthBarColor
             }
         end
 
-        local function HealthStatusBar(id)
+        local function HealthStatusBar()
             return StatusBar(
                 "HealthBar",
-                id,
                 function(self, playerStatus)
                     self:setCurrentValue(playerStatus:getCurrentHealth())
                     self:setMaxValue(playerStatus:getMaxHealth())
@@ -42,10 +41,9 @@ Mongbat.Mod {
             )
         end
 
-        local function ManaStatusBar(id)
+        local function ManaStatusBar()
             return StatusBar(
                 "ManaBar",
-                id,
                 function(self, playerStatus)
                     self:setColor(context.Constants.Colors.Blue)
                     self:setCurrentValue(playerStatus:getCurrentMana())
@@ -54,10 +52,9 @@ Mongbat.Mod {
             )
         end
 
-        local function StaminaStatusBar(id)
+        local function StaminaStatusBar()
             return StatusBar(
                 "StaminaBar",
-                id,
                 function(self, playerStatus)
                     self:setColor(context.Constants.Colors.YellowDark)
                     self:setCurrentValue(playerStatus:getCurrentStamina())
@@ -72,10 +69,10 @@ Mongbat.Mod {
                 OnInitialize = function(self)
                     self:setDimensions(300, 150)
                     self:setChildren {
-                        PlayerName(self:getId()),
-                        HealthStatusBar(self:getId()),
-                        ManaStatusBar(self:getId()),
-                        StaminaStatusBar(self:getId())
+                        PlayerName(),
+                        HealthStatusBar(),
+                        ManaStatusBar(),
+                        StaminaStatusBar()
                     }
                 end,
                 OnRButtonUp = function() end,
