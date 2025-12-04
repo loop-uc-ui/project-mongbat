@@ -78,6 +78,7 @@ Mongbat.Mod {
                 OnRButtonUp = function() end,
                 OnUpdatePlayerStatus = function(self, playerStatus)
                     local frame = self:getFrame()
+                    self:setId(playerStatus:getId())
                     if playerStatus:isInWarMode() then
                         frame:setColor(context.Constants.Colors.Notoriety[6])
                     else
