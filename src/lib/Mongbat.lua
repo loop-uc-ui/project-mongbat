@@ -5741,9 +5741,6 @@ end
 ---@param data any The data to register.
 ---@param id number The ID of the data.
 function Api.Window.RegisterData(data, id)
-    if data == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
-        id = 0
-    end
     RegisterWindowData(data, id or 0)
 end
 
@@ -5752,9 +5749,6 @@ end
 ---@param data any The data to unregister.
 ---@param id number The ID of the data.
 function Api.Window.UnregisterData(data, id)
-    if data == Constants.DataEvents.OnUpdatePlayerStatus.getType() then
-        id = 0
-    end
     UnregisterWindowData(data, id or 0)
 end
 
@@ -8087,12 +8081,7 @@ function View:onShutdown()
         self._model.OnShutdown(self)
     end
 
-    Utils.Table.ForEach(
-        Constants.DataEvents,
-        function(k, v)
-            Api.Window.UnregisterData(v.getType(), self:getId())
-        end
-    )
+    self:setId(0)
 
     for k, _ in pairs(self._model) do
         local systemEvent = Constants.SystemEvents[k]
@@ -8246,23 +8235,31 @@ end
 function View:setId(id)
     local oldId = self:getId()
 
-    if oldId == id and oldId ~= 0 then
+    if oldId == id then
         return
     end
 
-    Utils.Table.ForEach(
-        Constants.DataEvents,
-        function(_, v)
-            Api.Window.UnregisterData(v.getType(), oldId)
-        end
-    )
+    if oldId ~= 0 then
+        Utils.Table.ForEach(
+            Constants.DataEvents,
+            function(k, v)
+                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
+                    Api.Window.UnregisterData(v.getType(), oldId)
+                end
+            end
+        )
+    end
 
-    Utils.Table.ForEach(
-        Constants.DataEvents,
-        function(_, v)
-            Api.Window.RegisterData(v.getType(), id)
-        end
-    )
+    if id ~= 0 then
+        Utils.Table.ForEach(
+            Constants.DataEvents,
+            function(k, v)
+                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
+                    Api.Window.RegisterData(v.getType(), id)
+                end
+            end
+        )
+    end
 
     Api.Window.SetId(self.name, id)
 end
@@ -8827,6 +8824,7 @@ local mod = Mod:new {
         "Mongbat.xml"
     },
     OnInitialize = function()
+        Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
         --- We are using SystemEvents for onLButtonUp and onLButtonDown to facilitate the
         --- dragging and dropping of items onto another window. In this scenario, the onLButtonUp attached
         --- to the window is not activated. For example, if you drag an item from the inventory
@@ -8837,6 +8835,7 @@ local mod = Mod:new {
             "Mongbat.EventHandler.OnLButtonDown")
     end,
     OnShutdown = function()
+        Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),

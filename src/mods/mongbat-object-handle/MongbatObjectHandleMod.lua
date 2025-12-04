@@ -22,6 +22,7 @@ Mongbat.Mod {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
+                    self:setDimensions(100, 20)
                     self:attachToObject()
                     self:setChildren {
                         Label(handle)
