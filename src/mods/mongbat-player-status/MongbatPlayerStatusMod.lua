@@ -102,6 +102,11 @@ Mongbat.Mod {
         original:getDefault().UpdateLatency = function() end
         original:asComponent():destroy()
         Window():create(true)
+
+        --- In the default UI, buffs and debuffs are children of the status window.
+        --- We need to re-initialize them to attach to the new status window.
+        context.Api.Window.CreateFromTemplate("BuffDebuff", "MongbatBuffDebuff", "Root", true)
+        BuffDebuff.Initialize()
     end,
     OnShutdown = function(context)
         context.Api.Window.DestroyWindow("StatusWindow")

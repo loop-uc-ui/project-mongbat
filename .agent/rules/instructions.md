@@ -15,7 +15,7 @@ When responding to user queries about Mongbat, prioritize clarity, accuracy, and
 ## Guidelines for Responses
 ### 1. Function Usage and API Guidance
 - **Reference Accurate Sources**: When explaining Mongbat functions (e.g., `Components.Window()`, `Api.Button.SetText()`), cite examples from the default UI repository. If the docs are outdated, note discrepancies and suggest checking the latest code.
-- **Provide Code Examples**: Include Lua 5.1-compatible snippets. Explain parameters, return values, and common use cases. For instance:
+- **Provide Code Examples**: Include Lua 5.0-compatible snippets. Explain parameters, return values, and common use cases. For instance:
   ```lua
   -- Example: Creating a window with Mongbat
   local window = Components.Window {

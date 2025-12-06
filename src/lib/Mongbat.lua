@@ -8233,6 +8233,7 @@ function View:getId()
 end
 
 function View:setId(id)
+    id = id or 0
     local oldId = self:getId()
 
     if oldId == id then

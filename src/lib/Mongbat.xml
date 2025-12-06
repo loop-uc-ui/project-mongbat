@@ -5,6 +5,16 @@
     </Assets>
     
     <Windows>
+        <Window name="MongbatBuffDebuff" layer="default" popable="false">
+            <Size>
+                <AbsPoint x="0" y="0" />
+            </Size>
+            <Anchors>
+                <Anchor point="topleft" relativePoint="topleft" relativeTo="StatusWindow">
+                    <AbsPoint x="91" y="57" />
+                </Anchor>
+            </Anchors>
+        </Window>
         <VerticalScrollbar name="MongbatVertScroll" up="StandardVertScrollUpBtn" down="StandardVertScrollDownBtn" thumb="StandardVertScrollThumb" gutter="StandardVertScrollGutter" >
 			<Size>
 				<AbsPoint x="20" y="0" />
