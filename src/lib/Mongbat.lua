@@ -8509,6 +8509,7 @@ function Window:onInitialize()
 
             item._model.OnInitialize = function(child)
                 child:setParent(self:getName())
+                child:clearAnchors()
                 if index > 1 then
                     child:addAnchor(
                         "bottomleft",
@@ -8522,13 +8523,13 @@ function Window:onInitialize()
                         "topleft",
                         self:getName(),
                         "topleft",
-                        16,
-                        16
+                        12,
+                        12
                     )
                 end
-                local childWidth = self:getDimensions().x - 32
+                local childWidth = self:getDimensions().x - 24
                 local childSpaceOffset = (#self._children - 1) * 8
-                local childHeight = (self:getDimensions().y - 32 - childSpaceOffset) / #self._children
+                local childHeight = (self:getDimensions().y - 24 - childSpaceOffset) / #self._children
                 child:setDimensions(childWidth, childHeight)
 
                 if onChildInitialize ~= nil then

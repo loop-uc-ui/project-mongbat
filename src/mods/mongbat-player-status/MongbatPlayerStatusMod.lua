@@ -67,7 +67,7 @@ Mongbat.Mod {
             return context.Components.Window {
                 Name = statusWindow,
                 OnInitialize = function(self)
-                    self:setDimensions(300, 150)
+                    self:setDimensions(200, 150)
                     self:setChildren {
                         PlayerName(),
                         HealthStatusBar(),

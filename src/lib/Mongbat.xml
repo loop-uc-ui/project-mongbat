@@ -11,6 +11,7 @@
             </Size>
             <Anchors>
                 <Anchor point="topleft" relativePoint="topleft" relativeTo="StatusWindow">
+                    <!--<AbsPoint x="135" y="55" />-->
                     <AbsPoint x="91" y="57" />
                 </Anchor>
             </Anchors>
@@ -48,7 +49,7 @@
 
         <Button name="MongbatButton18" inherits="MongbatButton" font="inter_medium_18"/>
 
-        <Label name="MongbatLabel" font="inter_medium_18">
+        <Label name="MongbatLabel" font="inter_medium_18" textAutoFitMinScale="0.5">
             <Size>
                 <AbsPoint x="54" y="18" />
             </Size>
