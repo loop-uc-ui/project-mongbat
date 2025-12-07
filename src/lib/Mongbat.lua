@@ -7568,6 +7568,34 @@ function DefaultComponent:asComponent()
     return Component:new(self.name)
 end
 
+--- Disables the default component by overriding all its functions with empty implementations.
+--- The original functions are stored internally and can be restored with restore().
+function DefaultComponent:disable()
+    if self._originalFunctions then
+        return -- Already disabled
+    end
+    local default = self:getDefault()
+    self._originalFunctions = {}
+    Utils.Table.ForEach(default, function(k, v)
+        if type(v) == "function" then
+            self._originalFunctions[k] = v
+            default[k] = function() end
+        end
+    end)
+end
+
+--- Restores the default component functions that were disabled with disable().
+function DefaultComponent:restore()
+    if not self._originalFunctions then
+        return -- Not disabled
+    end
+    local default = self:getDefault()
+    Utils.Table.ForEach(self._originalFunctions, function(k, v)
+        default[k] = v
+    end)
+    self._originalFunctions = nil
+end
+
 -- ========================================================================== --
 -- Components - Default - Actions
 -- ========================================================================== --
