@@ -1,9 +1,13 @@
+---@type Window[]
+local handles = {}
+---@type Window[]
+local createdHandles = {}
+
 Mongbat.Mod {
     Name = "MongbatObjectHandle",
     Path = "/src/mods/mongbat-object-handle",
     OnInitialize = function(context)
         local default = context.Components.Defaults.ObjectHandle
-        local handles = {}
 
         ---@param handle ObjectHandle
         local function Label(handle)
@@ -35,22 +39,36 @@ Mongbat.Mod {
             handles = context.Utils.Table.MapToArray(
                 context.Data.ObjectHandles():getHandles(),
                 function (_, v)
-                    local window = Window(v)
-                    window:create(true)
-                    return window
+                    return Window(v)
                 end
             )
         end
 
         default:getDefault().DestroyObjectHandles = function()
             context.Utils.Array.ForEach(
-                handles,
-                function (v)
-                    v:destroy()
+                createdHandles,
+                function (window)
+                    window:destroy()
                 end
             )
+            handles = {}
+            createdHandles = {}
         end
     end,
-    OnShutdown = function(context)
+    OnShutdown = function()
+        handles = {}
+        createdHandles = {}
+    end,
+    OnUpdate = function(context)
+        --- We use the onUpdate callback to avoid horrendous stuttering
+        --- when creating many handles at once.
+        local handle = context.Utils.Array.Remove(handles, 1)
+
+        if handle == nil then
+            return
+        else
+            handle:create(true)
+            context.Utils.Array.Add(createdHandles, handle)
+        end
     end
 }

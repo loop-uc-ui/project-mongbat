@@ -2,12 +2,9 @@ Mongbat.Mod {
     Name = "MongbatPlayerStatus",
     Path = "/src/mods/mongbat-player-status",
     OnInitialize = function(context)
-        local original = context.Components.Defaults.StatusWindow
-        local statusWindow = original:getName()
-
+        context.Components.Defaults.StatusWindow:asComponent():setShowing(false)
         local function PlayerName()
             return context.Components.Label {
-                Name = statusWindow .. "PlayerNameLabel",
                 OnUpdatePlayerStatus = function(self, playerStatus)
                     self:setId(playerStatus:getId())
                 end,
@@ -17,12 +14,10 @@ Mongbat.Mod {
             }
         end
 
-        ---@param name string
         ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
         ---@param onUpdateHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
-        local function StatusBar(name, onUpdatePlayerStatus, onUpdateHealthBarColor)
+        local function StatusBar(onUpdatePlayerStatus, onUpdateHealthBarColor)
             return context.Components.StatusBar {
-                Name = statusWindow .. name,
                 OnUpdatePlayerStatus = onUpdatePlayerStatus,
                 OnUpdateHealthBarColor = onUpdateHealthBarColor
             }
@@ -30,8 +25,8 @@ Mongbat.Mod {
 
         local function HealthStatusBar()
             return StatusBar(
-                "HealthBar",
                 function(self, playerStatus)
+                    self:setId(playerStatus:getId())
                     self:setCurrentValue(playerStatus:getCurrentHealth())
                     self:setMaxValue(playerStatus:getMaxHealth())
                 end,
@@ -43,7 +38,6 @@ Mongbat.Mod {
 
         local function ManaStatusBar()
             return StatusBar(
-                "ManaBar",
                 function(self, playerStatus)
                     self:setColor(context.Constants.Colors.Blue)
                     self:setCurrentValue(playerStatus:getCurrentMana())
@@ -54,7 +48,6 @@ Mongbat.Mod {
 
         local function StaminaStatusBar()
             return StatusBar(
-                "StaminaBar",
                 function(self, playerStatus)
                     self:setColor(context.Constants.Colors.YellowDark)
                     self:setCurrentValue(playerStatus:getCurrentStamina())
@@ -65,7 +58,7 @@ Mongbat.Mod {
 
         local function Window()
             return context.Components.Window {
-                Name = statusWindow,
+                Name = "MongbatPlayerStatusWindow",
                 OnInitialize = function(self)
                     self:setDimensions(200, 150)
                     self:setChildren {
@@ -98,19 +91,10 @@ Mongbat.Mod {
             }
         end
 
-        context.Components.Defaults.WarShield:asComponent():setShowing(false)
-        original:getDefault().UpdateLatency = function() end
-        original:asComponent():destroy()
         Window():create(true)
-
-        --- In the default UI, buffs and debuffs are children of the status window.
-        --- We need to re-initialize them to attach to the new status window.
-        context.Api.Window.CreateFromTemplate("BuffDebuff", "MongbatBuffDebuff", "Root", true)
-        BuffDebuff.Initialize()
     end,
     OnShutdown = function(context)
-        context.Api.Window.DestroyWindow("StatusWindow")
-        context.Components.Defaults.StatusWindow:asComponent():create(true)
+        context.Api.Window.DestroyWindow("MongbatPlayerStatusWindow")
         context.Components.Defaults.WarShield:asComponent():setShowing(true)
     end
 }

@@ -3578,6 +3578,40 @@ function CircleImageSetTexture(imageName, texture, x, y)
     end
 end
 
+local old_RegisterWindowData = RegisterWindowData
+
+function RegisterWindowData(dataType, id)
+    old_RegisterWindowData(dataType, id or 0)
+end
+
+local old_StatusBarSetMaximumValue = StatusBarSetMaximumValue
+
+function StatusBarSetMaximumValue(barName, maxValue)
+    if maxValue ~= nil and Api.Window.DoesExist(barName) then
+        old_StatusBarSetMaximumValue(barName, maxValue)
+    end
+end
+
+local old_StatusBarSetCurrentValue = StatusBarSetCurrentValue
+
+function StatusBarSetCurrentValue(barName, currentValue)
+    if currentValue ~= nil and Api.Window.DoesExist(barName) then
+        old_StatusBarSetCurrentValue(barName, currentValue)
+    end
+end
+
+local old_InterfaceCoreUpdate = InterfaceCore.Update
+
+function InterfaceCore.Update(elapsedTime)
+    pcall(old_InterfaceCoreUpdate, elapsedTime)
+end
+
+local old_HotbarSystemUpdate = HotbarSystem.Update
+
+function HotbarSystem.Update(elapsedTime)
+    pcall(old_HotbarSystemUpdate, elapsedTime)
+end
+
 -- ========================================================================== --
 -- Api - Ability
 -- ========================================================================== --
@@ -5832,7 +5866,7 @@ Utils.Array = {}
 ---@generic K
 ---@generic R
 ---@param array K[]
----@param mapper fun(k: K, index: number): R
+---@param mapper fun(k: K, index: number): R?
 ---@return R[]
 function Utils.Array.MapToArray(array, mapper)
     local newArray = {}
@@ -5840,11 +5874,51 @@ function Utils.Array.MapToArray(array, mapper)
     Utils.Array.ForEach(
         array,
         function(k, index)
-            table.insert(newArray, mapper(k, index))
+            local item = mapper(k, index)
+            if item ~= nil then
+                table.insert(newArray, item)
+            end
         end
     )
 
     return newArray
+end
+
+---@generic T
+---@param array T[]
+---@return T[]
+function Utils.Array.Copy(array)
+    return Utils.Array.MapToArray(array, function(item, _)
+        return item
+    end)
+end
+
+---@generic T
+---@param array T[]
+---@param index integer
+---@return T?
+function Utils.Array.Remove(array, index)
+    if index > #array then
+        return nil
+    else
+        return table.remove(array, index)
+    end
+end
+
+---@generic T
+---@param array T[]
+---@param predicate fun(item: T, index: integer): boolean
+function Utils.Array.Filter(array, predicate)
+    return Utils.Array.MapToArray(
+        array,
+        function(item, index)
+            if predicate(item, index) then
+                return item
+            else
+                return nil
+            end
+        end
+    )
 end
 
 ---@generic K
@@ -5941,6 +6015,18 @@ function Utils.Array.ForEach(array, forEach)
     for i = 1, #array do
         local item = array[i]
         forEach(item, i)
+    end
+end
+
+---@generic T
+---@param array T[]
+---@param item T
+---@param pos integer?
+function Utils.Array.Add(array, item, pos)
+    if pos and pos > 0 and pos <= #array + 1 then
+        table.insert(array, pos, item)
+    else
+        table.insert(array, item)
     end
 end
 
@@ -8694,6 +8780,7 @@ Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 ---@field Files string[]? list of files to load
 ---@field _onInitialize fun(self: Context) Initializes the mod
 ---@field _onShutdown fun(self: Context) Shutdown the mod
+---@field _onUpdate fun(self: Context, timePassed: number)? Updates the mod
 local Mod = {}
 Mod.__index = Mod
 
@@ -8703,6 +8790,7 @@ Mod.__index = Mod
 ---@field Files string[]? list of files to load
 ---@field OnInitialize fun(self: Context) Initializes the mod
 ---@field OnShutdown fun(self: Context) Shutdown the mod
+---@field OnUpdate fun(self: Context, timePassed: number)? Updates the mod
 
 ---@param model ModModel
 function Mod:new(model)
@@ -8712,6 +8800,7 @@ function Mod:new(model)
     mod.Files = model.Files or {}
     mod._onInitialize = model.OnInitialize or function() end
     mod._onShutdown = model.OnShutdown or function() end
+    mod._onUpdate = model.OnUpdate
     return mod
 end
 
@@ -8751,6 +8840,12 @@ end
 
 function Mod:onShutdown()
     self._onShutdown(Context)
+end
+
+function Mod:onUpdate(timePassed)
+    if self._onUpdate ~= nil then
+        self._onUpdate(Context, timePassed)
+    end
 end
 
 -- ========================================================================== --
@@ -8813,6 +8908,9 @@ function Mongbat.Mod(model)
         end,
         OnShutdown = function()
             mod:onShutdown()
+        end,
+        OnUpdate = function(timePassed)
+            mod:onUpdate(timePassed)
         end
     }
     return mod
