@@ -1,5 +1,2 @@
-# Hide XML and mod files from GitHub language stats
+# Hide mod files from GitHub language stats
 *.mod linguist-vendored
-*.xml linguist-vendored
-**/*.mod linguist-vendored
-**/*.xml linguist-vendored
