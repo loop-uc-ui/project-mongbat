@@ -1,2 +1,6 @@
 # Override GitHub Linguist language detection
 *.mod linguist-language=XML
+*.mod linguist-detectable=true
+
+# Ensure Lua is properly detected
+*.lua linguist-language=Lua
