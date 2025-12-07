@@ -7059,7 +7059,12 @@ local Cache = {}
 local Button = {}
 Button.__index = Button
 
+---@class DefaultComponentProxy
+---@field _disabled boolean Whether the proxy is disabled (function calls become no-ops)
+---@field _original table The original global table being proxied
+
 ---@class DefaultComponent : Component
+---@field _proxy DefaultComponentProxy? The metatable proxy wrapping the original global
 local DefaultComponent = {}
 DefaultComponent.__index = DefaultComponent
 
@@ -7277,6 +7282,8 @@ DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
 ---@class DefaultStatusWindowComponent : DefaultComponent
 local DefaultStatusWindowComponent = {}
 DefaultStatusWindowComponent.__index = DefaultStatusWindowComponent
+
+---@class DefaultWarShield
 
 ---@class DefaultWarShieldComponent : DefaultComponent
 local DefaultWarShieldComponent = {}
@@ -7568,32 +7575,60 @@ function DefaultComponent:asComponent()
     return Component:new(self.name)
 end
 
---- Disables the default component by overriding all its functions with empty implementations.
---- The original functions are stored internally and can be restored with restore().
-function DefaultComponent:disable()
-    if self._originalFunctions then
-        return -- Already disabled
-    end
-    local default = self:getDefault()
-    self._originalFunctions = {}
-    Utils.Table.ForEach(default, function(k, v)
-        if type(v) == "function" then
-            self._originalFunctions[k] = v
-            default[k] = function() end
+--- Creates a proxy table that wraps the original global table.
+--- When disabled, all function calls become no-ops.
+---@param original table The original global table to wrap
+---@return table proxy The proxy table
+function DefaultComponent:_createProxy(original)
+    local proxy = {
+        _disabled = false,
+        _original = original
+    }
+
+    setmetatable(proxy, {
+        __index = function(self, key)
+            -- Don't intercept internal keys
+            if key == "_disabled" or key == "_original" then
+                return rawget(self, key)
+            end
+
+            local value = rawget(self, "_original")[key]
+
+            -- If disabled and it's a function, return a no-op
+            if rawget(self, "_disabled") and type(value) == "function" then
+                return function() end
+            end
+
+            return value
+        end,
+        __newindex = function(self, key, value)
+            -- Don't intercept internal keys
+            if key == "_disabled" or key == "_original" then
+                rawset(self, key, value)
+                return
+            end
+            -- Forward writes to the original
+            rawget(self, "_original")[key] = value
         end
-    end)
+    })
+
+    return proxy
 end
 
---- Restores the default component functions that were disabled with disable().
-function DefaultComponent:restore()
-    if not self._originalFunctions then
-        return -- Not disabled
+--- Disables the default component. All function calls become no-ops.
+function DefaultComponent:disable()
+    local proxy = self._proxy
+    if proxy then
+        proxy._disabled = true
     end
-    local default = self:getDefault()
-    Utils.Table.ForEach(self._originalFunctions, function(k, v)
-        default[k] = v
-    end)
-    self._originalFunctions = nil
+end
+
+--- Restores the default component. Function calls work normally again.
+function DefaultComponent:restore()
+    local proxy = self._proxy
+    if proxy then
+        proxy._disabled = false
+    end
 end
 
 -- ========================================================================== --
@@ -7603,12 +7638,14 @@ end
 ---@return DefaultActionsComponent
 function DefaultActionsComponent:new()
     local instance = DefaultComponent.new(self, "Actions") --[[@as DefaultActionsComponent]]
+    instance._proxy = instance:_createProxy(Actions)
+    _G.Actions = instance._proxy
     return instance
 end
 
 ---@return DefaultActions
 function DefaultActionsComponent:getDefault()
-    return Actions
+    return self._proxy or Actions --[[@as DefaultActions]]
 end
 
 -- ========================================================================= --
@@ -7618,12 +7655,14 @@ end
 ---@return DefaultInterfaceComponent
 function DefaultInterfaceComponent:new()
     local instance = DefaultComponent.new(self, "Interface") --[[@as DefaultInterfaceComponent]]
+    instance._proxy = instance:_createProxy(Interface)
+    _G.Interface = instance._proxy
     return instance
 end
 
 ---@return Interface
 function DefaultInterfaceComponent:getDefault()
-    return Interface
+    return self._proxy or Interface --[[@as Interface]]
 end
 
 -- ========================================================================== --
@@ -7633,12 +7672,14 @@ end
 ---@return DefaultMainMenuWindowComponent
 function DefaultMainMenuWindowComponent:new()
     local instance = DefaultComponent.new(self, "MainMenuWindow") --[[@as DefaultMainMenuWindowComponent]]
+    instance._proxy = instance:_createProxy(MainMenuWindow)
+    _G.MainMenuWindow = instance._proxy
     return instance
 end
 
 ---@return DefaultMainMenuWindow
 function DefaultMainMenuWindowComponent:getDefault()
-    return MainMenuWindow
+    return self._proxy or MainMenuWindow --[[@as DefaultMainMenuWindow]]
 end
 
 ---@return Window
@@ -7653,12 +7694,14 @@ end
 ---@return DefaultObjectHandleComponent
 function DefaultObjectHandleComponent:new()
     local instance = DefaultComponent.new(self, "ObjectHandle") --[[@as DefaultObjectHandleComponent]]
+    instance._proxy = instance:_createProxy(ObjectHandleWindow)
+    _G.ObjectHandleWindow = instance._proxy
     return instance
 end
 
 ---@return DefaultObjectHandle
 function DefaultObjectHandleComponent:getDefault()
-    return ObjectHandleWindow
+    return self._proxy or ObjectHandleWindow --[[@as DefaultObjectHandle]]
 end
 
 ---@return Window
@@ -7673,12 +7716,15 @@ end
 ---@return DefaultStatusWindowComponent
 function DefaultStatusWindowComponent:new()
     local instance = DefaultComponent.new(self, "StatusWindow") --[[@as DefaultStatusWindowComponent]]
+    -- Create proxy and replace global
+    instance._proxy = instance:_createProxy(StatusWindow)
+    _G.StatusWindow = instance._proxy
     return instance
 end
 
 ---@return DefaultStatusWindow
 function DefaultStatusWindowComponent:getDefault()
-    return StatusWindow
+    return self._proxy or StatusWindow --[[@as DefaultStatusWindow]]
 end
 
 ---@return Window
@@ -7693,6 +7739,8 @@ end
 ---@return DefaultWarShieldComponent
 function DefaultWarShieldComponent:new()
     local instance = DefaultComponent.new(self, "WarShield") --[[@as DefaultWarShieldComponent]]
+    instance._proxy = instance:_createProxy(WarShield)
+    _G.WarShield = instance._proxy
     return instance
 end
 
@@ -7701,8 +7749,9 @@ function DefaultWarShieldComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
+---@return DefaultWarShield
 function DefaultWarShieldComponent:getDefault()
-    return WarShield
+    return self._proxy or WarShield --[[@as DefaultWarShield]]
 end
 
 -- ========================================================================== --
@@ -8981,3 +9030,4 @@ end
 function _Mongbat.OnShutdown()
     mod:onShutdown()
 end
+

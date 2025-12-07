@@ -3,7 +3,7 @@
         <Texture name="StatusBar" file="status_window_bar.dds" />
         <Texture name="Mongbat" file="MongbatTextures.dds"/>
     </Assets>
-    
+
     <Windows>
         <Window name="MongbatBuffDebuff" layer="default" popable="false">
             <Size>
@@ -34,7 +34,7 @@
 				<Right x="162" y="24" />
 			</TexCoords>
 		</HorizontalResizeImage>
-    
+
         <StatusBar name="MongbatStatusBar" foreground="StatusBarForground">
             <Size>
                 <AbsPoint x="168" y="24"/>

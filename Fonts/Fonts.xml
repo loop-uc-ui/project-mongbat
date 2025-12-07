@@ -16,7 +16,7 @@
 		<Font name="inter_medium_18" face="Inter" file="fonts/Inter-Medium.ttf" height="18" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
 		<Font name="inter_medium_20" face="Inter" file="fonts/Inter-Medium.ttf" height="20" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
 		<Font name="inter_medium_24" face="Inter" file="fonts/Inter-Medium.ttf" height="24" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
-	
+
 		<Font name="inter_light_12" face="Inter" file="fonts/Inter-Light.ttf" height="12" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
 		<Font name="inter_light_16" face="Inter" file="fonts/Inter-Light.ttf" height="16" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
 		<Font name="inter_light_20" face="Inter" file="fonts/Inter-Light.ttf" height="20" texsize="512" antialias="true" hinting="true" autohinting="false" outline="true" shadow="false"/>
