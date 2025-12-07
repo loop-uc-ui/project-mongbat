@@ -8744,7 +8744,6 @@ function Window:onInitialize()
             end
 
             item:create()
-            item:onInitialize()
         end
     )
 end
