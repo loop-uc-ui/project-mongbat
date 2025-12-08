@@ -19,11 +19,15 @@ local function OnInitialize(context)
 
     ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
     ---@param onUpdateHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
-    local function StatusBar(onUpdatePlayerStatus, onUpdateHealthBarColor)
-        return context.Components.StatusBar {
-            OnUpdatePlayerStatus = onUpdatePlayerStatus,
-            OnUpdateHealthBarColor = onUpdateHealthBarColor
-        }
+    ---@param label LabelModel
+    local function StatusBar(onUpdatePlayerStatus, onUpdateHealthBarColor, label)
+        return context.Components.StatusBar(
+            {
+                OnUpdatePlayerStatus = onUpdatePlayerStatus,
+                OnUpdateHealthBarColor = onUpdateHealthBarColor
+            },
+            label
+        )
     end
 
     local function HealthStatusBar()
@@ -35,7 +39,18 @@ local function OnInitialize(context)
             end,
             function(self, healthBarColor)
                 self:setColor(healthBarColor:getVisualStateColor())
-            end
+            end,
+            {
+                OnUpdatePlayerStatus = function(self, playerStatus)
+                    self:setText(
+                        string.format(
+                            "%d / %d",
+                            playerStatus:getCurrentHealth(),
+                            playerStatus:getMaxHealth()
+                        )
+                    )
+                end
+            }
         )
     end
 
@@ -45,7 +60,19 @@ local function OnInitialize(context)
                 self:setColor(context.Constants.Colors.Blue)
                 self:setCurrentValue(playerStatus:getCurrentMana())
                 self:setMaxValue(playerStatus:getMaxMana())
-            end
+            end,
+            nil,
+            {
+                OnUpdatePlayerStatus = function(self, playerStatus)
+                    self:setText(
+                        string.format(
+                            "%d / %d",
+                            playerStatus:getCurrentMana(),
+                            playerStatus:getMaxMana()
+                        )
+                    )
+                end
+            }
         )
     end
 
@@ -55,7 +82,19 @@ local function OnInitialize(context)
                 self:setColor(context.Constants.Colors.YellowDark)
                 self:setCurrentValue(playerStatus:getCurrentStamina())
                 self:setMaxValue(playerStatus:getMaxStamina())
-            end
+            end,
+            nil,
+            {
+                OnUpdatePlayerStatus = function(self, playerStatus)
+                    self:setText(
+                        string.format(
+                            "%d / %d",
+                            playerStatus:getCurrentStamina(),
+                            playerStatus:getMaxStamina()
+                        )
+                    )
+                end
+            }
         )
     end
 

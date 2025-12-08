@@ -7481,11 +7481,12 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
 
 ---@class StatusBar: View
+---@field label Label?
 local StatusBar = {}
 StatusBar.__index = StatusBar
 
 ---@class View : EventReceiver
----@field private _model ViewModel
+---@field _model ViewModel
 local View = {}
 View.__index = View
 
@@ -8151,12 +8152,53 @@ end
 -- ========================================================================== --
 
 ---@param model StatusBarModel?
+---@param label Label?
 ---@return StatusBar
-function StatusBar:new(model)
+function StatusBar:new(model, label)
     model = model or {}
     model.Template = model.Template or "MongbatStatusBar"
-    local instance = View.new(self, model)
-    return instance --[[@as StatusBar]]
+    local instance = View.new(self, model) --[[@as StatusBar]]
+    instance.label = label
+    return instance
+end
+
+function StatusBar:onInitialize()
+    View.onInitialize(self)
+    local label = self.label
+    if label ~= nil then
+        label._model.OnLButtonDown = label._model.OnLButtonDown or
+            self._model.OnLButtonDown
+        label._model.OnLButtonUp = label._model.OnLButtonUp or
+            self._model.OnLButtonUp
+        label._model.OnRButtonDown = label._model.OnRButtonDown or
+            self._model.OnRButtonDown
+        label._model.OnRButtonUp = label._model.OnRButtonUp or
+            self._model.OnRButtonUp
+
+        label:create(true)
+        label:onInitialize()
+        label:setParent(self:getParent())
+
+        local dimens = self:getDimensions()
+        label:setDimensions(dimens.x, dimens.y)
+        label:centerText()
+
+        label:clearAnchors()
+        label:addAnchor(
+            "center",
+            self:getName(),
+            "center",
+            0,
+            0
+        )
+    end
+end
+
+function StatusBar:onShutdown()
+    if self.label ~= nil then
+        self.label:destroy()
+    end
+    View.onShutdown(self)
 end
 
 function StatusBar:setMaxValue(maxValue)
@@ -8176,9 +8218,16 @@ function StatusBar:setForegroundTint(tint)
 end
 
 ---@param model StatusBarModel?
+---@param labelModel LabelModel?
 ---@return StatusBar
-function Components.StatusBar(model)
-    local statusBar = StatusBar:new(model)
+function Components.StatusBar(model, labelModel)
+    local label
+
+    if labelModel ~= nil then
+        label = Components.Label(labelModel)
+    end
+
+    local statusBar = StatusBar:new(model, label)
     Cache[statusBar:getName()] = statusBar
     return statusBar
 end
@@ -8426,6 +8475,10 @@ function View:setId(id)
     end
 
     Api.Window.SetId(self.name, id)
+end
+
+function View:setHandleInput(handleInput)
+    Api.Window.SetHandleInput(self.name, handleInput)
 end
 
 function View:getParent()
