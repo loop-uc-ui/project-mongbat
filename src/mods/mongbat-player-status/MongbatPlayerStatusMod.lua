@@ -5,6 +5,9 @@ local function OnInitialize(context)
     local original = context.Components.Defaults.StatusWindow
     original:asComponent():setShowing(false)
     original:disable()
+    local warShield = context.Components.Defaults.WarShield
+    warShield:asComponent():setShowing(false)
+    warShield:disable()
 
     local function PlayerName()
         return context.Components.Label {
@@ -142,6 +145,9 @@ local function OnShutdown(context)
     local original = context.Components.Defaults.StatusWindow
     original:restore()
     original:asComponent():setShowing(true)
+    local warShield = context.Components.Defaults.WarShield
+    warShield:restore()
+    warShield:asComponent():setShowing(true)
 end
 
 Mongbat.Mod {
