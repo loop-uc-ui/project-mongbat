@@ -38,7 +38,7 @@
 
       <Button name="MongbatButton18" inherits="MongbatButton" font="inter_medium_18"/>
 
-      <Label name="MongbatLabel" font="inter_medium_18" textAutoFitMinScale="0.5">
+      <Label name="MongbatLabel" font="inter_medium_18" textAutoFitMinScale="0.8">
           <Size>
               <AbsPoint x="54" y="18" />
           </Size>

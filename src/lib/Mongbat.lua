@@ -8898,6 +8898,932 @@ Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 
 -- ========================================================================== --
+-- Reactive System
+-- ========================================================================== --
+--[[
+    A declarative UI system inspired by SwiftUI and Jetpack Compose.
+
+    OVERVIEW:
+    The reactive system lets you describe WHAT your UI should look like as a
+    function of state, rather than imperatively describing HOW to update it.
+    When state changes, the UI automatically re-renders with the new values.
+
+    KEY CONCEPTS:
+
+    1. State (Reactive.State)
+       Observable data container that triggers UI updates when modified.
+
+       local state = Reactive.State {
+           health = 100,
+           name = "Player"
+       }
+
+       -- Read values
+       print(state.health)           -- 100
+       print(state())                -- Returns full state table
+
+       -- Update values (triggers re-render)
+       state.health = 50             -- Single value
+       state({ health = 50, mana = 25 })  -- Batch update (more efficient)
+
+    2. Component Function
+       A pure function that takes state and returns an element tree.
+       Should have NO side effects - just describe the UI.
+
+       local function PlayerUI(s)
+           return Reactive.Window {
+               name = "PlayerWindow",
+               children = {
+                   Reactive.Label { text = s.name },
+                   Reactive.StatusBar { value = s.health, maxValue = s.maxHealth }
+               }
+           }
+       end
+
+    3. Element Descriptors (Reactive.Window, Reactive.Label, etc.)
+       Declarative descriptions of UI elements. NOT actual UI objects.
+
+       Available elements:
+       - Reactive.Window { name, width, height, frameColor, alpha, template,
+                          onPress, onDoubleClick, onRightClick,
+                          onUpdatePlayerStatus, onUpdateMobileStatus,
+                          onUpdateHealthBarColor, children }
+       - Reactive.Label { key, text, color, alignment, template }
+       - Reactive.StatusBar { key, value, maxValue, foregroundColor,
+                             backgroundColor, labelText, template }
+       - Reactive.Button { key, text, onPress, template }
+
+    4. Reactive App (Reactive.App)
+       Manages the lifecycle of a reactive UI.
+
+       local app = Reactive.App(PlayerUI, state, "PlayerWindow")
+       app:mount()    -- Start rendering and listening to state
+       app:unmount()  -- Stop rendering and cleanup
+
+    IMPORTANT NOTES:
+
+    - Use component callbacks (onUpdatePlayerStatus) instead of
+      Api.Event.RegisterEventHandler for game events. The component system
+      properly throttles events to prevent stack overflow.
+
+    - Each element should have a unique "key" prop for efficient updates.
+      If no key is provided, type + index is used (less efficient for reordering).
+
+    - State updates are batched - multiple changes in the same frame only
+      trigger one re-render.
+
+    EXAMPLE:
+
+    local state = Reactive.State {
+        id = 0,
+        name = "Player",
+        health = 100, maxHealth = 100,
+        isInWarMode = false
+    }
+
+    local function PlayerStatusUI(s)
+        local frameColor = s.isInWarMode and Colors.Red or Colors.Blue
+
+        return Reactive.Window {
+            name = "MyStatusWindow",
+            width = 200, height = 150,
+            frameColor = frameColor,
+            onUpdatePlayerStatus = function(self, playerStatus)
+                state({
+                    id = playerStatus:getId(),
+                    health = playerStatus:getCurrentHealth(),
+                    maxHealth = playerStatus:getMaxHealth(),
+                    isInWarMode = playerStatus:isInWarMode()
+                })
+            end,
+            children = {
+                Reactive.Label { key = "name", text = s.name },
+                Reactive.StatusBar {
+                    key = "health",
+                    value = s.health,
+                    maxValue = s.maxHealth,
+                    labelText = string.format("%d / %d", s.health, s.maxHealth)
+                }
+            }
+        }
+    end
+
+    local app = Reactive.App(PlayerStatusUI, state, "MyStatusWindow")
+    app:mount()
+]]
+
+local Reactive = {}
+
+-- ========================================================================== --
+-- Reactive.State - Observable state container
+-- ========================================================================== --
+
+---@class ReactiveStateInternal
+---@field _value table The actual state values
+---@field _subscribers function[] Functions to call on state change
+---@field _batchDepth number Current batch nesting depth
+---@field _pendingNotify boolean Whether a notification is pending
+
+local ReactiveStateInternal = {}
+ReactiveStateInternal.__index = ReactiveStateInternal
+
+function ReactiveStateInternal:_notify()
+    if self._batchDepth > 0 then
+        self._pendingNotify = true
+        return
+    end
+    for i = #self._subscribers, 1, -1 do
+        local ok, err = pcall(self._subscribers[i], self._value)
+        if not ok then
+            -- Remove failed subscriber to prevent repeated errors
+            table.remove(self._subscribers, i)
+        end
+    end
+end
+
+function ReactiveStateInternal:subscribe(callback)
+    table.insert(self._subscribers, callback)
+    -- Return unsubscribe function
+    return function()
+        for i, cb in ipairs(self._subscribers) do
+            if cb == callback then
+                table.remove(self._subscribers, i)
+                return
+            end
+        end
+    end
+end
+
+function ReactiveStateInternal:get(key)
+    if key then
+        return self._value[key]
+    end
+    return self._value
+end
+
+function ReactiveStateInternal:set(key, value)
+    if self._value[key] ~= value then
+        self._value[key] = value
+        self:_notify()
+    end
+end
+
+function ReactiveStateInternal:batch(fn)
+    self._batchDepth = self._batchDepth + 1
+    local ok, err = pcall(fn)
+    self._batchDepth = self._batchDepth - 1
+
+    if self._batchDepth == 0 and self._pendingNotify then
+        self._pendingNotify = false
+        self:_notify()
+    end
+
+    if not ok then
+        error(err)
+    end
+end
+
+function ReactiveStateInternal:update(updates)
+    if type(updates) ~= "table" then return end
+
+    self._batchDepth = self._batchDepth + 1
+    local changed = false
+
+    for k, v in pairs(updates) do
+        if self._value[k] ~= v then
+            self._value[k] = v
+            changed = true
+        end
+    end
+
+    self._batchDepth = self._batchDepth - 1
+
+    if changed and self._batchDepth == 0 then
+        self:_notify()
+    elseif changed then
+        self._pendingNotify = true
+    end
+end
+
+---Creates a new reactive state container
+---@param initial table? Initial state values
+---@return table Proxy object for state access
+function Reactive.State(initial)
+    local internal = setmetatable({
+        _value = initial or {},
+        _subscribers = {},
+        _batchDepth = 0,
+        _pendingNotify = false
+    }, ReactiveStateInternal)
+
+    -- Create proxy for clean API
+    local proxy = {}
+    local mt = {
+        __index = function(_, k)
+            -- Expose internal methods
+            if k == "subscribe" then
+                return function(_, cb) return internal:subscribe(cb) end
+            elseif k == "batch" then
+                return function(_, fn) return internal:batch(fn) end
+            elseif k == "update" then
+                return function(_, updates) return internal:update(updates) end
+            elseif k == "get" then
+                return function(_, key) return internal:get(key) end
+            end
+            -- Default: get value
+            return internal._value[k]
+        end,
+        __newindex = function(_, k, v)
+            internal:set(k, v)
+        end,
+        __call = function(_, arg)
+            if type(arg) == "table" then
+                internal:update(arg)
+            end
+            return internal._value
+        end
+    }
+
+    return setmetatable(proxy, mt)
+end
+
+-- ========================================================================== --
+-- Reactive UI Elements - Declarative element descriptors
+-- ========================================================================== --
+
+---@class ReactiveElement
+---@field type string Element type identifier
+---@field props table Element properties
+---@field children ReactiveElement[] Child elements
+---@field key string? Stable identity for reconciliation
+
+---@class WindowProps
+---@field name string? Window name (uses key if not provided)
+---@field key string? Unique identifier for reconciliation
+---@field width number? Window width
+---@field height number? Window height
+---@field id number? Object ID for the window
+---@field alpha number? Window transparency (0-255)
+---@field frameColor table? Frame color {r, g, b, a?}
+---@field attachToObject boolean? Attach window to world object (for object handles)
+---@field template string? Window template (default: "MongbatWindow")
+---@field onPress function? Left click handler
+---@field onDoubleClick function? Double click handler
+---@field onRightClick function? Right click handler
+---@field onUpdatePlayerStatus function? Player status update callback
+---@field onUpdateMobileStatus function? Mobile status update callback
+---@field onUpdateMobileName function? Mobile name update callback
+---@field onUpdateHealthBarColor function? Health bar color update callback
+---@field children ReactiveElement[]? Child elements
+
+---Creates a Window element descriptor
+---@param props WindowProps
+---@return ReactiveElement
+function Reactive.Window(props)
+    return {
+        type = "Window",
+        props = props or {},
+        children = props and props.children or {},
+        key = props and props.key
+    }
+end
+
+---@class LabelProps
+---@field key string? Unique identifier for reconciliation
+---@field text string? Label text
+---@field color table? Text color {r, g, b, a?}
+---@field alignment string? Text alignment
+---@field template string? Label template (default: "MongbatLabel")
+
+---Creates a Label element descriptor
+---@param props LabelProps
+---@return ReactiveElement
+function Reactive.Label(props)
+    return {
+        type = "Label",
+        props = props or {},
+        children = {},
+        key = props and props.key
+    }
+end
+
+---@class StatusBarProps
+---@field key string? Unique identifier for reconciliation
+---@field value number? Current value
+---@field maxValue number? Maximum value
+---@field foregroundColor table? Bar fill color {r, g, b, a?}
+---@field backgroundColor table? Bar background color {r, g, b, a?}
+---@field labelText string? Text to display on the bar
+---@field template string? StatusBar template (default: "MongbatStatusBar")
+
+---Creates a StatusBar element descriptor
+---@param props StatusBarProps
+---@return ReactiveElement
+function Reactive.StatusBar(props)
+    return {
+        type = "StatusBar",
+        props = props or {},
+        children = {},
+        key = props and props.key
+    }
+end
+
+---@class ButtonProps
+---@field key string? Unique identifier for reconciliation
+---@field text string? Button text
+---@field onPress function? Click handler
+---@field template string? Button template (default: "MongbatButton")
+
+---Creates a Button element descriptor
+---@param props ButtonProps
+---@return ReactiveElement
+function Reactive.Button(props)
+    return {
+        type = "Button",
+        props = props or {},
+        children = {},
+        key = props and props.key
+    }
+end
+
+-- ========================================================================== --
+-- Reactive.App - Application container and renderer
+-- ========================================================================== --
+
+---@class ReactiveApp
+---@field _component function Component function (state -> element tree)
+---@field _state table Reactive state
+---@field _mounted boolean Whether the app is mounted
+---@field _instances table<string, View> Map of keys to UI instances
+---@field _tree ReactiveElement? Current element tree
+---@field _unsubscribe function? State subscription cleanup
+---@field _renderQueued boolean Whether a render is queued
+---@field _rootName string Name of the root window
+
+local ReactiveApp = {}
+ReactiveApp.__index = ReactiveApp
+
+-- Element creators - maps element type to creation function
+local elementCreators = {}
+
+elementCreators.Window = function(props, name)
+    -- Wrap onUpdatePlayerStatus to also set ID (required for OnUpdateMobileStatus to work)
+    local wrappedOnUpdatePlayerStatus = nil
+    if props.onUpdatePlayerStatus then
+        wrappedOnUpdatePlayerStatus = function(self, playerStatus)
+            self:setId(playerStatus:getId())
+            props.onUpdatePlayerStatus(self, playerStatus)
+        end
+    end
+
+    return Components.Window {
+        Name = name,
+        Id = props.id,
+        Template = props.template or "MongbatWindow",
+        OnInitialize = function(self)
+            if props.width and props.height then
+                self:setDimensions(props.width, props.height)
+            end
+            if props.alpha then
+                self:setAlpha(props.alpha)
+            end
+            if props.frameColor then
+                local frame = self:getFrame()
+                if frame then
+                    frame:setColor(props.frameColor)
+                end
+            end
+            if props.attachToObject then
+                self:attachToObject()
+            end
+        end,
+        OnRButtonUp = props.onRightClick or function(self)
+            if self:isParentRoot() then
+                self:destroy()
+            end
+        end,
+        OnLButtonUp = props.onPress,
+        OnLButtonDblClk = props.onDoubleClick,
+        -- Support component-level events (properly throttled by the system)
+        OnUpdatePlayerStatus = wrappedOnUpdatePlayerStatus,
+        OnUpdateMobileStatus = props.onUpdateMobileStatus,
+        OnUpdateMobileName = props.onUpdateMobileName,
+        OnUpdateHealthBarColor = props.onUpdateHealthBarColor
+    }
+end
+
+elementCreators.Label = function(props, name)
+    return Components.Label {
+        Name = name,
+        Template = props.template or "MongbatLabel",
+        OnInitialize = function(self)
+            if props.text then
+                self:setText(props.text)
+            end
+            if props.color then
+                self:setTextColor(props.color)
+            end
+            if props.alignment then
+                self:setTextAlignment(props.alignment)
+            end
+        end
+    }
+end
+
+elementCreators.StatusBar = function(props, name)
+    local labelModel = nil
+    if props.labelText then
+        labelModel = {
+            OnInitialize = function(self)
+                self:setText(props.labelText)
+            end
+        }
+    end
+
+    return Components.StatusBar(
+        {
+            Name = name,
+            Template = props.template or "MongbatStatusBar",
+            OnInitialize = function(self)
+                if props.maxValue then
+                    self:setMaxValue(props.maxValue)
+                end
+                if props.value ~= nil then
+                    self:setCurrentValue(props.value)
+                end
+                if props.foregroundColor then
+                    self:setForegroundTint(props.foregroundColor)
+                end
+                if props.backgroundColor then
+                    self:setBackgroundTint(props.backgroundColor)
+                end
+            end
+        },
+        labelModel
+    )
+end
+
+elementCreators.Button = function(props, name)
+    return Components.Button {
+        Name = name,
+        Template = props.template or "MongbatButton",
+        OnInitialize = function(self)
+            if props.text then
+                self:setText(props.text)
+            end
+        end,
+        OnLButtonUp = props.onPress
+    }
+end
+
+-- Element updaters - maps element type to update function
+local elementUpdaters = {}
+
+elementUpdaters.Window = function(instance, props)
+    if props.alpha then
+        instance:setAlpha(props.alpha)
+    end
+    if props.frameColor then
+        local frame = instance:getFrame()
+        if frame then
+            frame:setColor(props.frameColor)
+        end
+    end
+end
+
+elementUpdaters.Label = function(instance, props)
+    if props.text ~= nil then
+        instance:setText(props.text)
+    end
+    if props.color then
+        instance:setTextColor(props.color)
+    end
+end
+
+elementUpdaters.StatusBar = function(instance, props)
+    if props.maxValue ~= nil then
+        instance:setMaxValue(props.maxValue)
+    end
+    if props.value ~= nil then
+        instance:setCurrentValue(props.value)
+    end
+    if props.foregroundColor then
+        instance:setForegroundTint(props.foregroundColor)
+    end
+    if props.backgroundColor then
+        instance:setBackgroundTint(props.backgroundColor)
+    end
+    -- Update label text if label exists
+    if props.labelText ~= nil then
+        local label = instance.label
+        if label then
+            label:setText(props.labelText)
+        end
+    end
+end
+
+elementUpdaters.Button = function(instance, props)
+    if props.text ~= nil then
+        instance:setText(props.text)
+    end
+end
+
+---Generate a stable key for an element
+---@param element ReactiveElement
+---@param index number
+---@param parentKey string
+---@return string
+local function getElementKey(element, index, parentKey)
+    if element.key then
+        return parentKey .. "." .. element.key
+    end
+    return parentKey .. "." .. element.type .. "_" .. index
+end
+
+---Create a real UI element from a descriptor
+---@param self ReactiveApp
+---@param element ReactiveElement
+---@param key string
+---@param parentInstance View?
+---@param isInitialCreate boolean? If true and this is a root Window, defer child creation
+---@return View?
+function ReactiveApp:_createElement(element, key, parentInstance, isInitialCreate)
+    local creator = elementCreators[element.type]
+    if not creator then
+        return nil
+    end
+
+    local name = element.props.name or key:gsub("%.", "_")
+    local instance = creator(element.props, name)
+
+    if not instance then
+        return nil
+    end
+
+    self._instances[key] = instance
+
+    -- For initial root window creation, defer children to OnInitialize
+    if isInitialCreate and element.type == "Window" and not parentInstance then
+        local app = self
+        local originalInit = instance._model.OnInitialize
+        instance._model.OnInitialize = function(self)
+            if originalInit then
+                originalInit(self)
+            end
+            -- Create children after window is fully initialized
+            for i, child in ipairs(element.children or {}) do
+                local childKey = getElementKey(child, i, key)
+                app:_reconcile(nil, child, childKey, instance, false)
+            end
+        end
+        -- Actually create the window
+        instance:create(true)
+        return instance
+    end
+
+    -- Set up parent relationship and anchoring for child elements
+    if parentInstance then
+        local originalInit = instance._model.OnInitialize
+        instance._model.OnInitialize = function(self)
+            self:setParent(parentInstance:getName())
+
+            -- Apply anchor from props or default
+            local anchor = element.props.anchor
+            if anchor then
+                self:clearAnchors()
+                self:addAnchor(
+                    anchor.point or "TOPLEFT",
+                    anchor.relativeTo or parentInstance:getName(),
+                    anchor.relativePoint or anchor.point or "TOPLEFT",
+                    anchor.x or 0,
+                    anchor.y or 0
+                )
+            end
+
+            -- Apply dimensions from props
+            if element.props.width and element.props.height then
+                self:setDimensions(element.props.width, element.props.height)
+            end
+
+            if originalInit then
+                originalInit(self)
+            end
+        end
+    end
+
+    return instance
+end
+
+---Reconcile old and new element trees
+---@param self ReactiveApp
+---@param oldElement ReactiveElement?
+---@param newElement ReactiveElement?
+---@param key string
+---@param parentInstance View?
+---@param isInitialCreate boolean? Whether this is the initial creation (deferred child creation)
+function ReactiveApp:_reconcile(oldElement, newElement, key, parentInstance, isInitialCreate)
+    -- Both nil - nothing to do
+    if not oldElement and not newElement then
+        return
+    end
+
+    -- New element only - create
+    if not oldElement and newElement then
+        local instance = self:_createElement(newElement, key, parentInstance, isInitialCreate)
+        if instance then
+            -- Only create if not deferred (root window defers to OnInitialize)
+            if not isInitialCreate or newElement.type ~= "Window" then
+                instance:create(true)
+            end
+
+            -- Only reconcile children immediately if not initial root creation
+            -- For initial root window, children are created in OnInitialize
+            if not isInitialCreate then
+                for i, child in ipairs(newElement.children or {}) do
+                    local childKey = getElementKey(child, i, key)
+                    self:_reconcile(nil, child, childKey, instance, false)
+                end
+            end
+        end
+        return
+    end
+
+    -- Old element only - destroy
+    if oldElement and not newElement then
+        -- Destroy children first (depth-first)
+        for i, child in ipairs(oldElement.children or {}) do
+            local childKey = getElementKey(child, i, key)
+            self:_reconcile(child, nil, childKey, nil, false)
+        end
+
+        local instance = self._instances[key]
+        if instance then
+            instance:destroy()
+            self._instances[key] = nil
+        end
+        return
+    end
+
+    -- Both exist - check if type changed
+    if oldElement.type ~= newElement.type then
+        -- Destroy old, create new
+        self:_reconcile(oldElement, nil, key, parentInstance, false)
+        self:_reconcile(nil, newElement, key, parentInstance, false)
+        return
+    end
+
+    -- Same type - update props
+    local instance = self._instances[key]
+    if instance then
+        local updater = elementUpdaters[newElement.type]
+        if updater then
+            updater(instance, newElement.props)
+        end
+    end
+
+    -- Reconcile children
+    local oldChildren = oldElement.children or {}
+    local newChildren = newElement.children or {}
+    local maxLen = math.max(#oldChildren, #newChildren)
+
+    for i = 1, maxLen do
+        local oldChild = oldChildren[i]
+        local newChild = newChildren[i]
+        local childKey = getElementKey(newChild or oldChild, i, key)
+        self:_reconcile(oldChild, newChild, childKey, instance, false)
+    end
+end
+
+---Render the component tree
+function ReactiveApp:_render()
+    if not self._mounted then
+        return
+    end
+
+    -- Guard against re-entrant rendering
+    if self._isRendering then
+        self._renderQueued = true
+        return
+    end
+
+    -- Skip updates until initial render is complete
+    if self._tree and not self._initialRenderComplete then
+        self._renderQueued = true
+        return
+    end
+
+    self._isRendering = true
+    self._renderQueued = false
+
+    local ok, newTree = pcall(self._component, self._state())
+    if not ok then
+        -- Component threw an error
+        self._isRendering = false
+        return
+    end
+
+    -- Simple approach: if tree exists, just update props (no reconciliation)
+    -- This avoids complex diffing that might cause issues
+    if self._tree then
+        -- Update existing elements with new props
+        self:_updateTree(self._tree, newTree, self._rootName)
+    else
+        -- First render: create everything
+        self:_createTree(newTree, self._rootName, nil)
+        -- Mark initial render complete after a short delay to let OnInitialize finish
+        self._initialRenderComplete = true
+    end
+
+    self._tree = newTree
+    self._isRendering = false
+
+    -- Removed recursive render - it causes issues
+end
+
+---Create entire tree (first render only)
+function ReactiveApp:_createTree(element, key, parentName)
+    if not element then return end
+
+    local creator = elementCreators[element.type]
+    if not creator then return end
+
+    local name = element.props.name or key:gsub("%.", "_")
+    local instance = creator(element.props, name)
+    if not instance then return end
+
+    self._instances[key] = instance
+
+    -- For Window elements with children, create child instances and use setChildren
+    if element.type == "Window" and element.children and #element.children > 0 then
+        local childInstances = {}
+        for i, childElement in ipairs(element.children) do
+            local childKey = getElementKey(childElement, i, key)
+            local childCreator = elementCreators[childElement.type]
+            if childCreator then
+                local childName = childElement.props.name or childKey:gsub("%.", "_")
+                local childInstance = childCreator(childElement.props, childName)
+                if childInstance then
+                    self._instances[childKey] = childInstance
+                    table.insert(childInstances, childInstance)
+                end
+            end
+        end
+        instance:setChildren(childInstances)
+    end
+
+    -- Wrap OnInitialize to set parent (for non-root elements only)
+    if parentName then
+        local originalInit = instance._model.OnInitialize
+        instance._model.OnInitialize = function(self)
+            self:setParent(parentName)
+
+            -- Apply anchor
+            local anchor = element.props.anchor
+            if anchor then
+                self:clearAnchors()
+                self:addAnchor(
+                    anchor.point or "TOPLEFT",
+                    anchor.relativeTo or parentName,
+                    anchor.relativePoint or anchor.point or "TOPLEFT",
+                    anchor.x or 0,
+                    anchor.y or 0
+                )
+            end
+
+            -- Apply dimensions
+            if element.props.width and element.props.height then
+                self:setDimensions(element.props.width, element.props.height)
+            end
+
+            -- Call original OnInitialize
+            if originalInit then
+                originalInit(self)
+            end
+        end
+    end
+
+    -- Create the element (Window:onInitialize will handle children via _children)
+    instance:create(true)
+end
+
+---Update existing tree with new props
+function ReactiveApp:_updateTree(oldElement, newElement, key)
+    if not oldElement or not newElement then return end
+    if oldElement.type ~= newElement.type then return end
+
+    local instance = self._instances[key]
+    if instance then
+        local updater = elementUpdaters[newElement.type]
+        if updater then
+            updater(instance, newElement.props)
+        end
+    end
+
+    -- Update children
+    local oldChildren = oldElement.children or {}
+    local newChildren = newElement.children or {}
+    for i = 1, math.max(#oldChildren, #newChildren) do
+        local oldChild = oldChildren[i]
+        local newChild = newChildren[i]
+        if oldChild and newChild then
+            local childKey = getElementKey(oldChild, i, key)
+            self:_updateTree(oldChild, newChild, childKey)
+        end
+    end
+end
+
+---Queue a render for the next frame (debouncing)
+function ReactiveApp:_queueRender()
+    if self._renderQueued then
+        return
+    end
+    self._renderQueued = true
+    self._renderQueued = false  -- Clear before calling to prevent recursion
+    self:_render()
+end
+
+---Mount the reactive app (start rendering)
+function ReactiveApp:mount()
+    if self._mounted then
+        return self
+    end
+
+    self._mounted = true
+
+    -- Initial render FIRST (before subscribing)
+    self:_render()
+
+    -- Now subscribe to state changes (after initial render is complete)
+    self._unsubscribe = self._state:subscribe(function()
+        self:_queueRender()
+    end)
+
+    return self
+end
+
+---Unmount the reactive app (cleanup)
+function ReactiveApp:unmount()
+    if not self._mounted then
+        return
+    end
+
+    self._mounted = false
+
+    -- Unsubscribe from state
+    if self._unsubscribe then
+        self._unsubscribe()
+        self._unsubscribe = nil
+    end
+
+    -- Destroy all elements (just destroy root, children go with it)
+    local rootInstance = self._instances[self._rootName]
+    if rootInstance then
+        rootInstance:destroy()
+    end
+
+    self._tree = nil
+    self._instances = {}
+end
+
+---Create a new reactive application
+---@param component function Component function (state -> element tree)
+---@param state table Reactive state from Reactive.State()
+---@param rootName string? Optional root element name
+---@return ReactiveApp
+function Reactive.App(component, state, rootName)
+    local app = setmetatable({
+        _component = component,
+        _state = state,
+        _mounted = false,
+        _isRendering = false,
+        _initialRenderComplete = false,
+        _instances = {},
+        _tree = nil,
+        _unsubscribe = nil,
+        _renderQueued = false,
+        _rootName = rootName or ("ReactiveRoot_" .. Utils.String.Random())
+    }, ReactiveApp)
+
+    return app
+end
+
+-- Export to Context
+Context.Reactive = Reactive
+
+-- Legacy exports for backwards compatibility
+Context.UI = Reactive
+Context.State = Reactive.State
+Context.Render = function(componentFn, state)
+    local app = Reactive.App(componentFn, state)
+    return app:mount()
+end
+
+-- Export to Context
+Context.UI = UI
+Context.State = State
+Context.Render = Render
+
+-- ========================================================================== --
 -- Mod
 -- ========================================================================== --
 
