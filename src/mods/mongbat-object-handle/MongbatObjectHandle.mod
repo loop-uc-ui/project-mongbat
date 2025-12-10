@@ -20,9 +20,5 @@
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatObjectHandle.OnShutdown" />
 		</OnShutdown>
-
-		<OnUpdate>
-			<CallFunction name="Mongbat.ModManager.MongbatObjectHandle.OnUpdate" />
-		</OnUpdate>
 	</UiMod>
 </ModuleFile>

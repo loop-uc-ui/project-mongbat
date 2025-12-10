@@ -39,36 +39,24 @@ Mongbat.Mod {
             handles = context.Utils.Table.MapToArray(
                 context.Data.ObjectHandles():getHandles(),
                 function (_, v)
-                    return Window(v)
+                    local window = Window(v)
+                    window:create(true)
+                    return window
                 end
             )
         end
 
         default:getDefault().DestroyObjectHandles = function()
             context.Utils.Array.ForEach(
-                createdHandles,
+                handles,
                 function (window)
                     window:destroy()
                 end
             )
             handles = {}
-            createdHandles = {}
         end
     end,
     OnShutdown = function()
         handles = {}
-        createdHandles = {}
-    end,
-    OnUpdate = function(context)
-        --- We use the onUpdate callback to avoid horrendous stuttering
-        --- when creating many handles at once.
-        local handle = context.Utils.Array.Remove(handles, 1)
-
-        if handle == nil then
-            return
-        else
-            handle:create(true)
-            context.Utils.Array.Add(createdHandles, handle)
-        end
     end
 }
