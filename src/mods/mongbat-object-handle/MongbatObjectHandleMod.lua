@@ -39,7 +39,17 @@ Mongbat.Mod {
                     self:setAlpha(1.0):setLayer():overlay()
                 end,
                 OnMouseOverEnd = function(self)
-                    self:setAlpha(0.5):setLayer():default()
+                    self:setAlpha(0.7):setLayer():default()
+                end,
+                OnLButtonDblClk = function(self)
+                    context.Api.UserAction.UseItem(self:getId())
+                end,
+                OnLButtonUp = function(self)
+                    if context.Data.Drag():isDraggingItem() then
+                        context.Api.Drag.DragToObject(self:getId())
+                    else
+                        context.Api.Target.LeftClick(self:getId())
+                    end
                 end
             }
         end
