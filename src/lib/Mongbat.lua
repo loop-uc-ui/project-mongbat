@@ -6965,43 +6965,43 @@ end
 
 ---@return WindowData.PlayerStatus
 function PlayerStatus:getData()
-    return WindowData.PlayerStatus
+    return WindowData.PlayerStatus or { PlayerId = 0 }
 end
 
 function PlayerStatus:getStatCap()
-    return self:getData().StatCap
+    return self:getData().StatCap or 0
 end
 
 function PlayerStatus:getCurrentMana()
-    return self:getData().CurrentMana
+    return self:getData().CurrentMana or 0
 end
 
 function PlayerStatus:getMaxMana()
-    return self:getData().MaxMana
+    return self:getData().MaxMana or 0
 end
 
 function PlayerStatus:getCurrentHealth()
-    return self:getData().CurrentHealth
+    return self:getData().CurrentHealth or 0
 end
 
 function PlayerStatus:getMaxHealth()
-    return self:getData().MaxHealth
+    return self:getData().MaxHealth or 0
 end
 
 function PlayerStatus:getCurrentStamina()
-    return self:getData().CurrentStamina
+    return self:getData().CurrentStamina or 0
 end
 
 function PlayerStatus:getMaxStamina()
-    return self:getData().MaxStamina
+    return self:getData().MaxStamina or 0
 end
 
 function PlayerStatus:isInWarMode()
-    return self:getData().InWarMode
+    return self:getData().InWarMode or false
 end
 
 function PlayerStatus:getId()
-    return self:getData().PlayerId
+    return self:getData().PlayerId or 0
 end
 
 ---@return integer
@@ -7499,6 +7499,39 @@ View.__index = View
 ---@field _endDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
 local Window = {}
 Window.__index = Window
+
+-- ========================================================================== --
+-- Components - Internal Builders
+-- ========================================================================== --
+
+-- ========================================================================== --
+-- Components - Internal Builders - Layer Builder
+-- ========================================================================== --
+
+---@class LayerBuilder
+---@field _getView fun(): View
+local LayerBuilder = {}
+LayerBuilder.__index = LayerBuilder
+
+---@param getView fun(): View
+---@return LayerBuilder
+function LayerBuilder:new(getView)
+    local instance = setmetatable({}, self)
+    instance._getView = getView
+    return instance
+end
+
+function LayerBuilder:default()
+    local view = self._getView()
+    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Default)
+    return view
+end
+
+function LayerBuilder:overlay()
+    local view = self._getView()
+    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Overlay)
+    return view
+end
 
 -- ========================================================================== --
 -- Components - Button
@@ -8518,6 +8551,7 @@ end
 
 function View:setMoving(isMoving)
     Api.Window.SetMoving(self.name, isMoving)
+    return self
 end
 
 function View:getDimensions()
@@ -8526,6 +8560,7 @@ end
 
 function View:setDimensions(x, y)
     Api.Window.SetDimensions(self.name, x, y)
+    return self
 end
 
 function View:getAlpha()
@@ -8534,10 +8569,13 @@ end
 
 function View:setAlpha(alpha)
     Api.Window.SetAlpha(self.name, alpha)
+    return self
 end
 
-function View:setLayer(layer)
-    Api.Window.SetLayer(self.name, layer)
+function View:setLayer()
+    return LayerBuilder:new(function()
+        return self
+    end)
 end
 
 function View:getScale()
@@ -8546,6 +8584,7 @@ end
 
 function View:setScale(scale)
     Api.Window.SetScale(self.name, scale)
+    return self
 end
 
 function View:getOffsetFromParent()
@@ -8554,6 +8593,7 @@ end
 
 function View:setOffsetFromParent(x, y)
     Api.Window.SetOffsetFromParent(self.name, x, y)
+    return self
 end
 
 function View:getColor()
@@ -8562,6 +8602,7 @@ end
 
 function View:setColor(color)
     Api.Window.SetColor(self.name, color)
+    return self
 end
 
 function View:getPosition()
@@ -8574,6 +8615,7 @@ end
 
 function View:setShowing(isShowing)
     Api.Window.SetShowing(self.name, isShowing)
+    return self
 end
 
 function View:isPopable()
@@ -8582,6 +8624,7 @@ end
 
 function View:setPopable(isPopable)
     Api.Window.SetPopable(self.name, isPopable)
+    return self
 end
 
 function View:isMovable()
@@ -8590,6 +8633,7 @@ end
 
 function View:setMovable(isMovable)
     Api.Window.SetMovable(self.name, isMovable)
+    return self
 end
 
 function View:isSticky()
@@ -8602,6 +8646,7 @@ end
 
 function View:forceProcessAnchors()
     Api.Window.ForceProcessAnchors(self.name)
+    return self
 end
 
 function View:addAnchor(anchorPoint, relativeTo, relativePoint, x, y)
@@ -8621,7 +8666,7 @@ end
 function View:centerInWindow(toCenter, x, y)
     self:addAnchor(
         Constants.AnchorPoints.Center,
-        toCenter,
+        toCenter or self:getParent(),
         Constants.AnchorPoints.Center,
         x or 0,
         y or 0
@@ -8743,9 +8788,23 @@ function Window:onInitialize()
                         12
                     )
                 end
-                local childWidth = self:getDimensions().x - 24
+
+                local parentDimens = self:getDimensions()
+                local parentX = parentDimens.x
+                local parentY = parentDimens.y
+
+                local childWidth = parentX - 24
+                if childWidth < 0 then
+                    childWidth = parentX
+                end
+
                 local childSpaceOffset = (#self._children - 1) * 8
-                local childHeight = (self:getDimensions().y - 24 - childSpaceOffset) / #self._children
+
+                local childHeight = (parentY - 24 - childSpaceOffset) / #self._children
+                if childHeight < 0 then
+                    childHeight = parentY
+                end
+
                 child:setDimensions(childWidth, childHeight)
 
                 if onChildInitialize ~= nil then
@@ -8793,6 +8852,24 @@ function Window:onInitialize()
                 self:onLButtonDblClk(flags, x, y)
                 if onChildLButtonDblClk ~= nil then
                     onChildLButtonDblClk(child, flags, x, y)
+                end
+            end
+
+            local onMouseOver = item._model.OnMouseOver
+
+            item._model.OnMouseOver = function(child)
+                if onMouseOver ~= nil then
+                    onMouseOver(child)
+                end
+                self:onMouseOver()
+            end
+
+            local onMouseOverEnd = item._model.OnMouseOverEnd
+
+            item._model.OnMouseOverEnd = function(child)
+                self:onMouseOverEnd()
+                if onMouseOverEnd ~= nil then
+                    onMouseOverEnd(child)
                 end
             end
 
@@ -8859,6 +8936,7 @@ end
 
 function Window:attachToObject()
     Api.Window.AttachToWorldObject(self:getId(), self:getName())
+    return self
 end
 
 function Window:setChildren(children)

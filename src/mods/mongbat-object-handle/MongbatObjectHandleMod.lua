@@ -15,7 +15,9 @@ Mongbat.Mod {
                 Name = "ObjectHandleLabel" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
+                    self:clearAnchors()
                     self:setText(handle.name)
+                    self:centerInWindow()
                 end
             }
         end
@@ -26,11 +28,18 @@ Mongbat.Mod {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
-                    self:setDimensions(100, 20)
+                    self:setDimensions(100, 32)
                     self:attachToObject()
                     self:setChildren {
                         Label(handle)
                     }
+                    self:onMouseOverEnd()
+                end,
+                OnMouseOver = function(self)
+                    self:setAlpha(1.0):setLayer():overlay()
+                end,
+                OnMouseOverEnd = function(self)
+                    self:setAlpha(0.5):setLayer():default()
                 end
             }
         end
