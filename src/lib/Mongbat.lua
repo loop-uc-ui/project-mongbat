@@ -6431,6 +6431,10 @@ Constants.Colors.Notoriety = {
 Constants.TextAlignment = {}
 Constants.TextAlignment.Center = "center"
 
+Constants.GumpIds = {}
+Constants.GumpIds.VendorSearch = 999112
+Constants.GumpIds.PetTrainingProgress = 999139
+
 
 -- ========================================================================== --
 -- Data
@@ -7709,7 +7713,7 @@ function DefaultGumpsParsingComponent:getDefault()
 end
 
 function DefaultGumpsParsingComponent:getVendorSearch()
-    return self:getDefault().GumpMaps[999112]
+    return self:getDefault().GumpMaps[Constants.GumpIds.VendorSearch]
 end
 
 -- ========================================================================== --
