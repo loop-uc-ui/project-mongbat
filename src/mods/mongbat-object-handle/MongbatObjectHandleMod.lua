@@ -15,9 +15,11 @@ Mongbat.Mod {
                 Name = "ObjectHandleLabel" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
+                    self:setDimensions(#handle.name * 12, 32)
                     self:clearAnchors()
                     self:setText(handle.name)
                     self:centerInWindow()
+                    self:centerText()
                 end
             }
         end
@@ -28,7 +30,7 @@ Mongbat.Mod {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
-                    self:setDimensions(100, 32)
+                    self:setDimensions(#handle.name * 12 + 16, 32)
                     self:attachToObject()
                     self:setChildren {
                         Label(handle)
