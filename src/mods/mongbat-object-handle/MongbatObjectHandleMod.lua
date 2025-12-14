@@ -18,9 +18,8 @@ Mongbat.Mod {
                     self:setText(handle.name)
                     self:centerInWindow()
                     self:centerText()
-                    self:setTextColor(
-                        context.Constants.Colors.Notoriety[handle.notoriety]
-                    )
+                    local color = context.Constants.Colors.Notoriety[handle.notoriety]
+                    self:setTextColor(color)
                 end
             }
         end
@@ -37,6 +36,11 @@ Mongbat.Mod {
                         Label(handle)
                     }
                     self:onMouseOverEnd()
+
+                    if handle.isMobile then
+                        local color = context.Constants.Colors.Notoriety[handle.notoriety]
+                        self:getFrame():setColor(color)
+                    end
                 end,
                 OnMouseOver = function(self)
                     self:setAlpha(1.0):setLayer():default()
@@ -55,7 +59,7 @@ Mongbat.Mod {
                     end
                 end,
                 OnLButtonDown = function(self)
-                    if context.Api.Object.IsMobile(self:getId()) then
+                    if handle.isMobile then
                         context.Components.Defaults.HealthBarManager
                             :getDefault()
                             .OnBeginDragHealthBar(self:getId())
