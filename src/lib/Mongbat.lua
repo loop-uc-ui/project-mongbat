@@ -1241,19 +1241,6 @@ local DefaultUIClasses = {
     ---@field HandleVisibilityChange fun() Handles visibility change
     ---@field Shutdown fun() Shuts down the visibility window
 
-    ---@class GenericGump
-    ---@field LastGump string Name of the last gump window
-    ---@field LastGumpLabels table Table of last gump labels
-    ---@field GumpsList table Table of gumps list
-    ---@field Initialize fun() Initializes the generic gump
-    ---@field OnLabelInit fun() Handles label initialization
-    ---@field Shutdown fun() Shuts down the generic gump
-    ---@field OnClicked fun() Handles gump click
-    ---@field OnDoubleClicked fun() Handles gump double click
-    ---@field OnRClicked fun() Handles gump right click
-    ---@field OnMouseOver fun() Handles mouse over on gump
-    ---@field OnHyperLinkClicked fun(link: any) Handles hyperlink click
-
     ---@class ContextMenu
     ---@field GREYEDOUT integer Flag for greyed out menu items
     ---@field SECONDTIER integer Flag for second tier menu items
@@ -1330,39 +1317,6 @@ local DefaultUIClasses = {
     ---@field convertToWString fun(value: any): any Converts a value to a wstring
     ---@field printTable fun(data: table, name: any) Prints a table for debugging
     ---@field GGParseData fun() Parses GG data
-
-    ---@class GumpsParsing
-    ---@field ParsedGumps table Table of parsed gumps
-    ---@field ToShow table Table of gumps to show/hide
-    ---@field SOSTids table Table of SOS TIDs
-    ---@field GumpMaps table Table of gump mappings
-    ---@field CheckGumpType fun(timePassed: any) Checks the gump type and processes gumps
-    ---@field MainParsingCheck fun(timePassed: any) Main parsing check for gumps
-    ---@field DestroyGump fun(gumpID: integer) Destroys a gump window
-    ---@field PressButton fun(gumpID: integer, buttonID: integer) Presses a button on a gump
-    ---@field TextentryGetText fun(gumpID: integer, TextentryID: integer): any Gets text from a text entry
-    ---@field ShowHide fun(timePassed: any) Shows or hides gumps based on ToShow
-    ---@field SixMonthsRewardGump fun() Handles the six months reward gump
-    ---@field SOSGump fun(data: table) Handles SOS gump logic
-    ---@field CreateSOSWaypoint fun(sosID: any, map: any, x: any, y: any) Creates a SOS waypoint
-    ---@field GetSOSCoords fun(coords: any): number, any, number, any Gets SOS coordinates from a string
-
-    ---@class HealthBarManager
-    ---@field partyMemberIndex integer[] Indexes of party members
-    ---@field MAX_PARTY_MEMBERS integer Maximum number of party members
-    ---@field SpellSchools table Spell school IDs (MAGERY, CHIVALRY)
-    ---@field UseSchool integer Currently used spell school
-    ---@field CappedNumServerHealthBars integer Maximum number of server health bars
-    ---@field NumHealthBars integer Current number of health bars
-    ---@field LastHandledHealthBar integer Last handled health bar index
-    ---@field Initialize fun() Initializes the health bar manager
-    ---@field OnBeginDragHealthBar fun(id: integer) Handles the beginning of a health bar drag
-    ---@field OnEndDragHealthBar fun() Handles the end of a health bar drag
-    ---@field HandlePartyMemberUpdate fun() Updates party member health bars
-    ---@field IsPartyMember fun(mobileId: integer): boolean Checks if a mobile is a party member
-    ---@field GetMemberIndex fun(mobileId: integer): integer Gets the index of a party member by mobile ID
-    ---@field SkillUpdate fun() Updates the spell school in use
-    ---@field UpdateRemovedHealthBarCount fun(mobileId: integer) Updates the count when a health bar is removed
 
     ---@class HighlightEffect
     ---@field timer number Timer for highlight animation
@@ -7193,35 +7147,9 @@ DefaultComponent.__index = DefaultComponent
 local DefaultActionsComponent = {}
 DefaultActionsComponent.__index = DefaultActionsComponent
 
---- @class DefaultMainMenuWindow
---- @field TID table
---- @field Initialize fun()
---- @field Shutdown fun()
---- @field OnLogOut fun()
---- @field OnOpenUserSettings fun()
---- @field OnOpenMacros fun()
---- @field OnOpenActions fun()
---- @field OnOpenBugReportItem fun()
---- @field OnOpenHelp fun()
---- @field OnOpenUOStore fun()
---- @field ToggleSettingsWindow fun()
---- @field ToggleBugReportWindow fun()
---- @field OnToggleAgentsSettings fun()
-
 ---@class DefaultInterfaceComponent : DefaultComponent
 local DefaultInterfaceComponent = {}
 DefaultInterfaceComponent.__index = DefaultInterfaceComponent
-
----@class DefaultMainMenuWindowComponent : DefaultComponent
-local DefaultMainMenuWindowComponent = {}
-DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
-
----@class DefaultHealthBarManager
----@field OnBeginDragHealthBar fun(objectId: integer)
-
----@class DefaultHealthBarManagerComponent : DefaultComponent
-local DefaultHealthBarManagerComponent = {}
-DefaultHealthBarManagerComponent.__index = DefaultHealthBarManagerComponent
 
 --- @class DefaultStatusWindow
 --- @field CurPlayerId integer
@@ -7703,8 +7631,97 @@ function DefaultActionsComponent:getDefault()
 end
 
 -- ========================================================================== --
+-- Components - Default - Generic Gump
+-- ========================================================================== --
+
+---@class DefaultGenericGump
+---@field LastGump string Name of the last gump window
+---@field LastGumpLabels table Table of last gump labels
+---@field GumpsList table Table of gumps list
+---@field Initialize fun() Initializes the generic gump
+---@field OnLabelInit fun() Handles label initialization
+---@field Shutdown fun() Shuts down the generic gump
+---@field OnClicked fun() Handles gump click
+---@field OnDoubleClicked fun() Handles gump double click
+---@field OnRClicked fun() Handles gump right click
+---@field OnMouseOver fun() Handles mouse over on gump
+---@field OnHyperLinkClicked fun(link: any) Handles hyperlink click
+---@field OnShown fun() Handles gump shown event
+
+---@class DefaultGenericGumpComponent : DefaultComponent
+local DefaultGenericGumpComponent = {}
+DefaultGenericGumpComponent.__index = DefaultGenericGumpComponent
+
+---@return DefaultGenericGumpComponent
+function DefaultGenericGumpComponent:new()
+    local instance = DefaultComponent.new(self, "GenericGump") --[[@as DefaultGenericGumpComponent]]
+    instance._proxy = instance:_createProxy(GenericGump)
+    instance._proxy.OnShown = function () end
+    _G.GenericGump = instance._proxy
+    return instance
+end
+
+---@return DefaultGenericGump
+function DefaultGenericGumpComponent:getDefault()
+    return self._proxy or GenericGump --[[@as DefaultGenericGump]]
+end
+
+
+-- ========================================================================== --
+-- Components - Default - Gumps Parsing
+-- ========================================================================== --
+
+---@class DefaultGumpMapItem
+---@field name string
+---@field show integer
+
+---@class DefaultGumpsParsing
+---@field ParsedGumps table Table of parsed gumps
+---@field ToShow table Table of gumps to show/hide
+---@field SOSTids table Table of SOS TIDs
+---@field GumpMaps table<integer, DefaultGumpMapItem> Table of gump mappings
+---@field CheckGumpType fun(timePassed: any) Checks the gump type and processes gumps
+---@field MainParsingCheck fun(timePassed: any) Main parsing check for gumps
+---@field DestroyGump fun(gumpID: integer) Destroys a gump window
+---@field PressButton fun(gumpID: integer, buttonID: integer) Presses a button on a gump
+---@field TextentryGetText fun(gumpID: integer, TextentryID: integer): any Gets text from a text entry
+---@field ShowHide fun(timePassed: any) Shows or hides gumps based on ToShow
+---@field SixMonthsRewardGump fun() Handles the six months reward gump
+---@field SOSGump fun(data: table) Handles SOS gump logic
+---@field CreateSOSWaypoint fun(sosID: any, map: any, x: any, y: any) Creates a SOS waypoint
+---@field GetSOSCoords fun(coords: any): number, any, number, any Gets SOS coordinates from a string
+
+---@class DefaultGumpsParsingComponent : DefaultComponent
+local DefaultGumpsParsingComponent = {}
+DefaultGumpsParsingComponent.__index = DefaultGumpsParsingComponent
+
+---@return DefaultGumpsParsingComponent
+function DefaultGumpsParsingComponent:new()
+    local instance = DefaultComponent.new(self, "GumpsParsing") --[[@as DefaultGumpsParsingComponent]]
+    instance._proxy = instance:_createProxy(GumpsParsing)
+    _G.GumpsParsing = instance._proxy
+    return instance
+end
+
+---@return DefaultGumpsParsing
+function DefaultGumpsParsingComponent:getDefault()
+    return self._proxy or GumpsParsing --[[@as DefaultGumpsParsing]]
+end
+
+function DefaultGumpsParsingComponent:getVendorSearch()
+    return self:getDefault().GumpMaps[999112]
+end
+
+-- ========================================================================== --
 -- Components - Default - Health Bar Manager
 -- ========================================================================== --
+
+---@class DefaultHealthBarManager
+---@field OnBeginDragHealthBar fun(objectId: integer)
+
+---@class DefaultHealthBarManagerComponent : DefaultComponent
+local DefaultHealthBarManagerComponent = {}
+DefaultHealthBarManagerComponent.__index = DefaultHealthBarManagerComponent
 
 ---@return DefaultHealthBarManagerComponent
 function DefaultHealthBarManagerComponent:new()
@@ -7740,6 +7757,25 @@ end
 -- ========================================================================== --
 -- Components - Default - Main Menu Window
 -- ========================================================================== --
+
+--- @class DefaultMainMenuWindow
+--- @field TID table
+--- @field Initialize fun()
+--- @field Shutdown fun()
+--- @field OnLogOut fun()
+--- @field OnOpenUserSettings fun()
+--- @field OnOpenMacros fun()
+--- @field OnOpenActions fun()
+--- @field OnOpenBugReportItem fun()
+--- @field OnOpenHelp fun()
+--- @field OnOpenUOStore fun()
+--- @field ToggleSettingsWindow fun()
+--- @field ToggleBugReportWindow fun()
+--- @field OnToggleAgentsSettings fun()
+
+---@class DefaultMainMenuWindowComponent : DefaultComponent
+local DefaultMainMenuWindowComponent = {}
+DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
 
 ---@return DefaultMainMenuWindowComponent
 function DefaultMainMenuWindowComponent:new()
@@ -9006,6 +9042,8 @@ setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
+setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
+setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -9014,6 +9052,8 @@ Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
+Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
+Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 
 -- ========================================================================== --
 -- Mod
