@@ -36,10 +36,10 @@ Mongbat.Mod {
                     self:onMouseOverEnd()
                 end,
                 OnMouseOver = function(self)
-                    self:setAlpha(1.0):setLayer():overlay()
+                    self:setAlpha(1.0):setLayer():default()
                 end,
                 OnMouseOverEnd = function(self)
-                    self:setAlpha(0.7):setLayer():default()
+                    self:setAlpha(0.7):setLayer():background()
                 end,
                 OnLButtonDblClk = function(self)
                     context.Api.UserAction.UseItem(self:getId())
@@ -49,6 +49,13 @@ Mongbat.Mod {
                         context.Api.Drag.DragToObject(self:getId())
                     else
                         context.Api.Target.LeftClick(self:getId())
+                    end
+                end,
+                OnLButtonDown = function(self)
+                    if context.Api.Object.IsMobile(self:getId()) then
+                        context.Components.Defaults.HealthBarManager
+                            :getDefault()
+                            .OnBeginDragHealthBar(self:getId())
                     end
                 end
             }

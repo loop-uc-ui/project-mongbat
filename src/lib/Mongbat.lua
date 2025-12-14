@@ -7215,6 +7215,13 @@ DefaultInterfaceComponent.__index = DefaultInterfaceComponent
 local DefaultMainMenuWindowComponent = {}
 DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
 
+---@class DefaultHealthBarManager
+---@field OnBeginDragHealthBar fun(objectId: integer)
+
+---@class DefaultHealthBarManagerComponent : DefaultComponent
+local DefaultHealthBarManagerComponent = {}
+DefaultHealthBarManagerComponent.__index = DefaultHealthBarManagerComponent
+
 --- @class DefaultStatusWindow
 --- @field CurPlayerId integer
 --- @field Skills table
@@ -7533,6 +7540,18 @@ function LayerBuilder:overlay()
     return view
 end
 
+function LayerBuilder:popup()
+    local view = self._getView()
+    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Popup)
+    return view
+end
+
+function LayerBuilder:background()
+    local view = self._getView()
+    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Background)
+    return view
+end
+
 -- ========================================================================== --
 -- Components - Button
 -- ========================================================================== --
@@ -7681,6 +7700,24 @@ end
 function DefaultActionsComponent:getDefault()
     return self._proxy or Actions --[[@as DefaultActions]]
 end
+
+-- ========================================================================== --
+-- Components - Default - Health Bar Manager
+-- ========================================================================== --
+
+---@return DefaultHealthBarManagerComponent
+function DefaultHealthBarManagerComponent:new()
+    local instance = DefaultComponent.new(self, "HealthBarManager") --[[@as DefaultHealthBarManagerComponent]]
+    instance._proxy = instance:_createProxy(HealthBarManager)
+    _G.HealthBarManager = instance._proxy
+    return instance
+end
+
+---@return DefaultHealthBarManager
+function DefaultHealthBarManagerComponent:getDefault()
+    return self._proxy or HealthBarManager --[[@as DefaultHealthBarManager]]
+end
+
 
 -- ========================================================================= --
 -- Components - Default - Interface
@@ -8967,6 +9004,7 @@ setmetatable(DefaultStatusWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
+setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -8974,6 +9012,7 @@ Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
 Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
+Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 
 -- ========================================================================== --
 -- Mod
