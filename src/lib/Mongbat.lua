@@ -6840,6 +6840,7 @@ end
 ---@field name string
 ---@field isMobile boolean
 ---@field isValid fun(): boolean
+---@field notoriety integer
 
 ---@class ObjectHandleDataWrapper
 local ObjectHandles = {}

@@ -1,7 +1,5 @@
 ---@type Window[]
 local handles = {}
----@type Window[]
-local createdHandles = {}
 
 Mongbat.Mod {
     Name = "MongbatObjectHandle",
@@ -20,6 +18,9 @@ Mongbat.Mod {
                     self:setText(handle.name)
                     self:centerInWindow()
                     self:centerText()
+                    self:setTextColor(
+                        context.Constants.Colors.Notoriety[handle.notoriety]
+                    )
                 end
             }
         end
