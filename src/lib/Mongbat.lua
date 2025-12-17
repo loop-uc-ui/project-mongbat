@@ -3814,6 +3814,14 @@ function Api.CircleImage.SetRotation(id, rotation)
     CircleImageSetRotation(id, rotation)
 end
 
+function Api.CircleImage.SetFillParams(name, startAngle, fillAngle)
+    CircleImageSetFillParams(name, startAngle, fillAngle)
+end
+
+function Api.CircleImage.SetTextureSlice(name, sliceName)
+    CircleImageSetTextureSlice(name, sliceName)
+end
+
 -- ========================================================================== --
 -- Api - ComboBox
 -- ========================================================================== --
@@ -6334,6 +6342,26 @@ Constants.DataEvents.OnUpdateMobileStatus = {
     name = "OnUpdateMobileStatus"
 }
 
+Constants.DataEvents.OnUpdateRadar = {
+    getType = function()
+        return WindowData.Radar.Type
+    end,
+    getEvent = function()
+        return WindowData.Radar.Event
+    end,
+    name = "OnUpdateRadar"
+}
+
+Constants.DataEvents.OnUpdatePlayerLocation = {
+    getType = function()
+        return WindowData.PlayerLocation.Type
+    end,
+    getEvent = function()
+        return WindowData.PlayerLocation.Event
+    end,
+    name = "OnUpdatePlayerLocation"
+}
+
 ---@class SystemEvent
 ---@field getEvent fun(): integer
 ---@field name string
@@ -6848,6 +6876,17 @@ function Data.ObjectHandles()
 end
 
 -- ========================================================================== --
+-- Data - Player Location
+-- ========================================================================== --
+
+---@class WindowData.PlayerLocation
+---@field x number
+---@field y number
+---@field z number
+---@field facet number
+
+
+-- ========================================================================== --
 -- Data - Player Status
 -- ========================================================================== --
 
@@ -6976,6 +7015,16 @@ end
 function Data.PlayerStatus()
     return PlayerStatus:new()
 end
+
+-- ========================================================================== --
+-- Data - Radar
+-- ========================================================================== --
+
+---@class WindowData.Radar
+---@field TexCoordX integer
+---@field TexCoordY integer
+---@field TexScale number
+
 
 -- ========================================================================== --
 -- Components
@@ -7237,10 +7286,62 @@ DefaultWarShieldComponent.__index = DefaultWarShieldComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+
+---@class CircleImageModel : ViewModel
+---@field OnInitialize fun(self: CircleImage)?
+---@field OnLButtonUp fun(self: CircleImage, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: CircleImage, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: CircleImage)?
+---@field OnHidden fun(self: CircleImage)?
+---@field OnShown fun(self: CircleImage)?
+---@field OnLButtonDown fun(self: CircleImage, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: CircleImage, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: CircleImage, timePassed: integer)?
+---@field OnLButtonDblClk fun(self: CircleImage, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: CircleImage)?
+---@field OnMouseOverEnd fun(self: CircleImage)?
+---@field OnMouseDrag fun(self: CircleImage)?
+---@field OnEndHealthBarDrag fun(self: CircleImage)?
+---@field OnUpdatePlayerStatus fun(self: CircleImage, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: CircleImage, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: CircleImage, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: CircleImage, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateRadar fun(self: CircleImage, data: WindowData.Radar)?
+
+---@class CircleImage : View
+local CircleImage = {}
+CircleImage.__index = CircleImage
+
 ---@class Component
 ---@field name string
 local Component = {}
 Component.__index = Component
+
+---@class DynamicImageModel : ViewModel
+---@field OnInitialize fun(self: DynamicImage)?
+---@field OnLButtonUp fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
+---@field OnShutdown fun(self: DynamicImage)?
+---@field OnHidden fun(self: DynamicImage)?
+---@field OnShown fun(self: DynamicImage)?
+---@field OnLButtonDown fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
+---@field OnRButtonDown fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
+---@field OnUpdate fun(self: DynamicImage, timePassed: integer)?
+---@field OnLButtonDblClk fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: DynamicImage)?
+---@field OnMouseOverEnd fun(self: DynamicImage)?
+---@field OnMouseDrag fun(self: DynamicImage)?
+---@field OnEndHealthBarDrag fun(self: DynamicImage)?
+---@field OnUpdatePlayerStatus fun(self: DynamicImage, playerStatus: PlayerStatusWrapper)?
+---@field OnUpdateMobileName fun(self: DynamicImage, mobileName: MobileNameWrapper)?
+---@field OnUpdateHealthBarColor fun(self: DynamicImage, healthBarColor: HealthBarColorWrapper)?
+---@field OnUpdateMobileStatus fun(self: DynamicImage, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
+---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
+
+---@class DynamicImage: View
+local DynamicImage = {}
+DynamicImage.__index = DynamicImage
 
 ---@class EditTextBoxModel : ViewModel
 ---@field OnInitialize fun(self: EditTextBox)?
@@ -7399,6 +7500,8 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateMobileName fun(self: View, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
 ---@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
+---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 
 ---@class StatusBarModel : ViewModel
 ---@field OnInitialize fun(self: StatusBar)?
@@ -7524,6 +7627,47 @@ function Components.Button(model)
     local button = Button:new(model)
     Cache[button:getName()] = button
     return button
+end
+
+-- ========================================================================== --
+-- Components - Circle Image
+-- ========================================================================== --
+
+---@param model CircleImageModel?
+---@return CircleImage
+function CircleImage:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatCircleImage"
+    local instance = View.new(CircleImage, model)
+    return instance --[[@as CircleImage]]
+end
+
+function CircleImage:setTexture(texture, x, y)
+    Api.CircleImage.SetTexture(self:getName(), texture, x, y)
+end
+
+function CircleImage:SetFillParams(startAngle, fillAngle)
+    Api.CircleImage.SetFillParams(self:getName(), startAngle, fillAngle)
+end
+
+function CircleImage:setTextureSlice(sliceName)
+    Api.CircleImage.SetTextureSlice(self:getName(), sliceName)
+end
+
+function CircleImage:setTextureScale(scale)
+    Api.CircleImage.SetTextureScale(self:getName(), scale)
+end
+
+function CircleImage:setRotation(rotation)
+    Api.CircleImage.SetRotation(self:getName(), rotation)
+end
+
+---@param model CircleImageModel?
+---@return CircleImage
+function Components.CircleImage(model)
+    local circleImage = CircleImage:new(model)
+    Cache[circleImage:getName()] = circleImage
+    return circleImage
 end
 
 -- ========================================================================== --
@@ -7800,6 +7944,57 @@ function DefaultMainMenuWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Map Common
+-- ========================================================================== --
+
+---@class DefaultMapCommon
+
+---@class DefaultMapCommonComponent : DefaultComponent
+local DefaultMapCommonComponent = {}
+DefaultMapCommonComponent.__index = DefaultMapCommonComponent
+
+---@return DefaultMapCommonComponent
+function DefaultMapCommonComponent:new()
+    local instance = DefaultComponent.new(self, "MapCommon") --[[@as DefaultMapCommonComponent]]
+    instance._proxy = instance:_createProxy(MapCommon)
+    _G.MapCommon = instance._proxy
+    return instance
+end
+
+---@return DefaultMapCommon
+function DefaultMapCommonComponent:getDefault()
+    return self._proxy or MapCommon --[[@as DefaultMapCommon]]
+end
+
+
+-- ========================================================================== --
+-- Components - Default - Map Window
+-- ========================================================================== --
+
+---@class DefaultMapWindow
+
+---@class DefaultMapWindowComponent : DefaultComponent
+local DefaultMapWindowComponent = {}
+DefaultMapWindowComponent.__index = DefaultMapWindowComponent
+
+---@return DefaultMapWindowComponent
+function DefaultMapWindowComponent:new()
+    local instance = DefaultComponent.new(self, "MapWindow") --[[@as DefaultMapWindowComponent]]
+    instance._proxy = instance:_createProxy(MapWindow)
+    _G.MapWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultMapWindow
+function DefaultMapWindowComponent:getDefault()
+    return self._proxy or MapWindow --[[@as DefaultMapWindow]]
+end
+
+function DefaultMapWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Object Handle
 -- ========================================================================== --
 
@@ -7864,6 +8059,55 @@ end
 ---@return DefaultWarShield
 function DefaultWarShieldComponent:getDefault()
     return self._proxy or WarShield --[[@as DefaultWarShield]]
+end
+
+-- ========================================================================== --
+-- Components - Dynamic Image
+-- ========================================================================== --
+
+---@param model DynamicImageModel?
+---@return DynamicImage
+function DynamicImage:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatDynamicImage"
+    local instance = View.new(self, model)
+    return instance --[[@as DynamicImage]]
+end
+
+function DynamicImage:setTexture(texture, x, y)
+    Api.DynamicImage.SetTexture(self:getName(), texture, x, y)
+end
+
+function DynamicImage:setTextureSlice(sliceName)
+    Api.DynamicImage.SetTextureSlice(self:getName(), sliceName)
+end
+
+function DynamicImage:setTextureScale(scale)
+    Api.DynamicImage.SetTextureScale(self:getName(), scale)
+end
+
+function DynamicImage:setRotation(rotation)
+    Api.DynamicImage.SetRotation(self:getName(), rotation)
+end
+
+function DynamicImage:setTextureDimensions(width, height)
+    Api.DynamicImage.SetTextureDimensions(self:getName(), width, height)
+end
+
+function DynamicImage:setTextureOrientation(isMirrored)
+    Api.DynamicImage.SetTextureOrientation(self:getName(), isMirrored)
+end
+
+function DynamicImage:hasTexture()
+    return Api.DynamicImage.HasTexture(self:getName())
+end
+
+---@param model DynamicImageModel?
+---@return DynamicImage
+function Components.DynamicImage(model)
+    local dynamicImage = DynamicImage:new(model)
+    Cache[dynamicImage:getName()] = dynamicImage
+    return dynamicImage
 end
 
 -- ========================================================================== --
@@ -8032,6 +8276,20 @@ end
 function EventHandler.OnEndHealthBarDrag()
     local window = Cache[Active.window()]
     window:onEndHealthBarDrag()
+end
+
+function EventHandler.OnUpdateRadar()
+    pcall(function ()
+        local window = Cache[Active.window()]
+        window:onUpdateRadar(WindowData.Radar)
+    end)
+end
+
+function EventHandler.OnUpdatePlayerLocation()
+    pcall(function ()
+        local window = Cache[Active.window()]
+        window:onUpdatePlayerLocation(WindowData.PlayerLocation)
+    end)
 end
 
 -- ========================================================================== --
@@ -8551,6 +8809,23 @@ function View:onEndHealthBarDrag()
     return false
 end
 
+---@param data WindowData.Radar
+function View:onUpdateRadar(data)
+    if self._model.OnUpdateRadar ~= nil then
+        self._model.OnUpdateRadar(self, data)
+        return true
+    end
+    return false
+end
+
+function View:onUpdatePlayerLocation(data)
+    if self._model.OnUpdatePlayerLocation ~= nil then
+        self._model.OnUpdatePlayerLocation(self, data)
+        return true
+    end
+    return false
+end
+
 function View:getId()
     return Api.Window.GetId(self.name)
 end
@@ -8567,7 +8842,11 @@ function View:setId(id)
         Utils.Table.ForEach(
             Constants.DataEvents,
             function(k, v)
-                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
+                local skip = k == Constants.DataEvents.OnUpdatePlayerStatus or
+                    k == Constants.DataEvents.OnUpdateRadar or
+                    k == Constants.DataEvents.OnUpdatePlayerLocation
+
+                if not skip then
                     Api.Window.UnregisterData(v.getType(), oldId)
                 end
             end
@@ -8578,7 +8857,11 @@ function View:setId(id)
         Utils.Table.ForEach(
             Constants.DataEvents,
             function(k, v)
-                if k ~= Constants.DataEvents.OnUpdatePlayerStatus then
+                local skip = k == Constants.DataEvents.OnUpdatePlayerStatus or
+                    k == Constants.DataEvents.OnUpdateRadar or
+                    k == Constants.DataEvents.OnUpdatePlayerLocation
+
+                if not skip then
                     Api.Window.RegisterData(v.getType(), id)
                 end
             end
@@ -8830,11 +9113,10 @@ function Window:new(model)
 end
 
 function Window:onInitialize()
-    View.onInitialize(self)
-
     local isParentRoot = self:isParentRoot()
     self:toggleBackground(isParentRoot)
     self:toggleFrame(isParentRoot)
+    View.onInitialize(self)
 
     if isParentRoot then
         Api.Window.RestorePosition(self.name)
@@ -9038,6 +9320,8 @@ setmetatable(Label, { __index = View })
 setmetatable(LogDisplay, { __index = View })
 setmetatable(StatusBar, { __index = View })
 setmetatable(Gump, { __index = Window })
+setmetatable(CircleImage, { __index = View })
+setmetatable(DynamicImage, { __index = View })
 setmetatable(DefaultComponent, { __index = Component })
 setmetatable(DefaultActionsComponent, { __index = DefaultComponent })
 setmetatable(DefaultMainMenuWindowComponent, { __index = DefaultComponent })
@@ -9048,6 +9332,7 @@ setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
+setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -9058,6 +9343,7 @@ Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
+Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
@@ -9216,7 +9502,19 @@ local mod = Mod:new {
         "Mongbat.xml"
     },
     OnInitialize = function()
-        Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+        local register = {
+            Constants.DataEvents.OnUpdatePlayerStatus,
+            Constants.DataEvents.OnUpdateRadar,
+            Constants.DataEvents.OnUpdatePlayerLocation
+        }
+
+        Utils.Array.ForEach(
+            register,
+            function(dataEvent)
+                Api.Window.RegisterData(dataEvent.getType(), 0)
+            end
+        )
+
         --- We are using SystemEvents for onLButtonUp and onLButtonDown to facilitate the
         --- dragging and dropping of items onto another window. In this scenario, the onLButtonUp attached
         --- to the window is not activated. For example, if you drag an item from the inventory
