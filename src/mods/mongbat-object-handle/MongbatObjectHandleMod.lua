@@ -14,9 +14,7 @@ Mongbat.Mod {
                 Id = handle.id,
                 OnInitialize = function(self)
                     self:setDimensions(#handle.name * 12, 32)
-                    self:clearAnchors()
                     self:setText(handle.name)
-                    self:centerInWindow()
                     self:centerText()
                     local color = context.Constants.Colors.Notoriety[handle.notoriety]
                     self:setTextColor(color)
@@ -41,6 +39,9 @@ Mongbat.Mod {
                         local color = context.Constants.Colors.Notoriety[handle.notoriety]
                         self:getFrame():setColor(color)
                     end
+                end,
+                OnLayout = function (_, _, child, _)
+                    child:centerInWindow()
                 end,
                 OnMouseOver = function(self)
                     self:setAlpha(1.0):setLayer():default()

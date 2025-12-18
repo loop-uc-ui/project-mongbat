@@ -12,8 +12,6 @@ Mongbat.Mod {
         local function Map()
             return context.Components.DynamicImage {
                 OnInitialize = function(self)
-                    self:clearAnchors()
-                    self:anchorToParentCenter(0, 0)
                     local dimen = 396
                     self:setDimensions(dimen, dimen)
                     context.Api.Radar.SetWindowSize(dimen, dimen, true, true)
@@ -31,6 +29,9 @@ Mongbat.Mod {
                 OnInitialize = function(self)
                     self:setDimensions(400, 400)
                     self:setChildren { Map() }
+                end,
+                OnLayout = function(_, _, child, _)
+                    child:anchorToParentCenter(0, 0)
                 end
             }
         end

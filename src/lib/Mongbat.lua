@@ -7375,6 +7375,7 @@ EventReceiver.__index = EventReceiver
 ---@field Name string? The name of the window. If not provided, a random name will be generated.
 ---@field Id integer?
 ---@field Template string? The template to use for the window. Defaults to "MongbatWindow"
+---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field OnInitialize fun(self: Window)?
 ---@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
 ---@field OnRButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
@@ -7586,6 +7587,50 @@ function LayerBuilder:background()
     local view = self._getView()
     Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Background)
     return view
+end
+
+-- ========================================================================== --
+-- Components - Internal Builders - Layout Builder
+-- ========================================================================== --
+
+local Layouts = {}
+
+Layouts.StackAndFill = function(window, children, child, index)
+    if index > 1 then
+        child:addAnchor(
+            "bottomleft",
+            children[index - 1]:getName(),
+            "topleft",
+            0,
+            8
+        )
+    else
+        child:addAnchor(
+            "topleft",
+            window:getName(),
+            "topleft",
+            12,
+            12
+        )
+    end
+
+    local parentDimens = window:getDimensions()
+    local parentX = parentDimens.x
+    local parentY = parentDimens.y
+
+    local childWidth = parentX - 24
+    if childWidth < 0 then
+        childWidth = parentX
+    end
+
+    local childSpaceOffset = (#children - 1) * 8
+
+    local childHeight = (parentY - 24 - childSpaceOffset) / #children
+    if childHeight < 0 then
+        childHeight = parentY
+    end
+
+    child:setDimensions(childWidth, childHeight)
 end
 
 -- ========================================================================== --
@@ -9109,6 +9154,9 @@ function Window:new(model)
             window:destroy()
         end
     end
+
+    instance._model.OnLayout = model.OnLayout or Layouts.StackAndFill
+
     return instance
 end
 
@@ -9131,42 +9179,7 @@ function Window:onInitialize()
             item._model.OnInitialize = function(child)
                 child:setParent(self:getName())
                 child:clearAnchors()
-                if index > 1 then
-                    child:addAnchor(
-                        "bottomleft",
-                        self._children[index - 1]:getName(),
-                        "topleft",
-                        0,
-                        8
-                    )
-                else
-                    child:addAnchor(
-                        "topleft",
-                        self:getName(),
-                        "topleft",
-                        12,
-                        12
-                    )
-                end
-
-                local parentDimens = self:getDimensions()
-                local parentX = parentDimens.x
-                local parentY = parentDimens.y
-
-                local childWidth = parentX - 24
-                if childWidth < 0 then
-                    childWidth = parentX
-                end
-
-                local childSpaceOffset = (#self._children - 1) * 8
-
-                local childHeight = (parentY - 24 - childSpaceOffset) / #self._children
-                if childHeight < 0 then
-                    childHeight = parentY
-                end
-
-                child:setDimensions(childWidth, childHeight)
-
+                self._model.OnLayout(self, self._children, child, index)
                 if onChildInitialize ~= nil then
                     onChildInitialize(child)
                 end
@@ -9333,6 +9346,7 @@ setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -9344,6 +9358,7 @@ Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
+Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 
 -- ========================================================================== --
 -- Mod
