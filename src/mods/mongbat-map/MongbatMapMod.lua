@@ -1,3 +1,9 @@
+---@type Window
+local window
+local scale = 1.0
+local x = 0
+local y = 0
+
 Mongbat.Mod {
     Name = "MongbatMap",
     Path = "/src/mods/mongbat-map",
@@ -12,13 +18,19 @@ Mongbat.Mod {
         local function Map()
             return context.Components.DynamicImage {
                 OnInitialize = function(self)
-                    local dimen = 396
+                    local dimen = 1100
                     self:setDimensions(dimen, dimen)
                     context.Api.Radar.SetWindowSize(dimen, dimen, true, true)
                 end,
                 OnUpdateRadar = function (self, data)
+                    scale = data.TexScale
                     self:setTextureScale(data.TexScale)
+                    x = data.TexCoordX
+                    y = data.TexCoordY
                     self:setTexture("radar_texture", data.TexCoordX, data.TexCoordY)
+                end,
+                OnMouseWheel = function(self, _, _, delta)
+                    context.Api.Radar.SetZoom(delta)
                 end
             }
         end
@@ -36,10 +48,15 @@ Mongbat.Mod {
             }
         end
 
-        Window():create(true)
+        window = Window()
+        window:create(true)
     end,
 
     OnShutdown = function(context)
+        if window ~= nil then
+            window:destroy()
+        end
+
         local mapCommon = context.Components.Defaults.MapCommon
         mapCommon:restore()
 

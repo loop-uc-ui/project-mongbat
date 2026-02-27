@@ -4667,6 +4667,9 @@ function Api.Radar.SetWindowSize(sizeX, sizeY, boolOne, centerOnPlayer)
     UORadarSetWindowSize(sizeX, sizeY, boolOne, centerOnPlayer)
 end
 
+function Api.Radar.SetWindowOffset(x, y)
+    UORadarSetWindowOffset(x, y)
+end
 ---
 --- Gets the facet for the radar.
 ---@return any The facet for the radar.
@@ -4682,20 +4685,17 @@ function Api.Radar.GetArea()
 end
 
 ---
---- Sets the offset for the radar.
----@param offsetX number The x-offset.
----@param offsetY number The y-offset.
-function Api.Radar.SetOffset(offsetX, offsetY)
-    UORadarSetWindowOffset(offsetX, offsetY)
-end
-
----
 --- Gets the maximum zoom for a map.
 ---@param facet any The facet of the map.
 ---@param area any The area of the map.
 ---@return number The maximum zoom.
 function Api.Radar.GetMaxZoom(facet, area)
-    return UORadarGetMaxZoomForMap(facet, area)
+    return UORadarGetMaxZoomForMap(facet or Api.Radar.GetFacet(),
+        area or Api.Radar.GetArea())
+end
+
+function Api.Radar.GetCurrentZoom()
+    return Api.Interface.LoadNumber("MapZoom", 0)
 end
 
 ---
@@ -4703,6 +4703,7 @@ end
 ---@param zoom number The zoom to set.
 function Api.Radar.SetZoom(zoom)
     UOSetRadarZoom(zoom)
+    Api.Interface.SaveNumber("MapZoom", zoom)
 end
 
 ---
@@ -6404,6 +6405,7 @@ Constants.CoreEvents.OnLButtonDblClk = "OnLButtonDblClk"
 Constants.CoreEvents.OnMouseOver = "OnMouseOver"
 Constants.CoreEvents.OnMouseOverEnd = "OnMouseOverEnd"
 Constants.CoreEvents.OnMouseDrag = "OnMouseDrag"
+Constants.CoreEvents.OnMouseWheel = "OnMouseWheel"
 
 Constants.AnchorPoints = {}
 Constants.AnchorPoints.BottomLeft = "bottomleft"
@@ -7338,6 +7340,7 @@ Component.__index = Component
 ---@field OnUpdateMobileStatus fun(self: DynamicImage, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
+---@field OnMouseWheel fun(self: DynamicImage, x: number, y: number, delta: number)?
 
 ---@class DynamicImage: View
 local DynamicImage = {}
@@ -7503,6 +7506,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
+---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
 ---@field OnInitialize fun(self: StatusBar)?
@@ -8218,15 +8222,23 @@ local function doIfMouseOverNotNil(onFind)
 end
 
 function EventHandler.OnInitialize()
-    local window = Cache[Active.window()]
-    window:onInitialize()
+    local success, err = pcall(function ()
+        local window = Cache[Active.window()]
+        window:onInitialize()
+    end)
+
+    if not success then
+        Debug.Print("[Mongbat] Error in OnInitialize: " .. tostring(err))
+    end
 end
 
 function EventHandler.OnShutdown()
-    local activeWindowName = Active.window()
-    local window = Cache[activeWindowName]
-    Cache[activeWindowName] = nil
-    window:onShutdown()
+    pcall(function ()
+        local activeWindowName = Active.window()
+        local window = Cache[activeWindowName]
+        Cache[activeWindowName] = nil
+        window:onShutdown()
+    end)
 end
 
 function EventHandler.OnLButtonUp(flags, x, y)
@@ -8335,6 +8347,11 @@ function EventHandler.OnUpdatePlayerLocation()
         local window = Cache[Active.window()]
         window:onUpdatePlayerLocation(WindowData.PlayerLocation)
     end)
+end
+
+function EventHandler.OnMouseWheel(x, y, delta)
+    local window = Cache[Active.window()]
+    window:onMouseWheel(x, y, delta)
 end
 
 -- ========================================================================== --
@@ -8730,6 +8747,14 @@ end
 function View:onLButtonUp(flags, x, y)
     if self._model.OnLButtonUp ~= nil then
         self._model.OnLButtonUp(self, flags, x, y)
+        return true
+    end
+    return false
+end
+
+function View:onMouseWheel(x, y, delta)
+    if self._model.OnMouseWheel ~= nil then
+        self._model.OnMouseWheel(self, x, y, delta)
         return true
     end
     return false
