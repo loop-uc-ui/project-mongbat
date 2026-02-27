@@ -396,7 +396,12 @@
 ---@field ObjectHandle WindowData.ObjectHandle
 
 
-local DefaultUIClasses = {
+-- ========================================================================== --
+-- Default UI Class Annotations
+-- Describes the shape of global classes provided by the UO Enhanced Client
+-- default UI. These are referenced by DefaultComponent wrappers in Components.
+-- ========================================================================== --
+
     ---@class AbilitiesInfo
     ---@field Data table[] Table of ability data (name, Mana)
     ---@field MessageToID table Mapping from message TID to ability ID
@@ -3446,7 +3451,6 @@ local DefaultUIClasses = {
 
     ---@class HighlightEffectManager
     ---@field knownWindows table Table mapping window names to HighlightEffect instances
-}
 
 ---@class Api
 local Api = {}
@@ -3600,7 +3604,7 @@ end
 --- Gets the weapon ability ID for a given index.
 ---@param index number The index of the weapon ability.
 ---@return number The weapon ability ID.
-function Api.Ability.GetWeapnAbilityId(index)
+function Api.Ability.GetWeaponAbilityId(index)
     return GetWeaponAbilityId(index) + 1000
 end
 
@@ -3632,7 +3636,7 @@ end
 ---
 --- Stops the animation for an animated image.
 ---@param imageName string The name of the animated image.
-function Api.AnimatedImage.StopAnimaton(imageName)
+function Api.AnimatedImage.StopAnimation(imageName)
     AnimatedImageStopAnimation(imageName)
 end
 
@@ -6013,19 +6017,7 @@ function Utils.Table.ForEach(table, forEach)
     end
 end
 
----@generic K
----@generic V
----@param table table<K, V>?
----@param onEach fun(k: K, v: V): any?
-function Utils.Table.onEach(table, onEach)
-    if not table then
-        return
-    end
 
-    for k, v in pairs(table) do
-        onEach(k, v)
-    end
-end
 
 ---@generic K
 ---@generic V
@@ -6224,6 +6216,7 @@ function Utils.String.FromWString(text)
 end
 
 function Utils.String.ToWString(text)
+    if text == nil then return L"" end
     if type(text) == "number" then
         return Api.String.GetStringFromTid(text)
     elseif type(text) == "wstring" then
@@ -6303,65 +6296,30 @@ end
 ---@type table<string, DataEvent>
 Constants.DataEvents = {}
 
-Constants.DataEvents.OnUpdatePlayerStatus = {
-    getType = function()
-        return WindowData.PlayerStatus.Type
-    end,
-    getEvent = function()
-        return WindowData.PlayerStatus.Event
-    end,
-    name = "OnUpdatePlayerStatus"
-}
+---@param windowData table The WindowData table (e.g. WindowData.PlayerStatus)
+---@param name string The event name
+---@return table DataEvent with lazy-cached getType/getEvent
+local function DataEvent(windowData, name)
+    local cachedType, cachedEvent
+    return {
+        getType = function()
+            if not cachedType then cachedType = windowData.Type end
+            return cachedType
+        end,
+        getEvent = function()
+            if not cachedEvent then cachedEvent = windowData.Event end
+            return cachedEvent
+        end,
+        name = name
+    }
+end
 
-Constants.DataEvents.OnUpdateMobileName = {
-    getType = function()
-        return WindowData.MobileName.Type
-    end,
-    getEvent = function()
-        return WindowData.MobileName.Event
-    end,
-    name = "OnUpdateMobileName"
-}
-
-Constants.DataEvents.OnUpdateHealthBarColor = {
-    getType = function()
-        return WindowData.HealthBarColor.Type
-    end,
-    getEvent = function()
-        return WindowData.HealthBarColor.Event
-    end,
-    name = "OnUpdateHealthBarColor"
-}
-
-Constants.DataEvents.OnUpdateMobileStatus = {
-    getType = function()
-        return WindowData.MobileStatus.Type
-    end,
-    getEvent = function()
-        return WindowData.MobileStatus.Event
-    end,
-    name = "OnUpdateMobileStatus"
-}
-
-Constants.DataEvents.OnUpdateRadar = {
-    getType = function()
-        return WindowData.Radar.Type
-    end,
-    getEvent = function()
-        return WindowData.Radar.Event
-    end,
-    name = "OnUpdateRadar"
-}
-
-Constants.DataEvents.OnUpdatePlayerLocation = {
-    getType = function()
-        return WindowData.PlayerLocation.Type
-    end,
-    getEvent = function()
-        return WindowData.PlayerLocation.Event
-    end,
-    name = "OnUpdatePlayerLocation"
-}
+Constants.DataEvents.OnUpdatePlayerStatus = DataEvent(WindowData.PlayerStatus, "OnUpdatePlayerStatus")
+Constants.DataEvents.OnUpdateMobileName = DataEvent(WindowData.MobileName, "OnUpdateMobileName")
+Constants.DataEvents.OnUpdateHealthBarColor = DataEvent(WindowData.HealthBarColor, "OnUpdateHealthBarColor")
+Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "OnUpdateMobileStatus")
+Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
+Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -6887,6 +6845,42 @@ end
 ---@field z number
 ---@field facet number
 
+---@class PlayerLocationWrapper
+local PlayerLocation = {}
+PlayerLocation.__index = PlayerLocation
+
+function PlayerLocation:new()
+    return setmetatable({}, self)
+end
+
+---@return WindowData.PlayerLocation
+function PlayerLocation:getData()
+    return WindowData.PlayerLocation
+end
+
+---@return number
+function PlayerLocation:getX()
+    return self:getData().x or 0
+end
+
+---@return number
+function PlayerLocation:getY()
+    return self:getData().y or 0
+end
+
+---@return number
+function PlayerLocation:getZ()
+    return self:getData().z or 0
+end
+
+---@return number
+function PlayerLocation:getFacet()
+    return self:getData().facet or 0
+end
+
+function Data.PlayerLocation()
+    return PlayerLocation:new()
+end
 
 -- ========================================================================== --
 -- Data - Player Status
@@ -7655,6 +7649,7 @@ function Button:getTextDimensions()
 end
 
 function Button:setText(text)
+    if text == nil then return end
     Api.Button.SetText(self:getName(), Utils.String.ToWString(text))
 end
 
@@ -7810,6 +7805,14 @@ function DefaultComponent:restore()
     end
 end
 
+--- Restores the original global table that was replaced by the proxy.
+--- Called during framework shutdown to leave no traces.
+function DefaultComponent:restoreGlobal()
+    if self._proxy and self._globalKey then
+        _G[self._globalKey] = self._proxy._original
+    end
+end
+
 -- ========================================================================== --
 -- Components - Default - Actions
 -- ========================================================================== --
@@ -7818,6 +7821,7 @@ end
 function DefaultActionsComponent:new()
     local instance = DefaultComponent.new(self, "Actions") --[[@as DefaultActionsComponent]]
     instance._proxy = instance:_createProxy(Actions)
+    instance._globalKey = "Actions"
     _G.Actions = instance._proxy
     return instance
 end
@@ -7854,6 +7858,7 @@ function DefaultGenericGumpComponent:new()
     local instance = DefaultComponent.new(self, "GenericGump") --[[@as DefaultGenericGumpComponent]]
     instance._proxy = instance:_createProxy(GenericGump)
     instance._proxy.OnShown = function () end
+    instance._globalKey = "GenericGump"
     _G.GenericGump = instance._proxy
     return instance
 end
@@ -7896,6 +7901,7 @@ DefaultGumpsParsingComponent.__index = DefaultGumpsParsingComponent
 function DefaultGumpsParsingComponent:new()
     local instance = DefaultComponent.new(self, "GumpsParsing") --[[@as DefaultGumpsParsingComponent]]
     instance._proxy = instance:_createProxy(GumpsParsing)
+    instance._globalKey = "GumpsParsing"
     _G.GumpsParsing = instance._proxy
     return instance
 end
@@ -7924,6 +7930,7 @@ DefaultHealthBarManagerComponent.__index = DefaultHealthBarManagerComponent
 function DefaultHealthBarManagerComponent:new()
     local instance = DefaultComponent.new(self, "HealthBarManager") --[[@as DefaultHealthBarManagerComponent]]
     instance._proxy = instance:_createProxy(HealthBarManager)
+    instance._globalKey = "HealthBarManager"
     _G.HealthBarManager = instance._proxy
     return instance
 end
@@ -7942,6 +7949,7 @@ end
 function DefaultInterfaceComponent:new()
     local instance = DefaultComponent.new(self, "Interface") --[[@as DefaultInterfaceComponent]]
     instance._proxy = instance:_createProxy(Interface)
+    instance._globalKey = "Interface"
     _G.Interface = instance._proxy
     return instance
 end
@@ -7978,6 +7986,7 @@ DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
 function DefaultMainMenuWindowComponent:new()
     local instance = DefaultComponent.new(self, "MainMenuWindow") --[[@as DefaultMainMenuWindowComponent]]
     instance._proxy = instance:_createProxy(MainMenuWindow)
+    instance._globalKey = "MainMenuWindow"
     _G.MainMenuWindow = instance._proxy
     return instance
 end
@@ -8006,6 +8015,7 @@ DefaultMapCommonComponent.__index = DefaultMapCommonComponent
 function DefaultMapCommonComponent:new()
     local instance = DefaultComponent.new(self, "MapCommon") --[[@as DefaultMapCommonComponent]]
     instance._proxy = instance:_createProxy(MapCommon)
+    instance._globalKey = "MapCommon"
     _G.MapCommon = instance._proxy
     return instance
 end
@@ -8030,6 +8040,7 @@ DefaultMapWindowComponent.__index = DefaultMapWindowComponent
 function DefaultMapWindowComponent:new()
     local instance = DefaultComponent.new(self, "MapWindow") --[[@as DefaultMapWindowComponent]]
     instance._proxy = instance:_createProxy(MapWindow)
+    instance._globalKey = "MapWindow"
     _G.MapWindow = instance._proxy
     return instance
 end
@@ -8051,6 +8062,7 @@ end
 function DefaultObjectHandleComponent:new()
     local instance = DefaultComponent.new(self, "ObjectHandle") --[[@as DefaultObjectHandleComponent]]
     instance._proxy = instance:_createProxy(ObjectHandleWindow)
+    instance._globalKey = "ObjectHandleWindow"
     _G.ObjectHandleWindow = instance._proxy
     return instance
 end
@@ -8074,6 +8086,7 @@ function DefaultStatusWindowComponent:new()
     local instance = DefaultComponent.new(self, "StatusWindow") --[[@as DefaultStatusWindowComponent]]
     -- Create proxy and replace global
     instance._proxy = instance:_createProxy(StatusWindow)
+    instance._globalKey = "StatusWindow"
     _G.StatusWindow = instance._proxy
     return instance
 end
@@ -8096,6 +8109,7 @@ end
 function DefaultWarShieldComponent:new()
     local instance = DefaultComponent.new(self, "WarShield") --[[@as DefaultWarShieldComponent]]
     instance._proxy = instance:_createProxy(WarShield)
+    instance._globalKey = "WarShield"
     _G.WarShield = instance._proxy
     return instance
 end
@@ -8173,6 +8187,7 @@ function EditTextBox:new(model)
 end
 
 function EditTextBox:setText(text)
+    if text == nil then return end
     Api.EditTextBox.SetText(self:getName(), Utils.String.ToWString(text))
 end
 
@@ -8198,160 +8213,173 @@ end
 -- ========================================================================== --
 
 
----@param onFind fun(window: View)
-local function doIfMouseOverNotNil(onFind)
-    local mouseOverWindow = SystemData.MouseOverWindow
-
-    if mouseOverWindow == nil then
-        return
+--- Safely dispatches an event to the active window via Active.window().
+--- If the window is nil or the callback errors, it is caught and logged.
+---@param eventName string The name of the event (for error logging)
+---@param callback fun(window: View)
+local function withActiveView(eventName, callback)
+    local success, err = pcall(function()
+        local window = Cache[Active.window()]
+        if window == nil then return end
+        callback(window)
+    end)
+    if not success then
+        Debug.Print("[Mongbat] Error in " .. eventName .. ": " .. tostring(err))
     end
+end
 
-    local name = mouseOverWindow.name
+--- Safely dispatches an event to the mouse-over window.
+---@param eventName string The name of the event (for error logging)
+---@param callback fun(window: View)
+local function withMouseOverView(eventName, callback)
+    local success, err = pcall(function()
+        local mouseOverWindow = SystemData.MouseOverWindow
+        if mouseOverWindow == nil then return end
 
-    if name == nil or name == "" then
-        return
+        local name = mouseOverWindow.name
+        if name == nil or name == "" then return end
+
+        local window = Cache[name]
+        if window == nil then return end
+
+        callback(window)
+    end)
+    if not success then
+        Debug.Print("[Mongbat] Error in " .. eventName .. ": " .. tostring(err))
     end
-
-    local window = Cache[name]
-
-    if window == nil then
-        return
-    end
-
-    onFind(window)
 end
 
 function EventHandler.OnInitialize()
-    local success, err = pcall(function ()
-        local window = Cache[Active.window()]
+    withActiveView("OnInitialize", function(window)
         window:onInitialize()
     end)
-
-    if not success then
-        Debug.Print("[Mongbat] Error in OnInitialize: " .. tostring(err))
-    end
 end
 
 function EventHandler.OnShutdown()
-    pcall(function ()
+    local success, err = pcall(function()
         local activeWindowName = Active.window()
         local window = Cache[activeWindowName]
         Cache[activeWindowName] = nil
+        if window == nil then return end
         window:onShutdown()
     end)
+    if not success then
+        Debug.Print("[Mongbat] Error in OnShutdown: " .. tostring(err))
+    end
 end
 
 function EventHandler.OnLButtonUp(flags, x, y)
-    doIfMouseOverNotNil(
-        function(window)
-            window:onLButtonUp(flags, x, y)
-        end
-    )
+    withMouseOverView("OnLButtonUp", function(window)
+        window:onLButtonUp(flags, x, y)
+    end)
 end
 
 function EventHandler.OnLButtonDown(flags, x, y)
-    doIfMouseOverNotNil(
-        function(window)
-            window:onLButtonDown(flags, x, y)
-        end
-    )
+    withMouseOverView("OnLButtonDown", function(window)
+        window:onLButtonDown(flags, x, y)
+    end)
 end
 
 function EventHandler.OnRButtonDown(flags, x, y)
-    local window = Cache[Active.window()]
-    window:onRButtonDown(flags, x, y)
+    withActiveView("OnRButtonDown", function(window)
+        window:onRButtonDown(flags, x, y)
+    end)
 end
 
 function EventHandler.OnRButtonUp(flags, x, y)
-    local window = Cache[Active.window()]
-    window:onRButtonUp(flags, x, y)
+    withActiveView("OnRButtonUp", function(window)
+        window:onRButtonUp(flags, x, y)
+    end)
 end
 
 function EventHandler.OnHidden()
-    local window = Cache[Active.window()]
-    window:onHidden()
+    withActiveView("OnHidden", function(window)
+        window:onHidden()
+    end)
 end
 
 function EventHandler.OnShown()
-    local window = Cache[Active.window()]
-    window:onShown()
+    withActiveView("OnShown", function(window)
+        window:onShown()
+    end)
 end
 
 function EventHandler.OnUpdatePlayerStatus()
-    pcall(function ()
-        local window = Cache[Active.window()]
+    withActiveView("OnUpdatePlayerStatus", function(window)
         window:onUpdatePlayerStatus()
     end)
 end
 
 function EventHandler.OnUpdateMobileName()
-    pcall(function ()
-        local window = Cache[Active.window()]
+    withActiveView("OnUpdateMobileName", function(window)
         window:onUpdateMobileName()
     end)
 end
 
 function EventHandler.OnUpdateHealthBarColor()
-    pcall(function ()
-        local window = Cache[Active.window()]
+    withActiveView("OnUpdateHealthBarColor", function(window)
         window:onUpdateHealthBarColor()
     end)
 end
 
 function EventHandler.OnUpdateMobileStatus()
-    pcall(function ()
-        local window = Cache[Active.window()]
+    withActiveView("OnUpdateMobileStatus", function(window)
         window:onUpdateMobileStatus()
     end)
 end
 
 function EventHandler.OnUpdate(timePassed)
-    local window = Cache[Active.window()]
-    window:onUpdate(timePassed)
+    withActiveView("OnUpdate", function(window)
+        window:onUpdate(timePassed)
+    end)
 end
 
 function EventHandler.OnLButtonDblClk(flags, x, y)
-    local window = Cache[Active.window()]
-    window:onLButtonDblClk(flags, x, y)
+    withActiveView("OnLButtonDblClk", function(window)
+        window:onLButtonDblClk(flags, x, y)
+    end)
 end
 
 function EventHandler.OnMouseOver()
-    local window = Cache[Active.window()]
-    window:onMouseOver()
+    withActiveView("OnMouseOver", function(window)
+        window:onMouseOver()
+    end)
 end
 
 function EventHandler.OnMouseOverEnd()
-    local window = Cache[Active.window()]
-    window:onMouseOverEnd()
+    withActiveView("OnMouseOverEnd", function(window)
+        window:onMouseOverEnd()
+    end)
 end
 
 function EventHandler.OnMouseDrag()
-    local window = Cache[Active.window()]
-    window:onMouseDrag()
+    withActiveView("OnMouseDrag", function(window)
+        window:onMouseDrag()
+    end)
 end
 
 function EventHandler.OnEndHealthBarDrag()
-    local window = Cache[Active.window()]
-    window:onEndHealthBarDrag()
+    withActiveView("OnEndHealthBarDrag", function(window)
+        window:onEndHealthBarDrag()
+    end)
 end
 
 function EventHandler.OnUpdateRadar()
-    pcall(function ()
-        local window = Cache[Active.window()]
+    withActiveView("OnUpdateRadar", function(window)
         window:onUpdateRadar(WindowData.Radar)
     end)
 end
 
 function EventHandler.OnUpdatePlayerLocation()
-    pcall(function ()
-        local window = Cache[Active.window()]
+    withActiveView("OnUpdatePlayerLocation", function(window)
         window:onUpdatePlayerLocation(WindowData.PlayerLocation)
     end)
 end
 
 function EventHandler.OnMouseWheel(x, y, delta)
-    local window = Cache[Active.window()]
-    window:onMouseWheel(x, y, delta)
+    withActiveView("OnMouseWheel", function(window)
+        window:onMouseWheel(x, y, delta)
+    end)
 end
 
 -- ========================================================================== --
@@ -8505,6 +8533,7 @@ function Label:new(model)
 end
 
 function Label:setText(text)
+    if text == nil then return end
     Api.Label.SetText(self:getName(), Utils.String.ToWString(text))
 end
 
@@ -8909,33 +8938,33 @@ function View:setId(id)
     end
 
     if oldId ~= 0 then
-        Utils.Table.ForEach(
-            Constants.DataEvents,
-            function(k, v)
-                local skip = k == Constants.DataEvents.OnUpdatePlayerStatus or
-                    k == Constants.DataEvents.OnUpdateRadar or
-                    k == Constants.DataEvents.OnUpdatePlayerLocation
+        for k, _ in pairs(self._model) do
+            local dataEvent = Constants.DataEvents[k]
+            if dataEvent ~= nil then
+                local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
+                    dataEvent == Constants.DataEvents.OnUpdateRadar or
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
 
                 if not skip then
-                    Api.Window.UnregisterData(v.getType(), oldId)
+                    Api.Window.UnregisterData(dataEvent.getType(), oldId)
                 end
             end
-        )
+        end
     end
 
     if id ~= 0 then
-        Utils.Table.ForEach(
-            Constants.DataEvents,
-            function(k, v)
-                local skip = k == Constants.DataEvents.OnUpdatePlayerStatus or
-                    k == Constants.DataEvents.OnUpdateRadar or
-                    k == Constants.DataEvents.OnUpdatePlayerLocation
+        for k, _ in pairs(self._model) do
+            local dataEvent = Constants.DataEvents[k]
+            if dataEvent ~= nil then
+                local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
+                    dataEvent == Constants.DataEvents.OnUpdateRadar or
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
 
                 if not skip then
-                    Api.Window.RegisterData(v.getType(), id)
+                    Api.Window.RegisterData(dataEvent.getType(), id)
                 end
             end
-        )
+        end
     end
 
     Api.Window.SetId(self.name, id)
@@ -9198,6 +9227,14 @@ function Window:onInitialize()
     Utils.Array.ForEach(
         self._children,
         function(item, index)
+            -- Guard against double-wrapping if onInitialize is called more than once
+            if item._parentWrapped then
+                item:create()
+                item:onInitialize()
+                return
+            end
+            item._parentWrapped = true
+
             --- For each child, override its onInitialize to set its parent and anchors
             local onChildInitialize = item._model.OnInitialize
 
@@ -9582,5 +9619,12 @@ end
 
 function _Mongbat.OnShutdown()
     mod:onShutdown()
+
+    -- Restore all proxied globals to their originals
+    for _, default in pairs(Components.Defaults) do
+        if type(default) == "table" and default.restoreGlobal then
+            default:restoreGlobal()
+        end
+    end
 end
 

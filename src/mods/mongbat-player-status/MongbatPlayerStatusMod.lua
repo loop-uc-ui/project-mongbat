@@ -141,7 +141,7 @@ end
 
 ---@param context Context
 local function OnShutdown(context)
-    context.Api.Window.DestroyWindow(NAME)
+    context.Api.Window.Destroy(NAME)
     local original = context.Components.Defaults.StatusWindow
     original:restore()
     original:asComponent():setShowing(true)
