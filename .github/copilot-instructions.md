@@ -17,42 +17,24 @@ When answering questions about Mongbat, **always cross-reference** the two prima
 > This is the **authoritative reference** for how the UO EC UI works. It is 100% Lua + XML. All files live under the `Source/` directory.
 
 **When to consult it:**
-- To understand the vanilla implementation of any window that Mongbat wraps or replaces (e.g., `StatusWindow`, `MainMenuWindow`, `ObjectHandleWindow`, `MapWindow`).
+- To understand the vanilla implementation of any window that Mongbat wraps or replaces.
 - To look up engine-provided global functions, `WindowData.*` tables, or `SystemData.*` tables that Mongbat's `Api` namespace delegates to.
 - To verify event IDs, callback signatures, or data-table structures.
 - To find code patterns for features Mongbat does not yet cover.
-
-**Key files to know about** (all under `Source/` in the repo):
-
-| File | Purpose |
-|---|---|
-| `Interface.lua` / `Interface.xml` | Entry point. `CreateWindows`, `InitializeWindows`, `CreateOverrides`, `RegisterEvents`, `Shutdown`, `Update` -- the lifecycle of the whole UI. |
-| `StatusWindow.lua` | Player health/mana/stamina bars. Uses `WindowData.PlayerStatus`, `RegisterWindowData`, `WindowRegisterEventHandler`. |
-| `MainMenuWindow.lua` | Main menu toggle buttons (paperdoll, inventory, map, etc.). |
-| `ObjectHandle.lua` / `ObjectHandleWindow.lua` | Floating name/health labels above in-world objects. |
-| `MapCommon.lua` / `MapWindow.lua` | Radar/minimap. |
-| `GenericGump.lua` / `GGManager.lua` / `GumpsParsing.lua` | Server-sent generic gumps (dialogs). |
-| `Actions.lua` | `ToggleMainMenu`, `ToggleWarMode`, `ToggleMapWindow`, etc. -- action entry points. |
-| `VendorSearch.lua` | Vendor search UI. |
-| `HealthBarManager.lua` / `MobileHealthBar.lua` / `PartyHealthBar.lua` | Health bar creation and management for mobiles. |
-| `TargetWindow.lua` | Current-target display. |
-| `HotbarSystem.lua` | Hotbar actions and stat display. |
-| `UO_DefaultWindow.lua` | Reusable dialog template (OK/Cancel). |
-
-Mongbat mods in `src/mods/` replace or extend many of these default windows. Check the actual mod files to see which default components each mod targets.
+- **To compare both the Lua AND the XML** for any component being replicated in a Mongbat mod.
 
 **How to use with tools:**
 ```
 github_repo query on "loop-uc-ui/enhanced-client-default" -- e.g.:
   "StatusWindow Initialize Shutdown RegisterWindowData PlayerStatus"
 ```
-This returns relevant code snippets with file paths and line numbers.
+This returns relevant code snippets with file paths and line numbers. Search for both `<WindowName>.lua` and `<WindowName>.xml` files.
 
 ### Default UI Documentation (EA Mythic)
 
 > **Docs site**: https://loop-uc-ui.github.io/enhanced-client-default-docs/
 >
-> The official (but **outdated**) EA Mythic documentation for the UO EC interface system. Still the best reference for **engine-level** API functions, XML attributes, and system concepts.
+> The official (but **outdated**) EA Mythic documentation for the UO EC interface system. Still the best reference for **engine-level** API function signatures, XML attributes, and system concepts.
 
 **Warning**: The Lua code examples in the docs may not match the current default UI source. Always cross-reference the repository above for the latest implementations.
 
@@ -61,12 +43,11 @@ This returns relevant code snippets with file paths and line numbers.
 | Page | URL | Covers |
 |---|---|---|
 | Introduction | `files3/Introduction-txt.html` | High-level overview of the UI system. |
-| Getting Started | `files3/GettingStarted-txt.html` | How local UI mods work: the `UserInterface/` folder, Multiple UI Sets, `Interface.lua`/`Interface.xml` as entry points. |
-| Window Creation Basics | `files3/WindowCreationBasics-txt.html` | XML + Lua skeleton for creating windows: `<Window>` definition, `OnInitialize` handler, `CreateWindow()`. |
-| Anchoring | `files3/Anchoring-txt.html` | `<Anchor>` XML, `WindowClearAnchors()`, `WindowAddAnchor()`. |
-| Expandable List Box | `files3/ExpandableListBox-txt.html` | Complex list widget pattern. |
-| Interface System (API) | `files/Source/MythicInterface-cpp.html` | Core functions: `CreateWindow()`, `CreateWindowFromTemplate()`, `DestroyWindow()`, `RegisterEventHandler()`, `BroadcastEvent()`, `LoadResources()`, `RegisterWindowSet()`, `StringToWString()`, `WStringToString()`, `ScaleInterface()`, `BuildTableFromCSV()`, `GetIconData()`, `LoadStringTable()`, etc. Also defines `SystemData.*` variables and events. |
-| Window (API) | `files/Source/Window-cpp.html` | Base `<Window>` XML attributes (`name`, `layer`, `movable`, `popable`, `handleinput`, `id`, `inherits`, etc.). Window functions: `WindowSetShowing()`, `WindowGetShowing()`, `WindowSetDimensions()`, `WindowGetDimensions()`, `WindowSetAlpha()`, `WindowSetTintColor()`, `WindowSetOffsetFromParent()`, `WindowGetScreenPosition()`, `WindowSetScale()`, `WindowSetParent()`, `WindowRegisterEventHandler()`, `WindowRegisterCoreEventHandler()`, `WindowStartAlphaAnimation()`, `DoesWindowExist()`, `WindowSetMovable()`, `WindowResizeOnChildren()` -- and many more. Also `Window.AnimationType.*` and `Window.Layers.*` constants. |
+| Getting Started | `files3/GettingStarted-txt.html` | How local UI mods work: the `UserInterface/` folder, multiple UI sets. |
+| Window Creation Basics | `files3/WindowCreationBasics-txt.html` | XML + Lua skeleton for creating windows. |
+| Anchoring | `files3/Anchoring-txt.html` | `<Anchor>` XML, anchor API functions. |
+| Interface System (API) | `files/Source/MythicInterface-cpp.html` | Core engine functions: `CreateWindow`, `CreateWindowFromTemplate`, `RegisterEventHandler`, `BroadcastEvent`, `RegisterWindowData`, `StringToWString`, etc. Also `SystemData.*` variables and events. |
+| Window (API) | `files/Source/Window-cpp.html` | Per-window functions: `WindowSetShowing`, `WindowSetDimensions`, `WindowSetId`, `WindowRegisterEventHandler`, `WindowRegisterCoreEventHandler`, etc. Also `Window.AnimationType.*` and `Window.Layers.*`. |
 
 **How to use with tools:**
 ```
@@ -83,320 +64,229 @@ fetch_webpage with relevant docs URL and a search query.
 
 ## Lua Environment Constraints
 
-The UO EC embeds a **sandboxed Lua** runtime (believed to be **5.0 or 5.1** -- the exact version is unconfirmed). Understanding these constraints is critical when writing or reviewing Mongbat code:
+The UO EC embeds a **sandboxed Lua** runtime (believed to be **5.0 or 5.1**). Understanding these constraints is critical:
 
-- **No `require` / `module`** -- all scripts are loaded via XML `<Script>` tags or `.mod` dependency ordering. There is no `require()` function.
-- **No `io`, `os`, `debug` libraries** -- the sandbox removes these entirely (unless debug is explicitly enabled via `SetLoadLuaDebugLibrary(true)`).
-- **`wstring` type** -- the engine adds a wide-string type. Literal syntax: `L"text"`. Many engine functions expect or return `wstring` values. Use `StringToWString()` / `WStringToString()` and `towstring()` / `tostring()` for conversion.
-- **No `goto`** -- the runtime does not have `goto` or labels (added in Lua 5.2).
-- **`math.mod` not `math.fmod`** -- use `math.mod()` (the Lua 5.0 name; it may also be available as `math.fmod`).
+- **No `require` / `module`** -- all scripts are loaded via XML `<Script>` tags or `.mod` dependency ordering.
+- **No `io`, `os`, `debug` libraries** -- the sandbox removes these entirely.
+- **`wstring` type** -- the engine adds a wide-string type. Literal syntax: `L"text"`. Many engine functions expect/return `wstring`. Use `StringToWString()` / `WStringToString()` and `towstring()` / `tostring()` for conversion.
+- **No `goto`** -- not available in the runtime.
+- **`math.mod` not `math.fmod`** -- use `math.mod()` (the Lua 5.0 name).
 - **Limited pattern matching** -- Lua patterns, not regex. No alternation (`|`), no `\d`, no lookahead.
 - **Metatables** -- Mongbat makes heavy use of `__index`, `__newindex`, `__call`, and `__tostring` metamethods for its class system and proxy pattern.
 - **Global namespace** -- all default UI scripts and engine functions populate the global table. Mongbat captures references and sometimes overrides globals (via its `DefaultComponent` system).
 
 ---
 
-## Mongbat Framework Architecture
+## Framework Architecture
+
+This section describes **stable architectural decisions** -- the mental models needed to reason about any mod or framework change. The codebase evolves; for current method signatures, field names, and API surface, always read `Mongbat.lua` directly.
 
 ### Single-File Core
 
-The entire framework is in `src/lib/Mongbat.lua`. It is structured as a series of class definitions followed by namespace assemblies, loaded as a single script.
+The entire framework is in `src/lib/Mongbat.lua`. It contains class definitions, namespace assemblies, and the event dispatch system. To find anything in the framework:
+- **Class definitions** -- search for the class constructor pattern or `local <ClassName>`
+- **Namespace contents** (`Api`, `Utils`, `Constants`, `Data`) -- search for the namespace name
+- **Event registration logic** -- search for `onInitialize` or `registerEventHandler`
+- **Cache and dispatchers** -- search for `Cache` or `withActiveView`
 
-### Class Hierarchy
+### The Component Model
 
+Mongbat uses a **model table → class instance → engine window** pattern:
+
+1. The mod passes a **model table** (plain Lua table) to a factory function (e.g., `ctx.Components.Window { Name = "...", ... }`).
+2. The factory creates a class instance that wraps the model and provides builder methods.
+3. Calling `:create(show)` calls `CreateWindowFromTemplate` to instantiate the engine window.
+
+**Builder pattern**: All setter methods return `self` for chaining.
+
+**Event handlers as model keys**: If the model table contains a key matching a known event name (e.g., `OnUpdatePlayerStatus`, `OnLButtonDown`, `OnMouseOver`), Mongbat automatically registers the appropriate engine event handler during initialization. You do NOT call raw engine registration functions in mod code.
+
+The class hierarchy is:
 ```
-Component                  -- Base: name, type, xml-template support
-  +-- EventReceiver        -- Adds event handler registration/dispatch
-       +-- View            -- Adds dimension, anchor, alpha, tint, input handling; wraps a live window-name
-            |-- Window     -- Top-level container: layer, movable, popable, close button, resizable
-            |-- Button     -- Pressable button with text, textures, disabled state
-            |-- Gump       -- Server-sent generic gump wrapper with element builder methods
-            |-- Label      -- Text display: font, color, alignment, maxWidth, scaling
-            |-- StatusBar  -- Progress bar: currentValue/maximumValue, foreground/background textures
-            |-- CircleImage-- Circular texture (used for portraits/radar)
-            |-- DynamicImage-- Runtime-assigned texture with slice coordinates
-            |-- EditTextBox-- Text input field: history, maxChars
-            +-- LogDisplay -- Multi-line scrolling text area
-```
-
-Each class uses builder-pattern methods (returning `self`) so mods can chain configuration:
-```lua
-Components.Window {
-    Name = "MyWindow",
-    Title = L"My Window",
-    OnInitialize = function(self) ... end,
-}:setDimensions(400, 300):setLayer("secondary"):create(true)
+Component → EventReceiver → View → [Window, Button, Label, StatusBar, DynamicImage, ...]
 ```
 
-### The `View` Base
+Each level adds capabilities. `View` is the workhorse -- every visible UI element is a `View`. Consult `Mongbat.lua` for the full current set of component types, their model keys, and their methods.
 
-`View` is the workhorse class. Every visible UI element is a `View`. Key capabilities:
-- **Window-name tracking** -- `view.Name` maps to the engine's `windowName` string used in all `Window*()` API calls.
-- **Anchoring** -- `view:addAnchor(point, relativeTo, relativePoint, x, y)`, `view:clearAnchors()`.
-- **Dimensions** -- `view:setDimensions(w, h)`, `view:getDimensions()`.
-- **Visibility** -- `view:setShowing(bool)`, `view:getShowing()`.
-- **Alpha / Tint** -- `view:setAlpha(a)`, `view:setTintColor(r,g,b)`.
-- **Id** -- `view:setId(n)`, `view:getId()` -- mirrors `WindowSetId`/`WindowGetId`.
-- **Event handlers** -- inherited from `EventReceiver`: `view:addEventHandler(eventId, callback)`, `view:addCoreEventHandler(eventName, callback)`.
-- **Children** -- `view:addChild(childView)` (engine child-window relationship).
+### Names and IDs
 
-### Components (Factory Functions)
+Every View has a **name** (`string`) and an **id** (`number`). These serve different purposes:
 
-Mods create UI elements through `Components.*` factory functions available on their context object:
+- **Name** -- The engine's unique identifier for the window. Used in all `Window*()` API calls and for event registration. Names **must** be globally unique. If not provided in the model, Mongbat generates a random string.
+- **Id** -- A numeric tag set via `WindowSetId`. IDs are **not** required to be unique. They bind entity-specific data. For example, to receive `OnUpdateMobileName` for a particular mobile, set the view's ID to that mobile's ID.
 
-| Factory | Creates | Key config fields |
+When `View:setId(id)` is called, Mongbat automatically calls `RegisterWindowData(dataType, id)` for each DataEvent in the model. This is the mechanism for entity-specific data binding.
+
+### Child-Centric Event Dispatch
+
+**This is the single most important architectural concept in Mongbat.**
+
+The default UI registers events on **parent windows** (e.g., `StatusWindow` registers all events and dispatches to its children manually). Mongbat inverts this: **each child component registers its own events under its own unique window name and receives them directly.** The parent Window is a container/layout manager, not an event hub.
+
+This means:
+- DataEvent handlers (e.g., `OnUpdatePlayerStatus`) belong on the **child** that displays the data, not on the parent Window.
+- Entity-specific data binding is done by calling `setId(entityId)` on the **child** that needs the data.
+- The parent Window does NOT intercept or re-dispatch DataEvents to its children.
+
+**The dispatch chain:**
+1. Engine sets `SystemData.ActiveWindow.name` to the window name from `WindowRegisterEventHandler`.
+2. Engine calls the callback string (e.g., `Mongbat.EventHandler.OnUpdatePlayerStatus()`).
+3. The dispatcher looks up `Cache[SystemData.ActiveWindow.name]` to find the View instance.
+4. If found, calls the View's handler, which invokes the model's callback.
+
+If the Cache lookup fails, the event is silently dropped. All factory-created components are automatically added to Cache.
+
+**Data registration vs event registration -- two separate engine concepts:**
+
+| Concept | Engine Function | What it does |
 |---|---|---|
-| `Components.Window{...}` | `Window` | `Name`, `Title`, `OnInitialize`, `OnShutdown`, `OnUpdate`, `Movable`, `Popable`, `Layer`, `CloseButton`, `Resizable` |
-| `Components.Button{...}` | `Button` | `Name`, `Text`, `OnLButtonUp`, `OnLButtonDown`, `Disabled` |
-| `Components.Label{...}` | `Label` | `Name`, `Text`, `Font`, `Color`, `MaxWidth`, `TextAlignment` |
-| `Components.StatusBar{...}` | `StatusBar` | `Name`, `CurrentValue`, `MaximumValue`, `ForegroundTint`, `BackgroundTint` |
-| `Components.CircleImage{...}` | `CircleImage` | `Name`, `Radius` |
-| `Components.DynamicImage{...}` | `DynamicImage` | `Name`, `Texture`, `TextureCoords` |
-| `Components.EditTextBox{...}` | `EditTextBox` | `Name`, `MaxChars`, `OnTextChanged` |
-| `Components.LogDisplay{...}` | `LogDisplay` | `Name`, `MaxLines` |
-| `Components.Gump{...}` | `Gump` | `Name`, `GumpId`, gump element builder methods |
+| Data registration | `RegisterWindowData(dataType, id)` | Populates a `WindowData.*` table. Takes a data type + numeric ID. Does NOT take a window name. |
+| Event registration | `WindowRegisterEventHandler(windowName, eventId, callback)` | Routes the event callback. The window name determines `SystemData.ActiveWindow.name` during the callback. |
 
-### Api Namespace
+Some data types (PlayerStatus, Radar, PlayerLocation) are registered **once at framework level** with `id = 0`. Others (MobileName, HealthBarColor, MobileStatus) are registered per-view using the view's numeric ID.
 
-The `Api` namespace wraps raw engine globals into organized sub-tables. Mods access it via their context object (`ctx.Api`). Sub-namespaces are organized by domain (e.g., `Api.Window`, `Api.Button`, `Api.Label`, `Api.Event`, `Api.String`, `Api.DynamicImage`, etc.). Consult `Mongbat.lua` for the full current list.
+**Event propagation:** Some CoreEvents (mouse clicks, mouse-over) propagate from children to their parent Window. DataEvents and most SystemEvents do NOT propagate -- they dispatch only to the specific view that registered them. Consult `Mongbat.lua` (search for the Window component's child-wrapping logic) for the current propagation list.
 
-For example, `Api.Window.SetShowing(name, bool)` wraps the engine's `WindowSetShowing(name, bool)`. This indirection allows Mongbat to add safety checks and maintain compatibility if engine functions change.
+### The Two-Layer Model: XML and Lua
 
-### Utils Namespace
+The engine has a strict split between **creation-time** (XML) and **runtime** (Lua):
 
-Utility functions organized by type:
+- **XML templates** define element types, structure, and certain attributes that have **no Lua setter**.
+- **Lua** controls runtime behavior: dimensions, visibility, alpha, tint, event handlers, etc.
 
-- **`Utils.Array`** -- functional helpers for sequential tables (e.g., `map`, `filter`, `reduce`, `find`, `contains`, `forEach`).
-- **`Utils.Table`** -- dictionary/table operations (e.g., `keys`, `values`, `merge`, `deepCopy`).
-- **`Utils.String`** -- string helpers (e.g., `startsWith`, `endsWith`, `trim`, `split`).
+When a component misbehaves despite correct Lua code, the problem is almost always a **missing XML attribute**. The engine's C++ layer reads some attributes only at template-instantiation time. To discover which attributes exist for a given element type, **fetch the default UI's XML definition** for the equivalent component from the GitHub repo and compare attributes.
 
-Consult `Mongbat.lua` for the full current set of utility functions.
+Mongbat centralizes XML templates in `Mongbat.xml` (minimal templates that rely on Lua for configuration). When a mod needs an XML attribute not in the standard template, it must define a **custom template** in its own `.xml` file and set the `Template` key in the component model.
 
-### Constants Namespace
+**The `MongbatWindow` template is a `<MaskWindow>`**, which clips children to its bounds.
 
-Enumerations and magic values, organized into sub-tables:
+### DefaultComponent Replacement
 
-- **Event-related** -- `Constants.Broadcasts`, `Constants.DataEvents`, `Constants.SystemEvents`, `Constants.CoreEvents`.
-- **Layout-related** -- `Constants.AnchorPoints`, `Constants.WindowLayers`.
-- **UI-related** -- `Constants.ButtonStates`, `Constants.Textures`, `Constants.Colors`, `Constants.TextAlignment`, `Constants.ButtonFlags`, etc.
-- **Game-related** -- `Constants.GumpIds`, `Constants.TargetType`, `Constants.DragSource`, etc.
-
-Consult `Mongbat.lua` for the full current set of constants and their values.
-
-### Data Wrappers
-
-The `Data` namespace provides typed wrappers for the engine's `WindowData.*` tables (e.g., `Data.PlayerStatus`, `Data.HealthBarColor`, `Data.MobileName`, etc.). Example usage in a mod:
-```lua
-local hp = ctx.Data.PlayerStatus.CurrentHealth
-local maxHp = ctx.Data.PlayerStatus.MaxHealth
-```
-
-These wrap the engine pattern of `RegisterWindowData(windowName, dataType)` then reading from `WindowData[dataType][windowName]`. Consult `Mongbat.lua` for the full current set of data wrappers.
-
-### DefaultComponent System
-
-Mongbat can **replace** default UI windows by intercepting their global Lua tables. The `DefaultComponent` proxy system:
+Mongbat can **replace** default UI windows by intercepting their global Lua tables:
 1. Captures the original global (e.g., `StatusWindow`) before the mod loads.
-2. Replaces it with a proxy table whose `Initialize`/`Shutdown` methods are no-ops or redirects.
-3. Provides `disable()` and `restore()` methods to safely toggle the replacement.
-4. The mod's own `Window` component takes over the visual role.
+2. Replaces it with a proxy whose lifecycle methods are no-ops.
+3. Provides `disable()` / `restore()` methods to toggle the replacement.
+4. The mod creates its own Window that takes over the visual role.
 
-Default components correspond to the vanilla window globals (e.g., `StatusWindow`, `MainMenuWindow`, `MapWindow`, `ObjectHandleWindow`, `GenericGump`, etc.). Consult `Mongbat.lua` for the full current set.
+Mods access default components via `ctx.Components.Defaults.<name>`. See existing mods for the pattern: disable the original in `OnInitialize`, restore it in `OnShutdown`.
 
 ### Mod Lifecycle
 
-1. **`.mod` XML file** declares the mod name, Lua script, and dependencies (always depends on `Mongbat`).
-2. The Lua script calls `Mongbat.Mod({ ... })` to register the mod.
-3. Mongbat provides a **context object** (`ctx`) to each mod with: `Api`, `Data`, `Utils`, `Constants`, `Components`, and mod-specific fields.
-4. Lifecycle callbacks: `OnInitialize(ctx)`, `OnShutdown(ctx)`, `OnUpdate(ctx, deltaTime)`.
-5. During `OnInitialize`, the mod creates windows/views, registers event handlers, and optionally disables default UI components.
-6. During `OnShutdown`, views are destroyed and default components restored.
-
-Example mod skeleton:
-```lua
-Mongbat.Mod {
-    Name = "MongbatMyMod",
-    OnInitialize = function(ctx)
-        local window = ctx.Components.Window {
-            Name = "MongbatMyModWindow",
-            Title = L"My Mod",
-            OnInitialize = function(self)
-                self:setDimensions(300, 200)
-                self:addAnchor("center", "Root", "center", 0, 0)
-            end,
-        }:create(true)
-    end,
-    OnShutdown = function(ctx)
-        -- cleanup happens automatically for tracked views
-    end,
-}
-```
-
-### Event System
-
-Mongbat provides three event tiers, mirroring the engine:
-
-1. **DataEvents** -- tied to `WindowData` changes. Registered via `WindowRegisterEventHandler(windowName, eventId, callback)`. See `Constants.DataEvents` for the current list. Used for player stats, health bar colors, mobile names/statuses, object handles.
-2. **SystemEvents** -- engine system events like `UPDATE_PROCESSED`, button-processed events. Registered via `RegisterEventHandler(eventId, callback)` (no window context) or `WindowRegisterEventHandler(windowName, eventId, callback)`.
-3. **CoreEvents** -- string-named per-window events: `"OnInitialize"`, `"OnShutdown"`, `"OnMouseOver"`, `"OnLButtonDown"`, `"OnRButtonDown"`, `"OnLButtonUp"`, `"OnRButtonUp"`, `"OnUpdate"`, `"OnMouseOverEnd"`, etc. Registered via `WindowRegisterCoreEventHandler(windowName, eventName, callback)`.
-
-Mongbat wraps all three through its `EventReceiver` class and provides dispatcher functions (`withActiveView`, `withMouseOverView`) that look up the `View` instance from the engine's `SystemData.ActiveWindow.name` / `SystemData.MouseOverWindow.name` before invoking callbacks.
-
-### XML Templates
-
-`Mongbat.xml` defines base XML templates for each component type (e.g., `MongbatWindow`, `MongbatButton`, `MongbatLabel`, etc.). These use the engine's `inherits` attribute and `$parent` name substitution.
-
-When `Components.Window{...}:create()` is called, it internally calls `CreateWindowFromTemplate(name, "MongbatWindow", parent)` -- the engine function documented in the docs.
+1. `.mod` XML declares the mod, its script, and dependency on `Mongbat`.
+2. The Lua script calls `Mongbat.Mod { Name = "...", OnInitialize = ..., OnShutdown = ..., ... }`.
+3. Mongbat provides a **context object** (`ctx`) with: `Api`, `Data`, `Utils`, `Constants`, `Components`.
+4. `OnInitialize(ctx)` -- create windows, register handlers, disable defaults.
+5. `OnShutdown(ctx)` -- destroy windows, restore defaults.
+6. `OnUpdate(ctx, deltaTime)` -- per-frame logic (optional).
 
 ---
 
-## Engine API Quick Reference
+## How to Navigate the Codebase
 
-These are the **raw engine globals** that Mongbat wraps. When debugging or extending the framework, you may need to reference them directly. Full documentation is in the docs site linked above.
+### Finding What a Mongbat Method Does
 
-### Window Creation & Destruction
-- `CreateWindow(windowName, show)` -- creates from XML definition
-- `CreateWindowFromTemplate(windowName, templateName, parent)` -- creates a named instance from template
-- `CreateWindowFromTemplateShow(windowName, templateName, parent, show)` -- same but controls visibility
-- `DestroyWindow(windowName)` -- destroys window and all children
+Read `Mongbat.lua`. Search for the method name. Most methods are thin wrappers around engine globals -- the method body will show you exactly which engine function it calls and what transformations it applies.
 
-### Window Properties
-- `WindowSetShowing(name, bool)` / `WindowGetShowing(name)`
-- `WindowSetDimensions(name, w, h)` / `WindowGetDimensions(name)`
-- `WindowSetAlpha(name, a)` / `WindowGetAlpha(name)`
-- `WindowSetTintColor(name, r, g, b)` / `WindowGetTintColor(name)`
-- `WindowSetFontAlpha(name, a)` / `WindowGetFontAlpha(name)`
-- `WindowSetScale(name, s)` / `WindowGetScale(name)`
-- `WindowSetMovable(name, bool)` / `WindowGetMovable(name)`
-- `WindowSetPopable(name, bool)` / `WindowGetPopable(name)`
-- `WindowSetHandleInput(name, bool)` / `WindowGetHandleInput(name)`
-- `WindowSetLayer(name, layer)` / `WindowGetLayer(name)`
-- `WindowSetId(name, id)` / `WindowGetId(name)`
-- `WindowSetParent(name, parentName)` / `WindowGetParent(name)`
-- `WindowSetOffsetFromParent(name, x, y)` / `WindowGetOffsetFromParent(name)`
-- `WindowGetScreenPosition(name)`
-- `DoesWindowExist(name)`
+### Finding What a Default Window Does
 
-### Anchoring
-- `WindowClearAnchors(name)`
-- `WindowAddAnchor(name, point, relativeTo, relativePoint, xOff, yOff)`
-- `WindowGetAnchorCount(name)` / `WindowGetAnchor(name, anchorId)`
-- `WindowForceProcessAnchors(name)`
+Use `github_repo` on `loop-uc-ui/enhanced-client-default`. **Always search for both the Lua AND XML files** for any window you're investigating. The XML defines structure and creation-time attributes; the Lua defines behavior. Missing either half leads to incomplete understanding.
 
-### Events
-- `WindowRegisterEventHandler(windowName, eventId, callbackString)` -- per-window event
-- `WindowUnregisterEventHandler(windowName, eventId)` -- remove per-window event
-- `WindowRegisterCoreEventHandler(windowName, eventName, callbackString)` -- per-window core event
-- `WindowUnregisterCoreEventHandler(windowName, eventName)` -- remove core event
-- `RegisterEventHandler(eventId, callbackString)` -- generic (no window context)
-- `UnregisterEventHandler(eventId, callbackString)` -- remove generic
-- `BroadcastEvent(eventId)` -- trigger an event
+### Finding Engine API Signatures
 
-### Animations
-- `WindowStartAlphaAnimation(name, animType, startA, endA, duration, setStartBeforeDelay, delay, numLoop)`
-- `WindowStopAlphaAnimation(name)`
-- `WindowStartPositionAnimation(name, animType, startX, startY, endX, endY, duration, setStartBeforeDelay, delay, numLoop)`
-- `WindowStopPositionAnimation(name)`
-- `WindowStartScaleAnimation(name, animType, startS, endS, duration, setStartBeforeDelay, delay, numLoop)`
-- `WindowStopScaleAnimation(name)`
+Use `fetch_webpage` on the docs site. The Interface System page (`files/Source/MythicInterface-cpp.html`) covers core engine functions. The Window page (`files/Source/Window-cpp.html`) covers per-window functions.
 
-### Data & Strings
-- `RegisterWindowData(windowName, dataType)` / `UnregisterWindowData(windowName, dataType)`
-- `StringToWString(s)` / `WStringToString(ws)`
-- `LoadStringTable(name, dir, file, cacheDir, enumRoot)` / `GetStringFromTable(name, id)`
-- `GetScreenResolution()` -- returns xRes, yRes
-- `BuildTableFromCSV(path, tableName)`
+### Finding Available Events, Constants, Data Wrappers
 
-### System Variables (populated by engine)
-- `SystemData.ActiveWindow.name` -- window name for current callback
-- `SystemData.MouseOverWindow.name` -- window under cursor
-- `SystemData.MousePosition.x` / `.y`
-- `SystemData.Events.*` -- event ID enum table
-- `SystemData.ButtonFlags.SHIFT` / `.CONTROL` / `.ALT`
-- `SystemData.UpdateProcessed.Time` -- delta time for update events
-- `WindowData.*` -- data tables populated after `RegisterWindowData`
+These are all defined in `Mongbat.lua` in their respective namespace sections. Search for `Constants.DataEvents`, `Constants.SystemEvents`, `Constants.CoreEvents`, or the namespace you need. The actual event IDs map to `SystemData.Events.*` engine globals.
+
+### Understanding How a Mod Works
+
+Read the mod's Lua file. Then compare it to the default UI window it replaces (search the default UI repo for both Lua and XML). The mod's `OnInitialize` creates a Mongbat Window with children; the default UI's `Initialize` function does the equivalent with raw engine calls. Map between the two to understand the translation.
 
 ---
 
 ## Guidelines for Responses
 
-### 1. Consult the Default UI Source (Primary Reference)
+### 0. Consult the Project README
 
-**This is the most important guideline.** When answering questions about how something works in the UO EC UI -- whether the user is asking about Mongbat or raw modding -- **search the default UI repository first** using `github_repo` on `loop-uc-ui/enhanced-client-default`. The repo contains the real, working code for every window in the game.
+**Before writing or debugging any Mongbat mod code, read the README.md in the repository root.** It contains the project overview, class hierarchy, and context object documentation.
 
-- If the user asks "how does the health bar work?", search for `StatusWindow` in the repo and show the actual patterns used.
-- If the user asks about a Mongbat mod, compare the mod's code to its default UI counterpart for context.
-- If the user needs to use an engine function not yet wrapped by Mongbat's `Api`, find its usage in the default UI source.
+### 0.1 Read the Engine Log When Debugging
 
-### 2. Consult the Documentation (Secondary Reference)
+The `.env` file in the repo root contains `loglocation`, which points to the UO EC's `lua.log`. **When the user reports a bug or something isn't working, read this log file first** to check for errors before making code changes.
 
-Use `fetch_webpage` on the docs site pages listed above to get:
-- **Function signatures** and parameter types for engine API functions.
-- **XML attribute definitions** for window elements.
-- **Conceptual explanations** (anchoring, window creation lifecycle, events).
+The log contains `[Error]`, `[Function]`, `[Debug]`, and `[System]` entries. **`[Error]` entries are the most useful.** The log is flushed on client logout/shutdown, not in real time.
 
-Always note that the docs are outdated relative to the repo. If a doc example contradicts the repo code, the repo is correct.
+Common error patterns:
+- `Unable to load '<path>.xml'` -- XML file path wrong or file doesn't exist.
+- `Unable to create window: <name>, from template <template>` -- XML template wasn't loaded.
+- `Window <name> does not exist` -- Cascade from failed window creation.
+- `Script Call failed - No Lua State` -- Benign; occurs during shutdown.
 
-### 3. Function Usage and API Guidance
+### 1. Consult the Default UI Source
 
-- **Reference both layers**: When explaining a Mongbat function (e.g., `view:setDimensions(w, h)`), explain what engine call it wraps (`WindowSetDimensions(name, w, h)`), and link to both the Mongbat source in `Mongbat.lua` and the relevant docs page.
-- **Provide compatible Lua code**: All snippets must be compatible with the engine's Lua runtime (5.0/5.1). Use `L"..."` for wide strings. No `goto`, no `require()`.
-- **Use `wstring` correctly**: UI text is almost always `wstring`. Use `L"literal"` in code, `towstring(number)` for conversion, `StringToWString(str)` for runtime conversion.
-- **Builder pattern**: Show the fluent chaining style: `Components.Window{...}:setDimensions(w,h):create(true)`.
+**Search the default UI repository first** using `github_repo` on `loop-uc-ui/enhanced-client-default`. The repo contains real, working code for every window in the game.
 
-### 4. Default UI Patterns to Know
+- Comparing a mod to its default UI counterpart is the fastest way to find bugs.
+- Engine functions not yet wrapped by Mongbat's `Api` can be found in the default UI source.
+- **Always fetch both Lua AND XML** for any window being investigated.
 
-The default UI follows consistent patterns that Mongbat wraps. When explaining these, reference the actual source:
+### 2. Consult the Documentation
 
-**Window lifecycle (vanilla):**
-```lua
--- In SomeWindow.lua:
-SomeWindow = {}  -- global table
+Use `fetch_webpage` on the docs site pages (listed in External Resources above) for:
+- Engine API function signatures and parameter types.
+- XML attribute definitions for window elements.
+- Conceptual explanations (anchoring, window lifecycle).
 
-function SomeWindow.Initialize()
-    -- register data, register events, set up children
-    RegisterWindowData(SomeWindow.Name, WindowData.SomeType.Type)
-    WindowRegisterEventHandler(SomeWindow.Name, WindowData.SomeType.Event, "SomeWindow.OnUpdate")
-end
+The docs are outdated. If a doc example contradicts the repo code, the repo is correct.
 
-function SomeWindow.Shutdown()
-    UnregisterWindowData(SomeWindow.Name, WindowData.SomeType.Type)
-end
+### 3. Code Compatibility
 
-function SomeWindow.OnUpdate()
-    local data = WindowData.SomeType[SomeWindow.Name]
-    -- update UI from data
-end
-```
+- **Lua 5.0/5.1 only** -- no `goto`, no `require`, no modern libraries.
+- **Use `wstring` correctly** -- UI text is almost always `wstring`. Use `L"literal"`, `towstring(number)`, `StringToWString(str)`.
+- **Builder pattern** -- show fluent chaining: `Components.Window{...}:setDimensions(w,h):create(true)`.
+- **Use Mongbat's event system** -- place event handler keys in model tables. Do not call raw engine registration functions in mods.
 
-**Mongbat equivalent:**
-```lua
-Mongbat.Mod {
-    Name = "MongbatSomeMod",
-    DefaultComponents = { "SomeWindow" },
-    OnInitialize = function(ctx)
-        local window = ctx.Components.Window {
-            Name = "MongbatSomeWindow",
-            OnInitialize = function(self)
-                -- register via ctx.Api and ctx.Data wrappers
-            end,
-        }:create(true)
-    end,
-}
-```
+### 4. Debugging Methodology
 
-### 5. Game Theme and Aesthetics
+When something doesn't work, follow this sequence -- **do not skip steps:**
 
-- Ultima Online has a **fantasy medieval** theme -- knights, magic, dragons, guilds.
-- UI should use **ornate borders**, classic fonts, earthy/gold color palettes.
-- Designs should prioritize **readability** and **immersion** -- avoid jarring modern UI patterns.
-- Reference https://uo.com/ for visual inspiration.
+1. **Read `lua.log`** (path from `.env`). Look for `[Error]` entries. Many problems are XML load failures or missing templates that cascade into "window does not exist" errors.
+2. **Fetch the default UI's XML AND Lua** for the equivalent component from the GitHub repo.
+3. **Compare attribute-by-attribute.** If the default UI's XML has attributes not in the Mongbat template, that's likely the problem.
+4. **Compare call-by-call.** If the default UI calls engine functions differently, that's likely the problem.
+5. **If the component updates but incorrectly**, events ARE dispatching -- the problem is in how the engine interprets the data (XML attributes, API arguments, dimensions).
+6. **If you cannot determine the root cause after steps 1-5**, ask the user what they observe rather than guessing.
+
+### 5. Game Aesthetics
+
+Ultima Online has a **fantasy medieval** theme. UI should use ornate borders, classic fonts, earthy/gold palettes. Prioritize readability and immersion over modern UI patterns.
 
 ### 6. General Rules
 
-- **Lua 5.0/5.1 only** -- no `goto`, no modern libraries, no `require`.
-- **All engine globals are uppercase-prefixed** functions (e.g., `WindowSetShowing`, `CreateWindow`, `RegisterEventHandler`).
-- **Mongbat wraps them** in PascalCase under `Api.*` sub-namespaces.
-- **Always validate assumptions** against the default UI repo or docs when unsure.
-- **Back up UI files** before testing -- bad Lua can crash the client's UI layer.
+- **Do not add debug print statements.** Research the root cause in the default UI source (both Lua AND XML). Debug prints are noise that do not solve problems.
+- **Do not develop theories -- verify facts.** Read the default UI's XML and Lua; compare attribute-by-attribute, call-by-call. The answer is almost always a concrete difference between what the default UI does and what the mod does.
+- **Ask the user when uncertain.** If there are multiple plausible root causes, describe what you've found, present the options, and ask which matches their observation. Do not silently pursue a theory across multiple edits.
+- **Consult XML, not just Lua.** Many engine behaviors are configured via XML attributes with no Lua setter. Always check template XML when a component misbehaves.
+- **Validate against the default UI repo or docs** when unsure about any engine behavior.
 - If information is unavailable, suggest checking the repositories or UO modding communities.
+
+### 7. Anti-Patterns
+
+The following mistakes waste effort. **Never repeat them.**
+
+#### 7.1 Blaming Event Dispatch When the Problem is Visual
+
+If a component updates at all (even incorrectly), events ARE dispatching. The problem is XML attributes or engine API arguments. Read the default UI's XML definition.
+
+#### 7.2 Adding Debug Prints Instead of Researching
+
+Do not add `Debug.Print` and ask the user to test. Trace the code, read the default UI, compare to working mods.
+
+#### 7.3 Ignoring XML Templates
+
+When Lua looks correct but a component misbehaves, fetch the default UI's XML file. Many behaviors are XML-only. If the Mongbat template is missing an attribute, create a custom template in the mod's `.xml` file.
+
+#### 7.4 Iterating on a Broken Theory
+
+After one failed fix, stop and reassess. Go back to first principles: what does the default UI do (both Lua AND XML)? What does our code do? What is the concrete difference?

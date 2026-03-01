@@ -121,6 +121,12 @@ Component                  -- Base: name, type, xml-template support
 - **Global namespace** — all engine functions and default UI scripts populate `_G`.
 - **XML + Lua** — windows are defined via XML templates and instantiated/controlled from Lua.
 
+## Debugging
+
+The `.env` file in the repository root defines environment variables for development. Key variable:
+
+- `loglocation` — Path to the UO Enhanced Client's `lua.log` file. This log captures `[Function]`, `[Error]`, `[Debug]`, and `[System]` entries from the Lua/XML interface system. **The log is written on logout/shutdown**, not in real time — you must exit the client to see the latest entries.
+
 ## External References
 
 | Resource | URL | Description |
