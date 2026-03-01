@@ -79,7 +79,7 @@
         </Size>
       </CircleImage>
 
-      <DynamicImage name="MongbatDynamicImage">
+      <DynamicImage name="MongbatDynamicImage" scaleAnchor="center">
         <Size>
           <AbsPoint x="250" y="250" />
         </Size>

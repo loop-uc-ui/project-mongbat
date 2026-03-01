@@ -5214,7 +5214,7 @@ end
 ---@param windowName string The name of the window.
 ---@param handleInput boolean Whether to handle input.
 function Api.Window.SetHandleInput(windowName, handleInput)
-    WindowHandleInput(windowName, handleInput)
+    WindowSetHandleInput(windowName, handleInput)
 end
 
 ---
@@ -6349,20 +6349,24 @@ Constants.SystemEvents.OnLButtonDownProcessed = {
     name = "OnLButtonDownProcessed"
 }
 
+Constants.SystemEvents.OnUpdateProcessed = {
+    getEvent = function()
+        return SystemData.Events["UPDATE_PROCESSED"]
+    end,
+    name = "OnUpdateProcessed"
+}
+
 Constants.CoreEvents = {}
 Constants.CoreEvents.OnInitialize = "OnInitialize"
 Constants.CoreEvents.OnShown = "OnShown"
 Constants.CoreEvents.OnHidden = "OnHidden"
 Constants.CoreEvents.OnShutdown = "OnShutdown"
-Constants.CoreEvents.OnLButtonUp = "OnLButtonUp"
-Constants.CoreEvents.OnLButtonDown = "OnLButtonDown"
 Constants.CoreEvents.OnRButtonUp = "OnRButtonUp"
 Constants.CoreEvents.OnRButtonDown = "OnRButtonDown"
 Constants.CoreEvents.OnUpdate = "OnUpdate"
 Constants.CoreEvents.OnLButtonDblClk = "OnLButtonDblClk"
 Constants.CoreEvents.OnMouseOver = "OnMouseOver"
 Constants.CoreEvents.OnMouseOverEnd = "OnMouseOverEnd"
-Constants.CoreEvents.OnMouseDrag = "OnMouseDrag"
 Constants.CoreEvents.OnMouseWheel = "OnMouseWheel"
 
 Constants.AnchorPoints = {}
@@ -7052,7 +7056,7 @@ local Cache = {}
 ---@field OnLButtonDblClk fun(self: Button, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Button)?
 ---@field OnMouseOverEnd fun(self: Button)?
----@field OnMouseDrag fun(self: Button)?
+---@field OnMouseDrag fun(self: Button, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: Button)?
 ---@field OnUpdatePlayerStatus fun(self: Button, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: Button, mobileName: MobileNameWrapper)?
@@ -7296,7 +7300,7 @@ DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 ---@field OnLButtonDblClk fun(self: CircleImage, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: CircleImage)?
 ---@field OnMouseOverEnd fun(self: CircleImage)?
----@field OnMouseDrag fun(self: CircleImage)?
+---@field OnMouseDrag fun(self: CircleImage, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: CircleImage)?
 ---@field OnUpdatePlayerStatus fun(self: CircleImage, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: CircleImage, mobileName: MobileNameWrapper)?
@@ -7326,7 +7330,7 @@ Component.__index = Component
 ---@field OnLButtonDblClk fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: DynamicImage)?
 ---@field OnMouseOverEnd fun(self: DynamicImage)?
----@field OnMouseDrag fun(self: DynamicImage)?
+---@field OnMouseDrag fun(self: DynamicImage, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: DynamicImage)?
 ---@field OnUpdatePlayerStatus fun(self: DynamicImage, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: DynamicImage, mobileName: MobileNameWrapper)?
@@ -7353,7 +7357,7 @@ DynamicImage.__index = DynamicImage
 ---@field OnLButtonDblClk fun(self: EditTextBox, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: EditTextBox)?
 ---@field OnMouseOverEnd fun(self: EditTextBox)?
----@field OnMouseDrag fun(self: EditTextBox)?
+---@field OnMouseDrag fun(self: EditTextBox, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: EditTextBox)?
 ---@field OnUpdatePlayerStatus fun(self: EditTextBox, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: EditTextBox, mobileName: MobileNameWrapper)?
@@ -7385,7 +7389,7 @@ EventReceiver.__index = EventReceiver
 ---@field OnLButtonDblClk fun(self: Window, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Window)?
 ---@field OnMouseOverEnd fun(self: Window)?
----@field OnMouseDrag fun(self: Window)?
+---@field OnMouseDrag fun(self: Window, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: Window)?
 ---@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: Window, mobileName: MobileNameWrapper)?
@@ -7405,7 +7409,7 @@ EventReceiver.__index = EventReceiver
 ---@field OnLButtonDblClk fun(self: Label, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Label)?
 ---@field OnMouseOverEnd fun(self: Label)?
----@field OnMouseDrag fun(self: Label)?
+---@field OnMouseDrag fun(self: Label, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: Label)?
 ---@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: Label, mobileName: MobileNameWrapper)?
@@ -7435,7 +7439,7 @@ EventReceiver.__index = EventReceiver
 ---@field OnLButtonDblClk fun(self: Gump, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Gump)?
 ---@field OnMouseOverEnd fun(self: Gump)?
----@field OnMouseDrag fun(self: Gump)?
+---@field OnMouseDrag fun(self: Gump, flags: number, deltaX: number, deltaY: number)?
 ---@field OnUpdatePlayerStatus fun(self: Gump, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: Gump, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: Gump, healthBarColor: HealthBarColorWrapper)?
@@ -7465,7 +7469,7 @@ Label.__index = Label
 ---@field OnLButtonDblClk fun(self: LogDisplay, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: LogDisplay)?
 ---@field OnMouseOverEnd fun(self: LogDisplay)?
----@field OnMouseDrag fun(self: LogDisplay)?
+---@field OnMouseDrag fun(self: LogDisplay, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: LogDisplay)?
 ---@field OnUpdatePlayerStatus fun(self: LogDisplay, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: LogDisplay, mobileName: MobileNameWrapper)?
@@ -7492,7 +7496,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnLButtonDblClk fun(self: View, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: View)?
 ---@field OnMouseOverEnd fun(self: View)?
----@field OnMouseDrag fun(self: View)?
+---@field OnMouseDrag fun(self: View, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: View)?
 ---@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: View, mobileName: MobileNameWrapper)?
@@ -7515,7 +7519,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: StatusBar)?
 ---@field OnMouseOverEnd fun(self: StatusBar)?
----@field OnMouseDrag fun(self: StatusBar)?
+---@field OnMouseDrag fun(self: StatusBar, flags: number, deltaX: number, deltaY: number)?
 ---@field OnEndHealthBarDrag fun(self: StatusBar)?
 ---@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: StatusBar, mobileName: MobileNameWrapper)?
@@ -8213,6 +8217,17 @@ end
 -- ========================================================================== --
 
 
+--- Drag tracking state for synthesized OnMouseDrag.
+--- The engine's OnMouseDrag CoreEvent never fires for Mongbat views because
+--- OnLButtonDown/OnLButtonUp are registered as SystemEvents, not CoreEvents.
+--- The framework synthesizes OnMouseDrag by tracking mouse position changes.
+local dragState = {
+    view = nil,  -- The View currently being dragged (or nil)
+    lastX = 0,   -- Last known mouse X
+    lastY = 0,   -- Last known mouse Y
+    flags = 0,   -- LButtonDown flags at drag start
+}
+
 --- Safely dispatches an event to the active window via Active.window().
 --- If the window is nil or the callback errors, it is caught and logged.
 ---@param eventName string The name of the event (for error logging)
@@ -8334,6 +8349,32 @@ function EventHandler.OnUpdate(timePassed)
     end)
 end
 
+--- Framework-level drag tick. Called each frame to synthesize OnMouseDrag.
+local function updateDragState()
+    if dragState.view == nil then return end
+
+    local mouseX = SystemData.MousePosition.x
+    local mouseY = SystemData.MousePosition.y
+    local deltaX = mouseX - dragState.lastX
+    local deltaY = mouseY - dragState.lastY
+    dragState.lastX = mouseX
+    dragState.lastY = mouseY
+
+    if deltaX == 0 and deltaY == 0 then return end
+
+    local success, err = pcall(function()
+        dragState.view:onMouseDrag(dragState.flags, deltaX, deltaY)
+    end)
+    if not success then
+        Debug.Print("[Mongbat] Error in OnMouseDrag: " .. tostring(err))
+        dragState.view = nil
+    end
+end
+
+function EventHandler.OnUpdateProcessed()
+    updateDragState()
+end
+
 function EventHandler.OnLButtonDblClk(flags, x, y)
     withActiveView("OnLButtonDblClk", function(window)
         window:onLButtonDblClk(flags, x, y)
@@ -8349,12 +8390,6 @@ end
 function EventHandler.OnMouseOverEnd()
     withActiveView("OnMouseOverEnd", function(window)
         window:onMouseOverEnd()
-    end)
-end
-
-function EventHandler.OnMouseDrag()
-    withActiveView("OnMouseDrag", function(window)
-        window:onMouseDrag()
     end)
 end
 
@@ -8716,9 +8751,7 @@ function View:onInitialize()
         local isCore = Constants.CoreEvents[k] ~= nil
         local dataEvent = Constants.DataEvents[k]
         local skip = k == Constants.CoreEvents.OnInitialize or
-            k == Constants.CoreEvents.OnShutdown or
-            k == Constants.CoreEvents.OnLButtonDown or
-            k == Constants.CoreEvents.OnLButtonUp
+            k == Constants.CoreEvents.OnShutdown
 
         local functionName = prefix .. k
 
@@ -8759,9 +8792,7 @@ function View:onShutdown()
         local systemEvent = Constants.SystemEvents[k]
         local dataEvent = Constants.DataEvents[k]
         local isCore = k == Constants.CoreEvents.OnInitialize or
-            k == Constants.CoreEvents.OnShutdown or
-            k == Constants.CoreEvents.OnLButtonDown or
-            k == Constants.CoreEvents.OnLButtonUp
+            k == Constants.CoreEvents.OnShutdown
 
         if isCore then
             self:unregisterCoreEventHandler(k)
@@ -8774,6 +8805,9 @@ function View:onShutdown()
 end
 
 function View:onLButtonUp(flags, x, y)
+    if dragState.view == self then
+        dragState.view = nil
+    end
     if self._model.OnLButtonUp ~= nil then
         self._model.OnLButtonUp(self, flags, x, y)
         return true
@@ -8790,6 +8824,12 @@ function View:onMouseWheel(x, y, delta)
 end
 
 function View:onLButtonDown(flags, x, y)
+    if self._model.OnMouseDrag ~= nil then
+        dragState.view = self
+        dragState.lastX = SystemData.MousePosition.x
+        dragState.lastY = SystemData.MousePosition.y
+        dragState.flags = flags
+    end
     if self._model.OnLButtonDown ~= nil then
         self._model.OnLButtonDown(self, flags, x, y)
         return true
@@ -8885,6 +8925,9 @@ function View:onMouseOver()
 end
 
 function View:onMouseOverEnd()
+    if dragState.view == self then
+        dragState.view = nil
+    end
     if self._model.OnMouseOverEnd ~= nil then
         self._model.OnMouseOverEnd(self)
         return true
@@ -8892,9 +8935,9 @@ function View:onMouseOverEnd()
     return false
 end
 
-function View:onMouseDrag()
+function View:onMouseDrag(flags, deltaX, deltaY)
     if self._model.OnMouseDrag ~= nil then
-        self._model.OnMouseDrag(self)
+        self._model.OnMouseDrag(self, flags, deltaX, deltaY)
         return true
     end
     return false
@@ -9600,6 +9643,8 @@ local mod = Mod:new {
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonDown")
+        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnUpdateProcessed.getEvent(),
+            "Mongbat.EventHandler.OnUpdateProcessed")
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
@@ -9607,6 +9652,8 @@ local mod = Mod:new {
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonDown")
+        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnUpdateProcessed.getEvent(),
+            "Mongbat.EventHandler.OnUpdateProcessed")
         Cache = {}
     end
 }

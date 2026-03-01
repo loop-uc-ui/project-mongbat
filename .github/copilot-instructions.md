@@ -73,6 +73,7 @@ The UO EC embeds a **sandboxed Lua** runtime (believed to be **5.0 or 5.1**). Un
 - **`math.mod` not `math.fmod`** -- use `math.mod()` (the Lua 5.0 name).
 - **Limited pattern matching** -- Lua patterns, not regex. No alternation (`|`), no `\d`, no lookahead.
 - **Metatables** -- Mongbat makes heavy use of `__index`, `__newindex`, `__call`, and `__tostring` metamethods for its class system and proxy pattern.
+- **`local function` ordering** -- A `local function` must be **defined before** its first call site in the file. Lua resolves `local` bindings at parse time; calling a local function before its definition results in a "nil value" error at runtime. When adding new local functions to `Mongbat.lua`, always verify the definition appears above all call sites.
 - **Global namespace** -- all default UI scripts and engine functions populate the global table. Mongbat captures references and sometimes overrides globals (via its `DefaultComponent` system).
 
 ---
@@ -146,6 +147,21 @@ If the Cache lookup fails, the event is silently dropped. All factory-created co
 Some data types (PlayerStatus, Radar, PlayerLocation) are registered **once at framework level** with `id = 0`. Others (MobileName, HealthBarColor, MobileStatus) are registered per-view using the view's numeric ID.
 
 **Event propagation:** Some CoreEvents (mouse clicks, mouse-over) propagate from children to their parent Window. DataEvents and most SystemEvents do NOT propagate -- they dispatch only to the specific view that registered them. Consult `Mongbat.lua` (search for the Window component's child-wrapping logic) for the current propagation list.
+
+### Event Dispatch Taxonomy
+
+Mongbat uses **three distinct dispatch mechanisms**. Knowing which mechanism an event uses is critical for debugging:
+
+| Mechanism | How it works | Examples |
+|---|---|---|
+| **CoreEvents** | Registered per-window via `WindowRegisterCoreEventHandler`. The engine fires the callback only on the specific window that registered it. Requires the window name. | `OnUpdate`, `OnMouseWheel`, `OnMouseOver`, `OnMouseOverEnd`, `OnShown`, `OnHidden`, `OnRButtonDown`, `OnRButtonUp`, `OnLButtonDblClk` |
+| **SystemEvents** | Registered globally via `RegisterEventHandler`. The engine broadcasts to all listeners. The framework uses `SystemData.MouseOverWindow.name` to find the target view. | `OnLButtonDown`, `OnLButtonUp` (via `L_BUTTON_DOWN_PROCESSED` / `L_BUTTON_UP_PROCESSED`) |
+| **Synthesized** | Not engine-dispatched. The framework polls state each frame and invokes the handler directly. | `OnMouseDrag` (synthesized via `UPDATE_PROCESSED` tick + `SystemData.MousePosition` polling) |
+
+**Why this matters:**
+- The engine's `OnMouseDrag` CoreEvent exists but **never fires** for Mongbat views. This is because the engine's internal drag tracker only activates when `OnLButtonDown` is registered as a CoreEvent on the same window -- but Mongbat routes button events through SystemEvents instead.
+- If framework-level logic needs to run **every frame regardless of which views exist**, it must use `UPDATE_PROCESSED` (system event), not `OnUpdate` (CoreEvent). CoreEvents only fire on windows that explicitly registered them.
+- `Constants.CoreEvents`, `Constants.SystemEvents`, and `Constants.DataEvents` control what `View:onInitialize` registers. An event must appear in **exactly one** of these tables (or none, if synthesized). Placing an event in the wrong table causes silent registration of a callback string that doesn't exist, or registration of a callback that the engine will never invoke.
 
 ### The Two-Layer Model: XML and Lua
 
@@ -290,3 +306,7 @@ When Lua looks correct but a component misbehaves, fetch the default UI's XML fi
 #### 7.4 Iterating on a Broken Theory
 
 After one failed fix, stop and reassess. Go back to first principles: what does the default UI do (both Lua AND XML)? What does our code do? What is the concrete difference?
+
+#### 7.5 Misplacing Events in Constants Tables
+
+The `Constants.CoreEvents`, `Constants.SystemEvents`, and `Constants.DataEvents` tables drive automatic registration in `View:onInitialize`. If an event is handled by the framework through a different mechanism (e.g., `OnLButtonDown` via SystemEvent, `OnMouseDrag` via synthesis), it must **not** appear in `Constants.CoreEvents`. Leaving it there causes the framework to register a CoreEvent callback string (e.g., `Mongbat.EventHandler.OnMouseDrag`) that doesn't exist as a function, producing a runtime error when the engine tries to call it.
