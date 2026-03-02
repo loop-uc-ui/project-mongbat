@@ -50,6 +50,11 @@
           <Size>
               <AbsPoint x="54" y="18" />
           </Size>
+          <EventHandlers>
+              <EventHandler event="OnTextChanged" function="Mongbat.EventHandler.OnTextChanged"/>
+              <EventHandler event="OnKeyEnter" function="Mongbat.EventHandler.OnKeyEnter"/>
+              <EventHandler event="OnKeyEscape" function="Mongbat.EventHandler.OnKeyEscape"/>
+          </EventHandlers>
       </EditBox>
 
       <LogDisplay name="MongbatLogDisplay" font="inter_medium_18" scrollbar="$parentScrollbar">

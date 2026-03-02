@@ -4974,6 +4974,15 @@ function Api.TextLog.Destroy(name)
 end
 
 ---
+--- Adds a filter type to a text log.
+---@param name string The name of the text log.
+---@param filterId number The unique ID number for this filter type.
+---@param prefix wstring? The text to be prepended to entries of this type. Defaults to L"".
+function Api.TextLog.AddFilterType(name, filterId, prefix)
+    TextLogAddFilterType(name, filterId, prefix or L"")
+end
+
+---
 --- Sets whether a text log is enabled.
 ---@param name string The name of the text log.
 ---@param isEnable boolean Whether the text log is enabled.
@@ -5029,6 +5038,14 @@ end
 ---@param text string The text of the entry.
 function Api.TextLog.AddEntry(name, filterId, text)
     TextLogAddEntry(name, filterId, text)
+end
+
+---
+--- Gets the event ID broadcast when a text log is updated.
+---@param name string The name of the text log.
+---@return number The event ID.
+function Api.TextLog.GetUpdateEventId(name)
+    return TextLogGetUpdateEventId(name)
 end
 
 -- ========================================================================== --
@@ -7363,10 +7380,22 @@ DynamicImage.__index = DynamicImage
 ---@field OnUpdateMobileName fun(self: EditTextBox, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: EditTextBox, healthBarColor: HealthBarColorWrapper)?
 ---@field OnUpdateMobileStatus fun(self: EditTextBox, mobileStatus: MobileStatusWrapper)?
+---@field OnTextChanged fun(self: EditTextBox, text: wstring)?
+---@field OnKeyEnter fun(self: EditTextBox)?
+---@field OnKeyEscape fun(self: EditTextBox)?
 
 ---@class EditTextBox: View
 local EditTextBox = {}
 EditTextBox.__index = EditTextBox
+
+---@class FilterInputModel : EditTextBoxModel
+---@field OnTextChanged fun(self: FilterInput, text: wstring)?
+---@field OnKeyEnter fun(self: FilterInput)?
+---@field OnKeyEscape fun(self: FilterInput)?
+
+---@class FilterInput: EditTextBox
+local FilterInput = {}
+FilterInput.__index = FilterInput
 
 ---@class EventReceiver : Component
 local EventReceiver = {}
@@ -7667,6 +7696,25 @@ end
 
 function Button:setTextColor(state, color)
     Api.Button.SetTextColor(self:getName(), state, color.r, color.g, color.b)
+end
+
+function Button:setChecked(isChecked)
+    Api.Button.SetChecked(self:getName(), isChecked)
+    return self
+end
+
+function Button:isChecked()
+    return Api.Button.IsChecked(self:getName())
+end
+
+function Button:setStayDown(stayDown)
+    Api.Button.SetStayDown(self:getName(), stayDown)
+    return self
+end
+
+function Button:setCheckButton(enabled)
+    Api.Button.SetEnabled(self:getName(), enabled)
+    return self
 end
 
 ---@param model ButtonModel?
@@ -8059,6 +8107,33 @@ function DefaultMapWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Debug Window
+-- ========================================================================== --
+
+---@class DefaultDebugWindowComponent : DefaultComponent
+local DefaultDebugWindowComponent = {}
+DefaultDebugWindowComponent.__index = DefaultDebugWindowComponent
+
+---@return DefaultDebugWindowComponent
+function DefaultDebugWindowComponent:new()
+    local instance = DefaultComponent.new(self, "DebugWindow") --[[@as DefaultDebugWindowComponent]]
+    instance._proxy = instance:_createProxy(DebugWindow)
+    instance._globalKey = "DebugWindow"
+    _G.DebugWindow = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultDebugWindowComponent:getDefault()
+    return self._proxy or DebugWindow
+end
+
+---@return Window
+function DefaultDebugWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Object Handle
 -- ========================================================================== --
 
@@ -8204,6 +8279,24 @@ function EditTextBox:setTextColor(color)
     Api.EditTextBox.SetTextColor(self:getName(), color.r, color.g, color.b)
 end
 
+function EditTextBox:selectAll()
+    Api.EditTextBox.SelectAll(self:getName())
+end
+
+---@param focus boolean
+function EditTextBox:setFocus(focus)
+    Api.Window.AssignFocus(self:getName(), focus)
+end
+
+function EditTextBox:clear()
+    Api.EditTextBox.SetText(self:getName(), L"")
+end
+
+---@param font string
+function EditTextBox:setFont(font)
+    Api.EditTextBox.SetFont(self:getName(), font)
+end
+
 ---@param model EditTextBoxModel?
 ---@return EditTextBox
 function Components.EditTextBox(model)
@@ -8213,9 +8306,35 @@ function Components.EditTextBox(model)
 end
 
 -- ========================================================================== --
--- Components - Event Handler
+-- Components - FilterInput
 -- ========================================================================== --
 
+setmetatable(FilterInput, { __index = EditTextBox })
+
+---@param model FilterInputModel?
+---@return FilterInput
+function FilterInput:new(model)
+    model = model or {}
+    local instance = EditTextBox.new(self, model) --[[@as FilterInput]]
+    return instance
+end
+
+---@return wstring
+function FilterInput:getFilterText()
+    return self:getText()
+end
+
+---@param model FilterInputModel?
+---@return FilterInput
+function Components.FilterInput(model)
+    local filterInput = FilterInput:new(model)
+    Cache[filterInput:getName()] = filterInput
+    return filterInput
+end
+
+-- ========================================================================== --
+-- Components - Event Handler
+-- ========================================================================== --
 
 --- Drag tracking state for synthesized OnMouseDrag.
 --- The engine's OnMouseDrag CoreEvent never fires for Mongbat views because
@@ -8417,6 +8536,24 @@ function EventHandler.OnMouseWheel(x, y, delta)
     end)
 end
 
+function EventHandler.OnTextChanged(text)
+    withActiveView("OnTextChanged", function(window)
+        window:onTextChanged(text)
+    end)
+end
+
+function EventHandler.OnKeyEnter()
+    withActiveView("OnKeyEnter", function(window)
+        window:onKeyEnter()
+    end)
+end
+
+function EventHandler.OnKeyEscape()
+    withActiveView("OnKeyEscape", function(window)
+        window:onKeyEscape()
+    end)
+end
+
 -- ========================================================================== --
 -- Components - Event Receiver
 --#========================================================================= --
@@ -8485,6 +8622,18 @@ function EventReceiver:onMouseDrag()
 end
 
 function EventReceiver:onEndHealthBarDrag()
+    return self
+end
+
+function EventReceiver:onTextChanged(text)
+    return self, text
+end
+
+function EventReceiver:onKeyEnter()
+    return self
+end
+
+function EventReceiver:onKeyEscape()
     return self
 end
 
@@ -8625,12 +8774,25 @@ function LogDisplay:setFilterState(logName, filterId, isEnabled)
     return self
 end
 
+function LogDisplay:setFilterColor(logName, filterId, color)
+    Api.LogDisplay.SetFilterColor(self:getName(), logName, filterId, color)
+    return self
+end
+
 ---Registers the log to the log display
 ---@param logName string
 ---@param displayPreviousEntries boolean?
 ---@return LogDisplay
 function LogDisplay:addLog(logName, displayPreviousEntries)
     Api.LogDisplay.AddLog(self:getName(), logName, displayPreviousEntries)
+    return self
+end
+
+---Removes a log from the log display
+---@param logName string
+---@return LogDisplay
+function LogDisplay:removeLog(logName)
+    Api.LogDisplay.RemoveLog(self:getName(), logName)
     return self
 end
 
@@ -8963,6 +9125,30 @@ end
 function View:onUpdatePlayerLocation(data)
     if self._model.OnUpdatePlayerLocation ~= nil then
         self._model.OnUpdatePlayerLocation(self, data)
+        return true
+    end
+    return false
+end
+
+function View:onTextChanged(text)
+    if self._model.OnTextChanged ~= nil then
+        self._model.OnTextChanged(self, text)
+        return true
+    end
+    return false
+end
+
+function View:onKeyEnter()
+    if self._model.OnKeyEnter ~= nil then
+        self._model.OnKeyEnter(self)
+        return true
+    end
+    return false
+end
+
+function View:onKeyEscape()
+    if self._model.OnKeyEscape ~= nil then
+        self._model.OnKeyEscape(self)
         return true
     end
     return false
@@ -9452,6 +9638,7 @@ setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
+setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -9464,6 +9651,7 @@ Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
+Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod

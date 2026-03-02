@@ -85,10 +85,12 @@ Mongbat.Mod {
                 end,
                 OnLButtonDown = function(self)
                     context.Api.Radar.SetCenterOnPlayer(false)
+                    context.Api.Window.SetMovable(self:getParent(), false)
+                end,
+                OnLButtonUp = function(self)
+                    context.Api.Window.SetMovable(self:getParent(), true)
                 end,
                 OnMouseDrag = function(self, flags, deltaX, deltaY)
-                    if deltaX == 0 and deltaY == 0 then return end
-
                     local Radar = context.Api.Radar
                     local facet = Radar.GetFacet()
                     local area = Radar.GetArea()

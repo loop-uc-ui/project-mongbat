@@ -76,7 +76,7 @@ Mongbat.Mod {
                         Button(
                             L"Debug",
                             function ()
-                                context.Api.Window.ToggleWindow("DebugWindow")
+                                context.Api.Window.ToggleWindow("MongbatDebugWindow")
                                 self:setShowing(false)
                             end
                         )
