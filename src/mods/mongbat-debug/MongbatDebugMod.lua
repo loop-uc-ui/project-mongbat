@@ -26,7 +26,7 @@ local function applyFilter(ctx, fullLog, filteredLog, text)
 
     for _, logName in ipairs({ "UiLog", "DebugPrint" }) do
         local count = ctx.Api.TextLog.GetNumEntries(logName)
-        for i = 1, count do
+        for i = 0, count - 1 do
             local _, filterType, entryText = ctx.Api.TextLog.GetEntry(logName, i)
             if entryText and wstring.find(wstring.lower(entryText), lowerFilter) then
                 ctx.Api.TextLog.AddEntry(FILTERED_LOG, filterType, entryText)
@@ -43,7 +43,7 @@ local function OnInitialize(ctx)
     local original = ctx.Components.Defaults.DebugWindow
     original:disable()
 
-    ctx.Api.TextLog.Create("DebugPrint", 1)
+    ctx.Api.TextLog.Create("DebugPrint", 500)
     ctx.Api.TextLog.SetEnabled("DebugPrint", true)
     ctx.Api.TextLog.Clear("DebugPrint")
     ctx.Api.TextLog.SetIncrementalSaving("DebugPrint", true, "logs/Debug.Print.log")
