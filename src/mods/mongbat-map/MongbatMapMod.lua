@@ -85,10 +85,9 @@ Mongbat.Mod {
                 end,
                 OnLButtonDown = function(self)
                     context.Api.Radar.SetCenterOnPlayer(false)
-                    context.Api.Window.SetMovable(self:getParent(), false)
-                end,
-                OnLButtonUp = function(self)
-                    context.Api.Window.SetMovable(self:getParent(), true)
+                    -- Cancel the engine's native window drag so panning the map
+                    -- doesn't also move the parent window.
+                    context.Api.Window.SetMoving(self:getParent(), false)
                 end,
                 OnMouseDrag = function(self, flags, deltaX, deltaY)
                     local Radar = context.Api.Radar
