@@ -89,6 +89,9 @@ Mongbat.Mod {
                     -- doesn't also move the parent window.
                     context.Api.Window.SetMoving(self:getParent(), false)
                 end,
+                OnLButtonDblClk = function(self)
+                    context.Api.Radar.SetCenterOnPlayer(true)
+                end,
                 OnMouseDrag = function(self, flags, deltaX, deltaY)
                     local Radar = context.Api.Radar
                     local facet = Radar.GetFacet()
