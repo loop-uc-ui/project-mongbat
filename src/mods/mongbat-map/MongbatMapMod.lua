@@ -88,7 +88,7 @@ Mongbat.Mod {
             local facetName = context.Utils.String.FromWString(
                 context.Api.String.GetStringFromTid(facetTid)
             )
-            return string.format("%d, %d - %s", x, y, facetName)
+            return context.Utils.String.Format("%d, %d - %s", x, y, facetName)
         end
 
         local function Map()

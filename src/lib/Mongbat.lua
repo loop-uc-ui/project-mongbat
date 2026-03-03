@@ -6261,6 +6261,13 @@ function Utils.String.Upper(text)
     end
 end
 
+---@param fmt string
+---@param ... any
+---@return string
+function Utils.String.Format(fmt, ...)
+    return string.format(fmt, ...)
+end
+
 -- ========================================================================== --
 -- Constants
 -- ========================================================================== --
@@ -8373,17 +8380,6 @@ end
 -- Components - Event Handler
 -- ========================================================================== --
 
---- Drag tracking state for synthesized OnMouseDrag.
---- The engine's OnMouseDrag CoreEvent never fires for Mongbat views because
---- OnLButtonDown/OnLButtonUp are registered as SystemEvents, not CoreEvents.
---- The framework synthesizes OnMouseDrag by tracking mouse position changes.
-local dragState = {
-    view = nil,  -- The View currently being dragged (or nil)
-    lastX = 0,   -- Last known mouse X
-    lastY = 0,   -- Last known mouse Y
-    flags = 0,   -- LButtonDown flags at drag start
-}
-
 --- Safely dispatches an event to the active window via Active.window().
 --- If the window is nil or the callback errors, it is caught and logged.
 ---@param eventName string The name of the event (for error logging)
@@ -8503,32 +8499,6 @@ function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
     end)
-end
-
---- Framework-level drag tick. Called each frame to synthesize OnMouseDrag.
-local function updateDragState()
-    if dragState.view == nil then return end
-
-    local mouseX = SystemData.MousePosition.x
-    local mouseY = SystemData.MousePosition.y
-    local deltaX = mouseX - dragState.lastX
-    local deltaY = mouseY - dragState.lastY
-    dragState.lastX = mouseX
-    dragState.lastY = mouseY
-
-    if deltaX == 0 and deltaY == 0 then return end
-
-    local success, err = pcall(function()
-        dragState.view:onMouseDrag(dragState.flags, deltaX, deltaY)
-    end)
-    if not success then
-        Debug.Print("[Mongbat] Error in OnMouseDrag: " .. tostring(err))
-        dragState.view = nil
-    end
-end
-
-function EventHandler.OnUpdateProcessed()
-    updateDragState()
 end
 
 function EventHandler.OnLButtonDblClk(flags, x, y)
@@ -9004,9 +8974,6 @@ function View:onShutdown()
 end
 
 function View:onLButtonUp(flags, x, y)
-    if dragState.view == self then
-        dragState.view = nil
-    end
     if self._model.OnLButtonUp ~= nil then
         self._model.OnLButtonUp(self, flags, x, y)
         return true
@@ -9023,12 +8990,6 @@ function View:onMouseWheel(x, y, delta)
 end
 
 function View:onLButtonDown(flags, x, y)
-    if self._model.OnMouseDrag ~= nil then
-        dragState.view = self
-        dragState.lastX = SystemData.MousePosition.x
-        dragState.lastY = SystemData.MousePosition.y
-        dragState.flags = flags
-    end
     if self._model.OnLButtonDown ~= nil then
         self._model.OnLButtonDown(self, flags, x, y)
         return true
@@ -9124,9 +9085,6 @@ function View:onMouseOver()
 end
 
 function View:onMouseOverEnd()
-    if dragState.view == self then
-        dragState.view = nil
-    end
     if self._model.OnMouseOverEnd ~= nil then
         self._model.OnMouseOverEnd(self)
         return true
@@ -9868,8 +9826,6 @@ local mod = Mod:new {
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonDown")
-        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnUpdateProcessed.getEvent(),
-            "Mongbat.EventHandler.OnUpdateProcessed")
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
@@ -9877,8 +9833,6 @@ local mod = Mod:new {
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonDown")
-        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnUpdateProcessed.getEvent(),
-            "Mongbat.EventHandler.OnUpdateProcessed")
         Cache = {}
     end
 }
