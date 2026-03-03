@@ -48,7 +48,7 @@ Mongbat.Mod {
                 local vpH = vpDims.y * scaleFactor
 
                 -- Mouse position (screen pixels)
-                local pos = context.Data.Mouse():getPosition()
+                local pos = context.Data.MousePosition()
                 local mx = pos.x
                 local my = pos.y
 
