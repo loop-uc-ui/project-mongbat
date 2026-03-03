@@ -111,11 +111,12 @@ Mongbat.Mod {
                     adjustZoom(-delta)
                 end,
                 OnLButtonDown = function(self, flags)
-                    if flags == SystemData.ButtonFlags.SHIFT then
+                    if context.Data.ButtonFlags(flags):isShift() then
                         isPanning = true
                         centerOnPlayer = false
-                        lastMouseX = SystemData.MousePosition.x
-                        lastMouseY = SystemData.MousePosition.y
+                        local pos = context.Data.Mouse():getPosition()
+                        lastMouseX = pos.x
+                        lastMouseY = pos.y
                         context.Api.Radar.SetCenterOnPlayer(false)
                         context.Api.Window.SetMoving(self:getParent(), false)
                     end
@@ -131,8 +132,9 @@ Mongbat.Mod {
                 OnUpdate = function(self)
                     if not isPanning then return end
 
-                    local mouseX = SystemData.MousePosition.x
-                    local mouseY = SystemData.MousePosition.y
+                    local pos = context.Data.Mouse():getPosition()
+                    local mouseX = pos.x
+                    local mouseY = pos.y
                     local deltaX = mouseX - lastMouseX
                     local deltaY = mouseY - lastMouseY
                     lastMouseX = mouseX

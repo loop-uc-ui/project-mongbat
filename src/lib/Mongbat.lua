@@ -6717,6 +6717,41 @@ function Data.MobileStatus(id)
 end
 
 -- ========================================================================== --
+-- Data - Button Flags
+-- ========================================================================== --
+
+---@class ButtonFlagsDataWrapper
+---@field private flags number
+local ButtonFlags = {}
+ButtonFlags.__index = ButtonFlags
+
+---@param flags number
+function ButtonFlags:new(flags)
+    return setmetatable({ flags = flags or 0 }, self)
+end
+
+---@return boolean
+function ButtonFlags:isShift()
+    return self.flags == Constants.ButtonFlags.Shift
+end
+
+---@return boolean
+function ButtonFlags:isControl()
+    return self.flags == Constants.ButtonFlags.Control
+end
+
+---@return boolean
+function ButtonFlags:isAlt()
+    return self.flags == Constants.ButtonFlags.Alt
+end
+
+---@param flags number
+---@return ButtonFlagsDataWrapper
+function Data.ButtonFlags(flags)
+    return ButtonFlags:new(flags)
+end
+
+-- ========================================================================== --
 -- Data - Mouse
 -- ========================================================================== --
 
