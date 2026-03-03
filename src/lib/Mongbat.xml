@@ -45,6 +45,13 @@
           <Color r="206" g="217" b="242" a="255" />
       </Label>
 
+      <Label name="MongbatLabelSmall" font="inter_medium_12">
+          <Size>
+              <AbsPoint x="54" y="12" />
+          </Size>
+          <Color r="206" g="217" b="242" a="255" />
+      </Label>
+
       <EditBox name="MongbatEditTextBox" font="inter_medium_18" taborder="1" maxchars="256" scrolling="horz">
           <TextOffset x="4" y="4" />
           <Size>

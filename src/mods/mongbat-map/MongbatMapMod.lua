@@ -15,6 +15,13 @@ Mongbat.Mod {
         local mapCommon = context.Components.Defaults.MapCommon
         mapCommon:disable()
 
+        -- Track whether the radar is centered on the player
+        local centerOnPlayer = true
+        -- Track whether Shift+drag panning is active
+        local isPanning = false
+        local lastMouseX = 0
+        local lastMouseY = 0
+
         -- Zoom state (mirrors MapCommon.ZoomLevel)
         local zoom = {
             current = 0,
@@ -64,6 +71,26 @@ Mongbat.Mod {
             end
         end
 
+        --- Returns the coordinate + facet display text.
+        --- Shows player coords when centered on player, otherwise the map center.
+        local function formatLocationText()
+            local Radar = context.Api.Radar
+            local x, y
+            if centerOnPlayer then
+                local loc = context.Data.PlayerLocation()
+                x = loc:getX()
+                y = loc:getY()
+            else
+                x, y = Radar.GetCenter()
+            end
+            local facet = Radar.GetFacet()
+            local facetTid = Radar.GetFacetLabel(facet)
+            local facetName = context.Utils.String.FromWString(
+                context.Api.String.GetStringFromTid(facetTid)
+            )
+            return string.format("%d, %d - %s", x, y, facetName)
+        end
+
         local function Map()
             return context.Components.DynamicImage {
                 OnInitialize = function(self)
@@ -83,16 +110,36 @@ Mongbat.Mod {
                 OnMouseWheel = function(self, _, _, delta)
                     adjustZoom(-delta)
                 end,
-                OnLButtonDown = function(self)
-                    context.Api.Radar.SetCenterOnPlayer(false)
-                    -- Cancel the engine's native window drag so panning the map
-                    -- doesn't also move the parent window.
-                    context.Api.Window.SetMoving(self:getParent(), false)
+                OnLButtonDown = function(self, flags)
+                    if flags == SystemData.ButtonFlags.SHIFT then
+                        isPanning = true
+                        centerOnPlayer = false
+                        lastMouseX = SystemData.MousePosition.x
+                        lastMouseY = SystemData.MousePosition.y
+                        context.Api.Radar.SetCenterOnPlayer(false)
+                        context.Api.Window.SetMoving(self:getParent(), false)
+                    end
+                end,
+                OnLButtonUp = function(self)
+                    isPanning = false
                 end,
                 OnLButtonDblClk = function(self)
+                    isPanning = false
+                    centerOnPlayer = true
                     context.Api.Radar.SetCenterOnPlayer(true)
                 end,
-                OnMouseDrag = function(self, flags, deltaX, deltaY)
+                OnUpdate = function(self)
+                    if not isPanning then return end
+
+                    local mouseX = SystemData.MousePosition.x
+                    local mouseY = SystemData.MousePosition.y
+                    local deltaX = mouseX - lastMouseX
+                    local deltaY = mouseY - lastMouseY
+                    lastMouseX = mouseX
+                    lastMouseY = mouseY
+
+                    if deltaX == 0 and deltaY == 0 then return end
+
                     local Radar = context.Api.Radar
                     local facet = Radar.GetFacet()
                     local area = Radar.GetArea()
@@ -110,15 +157,42 @@ Mongbat.Mod {
             }
         end
 
+        --- Label in the lower-left corner showing coordinates and facet name.
+        --- Displays player coords when centered on player, map center otherwise.
+        local function CoordsLabel()
+            return context.Components.Label {
+                Template = "MongbatLabelSmall",
+                OnInitialize = function(self)
+                    self:setDimensions(WINDOW_SIZE, 16)
+                    self:setLayer():overlay()
+                    self:setText(formatLocationText())
+                end,
+                OnUpdateRadar = function(self)
+                    self:setText(formatLocationText())
+                end,
+                OnUpdatePlayerLocation = function(self)
+                    if centerOnPlayer then
+                        self:setText(formatLocationText())
+                    end
+                end,
+            }
+        end
+
         local function Window()
             return context.Components.Window {
                 Name = "MongbatMapWindow",
                 OnInitialize = function(self)
                     self:setDimensions(WINDOW_SIZE + MARGIN * 2, WINDOW_SIZE + MARGIN * 2)
-                    self:setChildren { Map() }
+                    self:setChildren { Map(), CoordsLabel() }
                 end,
-                OnLayout = function(_, _, child, _)
-                    child:anchorToParentCenter(0, 0)
+                OnLayout = function(self, children, child, index)
+                    if index == 1 then
+                        -- Map image: centered
+                        child:anchorToParentCenter(0, 0)
+                    elseif index == 2 then
+                        -- Coords/facet label: bottom-left corner
+                        child:addAnchor("bottomleft", self:getName(), "bottomleft", MARGIN, -MARGIN)
+                    end
                 end,
             }
         end

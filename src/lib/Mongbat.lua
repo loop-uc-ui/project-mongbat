@@ -4734,18 +4734,18 @@ function Api.Radar.GetPhysicalArea(facet, area)
 end
 
 ---
---- Gets the facet label for the radar.
+--- Gets the facet label TID for the radar.
 ---@param facet any The facet of the map.
----@return string The facet label.
+---@return integer The facet label TID.
 function Api.Radar.GetFacetLabel(facet)
     return UORadarGetFacetLabel(facet)
 end
 
 ---
---- Gets the area label for the radar.
+--- Gets the area label TID for the radar.
 ---@param facet any The facet of the map.
 ---@param area any The area of the map.
----@return string The area label.
+---@return integer The area label TID.
 function Api.Radar.GetAreaLabel(facet, area)
     return UORadarGetAreaLabel(facet, area)
 end
@@ -7444,6 +7444,8 @@ EventReceiver.__index = EventReceiver
 ---@field OnUpdateMobileName fun(self: Label, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
 ---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
+---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
+---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
 
 ---@class GumpItem
 ---@field tid integer
