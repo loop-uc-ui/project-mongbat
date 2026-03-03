@@ -1,4 +1,4 @@
-﻿---@class Api
+---@class Api
 local Api = {}
 
 ---@class Constants
