@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="../../../docs/Interface.xsd">
+  <Templates>
+    <DynamicImage name="MongbatMapDynamicImage" scaleAnchor="center" handleinput="true">
+      <Size>
+        <AbsPoint x="400" y="400" />
+      </Size>
+    </DynamicImage>
+  </Templates>
+</Interface>

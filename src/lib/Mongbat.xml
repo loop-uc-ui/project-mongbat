@@ -127,5 +127,18 @@
           </Windows>
       </MaskWindow>
 
+      <!-- Resize grip anchored to bottom-right corner of a window (purple diamond from Legacy Runebook) -->
+      <Button name="MongbatResizeGrip" texture="Legacy_Buttons">
+          <Size>
+              <AbsPoint x="17" y="17" />
+          </Size>
+          <TexCoords>
+              <Normal texture="Legacy_Buttons" x="426" y="141" />
+              <NormalHighlit texture="Legacy_Buttons" x="455" y="141" />
+              <Pressed texture="Legacy_Buttons" x="455" y="141" />
+              <Disabled texture="Legacy_Buttons" x="486" y="141" />
+          </TexCoords>
+      </Button>
+
     </Windows>
 </Interface>

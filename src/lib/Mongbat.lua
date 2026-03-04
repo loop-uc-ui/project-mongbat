@@ -3616,6 +3616,17 @@ local EventHandler = {}
 ---@type table<string, View>
 local Cache = {}
 
+--- Module-level resize tracking
+---@type Window?
+local resizingWindow = nil
+---@type { startMouseX: number, startMouseY: number, startWidth: number, startHeight: number, minWidth: number, minHeight: number }?
+local resizeState = nil
+--- The original OnUpdate handler saved before resize injected its own
+---@type fun(self: Window, timePassed: integer)?
+local resizeOriginalOnUpdate = nil
+--- Whether we dynamically registered OnUpdate (it wasn't already present)
+local resizeRegisteredOnUpdate = false
+
 ---@class ButtonModel : WindowModel
 ---@field OnInitialize fun(self: Button)?
 ---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
@@ -3926,6 +3937,10 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
+---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
+---@field MinWidth number? Minimum width when resizing. Defaults to 100.
+---@field MinHeight number? Minimum height when resizing. Defaults to 100.
+---@field OnResize fun(self: Window, width: number, height: number)?
 
 ---@class LabelModel : ViewModel
 ---@field OnInitialize fun(self: Label)?
@@ -4847,7 +4862,104 @@ function EventHandler.OnShutdown()
     end
 end
 
+--- Stops an active resize, re-layouts children, and fires the OnResize callback.
+local function stopResize()
+    if resizingWindow == nil then return end
+    local window = resizingWindow
+    resizingWindow = nil
+    resizeState = nil
+
+    -- Restore the original OnUpdate handler
+    window._model.OnUpdate = resizeOriginalOnUpdate
+
+    -- If we dynamically registered OnUpdate, unregister it
+    if resizeRegisteredOnUpdate then
+        window:unregisterCoreEventHandler(Constants.CoreEvents.OnUpdate)
+        resizeRegisteredOnUpdate = false
+    end
+
+    resizeOriginalOnUpdate = nil
+
+    -- Re-layout children
+    if window._model.OnLayout then
+        Utils.Array.ForEach(window._children, function(child, index)
+            child:clearAnchors()
+            window._model.OnLayout(window, window._children, child, index)
+        end)
+    end
+
+    -- Fire resize callback
+    if window._model.OnResize then
+        local dimens = window:getDimensions()
+        window._model.OnResize(window, dimens.x, dimens.y)
+    end
+end
+
+--- Begins a live resize for the given window. Injects a per-frame OnUpdate
+--- handler on the window itself, chaining any existing OnUpdate.
+---@param window Window
+local function startResize(window)
+    -- Cancel any in-progress resize first
+    if resizingWindow ~= nil then stopResize() end
+
+    resizingWindow = window
+    local mousePos = SystemData.MousePosition
+    local dimens = window:getDimensions()
+    resizeState = {
+        startMouseX = mousePos.x,
+        startMouseY = mousePos.y,
+        startWidth = dimens.x,
+        startHeight = dimens.y,
+        minWidth = window._model.MinWidth or 100,
+        minHeight = window._model.MinHeight or 100,
+    }
+
+    -- Prevent the parent window from moving while resizing
+    Api.Window.SetMoving(window.name, false)
+
+    -- Save the original OnUpdate and inject our resize handler
+    resizeOriginalOnUpdate = window._model.OnUpdate
+
+    window._model.OnUpdate = function(self, timePassed)
+        -- Perform resize calculations
+        if resizingWindow ~= nil and resizeState ~= nil then
+            local mPos = SystemData.MousePosition
+            local scale = InterfaceCore.scale
+            local dx = (mPos.x - resizeState.startMouseX) / scale
+            local dy = (mPos.y - resizeState.startMouseY) / scale
+            local newW = math.max(resizeState.startWidth + dx, resizeState.minWidth)
+            local newH = math.max(resizeState.startHeight + dy, resizeState.minHeight)
+            Api.Window.SetDimensions(resizingWindow.name, newW, newH)
+
+            -- Re-layout children each frame so content tracks the new size
+            if resizingWindow._model.OnLayout then
+                Utils.Array.ForEach(resizingWindow._children, function(child, index)
+                    child:clearAnchors()
+                    resizingWindow._model.OnLayout(resizingWindow, resizingWindow._children, child, index)
+                end)
+            end
+        end
+
+        -- Chain the original OnUpdate if it existed
+        if resizeOriginalOnUpdate ~= nil then
+            resizeOriginalOnUpdate(self, timePassed)
+        end
+    end
+
+    -- If the window didn't already have OnUpdate registered, register the CoreEvent now
+    if resizeOriginalOnUpdate == nil then
+        resizeRegisteredOnUpdate = true
+        window:registerCoreEventHandler(
+            Constants.CoreEvents.OnUpdate,
+            "Mongbat.EventHandler.OnUpdate"
+        )
+    end
+end
+
 function EventHandler.OnLButtonUp(flags, x, y)
+    if resizingWindow ~= nil then
+        stopResize()
+    end
     withMouseOverView("OnLButtonUp", function(window)
         window:onLButtonUp(flags, x, y)
     end)
@@ -5767,8 +5879,32 @@ function Window:onInitialize()
     self:toggleFrame(isParentRoot)
     View.onInitialize(self)
 
+    -- Re-check parent after View.onInitialize, which may reparent this window
+    isParentRoot = self:isParentRoot()
+
     if isParentRoot then
         Api.Window.RestorePosition(self.name)
+    end
+
+    -- Create resize grip for root windows unless explicitly disabled
+    if isParentRoot and self._model.Resizable ~= false then
+        local gripName = self.name .. "ResizeGrip"
+        Api.Window.CreateFromTemplate(gripName, "MongbatResizeGrip", self.name)
+        Api.Window.ClearAnchors(gripName)
+        Api.Window.AddAnchor(gripName, "bottomright", self.name, "bottomright", 0, 0)
+        Api.Window.SetLayer(gripName, Constants.WindowLayers.Overlay)
+        self._resizeGrip = gripName
+
+        local parentWindow = self
+        ---@type any
+        local gripProxy = {
+            getName = function() return gripName end,
+            onLButtonDown = function(_, flags, x, y)
+                startResize(parentWindow)
+            end,
+            onLButtonUp = function() end,
+        }
+        Cache[gripName] = gripProxy
     end
 
     Utils.Array.ForEach(
@@ -5878,6 +6014,20 @@ function Window:onLButtonUp(flags, x, y)
 end
 
 function Window:onShutdown()
+    -- Cancel active resize if this window is being resized
+    if resizingWindow == self then
+        stopResize()
+    end
+
+    -- Clean up resize grip
+    if self._resizeGrip then
+        Cache[self._resizeGrip] = nil
+        if Api.Window.DoesExist(self._resizeGrip) then
+            Api.Window.Destroy(self._resizeGrip)
+        end
+        self._resizeGrip = nil
+    end
+
     if self:isParentRoot() then
         Api.Window.SavePosition(self.name)
     end
