@@ -91,13 +91,35 @@ Mongbat.Mod {
             return context.Utils.String.Format("%d, %d - %s", x, y, facetName)
         end
 
+        -- Track last radar size to avoid redundant SetWindowSize calls
+        local lastRadarW = 0
+        local lastRadarH = 0
+
+        local function updateRadarSize(w, h)
+            if w == lastRadarW and h == lastRadarH then return end
+            lastRadarW = w
+            lastRadarH = h
+
+            -- Save the current view center before resizing
+            local Radar = context.Api.Radar
+            local savedX, savedY = Radar.GetCenter()
+            local facet = Radar.GetFacet()
+            local area = Radar.GetArea()
+
+            Radar.SetWindowSize(w, h, true, true)
+
+            -- If the user had panned away, restore their view position
+            if not centerOnPlayer then
+                Radar.CenterOnLocation(savedX, savedY, facet, area, false)
+            end
+        end
+
         local function Map()
             return context.Components.DynamicImage {
                 OnInitialize = function(self)
-                    self:setDimensions(WINDOW_SIZE, WINDOW_SIZE)
-
                     -- Activate the radar (mirrors MapWindow.ActivateMap)
-                    context.Api.Radar.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE, true, true)
+                    local dims = self:getDimensions()
+                    updateRadarSize(dims.x, dims.y)
                     context.Api.Radar.SetRotation(0)
                     context.Api.Radar.SetWindowOffset(0, 0)
                     context.Api.Radar.SetCenterOnPlayer(true)
@@ -106,6 +128,9 @@ Mongbat.Mod {
                 OnUpdateRadar = function(self, data)
                     self:setTexture("radar_texture", data.TexCoordX, data.TexCoordY)
                     self:setTextureScale(data.TexScale)
+                end,
+                OnDimensionsChanged = function(self, width, height)
+                    updateRadarSize(width, height)
                 end,
                 OnMouseWheel = function(self, _, _, delta)
                     adjustZoom(-delta)
@@ -203,7 +228,6 @@ Mongbat.Mod {
                         -- Map image: fill the window minus margins
                         child:setDimensions(contentW, contentH)
                         child:anchorToParentCenter(0, 0)
-                        context.Api.Radar.SetWindowSize(contentW, contentH, true, true)
                     elseif index == 2 then
                         -- Coords/facet label: full width, bottom-left
                         child:setDimensions(contentW, 16)

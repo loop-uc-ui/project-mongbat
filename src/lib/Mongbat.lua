@@ -3940,7 +3940,6 @@ FilterInput.__index = FilterInput
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field MinWidth number? Minimum width when resizing. Defaults to 100.
 ---@field MinHeight number? Minimum height when resizing. Defaults to 100.
----@field OnResize fun(self: Window, width: number, height: number)?
 
 ---@class LabelModel : ViewModel
 ---@field OnInitialize fun(self: Label)?
@@ -4862,7 +4861,7 @@ function EventHandler.OnShutdown()
     end
 end
 
---- Stops an active resize, re-layouts children, and fires the OnResize callback.
+--- Stops an active resize and re-layouts children.
 local function stopResize()
     if resizingWindow == nil then return end
     local window = resizingWindow
@@ -4886,12 +4885,6 @@ local function stopResize()
             child:clearAnchors()
             window._model.OnLayout(window, window._children, child, index)
         end)
-    end
-
-    -- Fire resize callback
-    if window._model.OnResize then
-        local dimens = window:getDimensions()
-        window._model.OnResize(window, dimens.x, dimens.y)
     end
 end
 
@@ -4929,7 +4922,7 @@ local function startResize(window)
             local dy = (mPos.y - resizeState.startMouseY) / scale
             local newW = math.max(resizeState.startWidth + dx, resizeState.minWidth)
             local newH = math.max(resizeState.startHeight + dy, resizeState.minHeight)
-            Api.Window.SetDimensions(resizingWindow.name, newW, newH)
+            resizingWindow:setDimensions(newW, newH)
 
             -- Re-layout children each frame so content tracks the new size
             if resizingWindow._model.OnLayout then
@@ -4937,11 +4930,6 @@ local function startResize(window)
                     child:clearAnchors()
                     resizingWindow._model.OnLayout(resizingWindow, resizingWindow._children, child, index)
                 end)
-            end
-
-            -- Fire OnResize each frame so children can update their own content
-            if resizingWindow._model.OnResize then
-                resizingWindow._model.OnResize(resizingWindow, newW, newH)
             end
         end
 
@@ -5744,6 +5732,10 @@ function View:getDimensions()
 end
 
 function View:setDimensions(x, y)
+    local current = Api.Window.GetDimensions(self.name)
+    if current.x == x and current.y == y then
+        return self
+    end
     Api.Window.SetDimensions(self.name, x, y)
     self:onDimensionsChanged(x, y)
     return self
@@ -5754,7 +5746,9 @@ end
 ---@param width number
 ---@param height number
 function View:onDimensionsChanged(width, height)
-    -- no-op by default
+    if self._model.OnDimensionsChanged ~= nil then
+        self._model.OnDimensionsChanged(self, width, height)
+    end
 end
 
 function View:getAlpha()
@@ -5963,23 +5957,21 @@ function Window:onInitialize()
 
     -- Create resize grip for root windows unless explicitly disabled
     if isParentRoot and self._model.Resizable ~= false then
-        local gripName = self.name .. "ResizeGrip"
-        Api.Window.CreateFromTemplate(gripName, "MongbatResizeGrip", self.name)
-        Api.Window.ClearAnchors(gripName)
-        Api.Window.AddAnchor(gripName, "bottomright", self.name, "bottomright", 0, 0)
-        Api.Window.SetLayer(gripName, Constants.WindowLayers.Overlay)
-        self._resizeGrip = gripName
-
         local parentWindow = self
-        ---@type any
-        local gripProxy = {
-            getName = function() return gripName end,
-            onLButtonDown = function(_, flags, x, y)
+        local grip = Components.Button {
+            Template = "MongbatResizeGrip",
+            Resizable = false,
+            OnLButtonDown = function()
                 startResize(parentWindow)
             end,
-            onLButtonUp = function() end,
         }
-        Cache[gripName] = gripProxy
+        grip:create()
+        grip:onInitialize()
+        grip:setParent(self.name)
+        grip:clearAnchors()
+        grip:addAnchor("bottomright", self.name, "bottomright", 0, 0)
+        grip:setLayer():overlay()
+        self._resizeGrip = grip
     end
 
     Utils.Array.ForEach(
@@ -6096,10 +6088,7 @@ function Window:onShutdown()
 
     -- Clean up resize grip
     if self._resizeGrip then
-        Cache[self._resizeGrip] = nil
-        if Api.Window.DoesExist(self._resizeGrip) then
-            Api.Window.Destroy(self._resizeGrip)
-        end
+        self._resizeGrip:destroy()
         self._resizeGrip = nil
     end
 
