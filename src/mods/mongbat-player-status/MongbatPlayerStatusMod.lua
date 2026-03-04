@@ -39,9 +39,14 @@ local function OnInitialize(context)
                 self:setId(playerStatus:getId())
                 self:setCurrentValue(playerStatus:getCurrentHealth())
                 self:setMaxValue(playerStatus:getMaxHealth())
+                if not self._colorSet then
+                    self:setColor(context.Constants.Colors.HealhBar[1])
+                    self._colorSet = true
+                end
             end,
             function(self, healthBarColor)
                 self:setColor(healthBarColor:getVisualStateColor())
+                self._colorSet = true
             end,
             {
                 OnUpdatePlayerStatus = function(self, playerStatus)

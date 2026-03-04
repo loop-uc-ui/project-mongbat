@@ -4938,6 +4938,11 @@ local function startResize(window)
                     resizingWindow._model.OnLayout(resizingWindow, resizingWindow._children, child, index)
                 end)
             end
+
+            -- Fire OnResize each frame so children can update their own content
+            if resizingWindow._model.OnResize then
+                resizingWindow._model.OnResize(resizingWindow, newW, newH)
+            end
         end
 
         -- Chain the original OnUpdate if it existed
@@ -5271,6 +5276,28 @@ end
 
 function StatusBar:onInitialize()
     View.onInitialize(self)
+
+    -- Create a manual fill child from the FullResizeImage template.
+    -- The engine's built-in StatusBar foreground is rendered internally
+    -- at the template's fixed height and cannot grow vertically.  By
+    -- managing the fill image ourselves we get full resize support.
+    local name = self:getName()
+    local fillName = name .. "Fill"
+    Api.Window.CreateFromTemplate(fillName, "MongbatStatusBarFill", name, true)
+    Api.Window.ClearAnchors(fillName)
+    Api.Window.AddAnchor(fillName, "topleft", name, "topleft", 0, 0)
+
+    -- Point the DynamicImage at a small solid region of the bar texture.
+    -- The engine stretches this to fill the element's dimensions.
+    -- Tinting via SetColor will color it.
+    Api.DynamicImage.SetTexture(fillName, "StatusBar", 1, 25)
+    Api.DynamicImage.SetTextureDimensions(fillName, 1, 1)
+
+    -- Start with zero width; the first value update will size it.
+    local dims = self:getDimensions()
+    Api.Window.SetDimensions(fillName, 0, dims.y)
+    self._fillChild = fillName
+
     local label = self.label
     if label ~= nil then
         label._model.OnLButtonDown = label._model.OnLButtonDown or
@@ -5301,7 +5328,34 @@ function StatusBar:onInitialize()
     end
 end
 
+function StatusBar:_updateFill()
+    if not self._fillChild then return end
+    local maxVal = self._maxValue or 0
+    local curVal = self._currentValue or 0
+    local dims = self:getDimensions()
+    local barWidth = dims.x
+    local barHeight = dims.y
+    if maxVal > 0 and curVal > 0 then
+        local fillWidth = math.floor(barWidth * math.min(curVal, maxVal) / maxVal)
+        fillWidth = math.max(fillWidth, 1)
+        Api.Window.SetDimensions(self._fillChild, fillWidth, barHeight)
+        Api.Window.SetShowing(self._fillChild, true)
+    else
+        Api.Window.SetShowing(self._fillChild, false)
+    end
+end
+
+function StatusBar:onDimensionsChanged(width, height)
+    if self.label ~= nil then
+        self.label:setDimensions(width, height)
+    end
+    self:_updateFill()
+end
+
 function StatusBar:onShutdown()
+    if self._fillChild and Api.Window.DoesExist(self._fillChild) then
+        Api.Window.Destroy(self._fillChild)
+    end
     if self.label ~= nil then
         self.label:destroy()
     end
@@ -5309,11 +5363,21 @@ function StatusBar:onShutdown()
 end
 
 function StatusBar:setMaxValue(maxValue)
+    self._maxValue = maxValue
     Api.StatusBar.SetMaxValue(self:getName(), maxValue)
+    self:_updateFill()
 end
 
 function StatusBar:setCurrentValue(currentValue)
+    self._currentValue = currentValue
     Api.StatusBar.SetCurrentValue(self:getName(), currentValue)
+    self:_updateFill()
+end
+
+function StatusBar:setColor(color)
+    if self._fillChild then
+        Api.Window.SetColor(self._fillChild, color)
+    end
 end
 
 function StatusBar:setBackgroundTint(tint)
@@ -5321,7 +5385,9 @@ function StatusBar:setBackgroundTint(tint)
 end
 
 function StatusBar:setForegroundTint(tint)
-    Api.StatusBar.SetForegroundTint(self:getName(), tint)
+    if self._fillChild then
+        Api.Window.SetColor(self._fillChild, tint)
+    end
 end
 
 ---@param model StatusBarModel?
@@ -5679,7 +5745,16 @@ end
 
 function View:setDimensions(x, y)
     Api.Window.SetDimensions(self.name, x, y)
+    self:onDimensionsChanged(x, y)
     return self
+end
+
+--- Called whenever this view's dimensions are set. Override in subclasses to
+--- propagate size changes to internal sub-components (e.g. StatusBar's label).
+---@param width number
+---@param height number
+function View:onDimensionsChanged(width, height)
+    -- no-op by default
 end
 
 function View:getAlpha()

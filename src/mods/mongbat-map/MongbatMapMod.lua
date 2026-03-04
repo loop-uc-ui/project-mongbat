@@ -183,16 +183,25 @@ Mongbat.Mod {
         local function Window()
             return context.Components.Window {
                 Name = "MongbatMapWindow",
+                MinWidth = 100 + MARGIN * 2,
+                MinHeight = 100 + MARGIN * 2,
                 OnInitialize = function(self)
                     self:setDimensions(WINDOW_SIZE + MARGIN * 2, WINDOW_SIZE + MARGIN * 2)
                     self:setChildren { Map(), CoordsLabel() }
                 end,
                 OnLayout = function(self, children, child, index)
+                    local dimens = self:getDimensions()
+                    local contentW = dimens.x - MARGIN * 2
+                    local contentH = dimens.y - MARGIN * 2
+
                     if index == 1 then
-                        -- Map image: centered
+                        -- Map image: fill the window minus margins
+                        child:setDimensions(contentW, contentH)
                         child:anchorToParentCenter(0, 0)
+                        context.Api.Radar.SetWindowSize(contentW, contentH, true, true)
                     elseif index == 2 then
-                        -- Coords/facet label: bottom-left corner
+                        -- Coords/facet label: full width, bottom-left
+                        child:setDimensions(contentW, 16)
                         child:addAnchor("bottomleft", self:getName(), "bottomleft", MARGIN, -MARGIN)
                     end
                 end,
