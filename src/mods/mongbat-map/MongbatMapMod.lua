@@ -124,6 +124,11 @@ Mongbat.Mod {
                 OnLButtonUp = function(self)
                     isPanning = false
                 end,
+                OnMouseOverEnd = function(self)
+                    if isPanning then
+                        isPanning = false
+                    end
+                end,
                 OnLButtonDblClk = function(self)
                     isPanning = false
                     centerOnPlayer = true
