@@ -221,6 +221,16 @@ Read the mod's Lua file. Then compare it to the default UI window it replaces (s
 
 ---
 
+## Skills
+
+Detailed procedural skills live in `.github/skills/`. **Read the relevant skill file before starting the task.**
+
+| Skill | File | When to use |
+|---|---|---|
+| Reimplementing a Default UI Window | `.github/skills/reimplementing-default-ui.md` | Replacing any default UI window with a Mongbat mod. Covers research, suppression, data binding, interactions, and shutdown symmetry. |
+
+---
+
 ## Guidelines for Responses
 
 ### 0. Consult the Project README
@@ -262,6 +272,55 @@ The docs are outdated. If a doc example contradicts the repo code, the repo is c
 - **Use `wstring` correctly** -- UI text is almost always `wstring`. Use `L"literal"`, `towstring(number)`, `StringToWString(str)`.
 - **Builder pattern** -- show fluent chaining: `Components.Window{...}:setDimensions(w,h):create(true)`.
 - **Use Mongbat's event system** -- place event handler keys in model tables. Do not call raw engine registration functions in mods.
+- **All engine references must go through Mongbat context.** Mod code must **never** call raw engine globals (`WindowData.*`, `SystemData.*`, `Interface.*`, `DragSlot*`, `HandleSingleLeftClkTarget`, `UserActionUseItem`, `RequestContextMenu`, `ItemProperties.*`, `EquipmentData.*`, `DoesWindowNameExist`, `DestroyWindow`, `WindowSetDimensions`, `DynamicImageSetTexture`, etc.) directly. Use the equivalent from `context.Api`, `context.Data`, `context.Constants`, or `context.Components`. If the framework lacks a wrapper for a needed engine concept, **add it to `Mongbat.lua` first**, then use the wrapper in the mod.
+
+**Bad** -- raw engine globals in mod code:
+```lua
+if DoesWindowNameExist(name) then DestroyWindow(name) end
+local data = WindowData.Paperdoll[playerId]
+DragSlotSetObjectMouseClickData(slot.slotId, SystemData.DragSource.SOURCETYPE_PAPERDOLL)
+ItemProperties.SetActiveItem(itemData)
+```
+
+**Good** -- everything through Mongbat context:
+```lua
+if Api.Window.DoesExist(name) then Api.Window.Destroy(name) end
+local paperdoll = Data.Paperdoll(playerId)
+local slot = paperdoll:getSlot(slotIndex)
+Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
+Api.ItemProperties.SetActiveItem(itemData)
+```
+
+- **Keep mutable state as local as possible.** Only declare variables at file scope if they must survive across both `OnInitialize` and `OnShutdown`. Runtime state (view references, entity IDs, flags) should be `local` inside `OnInitialize` -- closures in model tables and nested functions capture them naturally. Prefer passing values through function parameters over sharing upvalues.
+
+**Bad** -- file-scope mutable state that only `OnInitialize` uses:
+```lua
+local playerId = 0
+local slotViews = {}
+
+local function OnInitialize(context)
+    playerId = context.Data.PlayerStatus():getId()
+    -- slotViews used in closures below...
+end
+
+local function OnShutdown(context)
+    slotViews = {}
+    playerId = 0
+end
+```
+
+**Good** -- state scoped inside `OnInitialize`, passed where needed:
+```lua
+local function OnInitialize(context)
+    local playerId = context.Data.PlayerStatus():getId()
+    local slotViews = {}
+    -- closures capture these locals; OnShutdown doesn't need them
+end
+
+local function OnShutdown(context)
+    context.Api.Window.Destroy(NAME)
+end
+```
 
 ### 4. Debugging Methodology
 

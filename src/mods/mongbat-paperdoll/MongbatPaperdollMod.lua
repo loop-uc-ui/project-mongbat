@@ -1,0 +1,300 @@
+local NAME = "PaperdollWindow"
+local NUM_SLOTS = 19
+local COLUMNS = 4
+local CELL_SIZE = 50
+local PADDING = 8
+local MARGIN = 16
+local LABEL_HEIGHT = 22
+local LABEL_GAP = 12
+
+---@param context Context
+local function OnInitialize(context)
+    local Api = context.Api
+    local Data = context.Data
+    local Constants = context.Constants
+    local Components = context.Components
+
+    local slotViews = {}
+    local showingGrid = true
+    local paperdollFigure = nil
+    local toggleButton = nil
+
+    local paperdollDefault = Components.Defaults.PaperdollWindow
+    paperdollDefault:disable()
+
+    local playerId = Data.PlayerStatus():getId()
+
+    -- Prevent Interface.PaperdollCheck from re-creating the default window
+    Api.Interface.SetPaperdollOpen(false)
+
+    -- Destroy any already-existing default paperdoll window
+    local defaultName = "PaperdollWindow" .. playerId
+    if Api.Window.DoesExist(defaultName) then
+        Api.Window.Destroy(defaultName)
+    end
+
+    --- Creates a DynamicImage component for a single equipment slot.
+    ---@param slotIndex integer The paperdoll slot index (1-based)
+    ---@return DynamicImage
+    local function Slot(slotIndex)
+        return Components.DynamicImage {
+            OnInitialize = function(self)
+                self:setDimensions(CELL_SIZE, CELL_SIZE)
+            end,
+            OnLButtonDown = function(self, flags)
+                local paperdoll = Data.Paperdoll(playerId)
+                local slot = paperdoll:getSlot(slotIndex)
+                if not slot or slot.slotId == 0 then return end
+
+                if Data.Cursor():isTarget() then
+                    Api.Target.LeftClick(slot.slotId)
+                    return
+                end
+
+                Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
+            end,
+            OnLButtonUp = function(self)
+                if Data.Drag():isDraggingItem() then
+                    local paperdoll = Data.Paperdoll(playerId)
+                    local slot = paperdoll:getSlot(slotIndex)
+                    if slot and slot.slotId ~= 0 then
+                        Api.Drag.DropOnPaperdollEquipment(slot.slotId)
+                    else
+                        Api.Drag.DropOnPaperdoll(playerId)
+                    end
+                end
+            end,
+            OnLButtonDblClk = function(self)
+                local paperdoll = Data.Paperdoll(playerId)
+                local slot = paperdoll:getSlot(slotIndex)
+                if slot and slot.slotId ~= 0 then
+                    Api.UserAction.UseItem(slot.slotId, false)
+                end
+            end,
+            OnRButtonDown = function(self)
+                local paperdoll = Data.Paperdoll(playerId)
+                local slot = paperdoll:getSlot(slotIndex)
+                if slot and slot.slotId ~= 0 then
+                    Api.ContextMenu.RequestMenu(slot.slotId)
+                end
+            end,
+            OnMouseOver = function(self)
+                local paperdoll = Data.Paperdoll(playerId)
+                local slot = paperdoll:getSlot(slotIndex)
+                if slot and slot.slotId ~= 0 then
+                    local itemData = {
+                        windowName = NAME,
+                        itemId = slot.slotId,
+                        itemType = Constants.ItemPropertyType.Item,
+                        detail = Constants.ItemPropertyDetail.Long,
+                        data = slot
+                    }
+                    Api.ItemProperties.SetActiveItem(itemData)
+                end
+            end,
+            OnMouseOverEnd = function(self)
+                Api.ItemProperties.ClearMouseOverItem()
+            end
+        }
+    end
+
+    --- Toggles between grid view and paperdoll figure view.
+    local function ToggleView()
+        showingGrid = not showingGrid
+        for i = 1, NUM_SLOTS do
+            if slotViews[i] then
+                slotViews[i]:setShowing(showingGrid)
+            end
+        end
+        if paperdollFigure then
+            paperdollFigure:setShowing(not showingGrid)
+        end
+    end
+
+    --- Updates the paperdoll figure texture from the engine's paperdoll texture
+    --- data. Uses the same pattern as the default Shopkeeper window: set
+    --- dimensions + texture, then anchor using offsets relative to topleft (the
+    --- engine's canonical coordinate system for paperdoll textures).
+    local function UpdatePaperdollFigure()
+        if not paperdollFigure then return end
+
+        local tex = Data.PaperdollTexture(playerId)
+        local figName = paperdollFigure:getName()
+
+        if tex:hasData() then
+            Api.Window.SetDimensions(figName, tex:getWidth(), tex:getHeight())
+        else
+            -- Texture metadata not available yet; use generous fallback
+            Api.Window.SetDimensions(figName, 200, 400)
+        end
+
+        Api.DynamicImage.SetTexture(figName, tex:getTextureName(), 0, 0)
+
+        -- Centre the figure in the window.  The texture offsets are designed
+        -- for "center-to-topleft" positioning inside the ~282x414 default
+        -- paperdoll viewport.  Our window is similar in size, so we reuse them
+        -- when available; otherwise we just dead-centre.
+        paperdollFigure:clearAnchors()
+
+        if tex:hasData() then
+            paperdollFigure:addAnchor("center", NAME, "topleft",
+                tex:getXOffset(), tex:getYOffset() + 30)
+        else
+            paperdollFigure:addAnchor("center", NAME, "center", 0, 0)
+        end
+    end
+
+    -- Child index constants
+    local IDX_TOGGLE = NUM_SLOTS + 1
+    local IDX_LABEL = NUM_SLOTS + 2
+    local IDX_FIGURE = NUM_SLOTS + 3
+
+    --- Grid layout: places children in a fixed-column grid.
+    --- Special indices: IDX_TOGGLE = toggle button (bottom-right cell),
+    --- IDX_LABEL = name label (top), IDX_FIGURE = paperdoll figure (centered).
+    local function GridLayout(window, children, child, index)
+        if index == IDX_LABEL then
+            child:clearAnchors()
+            child:addAnchor("topleft", window:getName(), "topleft", MARGIN, MARGIN)
+            return
+        end
+        if index == IDX_FIGURE then
+            -- Figure is positioned by UpdatePaperdollFigure
+            return
+        end
+        -- Slots 1..NUM_SLOTS and toggle button at IDX_TOGGLE
+        local gridIndex = index - 1
+        if index == IDX_TOGGLE then
+            -- Place in the last cell of the grid (bottom-right)
+            gridIndex = COLUMNS * math.ceil(NUM_SLOTS / COLUMNS) - 1
+        end
+        local col = gridIndex % COLUMNS
+        local row = math.floor(gridIndex / COLUMNS)
+        local x = MARGIN + col * (CELL_SIZE + PADDING)
+        local y = MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL_SIZE + PADDING)
+        child:clearAnchors()
+        child:addAnchor("topleft", window:getName(), "topleft", x, y)
+    end
+
+    --- Updates a single slot's DynamicImage from paperdoll data.
+    ---@param slotIndex integer
+    ---@param slotData PaperdollSlot|nil
+    local function UpdateSlotIcon(slotIndex, slotData)
+        local view = slotViews[slotIndex]
+        if not view then return end
+        local elementName = view:getName()
+
+        if slotData and slotData.slotId ~= 0 then
+            Api.Equipment.UpdateItemIcon(elementName, slotData)
+            view:setShowing(true)
+        else
+            Api.DynamicImage.SetTexture(elementName, "", 0, 0)
+            view:setShowing(true)
+        end
+    end
+
+    local children = {}
+    for i = 1, NUM_SLOTS do
+        local slot = Slot(i)
+        slotViews[i] = slot
+        children[i] = slot
+    end
+
+    local rows = math.ceil(NUM_SLOTS / COLUMNS)
+    local gridWidth = COLUMNS * CELL_SIZE + (COLUMNS - 1) * PADDING
+    local gridHeight = rows * CELL_SIZE + (rows - 1) * PADDING
+    local windowWidth = gridWidth + MARGIN * 2 + 16
+    local windowHeight = LABEL_HEIGHT + LABEL_GAP + gridHeight + MARGIN * 2 + 16
+
+    -- Toggle button in the last grid cell (bottom-right)
+    toggleButton = Components.Button {
+        Template = "MongbatButton18",
+        OnInitialize = function(self)
+            self:setDimensions(CELL_SIZE, CELL_SIZE)
+            self:setText(L"\x263A")
+        end,
+        OnLButtonUp = function(self)
+            ToggleView()
+            if not showingGrid then
+                UpdatePaperdollFigure()
+            end
+        end
+    }
+    children[IDX_TOGGLE] = toggleButton
+
+    -- Name label with notoriety color
+    local nameLabel = Components.Label {
+        OnInitialize = function(self)
+            self:setDimensions(windowWidth - MARGIN * 2, LABEL_HEIGHT)
+            self:centerText()
+            self:setId(playerId)
+        end,
+        OnUpdateMobileName = function(self, mobileName)
+            self:setText(mobileName:getName())
+        end,
+        OnUpdateMobileStatus = function(self, mobileStatus)
+            self:setTextColor(mobileStatus:getNotorietyColor())
+        end
+    }
+    children[IDX_LABEL] = nameLabel
+
+    -- Paperdoll character figure (hidden initially)
+    paperdollFigure = Components.DynamicImage {
+        OnInitialize = function(self)
+            self:setShowing(false)
+        end
+    }
+    children[IDX_FIGURE] = paperdollFigure
+
+    local function Window()
+        return Components.Window {
+            Name = NAME,
+            Resizable = false,
+            OnLayout = GridLayout,
+            OnInitialize = function(self)
+                self:setDimensions(windowWidth, windowHeight)
+                self:setChildren(children)
+                self:setId(playerId)
+            end,
+            OnUpdatePaperdoll = function(self, paperdoll)
+                local numSlots = paperdoll:getNumSlots()
+                for i = 1, NUM_SLOTS do
+                    if i <= numSlots then
+                        UpdateSlotIcon(i, paperdoll:getSlot(i))
+                    else
+                        UpdateSlotIcon(i, nil)
+                    end
+                end
+                -- Refresh figure texture when in player view
+                if not showingGrid then
+                    UpdatePaperdollFigure()
+                end
+            end,
+            OnLButtonUp = function(self)
+                if Data.Drag():isDraggingItem() then
+                    Api.Drag.DropOnPaperdoll(playerId)
+                end
+            end,
+            OnRButtonUp = function() end
+        }
+    end
+
+    Window():create(true)
+end
+
+---@param context Context
+local function OnShutdown(context)
+    context.Api.Window.Destroy(NAME)
+
+    -- Restore default paperdoll
+    context.Api.Interface.SetPaperdollOpen(true)
+    local paperdollDefault = context.Components.Defaults.PaperdollWindow
+    paperdollDefault:restore()
+end
+
+Mongbat.Mod {
+    Name = "MongbatPaperdoll",
+    Path = "/src/mods/mongbat-paperdoll",
+    OnInitialize = OnInitialize,
+    OnShutdown = OnShutdown
+}

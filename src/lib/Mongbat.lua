@@ -2383,6 +2383,62 @@ function Api.Interface.LoadBoolean(key, default)
     return Interface.LoadBoolean(key, default)
 end
 
+---
+--- Sets whether the player's paperdoll is considered open by the engine.
+---@param open boolean
+function Api.Interface.SetPaperdollOpen(open)
+    Interface.PaperdollOpen = open
+end
+
+---
+--- Gets whether the player's paperdoll is considered open by the engine.
+---@return boolean
+function Api.Interface.GetPaperdollOpen()
+    return Interface.PaperdollOpen
+end
+
+---
+--- Gets mobile data for a given ID from the engine.
+---@param id number The mobile ID.
+---@param includeEquipment boolean Whether to include equipment data.
+---@return table Mobile data table with Race, Gender, etc.
+function Api.Interface.GetMobileData(id, includeEquipment)
+    return Interface.GetMobileData(id, includeEquipment)
+end
+
+-- ========================================================================== --
+-- Api - Item Properties
+-- ========================================================================== --
+
+Api.ItemProperties = {}
+
+---
+--- Sets the active item for tooltip display.
+---@param itemData table Table with windowName, itemId, itemType, detail, data fields.
+function Api.ItemProperties.SetActiveItem(itemData)
+    ItemProperties.SetActiveItem(itemData)
+end
+
+---
+--- Clears the current mouse-over item tooltip.
+function Api.ItemProperties.ClearMouseOverItem()
+    ItemProperties.ClearMouseOverItem()
+end
+
+-- ========================================================================== --
+-- Api - Equipment
+-- ========================================================================== --
+
+Api.Equipment = {}
+
+---
+--- Updates an item icon DynamicImage from equipment slot data.
+---@param elementName string The DynamicImage window name.
+---@param slotData PaperdollSlot The slot data from WindowData.Paperdoll.
+function Api.Equipment.UpdateItemIcon(elementName, slotData)
+    EquipmentData.UpdateItemIcon(elementName, slotData)
+end
+
 -- ========================================================================== --
 -- Utils
 -- ========================================================================== --
@@ -2836,6 +2892,10 @@ function Constants.DragSource.Object()
     return SystemData.DragSource["SOURCETYPE_OBJECT"]
 end
 
+function Constants.DragSource.Paperdoll()
+    return SystemData.DragSource["SOURCETYPE_PAPERDOLL"]
+end
+
 Constants.Broadcasts = {}
 
 function Constants.Broadcasts.Help()
@@ -2890,6 +2950,7 @@ Constants.DataEvents.OnUpdateHealthBarColor = DataEvent(WindowData.HealthBarColo
 Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "OnUpdateMobileStatus")
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
+Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -2992,6 +3053,14 @@ Constants.Colors.Notoriety = {
 
 Constants.TextAlignment = {}
 Constants.TextAlignment.Center = "center"
+
+Constants.ItemPropertyType = {}
+Constants.ItemPropertyType.Item = WindowData.ItemProperties.TYPE_ITEM
+Constants.ItemPropertyType.WStringData = WindowData.ItemProperties.TYPE_WSTRINGDATA
+
+Constants.ItemPropertyDetail = {}
+Constants.ItemPropertyDetail.Long = ItemProperties.DETAIL_LONG
+Constants.ItemPropertyDetail.Short = ItemProperties.DETAIL_SHORT
 
 Constants.GumpIds = {}
 Constants.GumpIds.VendorSearch = 999112
@@ -3105,7 +3174,9 @@ function Cursor:getData()
 end
 
 function Cursor:isTarget()
-    return self:getData().target
+    local data = self:getData()
+    if data == nil then return false end
+    return data.target == true
 end
 
 function Data.Cursor()
@@ -3590,6 +3661,137 @@ function Data.PlayerStatus()
 end
 
 -- ========================================================================== --
+-- Data - Paperdoll
+-- ========================================================================== --
+
+---@class PaperdollSlot
+---@field slotId integer The object ID in this slot (0 if empty)
+---@field slotTextureName string Texture name for the slot
+---@field iconName string Texture name for the item icon
+---@field newWidth number Width for the icon
+---@field newHeight number Height for the icon
+---@field iconScale number Scale factor for the icon
+---@field hueId number Hue ID for the shader
+---@field objectType number Object type for the shader
+---@field hue table Table with r, g, b, a hue values
+
+---@class PaperdollWrapper
+local PaperdollData = {}
+PaperdollData.__index = PaperdollData
+
+function PaperdollData:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return table|nil
+function PaperdollData:getData()
+    if WindowData.Paperdoll then
+        return WindowData.Paperdoll[self._id]
+    end
+    return nil
+end
+
+---@return integer
+function PaperdollData:getId()
+    return self._id
+end
+
+---@return integer
+function PaperdollData:getNumSlots()
+    local data = self:getData()
+    if data then return data.numSlots or 0 end
+    return 0
+end
+
+--- Gets the slot data for a given index.
+---@param index integer Slot index (1-based)
+---@return PaperdollSlot|nil
+function PaperdollData:getSlot(index)
+    local data = self:getData()
+    if data then return data[index] end
+    return nil
+end
+
+---@param id integer The paperdoll entity ID
+---@return PaperdollWrapper
+function Data.Paperdoll(id)
+    return PaperdollData:new(id)
+end
+
+-- ========================================================================== --
+-- Data - Paperdoll Texture
+-- ========================================================================== --
+
+---@class PaperdollTextureWrapper
+---@field _id number
+local PaperdollTexture = {}
+PaperdollTexture.__index = PaperdollTexture
+
+function PaperdollTexture:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return table|nil Raw SystemData.PaperdollTexture entry
+function PaperdollTexture:getData()
+    return SystemData.PaperdollTexture[self._id]
+end
+
+---@return boolean Whether texture data is available
+function PaperdollTexture:hasData()
+    return self:getData() ~= nil
+end
+
+---@return number Texture width (doubled for legacy textures)
+function PaperdollTexture:getWidth()
+    local data = self:getData()
+    if not data then return 0 end
+    local w = data.Width
+    if data.IsLegacy == 1 then w = w * 2 end
+    return w
+end
+
+---@return number Texture height (doubled for legacy textures)
+function PaperdollTexture:getHeight()
+    local data = self:getData()
+    if not data then return 0 end
+    local h = data.Height
+    if data.IsLegacy == 1 then h = h * 2 end
+    return h
+end
+
+---@return number X offset for anchoring
+function PaperdollTexture:getXOffset()
+    local data = self:getData()
+    if not data then return 0 end
+    return data.xOffset
+end
+
+---@return number Y offset for anchoring
+function PaperdollTexture:getYOffset()
+    local data = self:getData()
+    if not data then return 0 end
+    return data.yOffset
+end
+
+---@return boolean Whether this is a legacy texture
+function PaperdollTexture:isLegacy()
+    local data = self:getData()
+    if not data then return false end
+    return data.IsLegacy == 1
+end
+
+---@return string The engine texture name for this paperdoll
+function PaperdollTexture:getTextureName()
+    return "paperdoll_texture" .. self._id
+end
+
+---@param id number The mobile/player ID
+---@return PaperdollTextureWrapper
+function Data.PaperdollTexture(id)
+    return PaperdollTexture:new(id)
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 
@@ -3853,6 +4055,16 @@ DefaultStatusWindowComponent.__index = DefaultStatusWindowComponent
 local DefaultWarShieldComponent = {}
 DefaultWarShieldComponent.__index = DefaultWarShieldComponent
 
+---@class DefaultPaperdollWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field UpdatePaperdoll fun(windowName: string, paperdollId: integer)
+---@field HandleUpdatePaperdollEvent fun()
+
+---@class DefaultPaperdollWindowComponent : DefaultComponent
+local DefaultPaperdollWindowComponent = {}
+DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
+
 ---@class DefaultObjectHandle
 ---@field CreateObjectHandles fun()
 ---@field DestroyObjectHandles fun()
@@ -3889,6 +4101,7 @@ Component.__index = Component
 ---@field OnMouseWheel fun(self: DynamicImage, x: number, y: number, delta: number)?
 ---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
+---@field OnUpdatePaperdoll fun(self: DynamicImage, paperdoll: PaperdollWrapper)?
 
 ---@class DynamicImage: View
 local DynamicImage = {}
@@ -3941,6 +4154,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
+---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4017,6 +4231,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
+---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4680,6 +4895,29 @@ function DefaultWarShieldComponent:getDefault()
 end
 
 -- ========================================================================== --
+-- Components - Default - Paperdoll Window
+-- ========================================================================== --
+
+---@return DefaultPaperdollWindowComponent
+function DefaultPaperdollWindowComponent:new()
+    local instance = DefaultComponent.new(self, "PaperdollWindow") --[[@as DefaultPaperdollWindowComponent]]
+    instance._proxy = instance:_createProxy(PaperdollWindow)
+    instance._globalKey = "PaperdollWindow"
+    _G.PaperdollWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultPaperdollWindow
+function DefaultPaperdollWindowComponent:getDefault()
+    return self._proxy or PaperdollWindow --[[@as DefaultPaperdollWindow]]
+end
+
+---@return Window
+function DefaultPaperdollWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Dynamic Image
 -- ========================================================================== --
 
@@ -5236,6 +5474,12 @@ function EventHandler.OnUpdateMobileStatus()
     end)
 end
 
+function EventHandler.OnUpdatePaperdoll()
+    withActiveView("OnUpdatePaperdoll", function(window)
+        window:onUpdatePaperdoll()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -5668,6 +5912,7 @@ function View:onInitialize()
         self:onUpdateMobileName()
         self:onUpdateMobileStatus()
         self:onUpdateHealthBarColor()
+        self:onUpdatePaperdoll()
     end)
 end
 
@@ -5784,6 +6029,14 @@ end
 function View:onUpdateMobileStatus()
     if self._model.OnUpdateMobileStatus ~= nil then
         self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdatePaperdoll()
+    if self._model.OnUpdatePaperdoll ~= nil then
+        self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
         return true
     end
     return false
@@ -6499,6 +6752,7 @@ setmetatable(DefaultActionsComponent, { __index = DefaultComponent })
 setmetatable(DefaultMainMenuWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultStatusWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
+setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
@@ -6512,6 +6766,7 @@ Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
 Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
 Components.Defaults.WarShield = DefaultWarShieldComponent:new()
+Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
