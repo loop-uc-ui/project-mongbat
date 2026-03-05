@@ -2951,6 +2951,8 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWindow, "OnUpdateContainerWindow")
+Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3789,6 +3791,71 @@ end
 ---@return PaperdollTextureWrapper
 function Data.PaperdollTexture(id)
     return PaperdollTexture:new(id)
+end
+
+-- ========================================================================== --
+-- Data - ContainerWindow
+-- ========================================================================== --
+
+---@class ContainerWindowItem
+---@field objectId number Item object ID
+---@field gridIndex number Grid slot index (1-based)
+
+---@class ContainerWindowDataWrapper
+---@field _id number
+local ContainerWindowData = {}
+ContainerWindowData.__index = ContainerWindowData
+
+function ContainerWindowData:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return table|nil Raw WindowData.ContainerWindow entry
+function ContainerWindowData:getData()
+    return WindowData.ContainerWindow and WindowData.ContainerWindow[self._id]
+end
+
+---@return number
+function ContainerWindowData:getNumItems()
+    local d = self:getData()
+    return (d and d.numItems) or 0
+end
+
+---@return wstring
+function ContainerWindowData:getContainerName()
+    local d = self:getData()
+    return (d and d.containerName) or L""
+end
+
+---@return number
+function ContainerWindowData:getMaxSlots()
+    local d = self:getData()
+    return (d and d.maxSlots) or 0
+end
+
+---@param index number 1-based index into ContainedItems array
+---@return ContainerWindowItem|nil
+function ContainerWindowData:getItem(index)
+    local d = self:getData()
+    if not d or not d.ContainedItems then return nil end
+    return d.ContainedItems[index]
+end
+
+---@return ContainerWindowItem[]
+function ContainerWindowData:getItems()
+    local d = self:getData()
+    if not d or not d.ContainedItems then return {} end
+    local result = {}
+    for i = 1, (d.numItems or 0) do
+        result[i] = d.ContainedItems[i]
+    end
+    return result
+end
+
+---@param id number Container object ID
+---@return ContainerWindowDataWrapper
+function Data.ContainerWindow(id)
+    return ContainerWindowData:new(id)
 end
 
 -- ========================================================================== --
@@ -4918,8 +4985,41 @@ function DefaultPaperdollWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
--- Components - Dynamic Image
+-- Components - Default - Container Window
 -- ========================================================================== --
+
+---@class DefaultContainerWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field MiniModelUpdate fun()
+---@field HandleUpdateObjectEvent fun()
+---@field OpenContainers table
+---@field PlayerBackpack number
+---@field PlayerBank number
+---@field ViewModes table
+
+---@class DefaultContainerWindowComponent : DefaultComponent
+local DefaultContainerWindowComponent = {}
+DefaultContainerWindowComponent.__index = DefaultContainerWindowComponent
+
+---@return DefaultContainerWindowComponent
+function DefaultContainerWindowComponent:new()
+    local instance = DefaultComponent.new(self, "ContainerWindow") --[[@as DefaultContainerWindowComponent]]
+    instance._proxy = instance:_createProxy(ContainerWindow)
+    instance._globalKey = "ContainerWindow"
+    _G.ContainerWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultContainerWindow
+function DefaultContainerWindowComponent:getDefault()
+    return self._proxy or ContainerWindow --[[@as DefaultContainerWindow]]
+end
+
+---@return Window
+function DefaultContainerWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
 
 ---@param model DynamicImageModel?
 ---@return DynamicImage
@@ -5480,6 +5580,18 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(window)
+        window:onUpdateContainerWindow()
+    end)
+end
+
+function EventHandler.OnUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(window)
+        window:onUpdateObjectInfo()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -5913,6 +6025,8 @@ function View:onInitialize()
         self:onUpdateMobileStatus()
         self:onUpdateHealthBarColor()
         self:onUpdatePaperdoll()
+        self:onUpdateContainerWindow()
+        self:onUpdateObjectInfo()
     end)
 end
 
@@ -6037,6 +6151,22 @@ end
 function View:onUpdatePaperdoll()
     if self._model.OnUpdatePaperdoll ~= nil then
         self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    if self._model.OnUpdateContainerWindow ~= nil then
+        self._model.OnUpdateContainerWindow(self, Data.ContainerWindow(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    if self._model.OnUpdateObjectInfo ~= nil then
+        self._model.OnUpdateObjectInfo(self, WindowData.ObjectInfo[self:getId()])
         return true
     end
     return false
@@ -6761,6 +6891,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultContainerWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6906,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.ContainerWindow = DefaultContainerWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
