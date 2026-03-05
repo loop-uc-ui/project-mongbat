@@ -4,19 +4,24 @@
 -- ========================================================================== --
 
 -- Window layout constants
-local WIN_W         = 720
-local WIN_H         = 520
-local PANEL_W       = 310
-local PANEL_H       = 340
-local ROW_H         = 36
-local ICON_SIZE     = 28
+local WIN_W          = 720
+local WIN_H          = 520
+local PANEL_W        = 310
+local PANEL_H        = 340
+local ROW_H          = 36
+local ICON_SIZE      = 28
 local ITEMS_PER_PAGE = 9
-local MARGIN        = 10
-local SEARCH_H      = 24
-local BTN_W         = 90
-local BTN_H         = 28
-local TITLE_H       = 24
-local HDR_H         = 20
+local MARGIN         = 10
+local SEARCH_H       = 24
+local BTN_W          = 90
+local BTN_H          = 28
+local TITLE_H        = 24
+local HDR_H          = 20
+
+-- Icon scaling constants for RequestTileArt
+local ICON_SCALE_MAX  = 10
+local ICON_SCALE_MIN  = 0.1
+local ICON_SCALE_STEP = 0.1
 
 -- Saved original Shopkeeper lifecycle functions, used to restore on shutdown
 local savedInitialize = nil
@@ -150,15 +155,25 @@ local function OnInitialize(context)
             iconView:setShowing(true)
             iconView:setId(itemIdx)
             if isSelling then
-                -- For sell mode, register and use ObjectInfo for the item
-                local objInfo = Data.ObjectInfo(item.id)
-                if objInfo then
-                    Api.Equipment.UpdateItemIcon(iconView:getName(), objInfo)
-                else
-                    -- Request ObjectInfo if not yet registered
-                    Api.Window.RegisterData(WindowData.ObjectInfo.Type, item.id)
+                -- Sell mode: items are in player backpack; use TileArt for icon display
+                local name, x, y, scale, nw, nh = Api.Icon.RequestTileArt(item.objType, 300, 300)
+                if name and nw and nh then
+                    scale = ICON_SCALE_MAX
+                    if nw * scale > ICON_SIZE or nh * scale > ICON_SIZE then
+                        for j = scale, ICON_SCALE_MIN, -ICON_SCALE_STEP do
+                            if nw * j <= ICON_SIZE and nh * j <= ICON_SIZE then
+                                scale = j
+                                break
+                            end
+                        end
+                    end
+                    Api.DynamicImage.SetTextureDimensions(iconView:getName(), nw * scale, nh * scale)
+                    Api.Window.SetDimensions(iconView:getName(), nw * scale, nh * scale)
+                    Api.DynamicImage.SetTexture(iconView:getName(), name, x, y)
+                    Api.DynamicImage.SetTextureScale(iconView:getName(), scale)
                 end
             else
+                -- Buy mode: use ObjectInfo (shop-registered items have ObjectInfo data)
                 local objInfo = Data.ObjectInfo(item.id)
                 if objInfo then
                     Api.Equipment.UpdateItemIcon(iconView:getName(), objInfo)
@@ -324,18 +339,14 @@ local function OnInitialize(context)
         for i = 1, count do
             local entry = shopData:getSellItem(i)
             if entry then
-                -- Register for item icon/tooltip data
-                Api.Window.RegisterData(WindowData.ObjectInfo.Type, entry.id)
-                Api.Window.RegisterData(WindowData.ItemProperties.Type, entry.id)
                 table.insert(items, {
-                    id         = entry.id,
-                    name       = stripFirstNumber(entry.name),
-                    price      = entry.price,
-                    totalQty   = entry.quantity,
-                    availQty   = entry.quantity,
-                    cartQty    = 0,
-                    objType    = entry.objType,
-                    registered = true
+                    id       = entry.id,
+                    name     = stripFirstNumber(entry.name),
+                    price    = entry.price,
+                    totalQty = entry.quantity,
+                    availQty = entry.quantity,
+                    cartQty  = 0,
+                    objType  = entry.objType
                 })
             end
         end
@@ -903,10 +914,14 @@ local function OnInitialize(context)
                 end
             end,
             OnShutdown = function(self)
-                -- Unregister buy-mode data
-                if not isSelling then
+                -- Unregister mode-specific data
+                if isSelling then
+                    -- Sell mode: nothing extra registered beyond PlayerStatus
+                else
+                    -- Buy mode: unregister merchant ObjectInfo, container, and all items
                     Api.Window.UnregisterData(WindowData.ObjectInfo.Type, merchantId)
                     Api.Window.UnregisterData(WindowData.ContainerWindow.Type, sellContainerId)
+                    Api.Window.UnregisterData(WindowData.MobileName.Type, merchantId)
                     for i = 1, table.getn(items) do
                         if items[i].registered then
                             Api.Window.UnregisterData(WindowData.ObjectInfo.Type, items[i].id)
@@ -915,6 +930,8 @@ local function OnInitialize(context)
                         end
                     end
                 end
+                -- PlayerStatus was registered in Initialize; unregister it here
+                Api.Window.UnregisterData(WindowData.PlayerStatus.Type, 0)
                 -- Reset per-session state
                 items           = {}
                 filterPatterns  = {}
@@ -1053,18 +1070,14 @@ local function OnInitialize(context)
     -- Override Shopkeeper.Shutdown — intercepts vendor window closure
     -- -----------------------------------------------------------------------
     shopkeeperDefault:getDefault().Shutdown = function()
-        local defaultWin = Api.Window.GetActiveWindowName()
-        if Api.Window.DoesExist(defaultWin) then
-            Api.Window.Destroy(defaultWin)
-        end
-
-        -- Unregister PlayerStatus
-        Api.Window.UnregisterData(WindowData.PlayerStatus.Type, 0)
-
-        -- Broadcast cancel if window still exists (user closed via X)
+        -- Note: this is called when "Shopkeeper" XML window is being destroyed.
+        -- Do NOT try to re-destroy the window here — it is already being torn down.
+        -- Only handle MongbatShopkeeperWindow cleanup if it still exists
+        -- (e.g. server closed shop while our window was open).
         if windowView ~= nil then
             Api.Event.Broadcast(Constants.Broadcasts.ShopCancelOffer())
             Api.Window.Destroy("MongbatShopkeeperWindow")
+            -- window's OnShutdown handles PlayerStatus unregistration and state reset
         end
     end
 end
