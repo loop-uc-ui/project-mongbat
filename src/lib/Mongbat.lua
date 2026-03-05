@@ -5020,6 +5020,45 @@ function DefaultHotbarComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Hotbar System
+-- ========================================================================== --
+
+--- @class DefaultHotbarSystem
+--- @field Initialize fun() Initializes the hotbar system
+--- @field Shutdown fun() Shuts down the hotbar system
+--- @field SpawnNewHotbar fun(hotbarId?: integer, slots?: integer): integer Spawns a new hotbar
+--- @field GetNextHotbarId fun(): integer Gets the next available hotbar ID
+--- @field RegisterAction fun(element: string, hotbarId: integer, itemIndex: integer, subIndex: integer) Registers an action
+--- @field UpdateActionButton fun(element: string, type: integer, id: integer, iconId: integer, disabled: boolean) Updates an action button
+--- @field ClearActionIcon fun(element: string, hotbarId: integer, itemIndex: integer, subIndex: integer, bUnregister: boolean) Clears an action icon
+--- @field DestroyHotbar fun(hotbarId: integer) Destroys a hotbar
+--- @field HandleUpdateActionItem fun() Handles the UPDATE_ACTION_ITEM event
+--- @field Update fun(timePassed: number) Per-frame update for cooldowns and icons
+
+---@class DefaultHotbarSystemComponent : DefaultComponent
+local DefaultHotbarSystemComponent = {}
+DefaultHotbarSystemComponent.__index = DefaultHotbarSystemComponent
+
+---@return DefaultHotbarSystemComponent
+function DefaultHotbarSystemComponent:new()
+    local instance = DefaultComponent.new(self, "HotbarSystem") --[[@as DefaultHotbarSystemComponent]]
+    instance._proxy = instance:_createProxy(HotbarSystem)
+    instance._globalKey = "HotbarSystem"
+    _G.HotbarSystem = instance._proxy
+    return instance
+end
+
+---@return DefaultHotbarSystem
+function DefaultHotbarSystemComponent:getDefault()
+    return self._proxy or HotbarSystem --[[@as DefaultHotbarSystem]]
+end
+
+---@return Window
+function DefaultHotbarSystemComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Object Handle
 -- ========================================================================== --
 
@@ -6957,6 +6996,7 @@ setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultHotbarComponent, { __index = DefaultComponent })
+setmetatable(DefaultHotbarSystemComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6972,6 +7012,7 @@ Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
 Components.Defaults.Hotbar = DefaultHotbarComponent:new()
+Components.Defaults.HotbarSystem = DefaultHotbarSystemComponent:new()
 
 -- ========================================================================== --
 -- Mod
