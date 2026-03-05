@@ -98,7 +98,15 @@ local function OnInitialize(context)
         }
     end
 
+    --- The scale applied to the entire window in figure mode, matching the
+    --- default PaperdollWindow's approach of scaling the whole window to 0.70.
+    local FIGURE_SCALE = 0.70
+
     --- Toggles between grid view and paperdoll figure view.
+    --- In figure mode, the window is resized to the full texture dimensions
+    --- and the entire window is scaled down (matching the default PaperdollWindow
+    --- approach). DynamicImageSetTextureScale is NOT used because it causes
+    --- UV tiling/tessellation on non-legacy render-target textures.
     local function ToggleView()
         showingGrid = not showingGrid
         for i = 1, NUM_SLOTS do
@@ -109,33 +117,47 @@ local function OnInitialize(context)
         if paperdollFigure then
             paperdollFigure:setShowing(not showingGrid)
         end
+        if showingGrid then
+            -- Restore grid dimensions and scale
+            local r = math.ceil(NUM_SLOTS / COLUMNS)
+            local gw = COLUMNS * CELL_SIZE + (COLUMNS - 1) * PADDING
+            local gh = r * CELL_SIZE + (r - 1) * PADDING
+            local ww = gw + MARGIN * 2 + 16
+            local wh = LABEL_HEIGHT + LABEL_GAP + gh + MARGIN * 2 + 16
+            Api.Window.SetScale(NAME, 1.0)
+            Api.Window.SetDimensions(NAME, ww, wh)
+        end
     end
 
-    --- Updates the paperdoll figure texture from the engine's paperdoll texture
-    --- data. Uses the same pattern as the default Shopkeeper window: set
-    --- dimensions + texture, then anchor using offsets relative to topleft (the
-    --- engine's canonical coordinate system for paperdoll textures).
+    --- Updates the paperdoll figure texture. Resizes the MaskWindow to the
+    --- texture dimensions, places the figure at full size using the engine's
+    --- canonical anchoring, and scales the entire window to FIGURE_SCALE.
     local function UpdatePaperdollFigure()
         if not paperdollFigure then return end
 
         local tex = Data.PaperdollTexture(playerId)
         local figName = paperdollFigure:getName()
 
+        local texW, texH
         if tex:hasData() then
-            Api.Window.SetDimensions(figName, tex:getWidth(), tex:getHeight())
+            texW = tex:getWidth()
+            texH = tex:getHeight()
         else
-            -- Texture metadata not available yet; use generous fallback
-            Api.Window.SetDimensions(figName, 200, 400)
+            texW, texH = 200, 400
         end
 
+        -- Resize the window to fit the full texture, then scale the whole
+        -- window down visually — exactly as the default PaperdollWindow does.
+        Api.Window.SetDimensions(NAME, texW, texH)
+        Api.Window.SetScale(NAME, FIGURE_SCALE)
+
+        -- Figure at full texture size, no DynamicImageSetTextureScale
+        Api.Window.SetDimensions(figName, texW, texH)
         Api.DynamicImage.SetTexture(figName, tex:getTextureName(), 0, 0)
 
-        -- Centre the figure in the window.  The texture offsets are designed
-        -- for "center-to-topleft" positioning inside the ~282x414 default
-        -- paperdoll viewport.  Our window is similar in size, so we reuse them
-        -- when available; otherwise we just dead-centre.
+        -- Position using the engine's canonical center-to-topleft anchoring
+        -- with texture offsets, matching the default PaperdollWindow.
         paperdollFigure:clearAnchors()
-
         if tex:hasData() then
             paperdollFigure:addAnchor("center", NAME, "topleft",
                 tex:getXOffset(), tex:getYOffset() + 30)
@@ -239,7 +261,10 @@ local function OnInitialize(context)
     children[IDX_LABEL] = nameLabel
 
     -- Paperdoll character figure (hidden initially)
+    -- Uses a custom template with filtering="true" for smooth bilinear
+    -- scaling of the engine's paperdoll render-target texture.
     paperdollFigure = Components.DynamicImage {
+        Template = "MongbatFilteredDynamicImage",
         OnInitialize = function(self)
             self:setShowing(false)
         end

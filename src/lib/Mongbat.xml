@@ -103,6 +103,12 @@
         </Size>
       </DynamicImage>
 
+      <DynamicImage name="MongbatFilteredDynamicImage" filtering="true" texturescale="1.0" scaleAnchor="center">
+        <Size>
+          <AbsPoint x="250" y="250" />
+        </Size>
+      </DynamicImage>
+
       <MapDisplay name="MongbatMapDisplay">
         <Size>
           <AbsPoint x="300" y="300" />
