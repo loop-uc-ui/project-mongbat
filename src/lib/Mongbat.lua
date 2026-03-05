@@ -424,6 +424,23 @@ function Api.ContextMenu.RequestMenu(id)
     RequestContextMenu(id)
 end
 
+---
+--- Creates a Lua-driven context menu item.
+---@param tid number The text TID for this item.
+---@param flags number Flags (usually 0).
+---@param returnCode number The code passed to the callback when selected.
+---@param param any The parameter passed to the callback when selected.
+function Api.ContextMenu.CreateLuaMenuItem(tid, flags, returnCode, param)
+    ContextMenu.CreateLuaContextMenuItem(tid, flags, returnCode, param)
+end
+
+---
+--- Activates the Lua-driven context menu with the given callback.
+---@param callback fun(returnCode: number, param: any)
+function Api.ContextMenu.ActivateLuaMenu(callback)
+    ContextMenu.ActivateLuaContextMenu(callback)
+end
+
 -- ========================================================================== --
 -- Api - CSV
 -- ========================================================================== --
@@ -729,9 +746,222 @@ function Api.Event.UnregisterEventHandler(event, callback)
     UnregisterEventHandler(event, callback)
 end
 
+---
+--- Broadcasts the INTERFACE_RECORD_KEY event to begin recording a key binding.
+function Api.Event.RecordKey()
+    BroadcastEvent(SystemData.Events["INTERFACE_RECORD_KEY"])
+end
+
 -- ========================================================================== --
--- Api - Gump
+-- Api - Macro
 -- ========================================================================== --
+
+Api.Macro = {}
+
+---
+--- Adds a new macro to the macro system.
+---@return number macroIndex The index of the newly created macro.
+function Api.Macro.AddMacroItem()
+    return MacroSystemAddMacroItem()
+end
+
+---
+--- Returns the number of macros in the macro system.
+---@return number numMacros
+function Api.Macro.GetNumMacros()
+    return MacroSystemGetNumMacros()
+end
+
+---
+--- Destroys the macro at the given index.
+---@param index number The 1-based macro index.
+function Api.Macro.DestroyMacroItem(index)
+    MacroSystemDeleteMacroItem(index)
+end
+
+---
+--- Returns the display name of a macro.
+---@param macroId number The macro system ID (use Constants.MacroSystem.StaticId()).
+---@param index number The 1-based macro index.
+---@return wstring name
+function Api.Macro.GetName(macroId, index)
+    return UserActionMacroGetName(macroId, index)
+end
+
+---
+--- Sets the display name of a macro.
+---@param macroId number The macro system ID.
+---@param index number The 1-based macro index.
+---@param name wstring The new name.
+function Api.Macro.SetName(macroId, index, name)
+    UserActionMacroSetName(macroId, index, name)
+end
+
+---
+--- Returns the key binding string for a macro.
+---@param macroId number The macro system ID.
+---@param index number The 1-based macro index.
+---@return wstring binding
+function Api.Macro.GetBinding(macroId, index)
+    return UserActionMacroGetBinding(macroId, index)
+end
+
+---
+--- Applies a recorded key binding to a macro.
+---@param macroId number The macro system ID.
+---@param index number The 1-based macro index.
+---@param key wstring The recorded key string (from SystemData.RecordedKey).
+function Api.Macro.UpdateBinding(macroId, index, key)
+    UserActionMacroUpdateBinding(macroId, index, key)
+end
+
+---
+--- Returns the unique action ID for a macro slot.
+---@param macroId number The macro system ID.
+---@param index number The 1-based macro index.
+---@return number actionId
+function Api.Macro.GetId(macroId, index)
+    return UserActionGetId(macroId, index, 0)
+end
+
+---
+--- Returns the icon ID for a macro slot.
+---@param macroId number The macro system ID.
+---@param index number The 1-based macro index.
+---@return number iconId
+function Api.Macro.GetIconId(macroId, index)
+    return UserActionGetIconId(macroId, index, 0)
+end
+
+---
+--- Sets the icon ID for a macro slot.
+---@param macroId number The macro system ID.
+---@param index number The 1-based macro index.
+---@param iconId number The new icon ID.
+function Api.Macro.SetIconId(macroId, index, iconId)
+    UserActionSetIconId(macroId, index, 0, iconId)
+end
+
+---
+--- Returns the icon texture name and UV offsets for the given icon ID.
+---@param iconId number
+---@return string texture, number x, number y
+function Api.Macro.GetIconData(iconId)
+    return GetIconData(iconId)
+end
+
+---
+--- Opens the macro edit window for the given macro.
+---@param macroId number The macro system ID.
+---@param index number The 1-based macro index.
+function Api.Macro.OpenEditWindow(macroId, index)
+    ActionEditWindow.OpenEditWindow(SystemData.UserAction.TYPE_MACRO, nil, macroId, index)
+end
+
+---
+--- Returns the recorded key from the last INTERFACE_RECORD_KEY broadcast.
+---@return wstring key
+function Api.Macro.GetRecordedKey()
+    return SystemData.RecordedKey
+end
+
+---
+--- Returns true if the last recorded key has a binding conflict.
+---@return boolean
+function Api.Macro.HasBindingConflict()
+    return SystemData.BindingConflictType ~= SystemData.BindType.BINDTYPE_NONE
+end
+
+---
+--- Returns the hotbar ID of the conflicting binding.
+---@return number
+function Api.Macro.GetConflictHotbarId()
+    return SystemData.BindingConflictHotbarId
+end
+
+---
+--- Returns the item index of the conflicting binding.
+---@return number
+function Api.Macro.GetConflictItemIndex()
+    return SystemData.BindingConflictItemIndex
+end
+
+---
+--- Returns the bind-type of the conflicting binding.
+---@return number
+function Api.Macro.GetConflictBindType()
+    return SystemData.BindingConflictType
+end
+
+-- ========================================================================== --
+-- Api - Dialog
+-- ========================================================================== --
+
+Api.Dialog = {}
+
+---
+--- Creates a standard confirmation/info dialog using UO_StandardDialog.
+---@param windowData table Dialog descriptor: windowName, titleTid, body/bodyTid, buttons array.
+function Api.Dialog.Create(windowData)
+    UO_StandardDialog.CreateDialog(windowData)
+end
+
+-- ========================================================================== --
+-- Api - Hotbar
+-- ========================================================================== --
+
+Api.Hotbar = {}
+
+---
+--- Spawns a new empty hotbar.
+function Api.Hotbar.SpawnNew()
+    HotbarSystem.SpawnNewHotbar()
+end
+
+---
+--- Returns the ID of the most-recently created hotbar.
+---@return number
+function Api.Hotbar.GetNextId()
+    return HotbarSystem.GetNextHotbarId()
+end
+
+---
+--- Places an action on a specific hotbar slot.
+---@param actionType number e.g. Constants.UserAction.TypeMacroReference()
+---@param actionId number
+---@param iconId number
+---@param hotbarId number
+---@param slotIndex number
+function Api.Hotbar.SetAction(actionType, actionId, iconId, hotbarId, slotIndex)
+    HotbarSystem.SetActionOnHotbar(actionType, actionId, iconId, hotbarId, slotIndex)
+end
+
+---
+--- Returns a human-readable key-name string for the binding at the given location.
+---@param hotbarId number
+---@param itemIndex number
+---@param bindType number
+---@return wstring
+function Api.Hotbar.GetKeyName(hotbarId, itemIndex, bindType)
+    return HotbarSystem.GetKeyName(hotbarId, itemIndex, bindType)
+end
+
+---
+--- Replaces a conflicting key binding with a new macro binding.
+---@param conflictHotbarId number
+---@param conflictItemIndex number
+---@param conflictBindType number
+---@param macroId number
+---@param macroIndex number
+---@param macroBindType number
+---@param newKey wstring
+function Api.Hotbar.ReplaceKey(conflictHotbarId, conflictItemIndex, conflictBindType,
+    macroId, macroIndex, macroBindType, newKey)
+    HotbarSystem.ReplaceKey(
+        conflictHotbarId, conflictItemIndex, conflictBindType,
+        macroId, macroIndex, macroBindType,
+        newKey, L"")
+end
 
 
 Api.Gump = {}
@@ -2886,6 +3116,22 @@ Constants.ButtonFlags = {
     Shift = 4
 }
 
+Constants.BindType = {}
+
+---
+--- Returns the "no binding" bind-type constant.
+---@return number
+function Constants.BindType.None()
+    return SystemData.BindType.BINDTYPE_NONE
+end
+
+---
+--- Returns the macro bind-type constant.
+---@return number
+function Constants.BindType.Macro()
+    return SystemData.BindType.BINDTYPE_MACRO
+end
+
 Constants.DragSource = {}
 
 function Constants.DragSource.Object()
@@ -2894,6 +3140,24 @@ end
 
 function Constants.DragSource.Paperdoll()
     return SystemData.DragSource["SOURCETYPE_PAPERDOLL"]
+end
+
+Constants.MacroSystem = {}
+
+---
+--- Returns the static macro system ID used for all MacroSystem* and UserActionMacro* calls.
+---@return number
+function Constants.MacroSystem.StaticId()
+    return SystemData.MacroSystem.STATIC_MACRO_ID
+end
+
+Constants.UserAction = {}
+
+---
+--- Returns the action type constant for a macro reference (used with SetActionMouseClickData).
+---@return number
+function Constants.UserAction.TypeMacroReference()
+    return SystemData.UserAction.TYPE_MACRO_REFERENCE
 end
 
 Constants.Broadcasts = {}
@@ -2985,6 +3249,20 @@ Constants.SystemEvents.OnUpdateProcessed = {
         return SystemData.Events["UPDATE_PROCESSED"]
     end,
     name = "OnUpdateProcessed"
+}
+
+Constants.SystemEvents.OnInterfaceKeyRecorded = {
+    getEvent = function()
+        return SystemData.Events["INTERFACE_KEY_RECORDED"]
+    end,
+    name = "OnInterfaceKeyRecorded"
+}
+
+Constants.SystemEvents.OnInterfaceKeyCancelRecord = {
+    getEvent = function()
+        return SystemData.Events["INTERFACE_KEY_CANCEL_RECORD"]
+    end,
+    name = "OnInterfaceKeyCancelRecord"
 }
 
 Constants.CoreEvents = {}
@@ -4825,6 +5103,39 @@ function DefaultDebugWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Macro Window
+-- ========================================================================== --
+
+---@class DefaultMacroWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field AddMacro fun()
+---@field DisplayMacroList fun()
+
+---@class DefaultMacroWindowComponent : DefaultComponent
+local DefaultMacroWindowComponent = {}
+DefaultMacroWindowComponent.__index = DefaultMacroWindowComponent
+
+---@return DefaultMacroWindowComponent
+function DefaultMacroWindowComponent:new()
+    local instance = DefaultComponent.new(self, "MacroWindow") --[[@as DefaultMacroWindowComponent]]
+    instance._proxy = instance:_createProxy(MacroWindow)
+    instance._globalKey = "MacroWindow"
+    _G.MacroWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultMacroWindow
+function DefaultMacroWindowComponent:getDefault()
+    return self._proxy or MacroWindow --[[@as DefaultMacroWindow]]
+end
+
+---@return Window
+function DefaultMacroWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Object Handle
 -- ========================================================================== --
 
@@ -5546,6 +5857,18 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnInterfaceKeyRecorded()
+    withActiveView("OnInterfaceKeyRecorded", function(window)
+        window:onInterfaceKeyRecorded()
+    end)
+end
+
+function EventHandler.OnInterfaceKeyCancelRecord()
+    withActiveView("OnInterfaceKeyCancelRecord", function(window)
+        window:onInterfaceKeyCancelRecord()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6037,6 +6360,22 @@ end
 function View:onUpdatePaperdoll()
     if self._model.OnUpdatePaperdoll ~= nil then
         self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onInterfaceKeyRecorded()
+    if self._model.OnInterfaceKeyRecorded ~= nil then
+        self._model.OnInterfaceKeyRecorded(self)
+        return true
+    end
+    return false
+end
+
+function View:onInterfaceKeyCancelRecord()
+    if self._model.OnInterfaceKeyCancelRecord ~= nil then
+        self._model.OnInterfaceKeyCancelRecord(self)
         return true
     end
     return false
@@ -6761,6 +7100,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultMacroWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +7115,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.MacroWindow = DefaultMacroWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
