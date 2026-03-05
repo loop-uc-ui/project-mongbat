@@ -1411,6 +1411,58 @@ function Api.Slider.GetCurrentPosition(id)
 end
 
 -- ========================================================================== --
+-- Api - Settings
+-- ========================================================================== --
+
+Api.Settings = {}
+
+---
+--- Pushes current Lua-side settings to the C++ engine.
+--- Must be called after modifying SystemData.Settings.* tables to persist changes.
+---@return boolean needsReload Whether the client needs to reload to apply the changes.
+function Api.Settings.UserSettingsChanged()
+    return UserSettingsChanged()
+end
+
+---
+--- Returns the current key binding string for the given action type.
+---@param actionType string The action type string (e.g. "FORWARD", "ZOOM_IN").
+---@return wstring The key binding wstring, or an empty wstring if unbound.
+function Api.Settings.GetKeybinding(actionType)
+    return SystemData.Settings.Keybindings[actionType] or L""
+end
+
+---
+--- Sets a key binding for the given action type.
+--- Call Api.Settings.UserSettingsChanged() afterwards to persist.
+---@param actionType string The action type string.
+---@param key wstring The key wstring to assign.
+function Api.Settings.SetKeybinding(actionType, key)
+    SystemData.Settings.Keybindings[actionType] = key
+end
+
+---
+--- Begins interactive key recording. Sets IsRecordingSettings and broadcasts the
+--- INTERFACE_RECORD_KEY event. The engine will fire INTERFACE_KEY_RECORDED when done.
+function Api.Settings.StartRecordKey()
+    SystemData.IsRecordingSettings = true
+    Api.Event.Broadcast(SystemData.Events.INTERFACE_RECORD_KEY)
+end
+
+---
+--- Returns the key wstring that was last recorded by the engine.
+---@return wstring The recorded key, or an empty wstring if none.
+function Api.Settings.GetRecordedKey()
+    return SystemData.RecordedKey or L""
+end
+
+---
+--- Cancels an in-progress key recording session.
+function Api.Settings.CancelRecordKey()
+    SystemData.IsRecordingSettings = false
+end
+
+-- ========================================================================== --
 -- Api - Status Bar
 -- ========================================================================== --
 
@@ -2987,6 +3039,13 @@ Constants.SystemEvents.OnUpdateProcessed = {
     name = "OnUpdateProcessed"
 }
 
+Constants.SystemEvents.OnKeyRecorded = {
+    getEvent = function()
+        return SystemData.Events.INTERFACE_KEY_RECORDED
+    end,
+    name = "OnKeyRecorded"
+}
+
 Constants.CoreEvents = {}
 Constants.CoreEvents.OnInitialize = "OnInitialize"
 Constants.CoreEvents.OnShown = "OnShown"
@@ -4073,6 +4132,15 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+---@class DefaultSettingsWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field ToggleSettingsWindow fun()
+
+---@class DefaultSettingsWindowComponent : DefaultComponent
+local DefaultSettingsWindowComponent = {}
+DefaultSettingsWindowComponent.__index = DefaultSettingsWindowComponent
+
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4848,6 +4916,29 @@ function DefaultObjectHandleComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Settings Window
+-- ========================================================================== --
+
+---@return DefaultSettingsWindowComponent
+function DefaultSettingsWindowComponent:new()
+    local instance = DefaultComponent.new(self, "SettingsWindow") --[[@as DefaultSettingsWindowComponent]]
+    instance._proxy = instance:_createProxy(SettingsWindow)
+    instance._globalKey = "SettingsWindow"
+    _G.SettingsWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultSettingsWindow
+function DefaultSettingsWindowComponent:getDefault()
+    return self._proxy or SettingsWindow --[[@as DefaultSettingsWindow]]
+end
+
+---@return Window
+function DefaultSettingsWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Status Window
 -- ========================================================================== --
 
@@ -5546,6 +5637,12 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnKeyRecorded()
+    withActiveView("OnKeyRecorded", function(window)
+        window:onKeyRecorded()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6110,6 +6207,14 @@ end
 function View:onKeyEscape()
     if self._model.OnKeyEscape ~= nil then
         self._model.OnKeyEscape(self)
+        return true
+    end
+    return false
+end
+
+function View:onKeyRecorded()
+    if self._model.OnKeyRecorded ~= nil then
+        self._model.OnKeyRecorded(self)
         return true
     end
     return false
@@ -6755,6 +6860,7 @@ setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
+setmetatable(DefaultSettingsWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
@@ -6769,6 +6875,7 @@ Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
+Components.Defaults.SettingsWindow = DefaultSettingsWindowComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
