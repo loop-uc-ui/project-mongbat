@@ -394,6 +394,7 @@
 ---@field ObjectInfo table<number, WindowData.ObjectInfo>
 ---@field ContainerWindow table<number, WindowData.Container>
 ---@field ObjectHandle WindowData.ObjectHandle
+---@field Pets WindowData.Pets
 
 
 -- ========================================================================== --
