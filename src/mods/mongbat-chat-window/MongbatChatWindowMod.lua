@@ -1,5 +1,8 @@
 local NAME = "MongbatChatWindowWindow"
 
+-- Maximum number of dynamic bookmark tabs the default NewChatWindow can create
+local MAX_TABS = 20
+
 -- Channels available for sending messages
 local SEND_CHANNELS = {
     { key = "SAY",      label = L"Say" },
@@ -23,43 +26,78 @@ local FILTER_KEYS = {
     { key = "GM",       label = L"GM" },
 }
 
+-- Destroy all windows created by the default NewChatWindow system
+local function destroyNewChatWindows(api)
+    -- Main window (XML-defined; destroying it also removes its XML children)
+    api.Window.Destroy("NewChatWindow")
+    -- Standalone XML-defined windows that are NOT children of NewChatWindow
+    api.Window.Destroy("NewChatWindowInputTextButton")
+    api.Window.Destroy("NewChatChannelSelectionWindow")
+    -- Dynamic bookmark tabs and per-tab log windows created by LoadTabs()
+    for i = 1, MAX_TABS do
+        api.Window.Destroy("Bookmark" .. i)
+        api.Window.Destroy("NewChatWindow" .. i)
+        api.Window.Destroy("NewChatWindowBookmark" .. i)
+    end
+end
+
+-- Destroy all windows created by the default ChatWindow (UO_ChatWindow) system
+local function destroyChatWindows(api)
+    -- Main window (XML-defined; destroying it removes its XML children including tabs)
+    api.Window.Destroy("ChatWindow")
+    -- Shared text-input container (XML-defined, anchored to the chat log)
+    api.Window.Destroy("ChatWindowContainer")
+    -- Standalone windows created dynamically by ChatWindow.Initialize()
+    api.Window.Destroy("ChatWindowInputTextButton")
+    api.Window.Destroy("ChatChannelSelectionWindow")
+    api.Window.Destroy("ChatWindowRenameWindow")
+    api.Window.Destroy("ChatWindowSetOpacityWindow")
+end
+
 ---@param context Context
 local function OnInitialize(context)
-    -- Suppress default chat windows
+    -- ------------------------------------------------------------------ --
+    -- Suppress both default chat systems (proxy + full window destruction)
+    -- ------------------------------------------------------------------ --
+
     local newChatDefault = context.Components.Defaults.NewChatWindow
     newChatDefault:disable()
-    if context.Api.Window.DoesExist(newChatDefault.name) then
-        newChatDefault:asComponent():setShowing(false)
-    end
+    destroyNewChatWindows(context.Api)
 
     local chatDefault = context.Components.Defaults.ChatWindow
     chatDefault:disable()
-    if context.Api.Window.DoesExist(chatDefault.name) then
-        chatDefault:asComponent():setShowing(false)
-    end
+    destroyChatWindows(context.Api)
 
+    -- ------------------------------------------------------------------ --
     -- Engine data references (obtained once at initialization)
+    -- ------------------------------------------------------------------ --
+
     local filters  = context.Api.Chat.GetLogFilters()
     local channels = context.Api.Chat.GetChannels()
 
-    -- Active send channel index into SEND_CHANNELS
+    -- ------------------------------------------------------------------ --
+    -- Runtime state (local to this OnInitialize — closures capture these)
+    -- ------------------------------------------------------------------ --
+
     local activeChannelIdx = 1
 
-    -- Filter enabled state per key: true = show that message type in the log
+    -- All message types enabled by default
     local filterEnabled = {}
     for _, entry in ipairs(FILTER_KEYS) do
         filterEnabled[entry.key] = true
     end
 
-    -- Current alpha level
     local currentAlpha = 0.9
 
-    -- Forward-declared component references
-    local logDisplay   = nil
-    local channelBtn   = nil
+    -- Forward-declared component references set before Window:create()
+    local logDisplay    = nil
+    local channelBtn    = nil
     local filterButtons = {}
 
-    -- Update the channel cycle button text and colour to match the active channel
+    -- ------------------------------------------------------------------ --
+    -- Helpers
+    -- ------------------------------------------------------------------ --
+
     local function updateChannelButton()
         if channelBtn == nil then return end
         local ch       = SEND_CHANNELS[activeChannelIdx]
@@ -74,12 +112,10 @@ local function OnInitialize(context)
         end
     end
 
-    -- Toggle a message-type filter on the LogDisplay
     local function applyFilter(key, enabled)
         if logDisplay == nil then return end
         local filterId = filters[key]
         if filterId == nil then return end
-        -- All main chat message types use log name "Chat"
         logDisplay:setFilterState("Chat", filterId, enabled)
     end
 
@@ -165,9 +201,10 @@ local function OnInitialize(context)
             self:showTimestamp(false)
             self:showLogName(false)
             self:showFilterName(false)
+            self:showScrollbar(true)
             self:addLog("Chat", true)
 
-            -- Apply per-channel colours so messages render with the correct tint
+            -- Set per-channel colours for the "Chat" log
             for _, ch in pairs(channels) do
                 if ch and ch.id and ch.logName then
                     local color = context.Api.Chat.GetChannelColor(ch.id)
@@ -176,6 +213,16 @@ local function OnInitialize(context)
                     end
                 end
             end
+
+            -- Explicitly enable all filter types to match initial filter button state
+            for _, entry in ipairs(FILTER_KEYS) do
+                local filterId = filters[entry.key]
+                if filterId then
+                    self:setFilterState("Chat", filterId, true)
+                end
+            end
+
+            self:scrollToBottom()
         end,
     }
 
@@ -183,7 +230,6 @@ local function OnInitialize(context)
     -- Bottom row: channel-cycle button + text input
     -- ------------------------------------------------------------------ --
 
-    -- Channel cycle button: click to rotate through SEND_CHANNELS
     channelBtn = context.Components.Button {
         OnInitialize = function(self)
             updateChannelButton()
@@ -197,7 +243,6 @@ local function OnInitialize(context)
         end,
     }
 
-    -- Text input: Enter to send, Escape to clear
     local textInput = context.Components.EditTextBox {
         OnKeyEnter = function(self)
             local text = self:getText()
@@ -219,14 +264,14 @@ local function OnInitialize(context)
     -- Window with custom layout
     -- ------------------------------------------------------------------ --
 
-    -- Child index layout:
-    --   1 .. #FILTER_KEYS         = filter toggle buttons  (toolbar)
-    --   #FILTER_KEYS + 1          = timestampBtn           (toolbar)
-    --   #FILTER_KEYS + 2          = alphaDecrBtn           (toolbar)
-    --   #FILTER_KEYS + 3          = alphaIncrBtn           (toolbar)
-    --   #FILTER_KEYS + 4          = logDisplay             (main area)
-    --   #FILTER_KEYS + 5          = channelBtn             (bottom row)
-    --   #FILTER_KEYS + 6          = textInput              (bottom row)
+    -- Child order:
+    --   1 .. #FILTER_KEYS         filter toggle buttons  (toolbar)
+    --   #FILTER_KEYS + 1          timestampBtn           (toolbar)
+    --   #FILTER_KEYS + 2          alphaDecrBtn           (toolbar)
+    --   #FILTER_KEYS + 3          alphaIncrBtn           (toolbar)
+    --   #FILTER_KEYS + 4          logDisplay             (main area)
+    --   #FILTER_KEYS + 5          channelBtn             (bottom row)
+    --   #FILTER_KEYS + 6          textInput              (bottom row)
     local numFilters     = #FILTER_KEYS
     local numToolbarBtns = numFilters + 3   -- filters + Time + - + +
 
@@ -240,7 +285,6 @@ local function OnInitialize(context)
             local inputH   = 26
             local contentW = dimens.x - (padding * 2)
 
-            -- Spread all toolbar buttons evenly across the content width
             local btnW = math.floor(contentW / numToolbarBtns)
 
             if index <= numToolbarBtns then
@@ -253,7 +297,7 @@ local function OnInitialize(context)
                 child:setDimensions(btnW, toolbarH)
 
             elseif index == numToolbarBtns + 1 then
-                -- LogDisplay: fills the space between toolbar and input row
+                -- LogDisplay fills the space between toolbar and input row
                 local logH = dimens.y - (padding * 2) - toolbarH - spacing - inputH - spacing
                 if logH < 0 then logH = 0 end
                 child:addAnchor("topleft", children[1]:getName(), "bottomleft", 0, spacing)
@@ -283,6 +327,8 @@ local function OnInitialize(context)
         OnInitialize = function(self)
             self:setDimensions(620, 300)
             self:setAlpha(currentAlpha)
+            -- Default position: bottom-left of the screen
+            self:addAnchor("bottomleft", "Root", "bottomleft", 10, -10)
 
             local childList = {}
             for _, entry in ipairs(FILTER_KEYS) do
@@ -298,7 +344,6 @@ local function OnInitialize(context)
         end,
     }):create(true)
 
-    -- Sync channel button label/colour now that all components are live
     updateChannelButton()
 end
 
@@ -306,17 +351,9 @@ end
 local function OnShutdown(context)
     context.Api.Window.Destroy(NAME)
 
-    local newChatDefault = context.Components.Defaults.NewChatWindow
-    newChatDefault:restore()
-    if context.Api.Window.DoesExist(newChatDefault.name) then
-        newChatDefault:asComponent():setShowing(true)
-    end
-
-    local chatDefault = context.Components.Defaults.ChatWindow
-    chatDefault:restore()
-    if context.Api.Window.DoesExist(chatDefault.name) then
-        chatDefault:asComponent():setShowing(true)
-    end
+    -- Restore the proxy tables so the engine can re-initialize them on next login
+    context.Components.Defaults.NewChatWindow:restore()
+    context.Components.Defaults.ChatWindow:restore()
 end
 
 Mongbat.Mod {
@@ -325,3 +362,4 @@ Mongbat.Mod {
     OnInitialize = OnInitialize,
     OnShutdown = OnShutdown,
 }
+

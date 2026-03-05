@@ -5785,6 +5785,21 @@ function LogDisplay:removeLog(logName)
     return self
 end
 
+---Shows or hides the scrollbar on the log display
+---@param show boolean
+---@return LogDisplay
+function LogDisplay:showScrollbar(show)
+    Api.LogDisplay.ShowScrollbar(self:getName(), show)
+    return self
+end
+
+---Scrolls the log display to the bottom
+---@return LogDisplay
+function LogDisplay:scrollToBottom()
+    Api.LogDisplay.ScrollToBottom(self:getName())
+    return self
+end
+
 ---@param model LogDisplayModel?
 ---@return LogDisplay
 function Components.LogDisplay(model)
