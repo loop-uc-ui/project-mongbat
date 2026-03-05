@@ -88,9 +88,10 @@ local function OnInitialize(context)
     SHOWNAMES_IDS[2] = SystemData.Settings.GameOptions.SHOWNAMES_APPROACHING
     SHOWNAMES_IDS[3] = SystemData.Settings.GameOptions.SHOWNAMES_ALL
 
-    -- Disable the default settings window
+    -- Disable the default settings window and destroy the existing XML window
     local settingsDefault = Components.Defaults.SettingsWindow
     settingsDefault:disable()
+    settingsDefault:asComponent():destroy()
 
     -- ======================================================================
     -- Pending settings
@@ -963,10 +964,27 @@ local function OnInitialize(context)
                 self:anchorToParentCenter()
                 self:setChildren(allChildren)
             end,
+            -- Suppress the Window default which destroys on right-click; we keep the window alive
+            OnRButtonUp = function() end,
             OnShown = function()
                 loadSettings()
                 refreshAll()
                 ShowTab(activeTab)
+            end,
+            -- Reload settings when the engine broadcasts an external settings change
+            OnUserSettingsUpdated = function()
+                loadSettings()
+                refreshAll()
+            end,
+            -- Toggle window visibility when the settings hotkey is pressed
+            OnToggleUserPreference = function(self)
+                local isShowing = Api.Window.IsShowing(NAME)
+                self:setShowing(not isShowing)
+            end,
+            -- Cancel key recording when the player presses Escape
+            OnKeyCancelRecord = function()
+                Api.Settings.CancelRecordKey()
+                recordingIndex = nil
             end,
             -- Fired by the engine when key recording completes
             OnKeyRecorded = function()

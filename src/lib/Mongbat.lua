@@ -3046,6 +3046,27 @@ Constants.SystemEvents.OnKeyRecorded = {
     name = "OnKeyRecorded"
 }
 
+Constants.SystemEvents.OnKeyCancelRecord = {
+    getEvent = function()
+        return SystemData.Events.INTERFACE_KEY_CANCEL_RECORD
+    end,
+    name = "OnKeyCancelRecord"
+}
+
+Constants.SystemEvents.OnUserSettingsUpdated = {
+    getEvent = function()
+        return SystemData.Events.USER_SETTINGS_UPDATED
+    end,
+    name = "OnUserSettingsUpdated"
+}
+
+Constants.SystemEvents.OnToggleUserPreference = {
+    getEvent = function()
+        return SystemData.Events.TOGGLE_USER_PREFERENCE
+    end,
+    name = "OnToggleUserPreference"
+}
+
 Constants.CoreEvents = {}
 Constants.CoreEvents.OnInitialize = "OnInitialize"
 Constants.CoreEvents.OnShown = "OnShown"
@@ -5643,6 +5664,24 @@ function EventHandler.OnKeyRecorded()
     end)
 end
 
+function EventHandler.OnKeyCancelRecord()
+    withActiveView("OnKeyCancelRecord", function(window)
+        window:onKeyCancelRecord()
+    end)
+end
+
+function EventHandler.OnUserSettingsUpdated()
+    withActiveView("OnUserSettingsUpdated", function(window)
+        window:onUserSettingsUpdated()
+    end)
+end
+
+function EventHandler.OnToggleUserPreference()
+    withActiveView("OnToggleUserPreference", function(window)
+        window:onToggleUserPreference()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6218,6 +6257,24 @@ function View:onKeyRecorded()
         return true
     end
     return false
+end
+
+function View:onKeyCancelRecord()
+    if self._model.OnKeyCancelRecord ~= nil then
+        self._model.OnKeyCancelRecord(self)
+    end
+end
+
+function View:onUserSettingsUpdated()
+    if self._model.OnUserSettingsUpdated ~= nil then
+        self._model.OnUserSettingsUpdated(self)
+    end
+end
+
+function View:onToggleUserPreference()
+    if self._model.OnToggleUserPreference ~= nil then
+        self._model.OnToggleUserPreference(self)
+    end
 end
 
 function View:getId()
