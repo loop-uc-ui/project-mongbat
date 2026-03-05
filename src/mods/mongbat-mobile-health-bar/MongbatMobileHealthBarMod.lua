@@ -102,10 +102,19 @@ local function OnInitialize(context)
         local name = NAME_PREFIX .. mobileId
 
         if bars[mobileId] then
-            -- Bar already exists (attached to world): detach to make it
-            -- free-floating so the player can drag it to a new position.
+            -- Bar already exists: detach from world so it becomes free-floating
+            -- (this is triggered by the HealthBarManager drag flow).
             context.Api.Window.DetachFromWorldObject(mobileId, name)
             return
+        end
+
+        local attachedToWorld = true
+
+        local function detachFromWorld(self)
+            if attachedToWorld then
+                attachedToWorld = false
+                context.Api.Window.DetachFromWorldObject(self:getId(), self:getName())
+            end
         end
 
         local window = context.Components.Window {
@@ -130,11 +139,20 @@ local function OnInitialize(context)
             OnLButtonUp = function(self)
                 context.Api.Target.LeftClick(self:getId())
             end,
-            OnLButtonDown = function(self)
-                hbm:getDefault().OnBeginDragHealthBar(self:getId())
+            OnUpdate = function(self)
+                -- Detach from world when the user starts dragging the window.
+                if attachedToWorld and self:isMoving() then
+                    detachFromWorld(self)
+                end
+            end,
+            OnEnableHealthBar = function(self)
+                context.Api.Window.SetShowing(self:getName(), true)
+            end,
+            OnDisableHealthBar = function(self)
+                context.Api.Window.SetShowing(self:getName(), false)
             end,
             OnEndHealthBarDrag = function(self)
-                -- After the drag the bar becomes free-floating; no extra work needed.
+                -- OnUpdate handles detach while dragging; this is a no-op.
             end
         }
 
@@ -197,11 +215,14 @@ local function OnInitialize(context)
             OnLButtonUp = function(self)
                 context.Api.Target.LeftClick(self:getId())
             end,
-            OnLButtonDown = function(self)
-                hbm:getDefault().OnBeginDragHealthBar(self:getId())
+            OnEnableHealthBar = function(self)
+                context.Api.Window.SetShowing(self:getName(), true)
+            end,
+            OnDisableHealthBar = function(self)
+                context.Api.Window.SetShowing(self:getName(), false)
             end,
             OnEndHealthBarDrag = function(self)
-                -- After the drag the bar becomes free-floating.
+                -- Bar is now free-floating after a HealthBarManager drag.
             end
         }
 

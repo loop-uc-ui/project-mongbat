@@ -2966,6 +2966,20 @@ Constants.SystemEvents.OnEndHealthBarDrag = {
     name = "OnEndHealthBarDrag"
 }
 
+Constants.SystemEvents.OnEnableHealthBar = {
+    getEvent = function()
+        return SystemData.Events["ENABLE_HEALTHBAR_WINDOW"]
+    end,
+    name = "OnEnableHealthBar"
+}
+
+Constants.SystemEvents.OnDisableHealthBar = {
+    getEvent = function()
+        return SystemData.Events["DISABLE_HEALTHBAR_WINDOW"]
+    end,
+    name = "OnDisableHealthBar"
+}
+
 Constants.SystemEvents.OnLButtonUpProcessed = {
     getEvent = function()
         return SystemData.Events["L_BUTTON_UP_PROCESSED"]
@@ -4183,6 +4197,8 @@ FilterInput.__index = FilterInput
 ---@field OnMouseOverEnd fun(self: Window)?
 ---@field OnMouseWheel fun(self: Window, x: number, y: number, delta: number)?
 ---@field OnEndHealthBarDrag fun(self: Window)?
+---@field OnEnableHealthBar fun(self: Window)?
+---@field OnDisableHealthBar fun(self: Window)?
 ---@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: Window, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
@@ -4260,6 +4276,8 @@ LogDisplay.__index = LogDisplay
 ---@field OnMouseOver fun(self: View)?
 ---@field OnMouseOverEnd fun(self: View)?
 ---@field OnEndHealthBarDrag fun(self: View)?
+---@field OnEnableHealthBar fun(self: View)?
+---@field OnDisableHealthBar fun(self: View)?
 ---@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: View, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
@@ -5601,6 +5619,18 @@ function EventHandler.OnEndHealthBarDrag()
     end)
 end
 
+function EventHandler.OnEnableHealthBar()
+    withActiveView("OnEnableHealthBar", function(window)
+        window:onEnableHealthBar()
+    end)
+end
+
+function EventHandler.OnDisableHealthBar()
+    withActiveView("OnDisableHealthBar", function(window)
+        window:onDisableHealthBar()
+    end)
+end
+
 function EventHandler.OnUpdateRadar()
     withActiveView("OnUpdateRadar", function(window)
         window:onUpdateRadar(WindowData.Radar)
@@ -6160,6 +6190,22 @@ end
 function View:onEndHealthBarDrag()
     if self._model.OnEndHealthBarDrag ~= nil then
         self._model.OnEndHealthBarDrag(self)
+        return true
+    end
+    return false
+end
+
+function View:onEnableHealthBar()
+    if self._model.OnEnableHealthBar ~= nil then
+        self._model.OnEnableHealthBar(self)
+        return true
+    end
+    return false
+end
+
+function View:onDisableHealthBar()
+    if self._model.OnDisableHealthBar ~= nil then
+        self._model.OnDisableHealthBar(self)
         return true
     end
     return false
