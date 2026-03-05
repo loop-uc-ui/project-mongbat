@@ -28,6 +28,10 @@ local CURRENCY_ICON  = 20
 local ROW_H          = 28
 local ACCEPT_H       = 30
 
+-- File-scoped: must survive across OnInitialize and OnShutdown to allow
+-- the original TradeWindow functions to be restored on mod unload.
+local _savedInit, _savedShutdown, _savedClose
+
 ---@param context Context
 local function OnInitialize(context)
     local Api        = context.Api
@@ -37,10 +41,10 @@ local function OnInitialize(context)
 
     local tradeDefault = Components.Defaults.TradeWindow
 
-    -- Save originals so they can be restored on shutdown
-    local originalInit     = tradeDefault:getDefault().Initialize
-    local originalShutdown = tradeDefault:getDefault().Shutdown
-    local originalClose    = tradeDefault:getDefault().CloseWindow
+    -- Save originals before overriding so they can be restored in OnShutdown
+    _savedInit     = tradeDefault:getDefault().Initialize
+    _savedShutdown = tradeDefault:getDefault().Shutdown
+    _savedClose    = tradeDefault:getDefault().CloseWindow
 
     -- Track active trade windows: defaultWindowName -> mongbatWindowName
     local activeWindows = {}
@@ -60,10 +64,8 @@ local function OnInitialize(context)
     -- ------------------------------------------------------------------ --
     ---@param scrollChild string  parent window for item slots
     ---@param containerId integer
-    ---@param isMyContainer boolean  true if this is the player's container
     ---@param registeredItems table<integer, boolean>  updated in-place
-    local function rebuildItemList(scrollChild, containerId, isMyContainer,
-                                   registeredItems)
+    local function rebuildItemList(scrollChild, containerId, registeredItems)
         -- Unregister previously tracked objects
         for id, _ in pairs(registeredItems) do
             Api.Window.UnregisterData(
@@ -250,6 +252,8 @@ local function OnInitialize(context)
         local window = Components.Window {
             Name      = mongbatName,
             Resizable = false,
+            -- Layout is handled manually in OnInitialize via explicit anchors,
+            -- so no automatic layout pass is needed.
             OnLayout  = function() end,
             OnInitialize = function(self)
                 local n = self:getName()
@@ -442,9 +446,9 @@ local function OnInitialize(context)
                 )
 
                 -- ---- Initial item list population ---- --
-                rebuildItemList(myScrollChild,    containerId,  true,
+                rebuildItemList(myScrollChild,    containerId,
                     myRegisteredItems)
-                rebuildItemList(theirScrollChild, containerId2, false,
+                rebuildItemList(theirScrollChild, containerId2,
                     theirRegisteredItems)
             end,
 
@@ -459,10 +463,10 @@ local function OnInitialize(context)
             OnUpdateContainerWindow = function(self, container)
                 local cid = container:getId()
                 if cid == containerId then
-                    rebuildItemList(myScrollChild, cid, true,
+                    rebuildItemList(myScrollChild, cid,
                         myRegisteredItems)
                 elseif cid == containerId2 then
-                    rebuildItemList(theirScrollChild, cid, false,
+                    rebuildItemList(theirScrollChild, cid,
                         theirRegisteredItems)
                 end
             end,
@@ -471,10 +475,10 @@ local function OnInitialize(context)
             OnUpdateObjectInfo = function(self, objectInfo)
                 local oid = objectInfo:getId()
                 if myRegisteredItems[oid] then
-                    rebuildItemList(myScrollChild, containerId, true,
+                    rebuildItemList(myScrollChild, containerId,
                         myRegisteredItems)
                 elseif theirRegisteredItems[oid] then
-                    rebuildItemList(theirScrollChild, containerId2, false,
+                    rebuildItemList(theirScrollChild, containerId2,
                         theirRegisteredItems)
                 end
             end,
@@ -592,6 +596,7 @@ local function OnInitialize(context)
             destroyTradeWindow(mongbatName)
             activeWindows[defaultWindowName] = nil
         end
+        Api.ItemProperties.ClearMouseOverItem()
         if Api.Window.DoesExist(defaultWindowName) then
             Api.Window.Destroy(defaultWindowName)
         end
@@ -599,12 +604,24 @@ local function OnInitialize(context)
 end
 
 -- ========================================================================== --
--- OnShutdown: restore the original TradeWindow global
+-- OnShutdown: restore the original TradeWindow functions and global
 -- ========================================================================== --
 ---@param context Context
 local function OnShutdown(context)
-    -- Restore the original global so vanilla code works after mod unload
-    context.Components.Defaults.TradeWindow:restoreGlobal()
+    local tradeDefault = context.Components.Defaults.TradeWindow
+    -- Restore the individual function overrides so the original table is
+    -- pristine before restoring the global pointer.
+    if _savedInit then
+        tradeDefault:getDefault().Initialize = _savedInit
+    end
+    if _savedShutdown then
+        tradeDefault:getDefault().Shutdown = _savedShutdown
+    end
+    if _savedClose then
+        tradeDefault:getDefault().CloseWindow = _savedClose
+    end
+    -- Restore _G.TradeWindow = originalTable
+    tradeDefault:restoreGlobal()
 end
 
 Mongbat.Mod {
