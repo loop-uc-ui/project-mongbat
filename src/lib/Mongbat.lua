@@ -3341,6 +3341,41 @@ function Data.MobileStatus(id)
 end
 
 -- ========================================================================== --
+-- Data - Party Member
+-- ========================================================================== --
+
+---@class WindowData.PartyMember
+---@field memberId integer
+
+---@class PartyMemberWrapper
+---@field _index integer
+local PartyMember = {}
+PartyMember.__index = PartyMember
+
+function PartyMember:new(index)
+    local instance = setmetatable({}, self)
+    instance._index = index
+    return instance
+end
+
+---@return WindowData.PartyMember
+function PartyMember:getData()
+    return WindowData.PartyMember[self._index]
+end
+
+function PartyMember:getMemberId()
+    local data = self:getData()
+    if data then
+        return data.memberId
+    end
+    return 0
+end
+
+function Data.PartyMember(index)
+    return PartyMember:new(index)
+end
+
+-- ========================================================================== --
 -- Data - Button Flags
 -- ========================================================================== --
 
@@ -4683,6 +4718,62 @@ function DefaultHealthBarManagerComponent:getDefault()
     return self._proxy or HealthBarManager --[[@as DefaultHealthBarManager]]
 end
 
+
+-- ========================================================================= --
+-- Components - Default - Mobile Health Bar
+-- ========================================================================= --
+
+---@class DefaultMobileHealthBar
+---@field CreateHealthBar fun(mobileId: integer)
+---@field CloseWindowByMobileId fun(mobileId: integer)
+---@field HasWindow fun(mobileId: integer): boolean
+
+---@class DefaultMobileHealthBarComponent : DefaultComponent
+local DefaultMobileHealthBarComponent = {}
+DefaultMobileHealthBarComponent.__index = DefaultMobileHealthBarComponent
+
+---@return DefaultMobileHealthBarComponent
+function DefaultMobileHealthBarComponent:new()
+    local instance = DefaultComponent.new(self, "MobileHealthBar") --[[@as DefaultMobileHealthBarComponent]]
+    instance._proxy = instance:_createProxy(MobileHealthBar)
+    instance._globalKey = "MobileHealthBar"
+    _G.MobileHealthBar = instance._proxy
+    return instance
+end
+
+---@return DefaultMobileHealthBar
+function DefaultMobileHealthBarComponent:getDefault()
+    return self._proxy or MobileHealthBar --[[@as DefaultMobileHealthBar]]
+end
+
+-- ========================================================================= --
+-- Components - Default - Party Health Bar
+-- ========================================================================= --
+
+---@class DefaultPartyHealthBar
+---@field CreateHealthBar fun(mobileId: integer, useDefaultPos: boolean)
+---@field CloseWindowByIndex fun(windowIndex: integer)
+---@field HasWindow fun(mobileId: integer): boolean
+---@field HasWindowByIndex fun(windowIndex: integer): boolean
+---@field RefreshHealthBar fun(windowIndex: integer, mobileId: integer)
+
+---@class DefaultPartyHealthBarComponent : DefaultComponent
+local DefaultPartyHealthBarComponent = {}
+DefaultPartyHealthBarComponent.__index = DefaultPartyHealthBarComponent
+
+---@return DefaultPartyHealthBarComponent
+function DefaultPartyHealthBarComponent:new()
+    local instance = DefaultComponent.new(self, "PartyHealthBar") --[[@as DefaultPartyHealthBarComponent]]
+    instance._proxy = instance:_createProxy(PartyHealthBar)
+    instance._globalKey = "PartyHealthBar"
+    _G.PartyHealthBar = instance._proxy
+    return instance
+end
+
+---@return DefaultPartyHealthBar
+function DefaultPartyHealthBarComponent:getDefault()
+    return self._proxy or PartyHealthBar --[[@as DefaultPartyHealthBar]]
+end
 
 -- ========================================================================= --
 -- Components - Default - Interface
@@ -6756,6 +6847,8 @@ setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
+setmetatable(DefaultMobileHealthBarComponent, { __index = DefaultComponent })
+setmetatable(DefaultPartyHealthBarComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
@@ -6770,6 +6863,8 @@ Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
+Components.Defaults.MobileHealthBar = DefaultMobileHealthBarComponent:new()
+Components.Defaults.PartyHealthBar = DefaultPartyHealthBarComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
