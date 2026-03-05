@@ -48,7 +48,7 @@ local function OnInitialize(context)
     -- State
     local goodOrder = {}   -- array of buffIds (good/neutral)
     local evilOrder = {}   -- array of buffIds (evil)
-    local buffEntries = {} -- buffId -> { iconView, timerView, timerSecs, hasTimer, nameVec, tooltipVec, isGood }
+    local buffEntries = {} -- buffId -> { iconView, timerView, timerSecs, hasTimer, nameVec, tooltipVec }
     local goodDirection = "H" -- "H"=horizontal, "V"=vertical
     local evilDirection = "H"
     local deltaTime = 0
@@ -174,8 +174,8 @@ local function OnInitialize(context)
                     bodyStr = bodyStr .. entry.tooltipVec[i]
                 end
 
-                local titleW = WindowUtils.translateMarkup(nameStr)
-                local bodyW = WindowUtils.translateMarkup(bodyStr)
+                local titleW = Api.String.TranslateMarkup(nameStr)
+                local bodyW = Api.String.TranslateMarkup(bodyStr)
 
                 if entry.hasTimer and entry.timerSecs > 0 then
                     bodyW = bodyW .. L"\n" .. towstring(tostring(entry.timerSecs)) .. L"s"

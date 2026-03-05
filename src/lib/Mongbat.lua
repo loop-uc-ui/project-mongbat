@@ -1488,6 +1488,14 @@ function Api.String.WStringToString(wString)
     return WStringToString(wString)
 end
 
+---
+--- Translates markup tags in a wstring to the engine's display format.
+---@param wStr wstring The wstring containing markup to translate.
+---@return wstring The translated wstring.
+function Api.String.TranslateMarkup(wStr)
+    return WindowUtils.translateMarkup(wStr)
+end
+
 -- ========================================================================== --
 -- Api - Target
 -- ========================================================================== --
