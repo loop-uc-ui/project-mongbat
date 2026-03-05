@@ -3627,6 +3627,11 @@ local resizeOriginalOnUpdate = nil
 --- Whether we dynamically registered OnUpdate (it wasn't already present)
 local resizeRegisteredOnUpdate = false
 
+--- Window snapping: registry of snappable window names for edge detection
+---@type table<string, boolean>
+local SnappableWindows = {}
+local SNAP_THRESHOLD = 20
+
 ---@class ButtonModel : WindowModel
 ---@field OnInitialize fun(self: Button)?
 ---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
@@ -3938,6 +3943,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
+---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
 ---@field MinWidth number? Minimum width when resizing. Defaults to 100.
 ---@field MinHeight number? Minimum height when resizing. Defaults to 100.
 
@@ -4803,6 +4809,223 @@ function Components.FilterInput(model)
 end
 
 -- ========================================================================== --
+-- Components - Window Snapping
+-- ========================================================================== --
+
+--- Gets the rectangle of a snappable window in offset space (unscaled Root coordinates).
+--- Returns nil if the window does not exist or is not showing.
+---@param name string
+---@return { x: number, y: number, w: number, h: number }?
+local function getWindowRect(name)
+    if not DoesWindowNameExist(name) then return nil end
+    if not WindowGetShowing(name) then return nil end
+    if WindowGetParent(name) ~= "Root" then return nil end
+    local ox, oy = WindowGetOffsetFromParent(name)
+    local w, h = WindowGetDimensions(name)
+    return { x = ox, y = oy, w = w, h = h }
+end
+
+--- Finds the best snap adjustment for a window against all other snappable windows
+--- and screen edges. An optional exclusion set skips listed window names.
+---@param windowName string
+---@param exclude table<string, boolean>?
+---@param skipScreenEdges boolean?
+---@return number, number  dx, dy adjustment in offset space
+local function findSnap(windowName, exclude, skipScreenEdges)
+    local rect = getWindowRect(windowName)
+    if rect == nil then return 0, 0 end
+
+    local left = rect.x
+    local top = rect.y
+    local right = rect.x + rect.w
+    local bottom = rect.y + rect.h
+
+    local bestDx = 0
+    local bestDy = 0
+    local bestDistX = SNAP_THRESHOLD + 1
+    local bestDistY = SNAP_THRESHOLD + 1
+
+    local d
+
+    if not skipScreenEdges then
+        -- Screen edges in offset space
+        local scale = InterfaceCore.scale
+        local screenW = SystemData.screenResolution.x / scale
+        local screenH = SystemData.screenResolution.y / scale
+
+        -- Snap to screen left
+        d = math.abs(left)
+        if d < bestDistX then bestDistX = d; bestDx = -left end
+        -- Snap to screen right
+        d = math.abs(right - screenW)
+        if d < bestDistX then bestDistX = d; bestDx = screenW - right end
+        -- Snap to screen top
+        d = math.abs(top)
+        if d < bestDistY then bestDistY = d; bestDy = -top end
+        -- Snap to screen bottom
+        d = math.abs(bottom - screenH)
+        if d < bestDistY then bestDistY = d; bestDy = screenH - bottom end
+    end
+
+    -- Snap to other windows (only when nearby on the perpendicular axis)
+    for otherName, _ in pairs(SnappableWindows) do
+        if otherName ~= windowName and (exclude == nil or not exclude[otherName]) then
+            local other = getWindowRect(otherName)
+            if other ~= nil then
+                local oLeft = other.x
+                local oTop = other.y
+                local oRight = other.x + other.w
+                local oBottom = other.y + other.h
+
+                -- Check perpendicular proximity: are the two windows close
+                -- enough vertically to justify a horizontal snap (and vice versa)?
+                local nearV = (top < oBottom + SNAP_THRESHOLD) and (bottom > oTop - SNAP_THRESHOLD)
+                local nearH = (left < oRight + SNAP_THRESHOLD) and (right > oLeft - SNAP_THRESHOLD)
+
+                if nearV then
+                    -- Horizontal: our left to their right
+                    d = math.abs(left - oRight)
+                    if d < bestDistX then bestDistX = d; bestDx = oRight - left end
+                    -- Horizontal: our right to their left
+                    d = math.abs(right - oLeft)
+                    if d < bestDistX then bestDistX = d; bestDx = oLeft - right end
+                    -- Horizontal: align left edges
+                    d = math.abs(left - oLeft)
+                    if d < bestDistX then bestDistX = d; bestDx = oLeft - left end
+                    -- Horizontal: align right edges
+                    d = math.abs(right - oRight)
+                    if d < bestDistX then bestDistX = d; bestDx = oRight - right end
+                end
+
+                if nearH then
+                    -- Vertical: our top to their bottom
+                    d = math.abs(top - oBottom)
+                    if d < bestDistY then bestDistY = d; bestDy = oBottom - top end
+                    -- Vertical: our bottom to their top
+                    d = math.abs(bottom - oTop)
+                    if d < bestDistY then bestDistY = d; bestDy = oTop - bottom end
+                    -- Vertical: align top edges
+                    d = math.abs(top - oTop)
+                    if d < bestDistY then bestDistY = d; bestDy = oTop - top end
+                    -- Vertical: align bottom edges
+                    d = math.abs(bottom - oBottom)
+                    if d < bestDistY then bestDistY = d; bestDy = oBottom - bottom end
+                end
+            end
+        end
+    end
+
+    if bestDistX > SNAP_THRESHOLD then bestDx = 0 end
+    if bestDistY > SNAP_THRESHOLD then bestDy = 0 end
+
+    return bestDx, bestDy
+end
+
+--- Applies a snap offset to a window by adjusting its anchor.
+---@param windowName string
+---@param dx number
+---@param dy number
+local function applySnap(windowName, dx, dy)
+    if dx == 0 and dy == 0 then return end
+    local ox, oy = WindowGetOffsetFromParent(windowName)
+    WindowClearAnchors(windowName)
+    WindowAddAnchor(windowName, "topleft", "Root", "topleft", ox + dx, oy + dy)
+end
+
+local ADJACENT_TOLERANCE = 2
+
+--- Returns true if two rectangles share an edge (within tolerance) and overlap
+--- on the perpendicular axis.
+local function areAdjacent(a, b)
+    local aRight = a.x + a.w
+    local aBottom = a.y + a.h
+    local bRight = b.x + b.w
+    local bBottom = b.y + b.h
+
+    local hOverlap = a.x < bRight and aRight > b.x
+    local vOverlap = a.y < bBottom and aBottom > b.y
+
+    if vOverlap and math.abs(aRight - b.x) <= ADJACENT_TOLERANCE then return true end
+    if vOverlap and math.abs(a.x - bRight) <= ADJACENT_TOLERANCE then return true end
+    if hOverlap and math.abs(aBottom - b.y) <= ADJACENT_TOLERANCE then return true end
+    if hOverlap and math.abs(a.y - bBottom) <= ADJACENT_TOLERANCE then return true end
+
+    return false
+end
+
+--- Finds all snappable windows transitively adjacent to the given window (BFS).
+--- Returns a list of window names (including the given window).
+---@param windowName string
+---@return string[]
+local function findJoinedGroup(windowName)
+    local group = {}
+    local visited = {}
+    local queue = { windowName }
+
+    while #queue > 0 do
+        local current = table.remove(queue, 1)
+        if not visited[current] then
+            visited[current] = true
+            table.insert(group, current)
+            local currentRect = getWindowRect(current)
+            if currentRect then
+                for otherName, _ in pairs(SnappableWindows) do
+                    if not visited[otherName] then
+                        local otherRect = getWindowRect(otherName)
+                        if otherRect and areAdjacent(currentRect, otherRect) then
+                            table.insert(queue, otherName)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return group
+end
+
+-- Snap preview ghost window (created lazily)
+local SNAP_PREVIEW_NAME = "MongbatSnapPreviewWindow"
+local snapPreviewCreated = false
+
+--- Ensures the snap preview window exists (lazy creation).
+local function ensureSnapPreview()
+    if snapPreviewCreated then return end
+    CreateWindowFromTemplate(SNAP_PREVIEW_NAME, "MongbatSnapPreview", "Root")
+    WindowSetShowing(SNAP_PREVIEW_NAME, false)
+    WindowSetAlpha(SNAP_PREVIEW_NAME, 0.35)
+    snapPreviewCreated = true
+end
+
+--- Shows the snap preview ghost at the given position and size.
+---@param x number
+---@param y number
+---@param w number
+---@param h number
+local function showSnapPreview(x, y, w, h)
+    ensureSnapPreview()
+    WindowSetDimensions(SNAP_PREVIEW_NAME, w, h)
+    WindowClearAnchors(SNAP_PREVIEW_NAME)
+    WindowAddAnchor(SNAP_PREVIEW_NAME, "topleft", "Root", "topleft", x, y)
+    WindowSetShowing(SNAP_PREVIEW_NAME, true)
+end
+
+--- Hides the snap preview ghost.
+local function hideSnapPreview()
+    if snapPreviewCreated and DoesWindowNameExist(SNAP_PREVIEW_NAME) then
+        WindowSetShowing(SNAP_PREVIEW_NAME, false)
+    end
+end
+
+--- Destroys the snap preview ghost window.
+local function destroySnapPreview()
+    if snapPreviewCreated and DoesWindowNameExist(SNAP_PREVIEW_NAME) then
+        DestroyWindow(SNAP_PREVIEW_NAME)
+    end
+    snapPreviewCreated = false
+end
+
+-- ========================================================================== --
 -- Components - Event Handler
 -- ========================================================================== --
 
@@ -4939,8 +5162,9 @@ local function startResize(window)
         end
     end
 
-    -- If the window didn't already have OnUpdate registered, register the CoreEvent now
-    if resizeOriginalOnUpdate == nil then
+    -- If the window didn't already have OnUpdate registered, register the CoreEvent now.
+    -- Snapping may have already registered it, so check _snapRegisteredOnUpdate too.
+    if resizeOriginalOnUpdate == nil and not window._snapRegisteredOnUpdate then
         resizeRegisteredOnUpdate = true
         window:registerCoreEventHandler(
             Constants.CoreEvents.OnUpdate,
@@ -5974,6 +6198,21 @@ function Window:onInitialize()
         self._resizeGrip = grip
     end
 
+    -- Register snappable root windows for edge snapping
+    if isParentRoot and self._model.Snappable ~= false then
+        SnappableWindows[self.name] = true
+        self._wasMoving = false
+        self._isSnapped = false
+        -- Ensure OnUpdate CoreEvent is registered even if the model has no OnUpdate
+        if self._model.OnUpdate == nil then
+            self._snapRegisteredOnUpdate = true
+            self:registerCoreEventHandler(
+                Constants.CoreEvents.OnUpdate,
+                "Mongbat.EventHandler.OnUpdate"
+            )
+        end
+    end
+
     Utils.Array.ForEach(
         self._children,
         function(item, index)
@@ -6064,7 +6303,19 @@ function Window:onInitialize()
     )
 end
 
+local DETACH_NUDGE = 5
+
 function Window:onLButtonDown(flags, x, y)
+    -- Ctrl + left-click: detach this window from its snap group
+    if self._isSnapped and flags == Constants.ButtonFlags.Control then
+        local ox, oy = WindowGetOffsetFromParent(self.name)
+        WindowClearAnchors(self.name)
+        WindowAddAnchor(self.name, "topleft", "Root", "topleft",
+            ox + DETACH_NUDGE, oy + DETACH_NUDGE)
+        self._isSnapped = false
+        return
+    end
+
     View.onLButtonDown(self, flags, x, y)
     self._startDrag = { x = x, y = y }
 end
@@ -6080,6 +6331,84 @@ function Window:onLButtonUp(flags, x, y)
     self._startDrag = { x = -1, y = -1 }
 end
 
+function Window:onUpdate(timePassed)
+    -- Snap + group drag logic for snappable windows
+    if self._wasMoving ~= nil then
+        local isMoving = self:isMoving()
+
+        -- Drag start: compute the joined group and save offsets
+        if isMoving and not self._wasMoving then
+            local group = findJoinedGroup(self.name)
+            local myRect = getWindowRect(self.name)
+            local dragGroup = {}
+            local exclude = { [self.name] = true }
+            if myRect then
+                for _, name in ipairs(group) do
+                    exclude[name] = true
+                    if name ~= self.name then
+                        local rect = getWindowRect(name)
+                        if rect then
+                            table.insert(dragGroup, {
+                                name = name,
+                                offsetX = rect.x - myRect.x,
+                                offsetY = rect.y - myRect.y,
+                            })
+                        end
+                    end
+                end
+            end
+            self._dragGroup = dragGroup
+            self._dragExclude = exclude
+        end
+
+        if isMoving then
+            -- Move group members to maintain their offsets from the dragged window
+            local myRect = getWindowRect(self.name)
+            if myRect and self._dragGroup then
+                for _, member in ipairs(self._dragGroup) do
+                    WindowClearAnchors(member.name)
+                    WindowAddAnchor(member.name, "topleft", "Root", "topleft",
+                        myRect.x + member.offsetX, myRect.y + member.offsetY)
+                end
+            end
+
+            -- Show snap preview for window-to-window only (skip screen edges)
+            local dx, dy = findSnap(self.name, self._dragExclude, true)
+            if dx ~= 0 or dy ~= 0 then
+                if myRect then
+                    showSnapPreview(myRect.x + dx, myRect.y + dy, myRect.w, myRect.h)
+                end
+            else
+                hideSnapPreview()
+            end
+        elseif self._wasMoving then
+            -- Just stopped moving: apply snap to dragged window and shift group
+            local isGroupDrag = self._dragGroup and #self._dragGroup > 0
+            local dx, dy = findSnap(self.name, self._dragExclude, isGroupDrag)
+            applySnap(self.name, dx, dy)
+            if self._dragGroup then
+                for _, member in ipairs(self._dragGroup) do
+                    applySnap(member.name, dx, dy)
+                end
+            end
+            self._dragGroup = nil
+            self._dragExclude = nil
+            hideSnapPreview()
+
+            -- Update _isSnapped: true if this window is now adjacent to another
+            local postGroup = findJoinedGroup(self.name)
+            self._isSnapped = #postGroup > 1
+        end
+
+        self._wasMoving = isMoving
+    end
+
+    -- Chain to model OnUpdate if present
+    if self._model.OnUpdate ~= nil then
+        self._model.OnUpdate(self, timePassed)
+    end
+end
+
 function Window:onShutdown()
     -- Cancel active resize if this window is being resized
     if resizingWindow == self then
@@ -6091,6 +6420,14 @@ function Window:onShutdown()
         self._resizeGrip:destroy()
         self._resizeGrip = nil
     end
+
+    -- Unregister from snap system
+    SnappableWindows[self.name] = nil
+    if self._snapRegisteredOnUpdate then
+        self:unregisterCoreEventHandler(Constants.CoreEvents.OnUpdate)
+        self._snapRegisteredOnUpdate = false
+    end
+    self._wasMoving = nil
 
     if self:isParentRoot() then
         Api.Window.SavePosition(self.name)
@@ -6369,6 +6706,8 @@ local mod = Mod:new {
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonDown")
+        SnappableWindows = {}
+        destroySnapPreview()
         Cache = {}
     end
 }

@@ -16,6 +16,7 @@ Mongbat.Mod {
         local function Window ()
             return context.Components.Window {
                 Name = default:getName(),
+                Resizable = false,
                 OnInitialize = function (self)
                     self:setDimensions(214, 440)
                     self:anchorToParentCenter()

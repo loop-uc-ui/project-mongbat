@@ -146,5 +146,12 @@
           </TexCoords>
       </Button>
 
+      <!-- Snap preview ghost: a frame-only overlay shown at the snap target position -->
+      <FullResizeImage name="MongbatSnapPreview" inherits="UO_Simple_Frame" layer="overlay" frameonly="true" handleinput="false">
+          <Size>
+              <AbsPoint x="100" y="100" />
+          </Size>
+      </FullResizeImage>
+
     </Windows>
 </Interface>
