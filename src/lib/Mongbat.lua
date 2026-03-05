@@ -1478,6 +1478,12 @@ function Api.String.WStringToString(wString)
     return WStringToString(wString)
 end
 
+---@param number integer|number
+---@return wstring
+function Api.String.AddCommasToNumber(number)
+    return WindowUtils.AddCommasToNumber(number)
+end
+
 -- ========================================================================== --
 -- Api - Target
 -- ========================================================================== --
@@ -2951,6 +2957,8 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWindow, "OnUpdateContainerWindow")
+Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -2985,6 +2993,34 @@ Constants.SystemEvents.OnUpdateProcessed = {
         return SystemData.Events["UPDATE_PROCESSED"]
     end,
     name = "OnUpdateProcessed"
+}
+
+Constants.SystemEvents.OnTradeReceiveClose = {
+    getEvent = function()
+        return SystemData.Events["TRADE_RECEIVE_CLOSE_WINDOW"]
+    end,
+    name = "OnTradeReceiveClose"
+}
+
+Constants.SystemEvents.OnTradeReceiveAcceptMsg = {
+    getEvent = function()
+        return SystemData.Events["TRADE_RECEIVE_ACCEPTMSG_WINDOW"]
+    end,
+    name = "OnTradeReceiveAcceptMsg"
+}
+
+Constants.SystemEvents.OnTradeReceiveModifyGold = {
+    getEvent = function()
+        return SystemData.Events["TRADE_RECEIVE_MODIFYGOLD_WINDOW"]
+    end,
+    name = "OnTradeReceiveModifyGold"
+}
+
+Constants.SystemEvents.OnTradeReceiveBalance = {
+    getEvent = function()
+        return SystemData.Events["TRADE_RECEIVE_BALANCE_WINDOW"]
+    end,
+    name = "OnTradeReceiveBalance"
 }
 
 Constants.CoreEvents = {}
@@ -3065,6 +3101,20 @@ Constants.ItemPropertyDetail.Short = ItemProperties.DETAIL_SHORT
 Constants.GumpIds = {}
 Constants.GumpIds.VendorSearch = 999112
 Constants.GumpIds.PetTrainingProgress = 999139
+
+Constants.TradeEvents = {}
+
+function Constants.TradeEvents.SendAcceptMsg()
+    return SystemData.Events["TRADE_SEND_ACCEPTMSG_WINDOW"]
+end
+
+function Constants.TradeEvents.SendModifyGold()
+    return SystemData.Events["TRADE_SEND_MODIFYGOLD_WINDOW"]
+end
+
+function Constants.TradeEvents.SendClose()
+    return SystemData.Events["TRADE_SEND_CLOSE_WINDOW"]
+end
 
 
 -- ========================================================================== --
@@ -3390,6 +3440,20 @@ end
 ---@return string
 function Data.MouseOverWindow()
     return SystemData.MouseOverWindow.name
+end
+
+--- Returns the name of the currently active (event-receiving) window.
+---@return string
+function Data.ActiveWindowName()
+    return SystemData.ActiveWindow.name
+end
+
+--- Returns the unique dynamic window ID assigned by the engine for dynamic
+--- window instances (e.g. trade windows).  Valid only during an OnInitialize
+--- callback for a dynamic template window.
+---@return integer
+function Data.DynamicWindowId()
+    return SystemData.DynamicWindowId
 end
 
 -- ========================================================================== --
@@ -3802,6 +3866,224 @@ end
 
 
 -- ========================================================================== --
+-- Data - ContainerWindow
+-- ========================================================================== --
+
+---@class WindowData.ContainerItem
+---@field objectId integer
+---@field quantity integer
+
+---@class WindowData.ContainerWindow
+---@field numItems integer
+---@field ContainedItems WindowData.ContainerItem[]
+
+---@class ContainerWindowWrapper
+local ContainerWindowData = {}
+ContainerWindowData.__index = ContainerWindowData
+
+function ContainerWindowData:new(id)
+    local instance = setmetatable({}, self)
+    instance._id = id
+    return instance
+end
+
+function ContainerWindowData:getId()
+    return self._id
+end
+
+---@return WindowData.ContainerWindow|nil
+function ContainerWindowData:getData()
+    if WindowData.ContainerWindow then
+        return WindowData.ContainerWindow[self._id]
+    end
+    return nil
+end
+
+function ContainerWindowData:getNumItems()
+    local data = self:getData()
+    return data and data.numItems or 0
+end
+
+---@param index integer 1-based slot index
+---@return WindowData.ContainerItem|nil
+function ContainerWindowData:getItem(index)
+    local data = self:getData()
+    return data and data.ContainedItems and data.ContainedItems[index]
+end
+
+---@return ContainerWindowWrapper
+function Data.ContainerWindow(id)
+    return ContainerWindowData:new(id)
+end
+
+-- ========================================================================== --
+-- Data - TradeInfo
+-- ========================================================================== --
+
+---@class WindowData.TradeInfo
+---@field containerId integer
+---@field containerId2 integer
+---@field tradeName string
+---@field playerName string
+---@field containerIdAccept boolean
+---@field containerId2Accept boolean
+---@field myTradeGold integer
+---@field myTradePlat integer
+---@field myGoldBalance integer
+---@field myPlatBalance integer
+---@field theirTradeGold integer
+---@field theirTradePlat integer
+
+---@class TradeInfoWrapper
+local TradeInfoData = {}
+TradeInfoData.__index = TradeInfoData
+
+function TradeInfoData:new()
+    return setmetatable({}, self)
+end
+
+---@return WindowData.TradeInfo
+function TradeInfoData:getData()
+    return WindowData.TradeInfo
+end
+
+function TradeInfoData:getContainerId()
+    return self:getData().containerId
+end
+
+function TradeInfoData:getContainerId2()
+    return self:getData().containerId2
+end
+
+function TradeInfoData:getTradeName()
+    return self:getData().tradeName
+end
+
+function TradeInfoData:getPlayerName()
+    return self:getData().playerName
+end
+
+function TradeInfoData:isMyAccepted()
+    return self:getData().containerIdAccept
+end
+
+function TradeInfoData:isTheirAccepted()
+    return self:getData().containerId2Accept
+end
+
+function TradeInfoData:getMyGold()
+    return self:getData().myTradeGold or 0
+end
+
+function TradeInfoData:getMyPlat()
+    return self:getData().myTradePlat or 0
+end
+
+function TradeInfoData:getTheirGold()
+    return self:getData().theirTradeGold or 0
+end
+
+function TradeInfoData:getTheirPlat()
+    return self:getData().theirTradePlat or 0
+end
+
+function TradeInfoData:getMyGoldBalance()
+    return self:getData().myGoldBalance or 0
+end
+
+function TradeInfoData:getMyPlatBalance()
+    return self:getData().myPlatBalance or 0
+end
+
+function TradeInfoData:setMyAccepted(value)
+    self:getData().containerIdAccept = value
+end
+
+function TradeInfoData:setMyGold(value)
+    self:getData().myTradeGold = value
+end
+
+function TradeInfoData:setMyPlat(value)
+    self:getData().myTradePlat = value
+end
+
+---@return TradeInfoWrapper
+function Data.TradeInfo()
+    return TradeInfoData:new()
+end
+
+-- ========================================================================== --
+-- Data - ObjectInfo
+-- ========================================================================== --
+
+---@class WindowData.ObjectInfo
+---@field name wstring
+---@field iconTexture string
+---@field TexCoordX integer
+---@field TexCoordY integer
+---@field TexScale number
+---@field quantity integer
+---@field containerId integer
+
+---@class ObjectInfoWrapper
+local ObjectInfoData = {}
+ObjectInfoData.__index = ObjectInfoData
+
+function ObjectInfoData:new(id)
+    local instance = setmetatable({}, self)
+    instance._id = id
+    return instance
+end
+
+function ObjectInfoData:getId()
+    return self._id
+end
+
+---@return WindowData.ObjectInfo|nil
+function ObjectInfoData:getData()
+    if WindowData.ObjectInfo then
+        return WindowData.ObjectInfo[self._id]
+    end
+    return nil
+end
+
+---@return wstring
+function ObjectInfoData:getName()
+    local data = self:getData()
+    return data and data.name or L""
+end
+
+function ObjectInfoData:getIconTexture()
+    local data = self:getData()
+    return data and data.iconTexture or ""
+end
+
+function ObjectInfoData:getIconX()
+    local data = self:getData()
+    return data and data.TexCoordX or 0
+end
+
+function ObjectInfoData:getIconY()
+    local data = self:getData()
+    return data and data.TexCoordY or 0
+end
+
+function ObjectInfoData:getQuantity()
+    local data = self:getData()
+    return data and data.quantity or 0
+end
+
+function ObjectInfoData:getContainerId()
+    local data = self:getData()
+    return data and data.containerId or 0
+end
+
+---@return ObjectInfoWrapper
+function Data.ObjectInfo(id)
+    return ObjectInfoData:new(id)
+end
+
+-- ========================================================================== --
 -- Components
 -- ========================================================================== --
 
@@ -4155,6 +4437,12 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdateContainerWindow fun(self: Window, container: ContainerWindowWrapper)?
+---@field OnUpdateObjectInfo fun(self: Window, objectInfo: ObjectInfoWrapper)?
+---@field OnTradeReceiveClose fun(self: Window)?
+---@field OnTradeReceiveAcceptMsg fun(self: Window, tradeInfo: TradeInfoWrapper)?
+---@field OnTradeReceiveModifyGold fun(self: Window, tradeInfo: TradeInfoWrapper)?
+---@field OnTradeReceiveBalance fun(self: Window, tradeInfo: TradeInfoWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4232,6 +4520,12 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdateContainerWindow fun(self: View, container: ContainerWindowWrapper)?
+---@field OnUpdateObjectInfo fun(self: View, objectInfo: ObjectInfoWrapper)?
+---@field OnTradeReceiveClose fun(self: View)?
+---@field OnTradeReceiveAcceptMsg fun(self: View, tradeInfo: TradeInfoWrapper)?
+---@field OnTradeReceiveModifyGold fun(self: View, tradeInfo: TradeInfoWrapper)?
+---@field OnTradeReceiveBalance fun(self: View, tradeInfo: TradeInfoWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4918,6 +5212,47 @@ function DefaultPaperdollWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Trade Window
+-- ========================================================================== --
+
+---@class DefaultTradeWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field CloseWindow fun()
+---@field AcceptMessage fun()
+---@field MiniModelUpdate fun()
+---@field HandleUpdateObjectEvent fun()
+---@field UpdateBalance fun()
+---@field ModifyTheirGold fun()
+---@field OnAccept fun()
+---@field OnContainerRelease fun()
+---@field OnItemRelease fun()
+---@field OnItemDblClicked fun()
+---@field ItemMouseOver fun()
+---@field OnKeyDown fun()
+---@field OnKeyEnter fun()
+---@field OnKeyTab fun()
+---@field OnTextChanged fun()
+
+---@class DefaultTradeWindowComponent : DefaultComponent
+local DefaultTradeWindowComponent = {}
+DefaultTradeWindowComponent.__index = DefaultTradeWindowComponent
+
+---@return DefaultTradeWindowComponent
+function DefaultTradeWindowComponent:new()
+    local instance = DefaultComponent.new(self, "TradeWindow") --[[@as DefaultTradeWindowComponent]]
+    instance._proxy = instance:_createProxy(TradeWindow)
+    instance._globalKey = "TradeWindow"
+    _G.TradeWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultTradeWindow
+function DefaultTradeWindowComponent:getDefault()
+    return self._proxy or TradeWindow --[[@as DefaultTradeWindow]]
+end
+
+-- ========================================================================== --
 -- Components - Dynamic Image
 -- ========================================================================== --
 
@@ -5546,6 +5881,42 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(window)
+        window:onUpdateContainerWindow()
+    end)
+end
+
+function EventHandler.OnUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(window)
+        window:onUpdateObjectInfo()
+    end)
+end
+
+function EventHandler.OnTradeReceiveClose()
+    withActiveView("OnTradeReceiveClose", function(window)
+        window:onTradeReceiveClose()
+    end)
+end
+
+function EventHandler.OnTradeReceiveAcceptMsg()
+    withActiveView("OnTradeReceiveAcceptMsg", function(window)
+        window:onTradeReceiveAcceptMsg()
+    end)
+end
+
+function EventHandler.OnTradeReceiveModifyGold()
+    withActiveView("OnTradeReceiveModifyGold", function(window)
+        window:onTradeReceiveModifyGold()
+    end)
+end
+
+function EventHandler.OnTradeReceiveBalance()
+    withActiveView("OnTradeReceiveBalance", function(window)
+        window:onTradeReceiveBalance()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6037,6 +6408,56 @@ end
 function View:onUpdatePaperdoll()
     if self._model.OnUpdatePaperdoll ~= nil then
         self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    if self._model.OnUpdateContainerWindow ~= nil then
+        local id = WindowData.UpdateInstanceId
+        self._model.OnUpdateContainerWindow(self, Data.ContainerWindow(id))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    if self._model.OnUpdateObjectInfo ~= nil then
+        local id = WindowData.UpdateInstanceId
+        self._model.OnUpdateObjectInfo(self, Data.ObjectInfo(id))
+        return true
+    end
+    return false
+end
+
+function View:onTradeReceiveClose()
+    if self._model.OnTradeReceiveClose ~= nil then
+        self._model.OnTradeReceiveClose(self)
+        return true
+    end
+    return false
+end
+
+function View:onTradeReceiveAcceptMsg()
+    if self._model.OnTradeReceiveAcceptMsg ~= nil then
+        self._model.OnTradeReceiveAcceptMsg(self, Data.TradeInfo())
+        return true
+    end
+    return false
+end
+
+function View:onTradeReceiveModifyGold()
+    if self._model.OnTradeReceiveModifyGold ~= nil then
+        self._model.OnTradeReceiveModifyGold(self, Data.TradeInfo())
+        return true
+    end
+    return false
+end
+
+function View:onTradeReceiveBalance()
+    if self._model.OnTradeReceiveBalance ~= nil then
+        self._model.OnTradeReceiveBalance(self, Data.TradeInfo())
         return true
     end
     return false
@@ -6761,6 +7182,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultTradeWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +7197,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.TradeWindow = DefaultTradeWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
