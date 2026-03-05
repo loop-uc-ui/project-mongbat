@@ -18,6 +18,8 @@ LOCK_SYMBOLS[0] = L"\x25B2"
 LOCK_SYMBOLS[1] = L"\x25BC"
 LOCK_SYMBOLS[2] = L"\x25A0"
 
+local MAX_LOCK_STATE = 2
+
 ---@param context Context
 local function OnInitialize(context)
     local Api = context.Api
@@ -186,7 +188,7 @@ local function OnInitialize(context)
                 local rawData = skillData:getData()
                 if rawData == nil then return end
                 local newState = ((rawData.SkillState or 0) + 1)
-                if newState > 2 then newState = 0 end
+                if newState > MAX_LOCK_STATE then newState = 0 end
                 -- Optimistically update local data before server confirmation
                 rawData.SkillState = newState
                 -- Notify the server of the state change
