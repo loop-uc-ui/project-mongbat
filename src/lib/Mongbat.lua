@@ -2335,6 +2335,28 @@ function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
 end
 
+---
+--- Returns the name of the currently active (event-dispatching) window.
+---@return string
+function Api.Window.GetActiveWindowName()
+    return SystemData.ActiveWindow.name
+end
+
+---
+--- Returns the dynamic window ID set by the engine when a dynamic window is created
+--- (e.g. the merchant ID for a Shopkeeper window).
+---@return integer
+function Api.Window.GetDynamicWindowId()
+    return SystemData.DynamicWindowId
+end
+
+---
+--- Returns the UpdateInstanceId from the most recent WindowData update event.
+---@return integer
+function Api.Window.GetUpdateInstanceId()
+    return WindowData.UpdateInstanceId
+end
+
 -- ========================================================================== --
 -- Api - Interface Core
 -- ========================================================================== --
@@ -2918,6 +2940,14 @@ function Constants.Broadcasts.BugReport()
     return SystemData.Events["BUG_REPORT_SCREEN"]
 end
 
+function Constants.Broadcasts.ShopOfferAccept()
+    return SystemData.Events["SHOP_OFFER_ACCEPT"]
+end
+
+function Constants.Broadcasts.ShopCancelOffer()
+    return SystemData.Events["SHOP_CANCEL_OFFER"]
+end
+
 ---@class DataEvent
 ---@field getType fun(): integer
 ---@field getEvent fun(): integer
@@ -2951,6 +2981,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateShopData = DataEvent(WindowData.ShopData, "OnUpdateShopData")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3647,6 +3678,11 @@ function PlayerStatus:getId()
 end
 
 ---@return integer
+function PlayerStatus:getGold()
+    return self:getData().Gold or 0
+end
+
+---@return integer
 function PlayerStatus:getEvent()
     return self:getData().Event
 end
@@ -3792,10 +3828,119 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
--- Data - Radar
+-- Data - ShopData
 -- ========================================================================== --
 
----@class WindowData.Radar
+---@class WindowData.ShopData.SellList
+---@field Names wstring[]
+---@field Quantities integer[]
+---@field Ids integer[]
+---@field Prices integer[]
+---@field Types integer[]
+
+---@class WindowData.ShopData
+---@field IsSelling boolean
+---@field Sell WindowData.ShopData.SellList
+---@field OfferIds integer[]
+---@field OfferQuantities integer[]
+---@field Type integer
+---@field Event integer
+
+---@class ShopDataItem
+---@field id integer Object ID of the item
+---@field name wstring Display name of the item
+---@field price integer Gold price per unit
+---@field quantity integer Available quantity
+---@field objType integer Object type for icon rendering
+
+---@class ShopDataWrapper
+local ShopData = {}
+ShopData.__index = ShopData
+
+---@return ShopDataWrapper
+function ShopData:new()
+    local instance = setmetatable({}, self)
+    return instance
+end
+
+---@return boolean
+function ShopData:isSelling()
+    return WindowData.ShopData and WindowData.ShopData.IsSelling == true
+end
+
+---@return integer Number of sell items
+function ShopData:getSellCount()
+    if not WindowData.ShopData or not WindowData.ShopData.Sell then
+        return 0
+    end
+    return table.getn(WindowData.ShopData.Sell.Names)
+end
+
+---@param index integer 1-based index
+---@return ShopDataItem|nil
+function ShopData:getSellItem(index)
+    local sell = WindowData.ShopData and WindowData.ShopData.Sell
+    if not sell then return nil end
+    if sell.Quantities[index] == 0 then return nil end
+    return {
+        id       = sell.Ids[index],
+        name     = sell.Names[index],
+        price    = sell.Prices[index],
+        quantity = sell.Quantities[index],
+        objType  = sell.Types[index]
+    }
+end
+
+---@param offerIds integer[]
+---@param offerQuantities integer[]
+function ShopData:setOffer(offerIds, offerQuantities)
+    if not WindowData.ShopData then return end
+    for i = 1, table.getn(offerIds) do
+        WindowData.ShopData.OfferIds[i] = offerIds[i]
+        WindowData.ShopData.OfferQuantities[i] = offerQuantities[i]
+    end
+end
+
+---@return ShopDataWrapper
+function Data.ShopData()
+    return ShopData:new()
+end
+
+-- ========================================================================== --
+-- Data - ObjectInfo
+-- ========================================================================== --
+
+---
+--- Returns raw ObjectInfo data for the given object ID.
+---@param id integer The object ID.
+---@return WindowData.ObjectInfo|nil
+function Data.ObjectInfo(id)
+    return WindowData.ObjectInfo and WindowData.ObjectInfo[id] or nil
+end
+
+-- ========================================================================== --
+-- Data - ContainerWindow
+-- ========================================================================== --
+
+---
+--- Returns raw ContainerWindow data for the given container ID.
+---@param id integer The container ID.
+---@return WindowData.Container|nil
+function Data.ContainerWindow(id)
+    return WindowData.ContainerWindow and WindowData.ContainerWindow[id] or nil
+end
+
+-- ========================================================================== --
+-- Data - ItemProperties
+-- ========================================================================== --
+
+---
+--- Returns raw ItemProperties data for the given object ID.
+---@param id integer The object ID.
+---@return table|nil
+function Data.ItemProperties(id)
+    return WindowData.ItemProperties and WindowData.ItemProperties[id] or nil
+end
 ---@field TexCoordX integer
 ---@field TexCoordY integer
 ---@field TexScale number
@@ -4073,6 +4218,13 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+---@class DefaultShopkeeper
+---@field Initialize fun()
+---@field Shutdown fun()
+
+local DefaultShopkeeperComponent = {}
+DefaultShopkeeperComponent.__index = DefaultShopkeeperComponent
+
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4155,6 +4307,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdateShopData fun(self: Window, shopData: ShopDataWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4232,6 +4385,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdateShopData fun(self: View, shopData: ShopDataWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4844,6 +4998,31 @@ end
 
 ---@return Window
 function DefaultObjectHandleComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Shopkeeper
+-- ========================================================================== --
+
+---@class DefaultShopkeeperComponent : DefaultComponent
+
+---@return DefaultShopkeeperComponent
+function DefaultShopkeeperComponent:new()
+    local instance = DefaultComponent.new(self, "Shopkeeper") --[[@as DefaultShopkeeperComponent]]
+    instance._proxy = instance:_createProxy(Shopkeeper)
+    instance._globalKey = "Shopkeeper"
+    _G.Shopkeeper = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultShopkeeperComponent:getDefault()
+    return self._proxy or Shopkeeper
+end
+
+---@return Window
+function DefaultShopkeeperComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -5480,6 +5659,12 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdateShopData()
+    withActiveView("OnUpdateShopData", function(window)
+        window:onUpdateShopData()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -6042,6 +6227,14 @@ function View:onUpdatePaperdoll()
     return false
 end
 
+function View:onUpdateShopData()
+    if self._model.OnUpdateShopData ~= nil then
+        self._model.OnUpdateShopData(self, Data.ShopData())
+        return true
+    end
+    return false
+end
+
 function View:onLButtonDblClk(flags, x, y)
     if self._model.OnLButtonDblClk ~= nil then
         self._model.OnLButtonDblClk(self, flags, x, y)
@@ -6133,7 +6326,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateShopData
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6148,7 +6342,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateShopData
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -6755,6 +6950,7 @@ setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
+setmetatable(DefaultShopkeeperComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
@@ -6769,6 +6965,7 @@ Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
+Components.Defaults.Shopkeeper = DefaultShopkeeperComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
