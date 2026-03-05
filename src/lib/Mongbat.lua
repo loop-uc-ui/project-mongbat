@@ -3859,6 +3859,30 @@ function Data.ContainerWindow(id)
 end
 
 -- ========================================================================== --
+-- Data - ObjectInfo
+-- ========================================================================== --
+
+---
+--- Returns the raw ObjectInfo table for a given object ID, or nil if not yet registered.
+---@param objectId number The object ID
+---@return WindowData.ObjectInfo|nil
+function Data.ObjectInfo(objectId)
+    return WindowData.ObjectInfo and WindowData.ObjectInfo[objectId]
+end
+
+-- ========================================================================== --
+-- Data - UpdateInstanceId
+-- ========================================================================== --
+
+---
+--- Returns the engine's current UpdateInstanceId, which identifies the entity
+--- whose data was updated during a data-event callback.
+---@return number
+function Data.UpdateInstanceId()
+    return WindowData.UpdateInstanceId
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 

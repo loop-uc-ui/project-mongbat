@@ -30,7 +30,7 @@ local function OnInitialize(context)
     ---@param gridIndex number
     ---@return number objectId or 0
     local function findItemAtGrid(containerId, gridIndex)
-        local d = WindowData.ContainerWindow[containerId]
+        local d = Data.ContainerWindow(containerId):getData()
         if not d or not d.ContainedItems then return 0 end
         for i = 1, (d.numItems or 0) do
             local item = d.ContainedItems[i]
@@ -55,7 +55,7 @@ local function OnInitialize(context)
             return
         end
 
-        local objectInfo = WindowData.ObjectInfo[objectId]
+        local objectInfo = Data.ObjectInfo(objectId)
         if objectInfo and objectInfo.iconName and objectInfo.iconName ~= "" then
             objectInfo.id = objectId
             Api.Equipment.UpdateItemIcon(iconName, objectInfo)
@@ -216,7 +216,7 @@ local function OnInitialize(context)
         -- HandleUpdateObjectEvent fires when item icons become available
         Api.Window.RegisterEventHandler(
             defaultWin,
-            WindowData.ObjectInfo.Event,
+            Constants.DataEvents.OnUpdateObjectInfo.getEvent(),
             "ContainerWindow.HandleUpdateObjectEvent"
         )
 
@@ -242,8 +242,8 @@ local function OnInitialize(context)
 
     -- Override HandleUpdateObjectEvent: update a single slot icon when ObjectInfo arrives.
     containerDefault:getDefault().HandleUpdateObjectEvent = function()
-        local objectId = WindowData.UpdateInstanceId
-        local objectInfo = WindowData.ObjectInfo[objectId]
+        local objectId = Data.UpdateInstanceId()
+        local objectInfo = Data.ObjectInfo(objectId)
         if not objectInfo then return end
 
         local containerId = objectInfo.containerId
@@ -252,7 +252,7 @@ local function OnInitialize(context)
         local state = openContainers[containerId]
         if not state then return end
 
-        local d = WindowData.ContainerWindow[containerId]
+        local d = Data.ContainerWindow(containerId):getData()
         if not d or not d.ContainedItems then return end
 
         for i = 1, (d.numItems or 0) do
