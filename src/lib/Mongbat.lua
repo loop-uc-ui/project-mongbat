@@ -730,6 +730,26 @@ function Api.Event.UnregisterEventHandler(event, callback)
 end
 
 -- ========================================================================== --
+-- Api - Actions
+-- ========================================================================== --
+
+Api.Actions = {}
+
+---
+--- Gets the current ToggleSkillsWindow action function.
+---@return function
+function Api.Actions.GetToggleSkillsWindow()
+    return Actions.ToggleSkillsWindow
+end
+
+---
+--- Overrides the ToggleSkillsWindow action with a custom function.
+---@param fn function The replacement function to call when the skills toggle fires.
+function Api.Actions.SetToggleSkillsWindow(fn)
+    Actions.ToggleSkillsWindow = fn
+end
+
+-- ========================================================================== --
 -- Api - Gump
 -- ========================================================================== --
 
@@ -1638,6 +1658,12 @@ Api.Skill = {}
 --- Loads the skills CSV data from the game data directory.
 function Api.Skill.LoadCSV()
     UOBuildTableFromCSV("data/gamedata/skilldata.csv", "SkillsCSV")
+end
+
+---
+--- Unloads the skills CSV data table from memory.
+function Api.Skill.UnloadCSV()
+    UOUnloadCSVTable("SkillsCSV")
 end
 
 ---

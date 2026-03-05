@@ -20,6 +20,9 @@ LOCK_SYMBOLS[2] = L"\x25A0"
 
 local MAX_LOCK_STATE = 2
 
+-- Saved reference to the original Actions.ToggleSkillsWindow for restoration on shutdown
+local originalToggleSkillsWindow = nil
+
 ---@param context Context
 local function OnInitialize(context)
     local Api = context.Api
@@ -31,8 +34,19 @@ local function OnInitialize(context)
     local skillsDefault = Components.Defaults.SkillsWindow
     skillsDefault:disable()
 
+    -- Destroy the already-existing default window (created by Interface.lua at startup)
+    if Api.Window.DoesExist("SkillsWindow") then
+        Api.Window.Destroy("SkillsWindow")
+    end
+
     -- Load skill CSV data so WindowData.SkillsCSV is populated
     Api.Skill.LoadCSV()
+
+    -- Override the toggle action so the hotkey shows/hides our window instead
+    originalToggleSkillsWindow = Api.Actions.GetToggleSkillsWindow()
+    Api.Actions.SetToggleSkillsWindow(function()
+        Api.Window.ToggleWindow(NAME)
+    end)
 
     -- Scrollable virtual list state
     local scrollOffset = 0
@@ -281,7 +295,7 @@ local function OnInitialize(context)
     end
 
     -- Custom layout: positions header children then fixed-position row slots
-    local function SkillsLayout(window, childs, child, index)
+    local function SkillsLayout(window, _, child, index)
         local winName = window:getName()
         if index == 1 then
             -- "Skills" title: top-left
@@ -351,6 +365,12 @@ end
 
 ---@param context Context
 local function OnShutdown(context)
+    -- Restore the original skills toggle action
+    if originalToggleSkillsWindow ~= nil then
+        context.Api.Actions.SetToggleSkillsWindow(originalToggleSkillsWindow)
+        originalToggleSkillsWindow = nil
+    end
+
     -- Unregister skill dynamic data for all server IDs
     local dataType = context.Constants.DataEvents.OnUpdateSkillDynamicData.getType()
     for i = 0, MAX_SERVER_ID do
@@ -358,6 +378,9 @@ local function OnShutdown(context)
     end
 
     context.Api.Window.Destroy(NAME)
+
+    -- Unload the skills CSV table from memory
+    context.Api.Skill.UnloadCSV()
 
     -- Restore the default SkillsWindow
     context.Components.Defaults.SkillsWindow:restore()
