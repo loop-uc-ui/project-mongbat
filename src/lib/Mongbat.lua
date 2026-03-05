@@ -424,6 +424,34 @@ function Api.ContextMenu.RequestMenu(id)
     RequestContextMenu(id)
 end
 
+---
+--- Creates a Lua context menu item with a TID label.
+---@param tid number The text ID for the menu item label.
+---@param flags number Flags for the menu item.
+---@param returnCode any Return code passed to the callback.
+---@param param any Parameter passed to the callback.
+function Api.ContextMenu.CreateItem(tid, flags, returnCode, param)
+    ContextMenu.CreateLuaContextMenuItem(tid, flags, returnCode, param)
+end
+
+---
+--- Creates a Lua context menu item with a string label.
+---@param label wstring The label for the menu item.
+---@param flags number Flags for the menu item.
+---@param returnCode any Return code passed to the callback.
+---@param param any Parameter passed to the callback.
+---@param isChecked boolean Whether the item is checked.
+function Api.ContextMenu.CreateItemWithString(label, flags, returnCode, param, isChecked)
+    ContextMenu.CreateLuaContextMenuItemWithString(label, flags, returnCode, param, isChecked)
+end
+
+---
+--- Activates the Lua context menu with a callback.
+---@param callback fun(returnCode: any, param: any) The callback function.
+function Api.ContextMenu.Activate(callback)
+    ContextMenu.ActivateLuaContextMenu(callback)
+end
+
 -- ========================================================================== --
 -- Api - CSV
 -- ========================================================================== --
@@ -511,6 +539,25 @@ end
 ---@param objectId number The object ID.
 function Api.Drag.AutoPickupObject(objectId)
     DragSlotAutoPickupObject(objectId)
+end
+
+---
+--- Sets the mouse click data for an existing action in a hotbar slot.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+---@param subIndex number The sub-index (usually 0).
+function Api.Drag.SetExistingActionMouseClickData(hotbarId, slot, subIndex)
+    DragSlotSetExistingActionMouseClickData(hotbarId, slot, subIndex)
+end
+
+---
+--- Drops a dragged item as an action onto a hotbar slot.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+---@param subIndex number The sub-index (usually 0).
+---@return boolean Whether the drop was successful.
+function Api.Drag.DropAction(hotbarId, slot, subIndex)
+    return DragSlotDropAction(hotbarId, slot, subIndex)
 end
 
 -- ========================================================================== --
@@ -1628,6 +1675,26 @@ function Api.UserAction.ToggleWarMode()
     UserActionToggleWarMode()
 end
 
+---
+--- Gets the action type for a hotbar slot.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+---@param subIndex number The sub-index (usually 0).
+---@return number The action type.
+function Api.UserAction.GetType(hotbarId, slot, subIndex)
+    return UserActionGetType(hotbarId, slot, subIndex)
+end
+
+---
+--- Gets the action ID for a hotbar slot.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+---@param subIndex number The sub-index (usually 0).
+---@return number The action ID.
+function Api.UserAction.GetId(hotbarId, slot, subIndex)
+    return UserActionGetId(hotbarId, slot, subIndex)
+end
+
 -- ========================================================================== --
 -- Api - Viewport
 -- ========================================================================== --
@@ -2440,6 +2507,89 @@ function Api.Equipment.UpdateItemIcon(elementName, slotData)
 end
 
 -- ========================================================================== --
+-- Api - Hotbar
+-- ========================================================================== --
+
+Api.Hotbar = {}
+
+---
+--- Checks whether a hotbar slot has an assigned action.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+---@return boolean Whether the slot has an action.
+function Api.Hotbar.HasItem(hotbarId, slot)
+    return HotbarHasItem(hotbarId, slot)
+end
+
+---
+--- Executes the action assigned to a hotbar slot.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+function Api.Hotbar.ExecuteItem(hotbarId, slot)
+    HotbarExecuteItem(hotbarId, slot)
+end
+
+---
+--- Registers a window as an action slot with the engine hotbar system.
+---@param element string The window name to register.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+function Api.Hotbar.RegisterAction(element, hotbarId, slot)
+    HotbarSystem.RegisterAction(element, hotbarId, slot, 0)
+end
+
+---
+--- Clears the action icon for a hotbar slot.
+---@param element string The window name.
+---@param hotbarId number The hotbar ID.
+---@param slot number The slot index.
+---@param unregister boolean Whether to unregister the slot from the engine.
+function Api.Hotbar.ClearAction(element, hotbarId, slot, unregister)
+    HotbarSystem.ClearActionIcon(element, hotbarId, slot, 0, unregister)
+end
+
+---
+--- Spawns a new hotbar and returns its ID.
+---@param hotbarId number? Optional specific hotbar ID.
+---@param slots number? Number of slots for the new hotbar.
+---@return number The new hotbar ID.
+function Api.Hotbar.SpawnNew(hotbarId, slots)
+    return HotbarSystem.SpawnNewHotbar(hotbarId, slots)
+end
+
+---
+--- Returns the next available hotbar ID.
+---@return number The next available hotbar ID.
+function Api.Hotbar.GetNextId()
+    return HotbarSystem.GetNextHotbarId()
+end
+
+---
+--- Destroys the engine-side data for a hotbar.
+---@param hotbarId number The hotbar ID to destroy.
+function Api.Hotbar.Destroy(hotbarId)
+    HotbarSystem.DestroyHotbar(hotbarId)
+end
+
+---
+--- Sets the lock state for a hotbar.
+---@param hotbarId number The hotbar ID.
+---@param locked boolean Whether to lock the hotbar.
+function Api.Hotbar.SetLocked(hotbarId, locked)
+    if SystemData.Hotbar[hotbarId] ~= nil then
+        SystemData.Hotbar[hotbarId].Locked = locked
+    end
+end
+
+---
+--- Returns whether a hotbar is locked.
+---@param hotbarId number The hotbar ID.
+---@return boolean Whether the hotbar is locked.
+function Api.Hotbar.IsLocked(hotbarId)
+    return SystemData.Hotbar[hotbarId] ~= nil and SystemData.Hotbar[hotbarId].Locked
+end
+
+-- ========================================================================== --
 -- Utils
 -- ========================================================================== --
 
@@ -3207,6 +3357,10 @@ end
 
 function Drag:isDraggingItem()
     return self:getDragItemData().DragType == SystemData.DragItem.TYPE_ITEM
+end
+
+function Drag:isDragging()
+    return self:getDragItemData().DragType ~= SystemData.DragItem.TYPE_NONE
 end
 
 function Drag:getDraggingObject()
@@ -4821,6 +4975,47 @@ end
 
 ---@return Window
 function DefaultDebugWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Hotbar
+-- ========================================================================== --
+
+--- @class DefaultHotbar
+--- @field Initialize fun() Initializes the hotbar
+--- @field Shutdown fun() Shuts down the hotbar
+--- @field SetHotbarItem fun(hotbarId: integer, slot: integer) Sets a hotbar item
+--- @field ClearHotbarItem fun(hotbarId: integer, slot: integer, bUnregister: boolean) Clears a hotbar item
+--- @field ReloadHotbar fun(hotbarId: integer) Reloads the hotbar
+--- @field UseSlot fun(hotbarId: integer, slot: integer) Uses a hotbar slot
+--- @field SetLocked fun(hotbarId: integer, locked: boolean) Sets the lock state
+--- @field ItemLButtonDown fun(flags: integer) Handles left button down on a slot
+--- @field ItemLButtonUp fun(flags: integer) Handles left button up on a slot
+--- @field ItemRButtonUp fun() Handles right button up on a slot
+--- @field ItemMouseOver fun() Handles mouse over on a slot
+--- @field ItemMouseOverEnd fun() Handles mouse over end on a slot
+
+---@class DefaultHotbarComponent : DefaultComponent
+local DefaultHotbarComponent = {}
+DefaultHotbarComponent.__index = DefaultHotbarComponent
+
+---@return DefaultHotbarComponent
+function DefaultHotbarComponent:new()
+    local instance = DefaultComponent.new(self, "Hotbar") --[[@as DefaultHotbarComponent]]
+    instance._proxy = instance:_createProxy(Hotbar)
+    instance._globalKey = "Hotbar"
+    _G.Hotbar = instance._proxy
+    return instance
+end
+
+---@return DefaultHotbar
+function DefaultHotbarComponent:getDefault()
+    return self._proxy or Hotbar --[[@as DefaultHotbar]]
+end
+
+---@return Window
+function DefaultHotbarComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6761,6 +6956,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultHotbarComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6971,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.Hotbar = DefaultHotbarComponent:new()
 
 -- ========================================================================== --
 -- Mod
