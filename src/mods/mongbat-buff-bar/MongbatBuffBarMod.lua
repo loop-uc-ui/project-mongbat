@@ -1,6 +1,10 @@
 local NAME_GOOD = "MongbatBuffBarGood"
 local NAME_EVIL = "MongbatBuffBarEvil"
 
+-- Persistence keys for direction settings
+local KEY_GOOD_DIRECTION = "MongbatBuffBarGoodDirection"
+local KEY_EVIL_DIRECTION = "MongbatBuffBarEvilDirection"
+
 -- Default positions (can be dragged by the player)
 local DEFAULT_GOOD_X = 451
 local DEFAULT_GOOD_Y = 125
@@ -49,8 +53,9 @@ local function OnInitialize(context)
     local goodOrder = {}   -- array of buffIds (good/neutral)
     local evilOrder = {}   -- array of buffIds (evil)
     local buffEntries = {} -- buffId -> { iconView, timerView, timerSecs, hasTimer, nameVec, tooltipVec }
-    local goodDirection = "H" -- "H"=horizontal, "V"=vertical
-    local evilDirection = "H"
+    -- Load persisted direction preferences ("H" or "V")
+    local goodDirection = Api.Interface.LoadString(KEY_GOOD_DIRECTION, "H")
+    local evilDirection = Api.Interface.LoadString(KEY_EVIL_DIRECTION, "H")
     local deltaTime = 0
 
     -- Determine if a buffId is a good/neutral buff
@@ -328,6 +333,7 @@ local function OnInitialize(context)
         OnUpdate = onUpdate,
         OnRButtonUp = function(_)
             goodDirection = (goodDirection == "H") and "V" or "H"
+            Api.Interface.SaveString(KEY_GOOD_DIRECTION, goodDirection)
             reflowContainer(NAME_GOOD, goodOrder, goodDirection)
         end
     }
@@ -342,6 +348,7 @@ local function OnInitialize(context)
         end,
         OnRButtonUp = function(_)
             evilDirection = (evilDirection == "H") and "V" or "H"
+            Api.Interface.SaveString(KEY_EVIL_DIRECTION, evilDirection)
             reflowContainer(NAME_EVIL, evilOrder, evilDirection)
         end
     }
@@ -356,8 +363,8 @@ local function OnShutdown(context)
     Api.Window.Destroy(NAME_GOOD)
     Api.Window.Destroy(NAME_EVIL)
 
-    -- Destroy any dynamically created buff icons that may still be alive
-    -- (the engine will remove them when their parent is destroyed, but be explicit)
+    -- Unload CSV data (mirrors default UI BuffDebuff.Shutdown cleanup; prevents resource leaks)
+    Api.CSV.Unload("BuffDataCSV")
 
     -- Restore the default systems
     Components.Defaults.BuffDebuff:restore()

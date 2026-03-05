@@ -4255,6 +4255,7 @@ Component.__index = Component
 ---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: DynamicImage, paperdoll: PaperdollWrapper)?
+---@field OnUpdateBuffDebuff fun(self: DynamicImage, buffDebuff: BuffDebuffWrapper)?
 
 ---@class DynamicImage: View
 local DynamicImage = {}
@@ -4308,6 +4309,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdateBuffDebuff fun(self: Window, buffDebuff: BuffDebuffWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4327,6 +4329,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
+---@field OnUpdateBuffDebuff fun(self: Label, buffDebuff: BuffDebuffWrapper)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -4385,6 +4388,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdateBuffDebuff fun(self: View, buffDebuff: BuffDebuffWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -6342,7 +6346,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateBuffDebuff
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6357,7 +6362,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateBuffDebuff
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
