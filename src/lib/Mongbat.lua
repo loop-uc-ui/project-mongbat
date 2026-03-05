@@ -3345,6 +3345,18 @@ function MobileStatus:getNotorietyColor()
     return Constants.Colors.Notoriety[self:getNotoriety() + 1]
 end
 
+function MobileStatus:getCurrentHealth()
+    return self:getData().CurrentHealth
+end
+
+function MobileStatus:getMaxHealth()
+    return self:getData().MaxHealth
+end
+
+function MobileStatus:isDead()
+    return self:getData().IsDead
+end
+
 function Data.MobileStatus(id)
     return MobileStatus:new(id)
 end
