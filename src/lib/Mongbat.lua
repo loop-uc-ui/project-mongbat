@@ -424,6 +424,24 @@ function Api.ContextMenu.RequestMenu(id)
     RequestContextMenu(id)
 end
 
+---
+--- Creates a Lua context menu item with a wstring label.
+---@param label wstring The label for the item.
+---@param disabled number Whether the item is disabled (0 = enabled).
+---@param returnCode string The return code passed to the callback.
+---@param param number Additional parameter passed to the callback.
+---@param checked boolean Whether the item appears checked.
+function Api.ContextMenu.CreateLuaItem(label, disabled, returnCode, param, checked)
+    ContextMenu.CreateLuaContextMenuItemWithString(label, disabled, returnCode, param, checked)
+end
+
+---
+--- Activates the Lua context menu, routing selection to a callback.
+---@param callback fun(returnCode: string, param: number)
+function Api.ContextMenu.ActivateLua(callback)
+    ContextMenu.ActivateLuaContextMenu(callback)
+end
+
 -- ========================================================================== --
 -- Api - CSV
 -- ========================================================================== --
@@ -1476,6 +1494,15 @@ end
 ---@return string The string.
 function Api.String.WStringToString(wString)
     return WStringToString(wString)
+end
+
+---
+--- Replaces tokens in a wstring.
+---@param str wstring The string containing token placeholders.
+---@param tokens table The token values to substitute.
+---@return wstring
+function Api.String.ReplaceTokens(str, tokens)
+    return ReplaceTokens(str, tokens)
 end
 
 -- ========================================================================== --
@@ -2950,6 +2977,8 @@ Constants.DataEvents.OnUpdateHealthBarColor = DataEvent(WindowData.HealthBarColo
 Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "OnUpdateMobileStatus")
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
+Constants.DataEvents.OnUpdateSkillDynamicData = DataEvent(WindowData.SkillDynamicData, "OnUpdateSkillDynamicData")
+
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
 
 ---@class SystemEvent
@@ -3338,6 +3367,125 @@ end
 
 function Data.MobileStatus(id)
     return MobileStatus:new(id)
+end
+
+-- ========================================================================== --
+-- Data - UpdateInstanceId
+-- ========================================================================== --
+
+--- Returns the instance ID for the most recently fired data event.
+--- Use inside an OnUpdate<DataType> handler to identify which entity changed.
+---@return number
+function Data.UpdateInstanceId()
+    return WindowData.UpdateInstanceId
+end
+
+-- ========================================================================== --
+-- Data - SkillDynamicData
+-- ========================================================================== --
+
+---@class WindowData.SkillDynamicData
+---@field TempSkillValue number Skill value including modifiers, in tenths (e.g. 1000 = 100.0)
+---@field RealSkillValue number Base skill value in tenths
+---@field SkillCap number Skill cap in tenths
+---@field SkillState number Skill lock state (0=up, 1=down, 2=locked)
+
+---@class SkillDynamicDataWrapper
+---@field _id number
+local SkillDynamicDataWrapper = {}
+SkillDynamicDataWrapper.__index = SkillDynamicDataWrapper
+
+function SkillDynamicDataWrapper:new(serverId)
+    local instance = setmetatable({}, self)
+    instance._id = serverId
+    return instance
+end
+
+---@return WindowData.SkillDynamicData
+function SkillDynamicDataWrapper:getData()
+    return WindowData.SkillDynamicData[self._id] or {}
+end
+
+--- Returns the base skill value in tenths (e.g. 1000 = 100.0%).
+---@return number
+function SkillDynamicDataWrapper:getRealValue()
+    return self:getData().RealSkillValue or 0
+end
+
+--- Returns the modified skill value in tenths.
+---@return number
+function SkillDynamicDataWrapper:getTempValue()
+    return self:getData().TempSkillValue or 0
+end
+
+--- Returns the skill cap in tenths.
+---@return number
+function SkillDynamicDataWrapper:getCap()
+    return self:getData().SkillCap or 0
+end
+
+---@param serverId number
+---@return SkillDynamicDataWrapper
+function Data.SkillDynamicData(serverId)
+    return SkillDynamicDataWrapper:new(serverId)
+end
+
+-- ========================================================================== --
+-- Data - SkillsCSV
+-- ========================================================================== --
+
+---@class WindowData.SkillsCSV
+---@field Name string
+---@field ServerId number
+---@field NameTid number
+
+---@class SkillsCSVWrapper
+---@field _index number
+local SkillsCSVWrapper = {}
+SkillsCSVWrapper.__index = SkillsCSVWrapper
+
+function SkillsCSVWrapper:new(index)
+    local instance = setmetatable({}, self)
+    instance._index = index
+    return instance
+end
+
+---@return WindowData.SkillsCSV
+function SkillsCSVWrapper:getData()
+    return WindowData.SkillsCSV[self._index] or {}
+end
+
+--- Returns the display name of the skill as a wstring.
+---@return wstring
+function SkillsCSVWrapper:getName()
+    local data = self:getData()
+    if data.NameTid then
+        return GetStringFromTid(data.NameTid)
+    end
+    return towstring(data.Name or "")
+end
+
+--- Returns the server-side skill ID used for data registration.
+---@return number
+function SkillsCSVWrapper:getServerId()
+    return self:getData().ServerId or 0
+end
+
+---@param index number 1-based index into the SkillsCSV table
+---@return SkillsCSVWrapper
+function Data.SkillsCSV(index)
+    return SkillsCSVWrapper:new(index)
+end
+
+-- ========================================================================== --
+-- Data - Custom Skills
+-- ========================================================================== --
+
+--- Returns the list of custom-tracked skill indices from the interface settings.
+--- Each element is a 1-based index into the SkillsCSV table.
+---@return number[]
+function Data.CustomSkills()
+    return SystemData.Settings.Interface.CustomSkills or {}
 end
 
 -- ========================================================================== --
@@ -4072,6 +4220,14 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 ---@class DefaultObjectHandleComponent : DefaultComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
+---@class DefaultSkillsTrackerComponent : DefaultComponent
+local DefaultSkillsTrackerComponent = {}
+DefaultSkillsTrackerComponent.__index = DefaultSkillsTrackerComponent
+
+---@class DefaultSkillsWindowComponent : DefaultComponent
+local DefaultSkillsWindowComponent = {}
+DefaultSkillsWindowComponent.__index = DefaultSkillsWindowComponent
 
 
 ---@class CircleImageModel : ViewModel
@@ -4848,6 +5004,52 @@ function DefaultObjectHandleComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Skills Tracker
+-- ========================================================================== --
+
+---@return DefaultSkillsTrackerComponent
+function DefaultSkillsTrackerComponent:new()
+    local instance = DefaultComponent.new(self, "SkillsTracker") --[[@as DefaultSkillsTrackerComponent]]
+    instance._proxy = instance:_createProxy(SkillsTracker)
+    instance._globalKey = "SkillsTracker"
+    _G.SkillsTracker = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultSkillsTrackerComponent:getDefault()
+    return self._proxy or SkillsTracker
+end
+
+---@return Window
+function DefaultSkillsTrackerComponent:asComponent()
+    return Window:new { Name = "SkillsTrackerWindow" }
+end
+
+-- ========================================================================== --
+-- Components - Default - Skills Window
+-- ========================================================================== --
+
+---@return DefaultSkillsWindowComponent
+function DefaultSkillsWindowComponent:new()
+    local instance = DefaultComponent.new(self, "SkillsWindow") --[[@as DefaultSkillsWindowComponent]]
+    instance._proxy = instance:_createProxy(SkillsWindow)
+    instance._globalKey = "SkillsWindow"
+    _G.SkillsWindow = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultSkillsWindowComponent:getDefault()
+    return self._proxy or SkillsWindow
+end
+
+---@return Window
+function DefaultSkillsWindowComponent:asComponent()
+    return Window:new { Name = "SkillsWindow" }
+end
+
+-- ========================================================================== --
 -- Components - Default - Status Window
 -- ========================================================================== --
 
@@ -5522,6 +5724,12 @@ function EventHandler.OnUpdatePlayerLocation()
     end)
 end
 
+function EventHandler.OnUpdateSkillDynamicData()
+    withActiveView("OnUpdateSkillDynamicData", function(window)
+        window:onUpdateSkillDynamicData()
+    end)
+end
+
 function EventHandler.OnMouseWheel(x, y, delta)
     withActiveView("OnMouseWheel", function(window)
         window:onMouseWheel(x, y, delta)
@@ -6086,6 +6294,14 @@ end
 function View:onUpdatePlayerLocation(data)
     if self._model.OnUpdatePlayerLocation ~= nil then
         self._model.OnUpdatePlayerLocation(self, data)
+        return true
+    end
+    return false
+end
+
+function View:onUpdateSkillDynamicData()
+    if self._model.OnUpdateSkillDynamicData ~= nil then
+        self._model.OnUpdateSkillDynamicData(self, Data.SkillDynamicData(Data.UpdateInstanceId()))
         return true
     end
     return false
@@ -6761,6 +6977,8 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultSkillsTrackerComponent, { __index = DefaultComponent })
+setmetatable(DefaultSkillsWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6993,8 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.SkillsTracker = DefaultSkillsTrackerComponent:new()
+Components.Defaults.SkillsWindow = DefaultSkillsWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
