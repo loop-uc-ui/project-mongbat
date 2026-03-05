@@ -2398,6 +2398,30 @@ function Api.Interface.GetPaperdollOpen()
 end
 
 ---
+--- Sets whether the player's backpack is considered open by the engine.
+---@param open boolean
+function Api.Interface.SetBackpackOpen(open)
+    Interface.BackpackOpen = open
+end
+
+---
+--- Gets whether the player's backpack is considered open by the engine.
+---@return boolean
+function Api.Interface.GetBackpackOpen()
+    return Interface.BackpackOpen
+end
+
+---
+--- Marks a window for automatic destruction when the player closes it
+--- (via Escape or a close button). The engine checks this table when
+--- processing close events.
+---@param windowName string The name of the window.
+---@param value boolean True to enable auto-destroy on close.
+function Api.Interface.SetDestroyWindowOnClose(windowName, value)
+    Interface.DestroyWindowOnClose[windowName] = value
+end
+
+---
 --- Gets mobile data for a given ID from the engine.
 ---@param id number The mobile ID.
 ---@param includeEquipment boolean Whether to include equipment data.
