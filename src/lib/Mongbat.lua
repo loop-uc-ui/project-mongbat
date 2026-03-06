@@ -4864,6 +4864,10 @@ function DefaultDebugWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
+-- ========================================================================== --
+-- Components - Default - Object Handle
+-- ========================================================================== --
+
 ---@return DefaultObjectHandleComponent
 function DefaultObjectHandleComponent:new()
     local instance = DefaultComponent.new(self, "ObjectHandle") --[[@as DefaultObjectHandleComponent]]

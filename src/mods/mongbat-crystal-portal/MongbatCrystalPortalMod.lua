@@ -134,7 +134,7 @@ local Destinations = {
     },
 }
 
--- Magery skill CSV index (1-based) — matches WindowData.SkillsCSV[32]
+-- Magery skill CSV index (1-based) -- matches WindowData.SkillsCSV[32]
 local MAGERY_SKILL_CSV_INDEX = 32
 local MAGERY_REQUIRED        = 71.5
 
