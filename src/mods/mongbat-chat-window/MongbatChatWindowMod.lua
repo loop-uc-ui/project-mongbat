@@ -85,9 +85,9 @@ local function OnInitialize(context)
 
     -- All message types enabled by default
     local filterEnabled = {}
-    for _, entry in ipairs(FILTER_KEYS) do
+    context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
         filterEnabled[entry.key] = true
-    end
+    end)
 
     local currentAlpha = 0.9
 
@@ -125,7 +125,7 @@ local function OnInitialize(context)
     -- Toolbar: filter toggle buttons + timestamp + alpha controls
     -- ------------------------------------------------------------------ --
 
-    for _, entry in ipairs(FILTER_KEYS) do
+    context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
         local localKey   = entry.key
         local localLabel = entry.label
         local filterId   = filters[localKey]
@@ -151,7 +151,7 @@ local function OnInitialize(context)
             end,
         }
         filterButtons[localKey] = btn
-    end
+    end)
 
     -- Timestamp toggle
     local showTimestamp = false
@@ -207,22 +207,22 @@ local function OnInitialize(context)
             self:addLog("Chat", true)
 
             -- Set per-channel colours for the "Chat" log
-            for _, ch in pairs(channels) do
+            context.Utils.Table.ForEach(channels, function(_, ch)
                 if ch and ch.id and ch.logName then
                     local color = context.Data.ChatChannelColor(ch.id)
                     if color then
                         self:setFilterColor(ch.logName, ch.id, color)
                     end
                 end
-            end
+            end)
 
             -- Explicitly enable all filter types to match initial filter button state
-            for _, entry in ipairs(FILTER_KEYS) do
+            context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
                 local filterId = filters[entry.key]
                 if filterId then
                     self:setFilterState("Chat", filterId, true)
                 end
-            end
+            end)
 
             self:scrollToBottom()
         end,
@@ -333,9 +333,9 @@ local function OnInitialize(context)
             self:addAnchor("bottomleft", "Root", "bottomleft", 10, -10)
 
             local childList = {}
-            for _, entry in ipairs(FILTER_KEYS) do
+            context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
                 table.insert(childList, filterButtons[entry.key])
-            end
+            end)
             table.insert(childList, timestampBtn)
             table.insert(childList, alphaDecrBtn)
             table.insert(childList, alphaIncrBtn)
