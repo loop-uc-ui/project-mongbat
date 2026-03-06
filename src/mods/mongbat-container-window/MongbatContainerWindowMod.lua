@@ -43,12 +43,10 @@ local function OnInitialize(context)
     ---@param gridIndex number
     ---@return number
     local function findItemAtGrid(containerId, gridIndex)
-        local d = Data.ContainerWindow(containerId):getData()
-        if not d or not d.ContainedItems then return 0 end
-        for i = 1, (d.numItems or 0) do
-            local item = d.ContainedItems[i]
-            if item and item.gridIndex == gridIndex then
-                return item.objectId
+        local items = Data.ContainerWindow(containerId):getItems()
+        for i = 1, #items do
+            if items[i].gridIndex == gridIndex then
+                return items[i].objectId
             end
         end
         return 0
@@ -78,7 +76,7 @@ local function OnInitialize(context)
             if iconExists then Api.Equipment.UpdateItemIcon(iconName, objectInfo) end
             if countExists then
                 if objectInfo.quantity and objectInfo.quantity > 1 then
-                    Api.Label.SetText(countName, tostring(objectInfo.quantity))
+                    Api.Label.SetText(countName, towstring(objectInfo.quantity))
                 else
                     Api.Label.SetText(countName, "")
                 end
@@ -327,13 +325,10 @@ local function OnInitialize(context)
         local state = openContainers[containerId]
         if not state then return end
 
-        local d = Data.ContainerWindow(containerId):getData()
-        if not d or not d.ContainedItems then return end
-
-        for i = 1, (d.numItems or 0) do
-            local item = d.ContainedItems[i]
-            if item and item.objectId == objectId then
-                updateSlot(state.windowName, item.gridIndex, objectId)
+        local items = Data.ContainerWindow(containerId):getItems()
+        for i = 1, #items do
+            if items[i].objectId == objectId then
+                updateSlot(state.windowName, items[i].gridIndex, objectId)
                 break
             end
         end

@@ -6246,7 +6246,7 @@ end
 
 function View:onUpdateObjectInfo()
     if self._model.OnUpdateObjectInfo ~= nil then
-        self._model.OnUpdateObjectInfo(self, WindowData.ObjectInfo[self:getId()])
+        self._model.OnUpdateObjectInfo(self, Data.ObjectInfo(self:getId()))
         return true
     end
     return false
