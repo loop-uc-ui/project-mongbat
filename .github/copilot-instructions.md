@@ -293,7 +293,7 @@ The table below describes what belongs in each namespace. There is some nuance a
 - **`Components.Defaults` owns all default windows.** Every default UI window's global table (`StatusWindow`, `Shopkeeper`, etc.) is a DefaultComponent. Mods access them via `ctx.Components.Defaults.<name>` and use `disable()` / `restore()`.
 - **`Api` owns all actions.** If you're calling a global function to make something happen (create, destroy, set, register, broadcast), it goes through `Api`.
 - **`Utils` owns generic operations.** Iterating a table, formatting a string for display, clamping a number -- these go through `Utils`. If the operation has no broader relevance beyond one mod's internal logic (e.g., a private helper that computes a mod-specific layout), it can remain local to the mod.
-- **`Constants` owns fixed values.** Event IDs, type enums, layer constants -- anything that is a static lookup value rather than a function or mutable state.
+- **`Constants` owns fixed values.** Event IDs, type enums, layer constants -- anything that is a static lookup value rather than a function or mutable state. This includes **data dictionaries** -- static lookup tables that multiple mods may reference (e.g., spell school definitions, skill info arrays, bug type enumerations). If a dataset is hardcoded, immutable, and useful across mods, it belongs in `Constants` as a structured table rather than being duplicated in each mod.
 
 **Bad** -- raw engine globals in mod code:
 ```lua
@@ -381,6 +381,38 @@ Api.Window.Destroy(name)  -- no-op if window doesn't exist
 **Add convenience functions when patterns repeat.** If multiple mods toggle a window's visibility, add a `toggle` method to the relevant domain rather than inlining the if/else at each call site. The framework function encapsulates existence checks, visibility queries, and state transitions in one place.
 
 **Do not duplicate checks the framework already performs.** If a framework method internally validates its arguments, performs type coercion, or handles nil gracefully, do not add the same check at the call site. Read the framework method's implementation to know what it already handles.
+
+#### 3.3.1 Extending Components
+
+When a mod needs a UI concept that the framework does not yet provide, **add it as a Component** rather than building it ad-hoc in the mod. If the default UI uses a concept (e.g., checkboxes, sliders, text input fields), it is likely needed across multiple mods and belongs in the framework.
+
+**Composite components are encouraged.** Many UI concepts are naturally a pairing of simpler elements. For example, a checkbox is rarely useful without an adjacent label — so the framework's Checkbox component should include a built-in label, similar to how `StatusBar` bundles a bar graphic with its own text overlay. Design components to represent the *usage pattern*, not just the raw engine element.
+
+**When to add a new Component:**
+- The default UI uses the concept and multiple mods will need it.
+- The mod is building the concept manually from lower-level primitives (Labels + Buttons + click handlers to simulate a checkbox).
+- The composite reduces boilerplate: mods should express *intent* (`Components.Checkbox { Label = L"Show Tips", ... }`) not *mechanism*.
+
+**When NOT to add a new Component:**
+- The concept is truly unique to one mod with no foreseeable reuse.
+- The concept is so simple that a single existing component covers it (a Label with a click handler is not a "ClickableLabel" component).
+
+#### 3.3.2 Extending Utils
+
+When a mod needs a general-purpose operation on primitives or data structures, **add it to `Utils`** if it will be broadly useful across mods. The framework should provide utilities that keep mod code focused on UI logic, not data plumbing.
+
+**Add utilities for primitives the framework doesn't yet cover.** If several mods need to clamp numbers, round values, or do string splitting, those belong in `Utils.Math` or `Utils.String` rather than being reimplemented locally in each mod.
+
+**Conform to tables and arrays.** The framework consolidates Lua's more complex data structures (linked lists, sets, queues, etc.) into two fundamental shapes: **tables** (key-value maps) and **arrays** (integer-indexed sequences). When working with complex data, transform it into one of these two shapes rather than introducing novel structures. Utils should operate on tables and arrays, not on custom data types.
+
+**When to add a new utility:**
+- The operation applies to a general data type (table, array, string, number) with no engine-specific semantics.
+- Multiple mods need it, or a single mod uses it in many places.
+- The operation makes mod code clearer by replacing an inline loop or conditional block with a named function.
+
+**When NOT to add a new utility:**
+- The operation is specific to one mod's domain logic (e.g., computing a mod-specific layout offset).
+- The operation is a trivial one-liner that reads clearly inline.
 
 #### 3.4 Type Annotations
 
