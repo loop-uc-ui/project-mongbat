@@ -1,25 +1,27 @@
 local NAME = "MongbatActionsWindow"
 
 -- Layout constants
-local WINDOW_WIDTH   = 340
-local WINDOW_HEIGHT  = 480
-local HEADER_H       = 28
-local NAV_H          = 28
-local ICON_SIZE      = 32
-local PADDING        = 8
-local ITEMS_PER_PAGE = 8
-local BUTTON_SPACING = 2   -- horizontal gap between adjacent buttons/labels
-local ROW_SPACING    = 4   -- vertical gap between item rows
-local ICON_LABEL_GAP = 4   -- horizontal gap between icon and label in a row
+local WINDOW_WIDTH    = 340
+local WINDOW_HEIGHT   = 520
+local FILTER_H        = 24
+local HEADER_H        = 28
+local NAV_H           = 28
+local ICON_SIZE       = 32
+local PADDING         = 8
+local ITEMS_PER_PAGE  = 8
+local BUTTON_SPACING  = 2   -- horizontal gap between adjacent buttons/labels
+local ROW_SPACING     = 4   -- vertical gap between item rows
+local ICON_LABEL_GAP  = 4   -- horizontal gap between icon and label in a row
 
 -- Children array index constants (for OnLayout)
-local IDX_PREV_CAT  = 1
-local IDX_CAT_LABEL = 2
-local IDX_NEXT_CAT  = 3
-local IDX_PREV_PAGE = 4
-local IDX_PAGE_LABEL = 5
-local IDX_NEXT_PAGE = 6
-local IDX_ITEMS_START = 7   -- icon[1]=7, label[1]=8, icon[2]=9, label[2]=10, ...
+local IDX_FILTER      = 1
+local IDX_PREV_CAT    = 2
+local IDX_CAT_LABEL   = 3
+local IDX_NEXT_CAT    = 4
+local IDX_PREV_PAGE   = 5
+local IDX_PAGE_LABEL  = 6
+local IDX_NEXT_PAGE   = 7
+local IDX_ITEMS_START = 8   -- icon[1]=8, label[1]=9, icon[2]=10, label[2]=11, ...
 
 ---
 --- Returns true if this action index uses a zero-based actionId for drag/tooltip
@@ -78,7 +80,7 @@ local function OnInitialize(context)
     -- -----------------------------------------------------------------------
     -- Build a flat list of visible actions for each group
     -- -----------------------------------------------------------------------
-    ---@type table[][]   groupItems[groupIndex] = array of { index, data } entries
+    ---@type table[][]   groupItems[groupIndex] = array of { index, data, name } entries
     local groupItems = {}
     for gi = 1, #groups do
         local items = {}
@@ -87,7 +89,11 @@ local function OnInitialize(context)
             for _, idx in pairs(group.index) do
                 local ad = actionData[idx]
                 if ad and ad.inActionWindow == true then
-                    items[#items + 1] = { index = idx, data = ad }
+                    items[#items + 1] = {
+                        index = idx,
+                        data  = ad,
+                        name  = getActionName(ad, Api),
+                    }
                 end
             end
         end
@@ -97,8 +103,11 @@ local function OnInitialize(context)
     -- -----------------------------------------------------------------------
     -- State (scoped to OnInitialize; closures capture these)
     -- -----------------------------------------------------------------------
-    local currentGroup = 1
-    local currentPage  = 1
+    local currentGroup    = 1
+    local currentPage     = 1
+    local filterText      = L""     -- current search text (empty = no filter)
+    ---@type table[]  flat filtered list when a search is active, nil otherwise
+    local filteredItems   = nil
 
     local iconSlots  = {}   -- DynamicImage views  [1..ITEMS_PER_PAGE]
     local labelSlots = {}   -- Label views          [1..ITEMS_PER_PAGE]
@@ -109,35 +118,78 @@ local function OnInitialize(context)
     local pageLabel
     local prevPageBtn
     local nextPageBtn
+    local prevCatBtn
+    local nextCatBtn
 
     -- -----------------------------------------------------------------------
     -- Helpers
     -- -----------------------------------------------------------------------
 
+    --- Returns the active item list: filteredItems when a search is active,
+    --- otherwise the current group's items.
+    ---@return table[]
+    local function activeItems()
+        if filteredItems ~= nil then
+            return filteredItems
+        end
+        return groupItems[currentGroup] or {}
+    end
+
     ---@return integer
     local function totalPages()
-        local items = groupItems[currentGroup]
-        if not items or #items == 0 then return 1 end
+        local items = activeItems()
+        if #items == 0 then return 1 end
         return math.ceil(#items / ITEMS_PER_PAGE)
     end
 
-    --- Refreshes all visible item slots to reflect currentGroup + currentPage.
-    local function refreshSlots()
-        local items  = groupItems[currentGroup]
-        local total  = totalPages()
-        local offset = (currentPage - 1) * ITEMS_PER_PAGE
-
-        -- Update category label
-        local grp     = groups[currentGroup]
-        local catName = L""
-        if grp then
-            if grp.nameTid and grp.nameTid ~= 0 then
-                catName = Api.String.GetStringFromTid(grp.nameTid)
-            elseif grp.nameString then
-                catName = grp.nameString
+    --- Rebuilds filteredItems from filterText across all groups.
+    local function applyFilter()
+        if wstring.len(filterText) == 0 then
+            filteredItems = nil
+            return
+        end
+        local lower = wstring.lower(filterText)
+        local result = {}
+        for gi = 1, #groups do
+            local items = groupItems[gi] or {}
+            for _, item in ipairs(items) do
+                if wstring.find(wstring.lower(item.name), lower) then
+                    result[#result + 1] = item
+                end
             end
         end
-        if categoryLabel then categoryLabel:setText(catName) end
+        filteredItems = result
+    end
+
+    --- Refreshes all visible item slots to reflect currentGroup + currentPage
+    --- (or filteredItems when a search is active).
+    local function refreshSlots()
+        local items  = activeItems()
+        local total  = totalPages()
+        local offset = (currentPage - 1) * ITEMS_PER_PAGE
+        local isFiltering = filteredItems ~= nil
+
+        -- Update category label (show "Search Results" when filtering)
+        if categoryLabel then
+            if isFiltering then
+                categoryLabel:setText(L"Search Results")
+            else
+                local grp     = groups[currentGroup]
+                local catName = L""
+                if grp then
+                    if grp.nameTid and grp.nameTid ~= 0 then
+                        catName = Api.String.GetStringFromTid(grp.nameTid)
+                    elseif grp.nameString then
+                        catName = grp.nameString
+                    end
+                end
+                categoryLabel:setText(catName)
+            end
+        end
+
+        -- Hide category navigation buttons while filtering
+        if prevCatBtn then prevCatBtn:setShowing(not isFiltering) end
+        if nextCatBtn then nextCatBtn:setShowing(not isFiltering) end
 
         -- Update page label
         if pageLabel then
@@ -150,7 +202,7 @@ local function OnInitialize(context)
 
         -- Populate slots
         for i = 1, ITEMS_PER_PAGE do
-            local item  = items and items[offset + i]
+            local item  = items[offset + i]
             local iconV  = iconSlots[i]
             local labelV = labelSlots[i]
             if iconV and labelV then
@@ -158,7 +210,7 @@ local function OnInitialize(context)
                     slotData[i] = item
                     local texture, x, y = Api.Icon.GetIconData(item.data.iconId)
                     iconV:setTexture(texture, x, y)
-                    labelV:setText(getActionName(item.data, Api))
+                    labelV:setText(item.name)
                     iconV:setShowing(true)
                     labelV:setShowing(true)
                 else
@@ -192,7 +244,7 @@ local function OnInitialize(context)
                 if not isSimpleIndex(idx) then
                     actionId = idx
                 end
-                if ad.type == SystemData.UserAction.TYPE_INVOKE_VIRTUE then
+                if ad.type == Constants.UserAction.TypeInvokeVirtue() then
                     actionId = ad.invokeId or 0
                 end
 
@@ -208,7 +260,7 @@ local function OnInitialize(context)
                 local desc = getActionDesc(ad, Api)
 
                 local itemId = idx
-                if ad.type == SystemData.UserAction.TYPE_INVOKE_VIRTUE then
+                if ad.type == Constants.UserAction.TypeInvokeVirtue() then
                     itemId = ad.invokeId or idx
                 end
 
@@ -230,12 +282,14 @@ local function OnInitialize(context)
                     body       = desc,
                 })
             end,
+            OnMouseOverEnd = function(self)
+                Api.ItemProperties.ClearMouseOverItem()
+            end,
         }
     end
 
-    ---@param slotIndex integer  (unused, kept for symmetry)
     ---@return Label
-    local function ActionLabel(slotIndex)
+    local function ActionLabel()
         return Components.Label {
             OnInitialize = function(self)
                 self:setDimensions(WINDOW_WIDTH - ICON_SIZE - PADDING * 3, ICON_SIZE)
@@ -249,13 +303,35 @@ local function OnInitialize(context)
     -- -----------------------------------------------------------------------
     for i = 1, ITEMS_PER_PAGE do
         iconSlots[i]  = ActionIcon(i)
-        labelSlots[i] = ActionLabel(i)
+        labelSlots[i] = ActionLabel()
     end
+
+    -- -----------------------------------------------------------------------
+    -- Search/filter input
+    -- -----------------------------------------------------------------------
+    local filterInput = Components.FilterInput {
+        OnInitialize = function(self)
+            self:setDimensions(WINDOW_WIDTH - PADDING * 2, FILTER_H)
+        end,
+        OnTextChanged = function(self, text)
+            filterText   = text
+            currentPage  = 1
+            applyFilter()
+            refreshSlots()
+        end,
+        OnKeyEscape = function(self)
+            self:clear()
+            filterText   = L""
+            currentPage  = 1
+            applyFilter()
+            refreshSlots()
+        end,
+    }
 
     -- -----------------------------------------------------------------------
     -- Category navigation buttons
     -- -----------------------------------------------------------------------
-    local prevCatBtn = Components.Button {
+    prevCatBtn = Components.Button {
         OnInitialize = function(self)
             self:setText(L"<")
             self:setDimensions(28, HEADER_H)
@@ -275,7 +351,7 @@ local function OnInitialize(context)
         end,
     }
 
-    local nextCatBtn = Components.Button {
+    nextCatBtn = Components.Button {
         OnInitialize = function(self)
             self:setText(L">")
             self:setDimensions(28, HEADER_H)
@@ -329,23 +405,29 @@ local function OnInitialize(context)
     -- Main window layout
     --
     -- Children array (in order):
-    --   [1]  prevCatBtn
-    --   [2]  categoryLabel
-    --   [3]  nextCatBtn
-    --   [4]  prevPageBtn
-    --   [5]  pageLabel
-    --   [6]  nextPageBtn
-    --   [7]  iconSlots[1],  [8]  labelSlots[1]
-    --   [9]  iconSlots[2],  [10] labelSlots[2]
+    --   [1]  filterInput
+    --   [2]  prevCatBtn
+    --   [3]  categoryLabel
+    --   [4]  nextCatBtn
+    --   [5]  prevPageBtn
+    --   [6]  pageLabel
+    --   [7]  nextPageBtn
+    --   [8]  iconSlots[1],  [9]  labelSlots[1]
+    --   [10] iconSlots[2],  [11] labelSlots[2]
     --   ...
     -- -----------------------------------------------------------------------
     local function Layout(window, children, child, index)
         local wName = window:getName()
         local pad   = PADDING
 
-        if index == IDX_PREV_CAT then
-            -- Category prev button – top-left
+        if index == IDX_FILTER then
+            -- Search filter input – top, full width
             child:addAnchor("topleft", wName, "topleft", pad, pad)
+            child:setDimensions(WINDOW_WIDTH - pad * 2, FILTER_H)
+
+        elseif index == IDX_PREV_CAT then
+            -- Category prev button – below filter, left
+            child:addAnchor("topleft", children[IDX_FILTER]:getName(), "bottomleft", 0, BUTTON_SPACING)
             child:setDimensions(28, HEADER_H)
 
         elseif index == IDX_CAT_LABEL then
@@ -375,12 +457,12 @@ local function OnInitialize(context)
 
         else
             -- Item slots start at IDX_ITEMS_START.
-            -- Pairs: icon at odd offsets, label at even offsets.
+            -- Pairs: icon at even offsets, label at odd offsets (0-based).
             --   offset 0 = icon[1], offset 1 = label[1]
             --   offset 2 = icon[2], offset 3 = label[2]  ...
-            local offset   = index - IDX_ITEMS_START       -- 0-based
-            local slotIdx  = math.floor(offset / 2) + 1    -- which slot (1..ITEMS_PER_PAGE)
-            local isIcon   = (math.mod(offset, 2) == 0)
+            local offset  = index - IDX_ITEMS_START       -- 0-based
+            local slotIdx = math.floor(offset / 2) + 1    -- which slot (1..ITEMS_PER_PAGE)
+            local isIcon  = (math.mod(offset, 2) == 0)
 
             if isIcon then
                 if slotIdx == 1 then
@@ -405,6 +487,7 @@ local function OnInitialize(context)
     -- Assemble children list and create the main window
     -- -----------------------------------------------------------------------
     local windowChildren = {
+        filterInput,
         prevCatBtn, categoryLabel, nextCatBtn,
         prevPageBtn, pageLabel, nextPageBtn,
     }

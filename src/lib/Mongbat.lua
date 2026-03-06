@@ -3063,6 +3063,12 @@ Constants.ItemPropertyDetail = {}
 Constants.ItemPropertyDetail.Long = ItemProperties.DETAIL_LONG
 Constants.ItemPropertyDetail.Short = ItemProperties.DETAIL_SHORT
 
+Constants.UserAction = {}
+
+function Constants.UserAction.TypeInvokeVirtue()
+    return SystemData.UserAction.TYPE_INVOKE_VIRTUE
+end
+
 Constants.GumpIds = {}
 Constants.GumpIds.VendorSearch = 999112
 Constants.GumpIds.PetTrainingProgress = 999139
