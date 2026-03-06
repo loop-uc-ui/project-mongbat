@@ -1,5 +1,10 @@
 local NAME = "MongbatMobilesOnScreenWindow"
 
+-- Saved original MobilesOnScreen lifecycle functions, restored in OnShutdown.
+-- File-scope because they must survive between OnInitialize and OnShutdown.
+local _savedMosInitialize = nil
+local _savedMosShutdown = nil
+
 -- Dockspot window names and their notoriety-based config
 local DOCKSPOTS = {
     { name = "YellowDockspot", filterIndex = 8, enabledKey = "MobilesOnScreenYellowEnabled" },
@@ -27,7 +32,8 @@ local TID_FILTER_NAMES = {
 --- Loads settings from persistent storage into the MobilesOnScreen data table.
 ---@param mos DefaultMobilesOnScreen
 ---@param api Api
-local function loadSettings(mos, api)
+---@param utils Utils
+local function loadSettings(mos, api, utils)
     mos.DistanceSort = api.Interface.LoadBoolean("MobilesOnScreenDistanceSort", false)
     mos.UpdateLimit = api.Interface.LoadNumber("MobilesOnScreenUpdateLimit", 1)
     mos.windowOffset = api.Interface.LoadNumber("MobilesOnScreenOffset", 0)
@@ -37,7 +43,7 @@ local function loadSettings(mos, api)
     for i = 2, 10 do
         mos.SavedFilter[i] = api.Interface.LoadBoolean("MoSFilter" .. i, true)
     end
-    for _, ds in pairs(DOCKSPOTS) do
+    utils.Array.ForEach(DOCKSPOTS, function(ds)
         if ds.name == "YellowDockspot" then
             mos.YellowEnabled = api.Interface.LoadBoolean(ds.enabledKey, false)
         elseif ds.name == "GreyDockspot" then
@@ -51,7 +57,7 @@ local function loadSettings(mos, api)
         elseif ds.name == "OrangeDockspot" then
             mos.OrangeEnabled = api.Interface.LoadBoolean(ds.enabledKey, false)
         end
-    end
+    end)
 end
 
 ---
@@ -146,10 +152,16 @@ end
 local function OnInitialize(context)
     local Api = context.Api
     local Components = context.Components
+    local Utils = context.Utils
 
     local mosDefault = Components.Defaults.MobilesOnScreen
     ---@type DefaultMobilesOnScreen
     local mos = mosDefault:getDefault()
+
+    -- Save original lifecycle functions before overriding so they can be
+    -- restored in OnShutdown (proxy __newindex writes through to _original).
+    _savedMosInitialize = mos.Initialize
+    _savedMosShutdown = mos.Shutdown
 
     -- Hide the default MobilesOnScreenWindow. The window stays alive so that
     -- its XML-registered OnUpdate handler continues to fire MobilesOnScreen.SlowUpdate
@@ -159,10 +171,10 @@ local function OnInitialize(context)
     -- Override Initialize so that on future UI reloads the default window is not
     -- rebuilt and our settings are loaded instead.
     mos.Initialize = function()
-        loadSettings(mos, Api)
-        for _, ds in pairs(DOCKSPOTS) do
+        loadSettings(mos, Api, Utils)
+        Utils.Array.ForEach(DOCKSPOTS, function(ds)
             setupDockspot(ds, mos, Api)
-        end
+        end)
         mosDefault:asComponent():setShowing(false)
         -- Restore our control window position so health bars re-anchor correctly.
         if Api.Window.DoesExist(NAME) then
@@ -177,12 +189,12 @@ local function OnInitialize(context)
     end
 
     -- Load settings now (Initialize already ran before this mod loaded).
-    loadSettings(mos, Api)
+    loadSettings(mos, Api, Utils)
 
     -- Ensure dockspot windows exist and are in the correct show/hide state.
-    for _, ds in pairs(DOCKSPOTS) do
+    Utils.Array.ForEach(DOCKSPOTS, function(ds)
         setupDockspot(ds, mos, Api)
-    end
+    end)
 
     -- ------------------------------------------------------------------ --
     -- Context menu callback
@@ -229,7 +241,7 @@ local function OnInitialize(context)
 
         else
             -- Dockspot toggle return codes: "<name>On" / "<name>Off"
-            for _, ds in pairs(DOCKSPOTS) do
+            Utils.Array.ForEach(DOCKSPOTS, function(ds)
                 local baseName = string.gsub(ds.name, "Dockspot", "")
                 local lower = string.lower(baseName)
                 if returnCode == lower .. "DockspotOn" then
@@ -240,7 +252,7 @@ local function OnInitialize(context)
                 elseif returnCode == lower .. "DockspotOff" then
                     setDockspotEnabled(ds, false, mos, Api)
                 end
-            end
+            end)
 
             -- Filter checkbox toggles: "filter<i>"
             for i = 2, 10 do
@@ -421,6 +433,7 @@ end
 local function OnShutdown(context)
     local Api = context.Api
     local Components = context.Components
+    local Utils = context.Utils
 
     local mosDefault = Components.Defaults.MobilesOnScreen
     local mos = mosDefault:getDefault()
@@ -432,12 +445,23 @@ local function OnShutdown(context)
     if Api.Window.DoesExist("MobilesOnScreenWindow") then
         Api.Window.SavePosition("MobilesOnScreenWindow")
     end
-    for _, ds in pairs(DOCKSPOTS) do
+    Utils.Array.ForEach(DOCKSPOTS, function(ds)
         if Api.Window.DoesExist(ds.name) and isDockspotEnabled(ds, mos) then
             Api.Window.SavePosition(ds.name)
         end
-    end
+    end)
     saveSettings(mos, Api)
+
+    -- Restore overridden lifecycle functions before restoring the default window,
+    -- so that future MobilesOnScreen.Initialize / Shutdown calls work correctly.
+    if _savedMosInitialize then
+        mos.Initialize = _savedMosInitialize
+        _savedMosInitialize = nil
+    end
+    if _savedMosShutdown then
+        mos.Shutdown = _savedMosShutdown
+        _savedMosShutdown = nil
+    end
 
     -- Destroy our control window
     Api.Window.Destroy(NAME)
