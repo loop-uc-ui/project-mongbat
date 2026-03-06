@@ -325,6 +325,14 @@ function Api.Chat.SendChat(channel, text)
 end
 
 ---
+--- Sends a /say chat command on the SAY channel.
+---@param command wstring The command text to send (without the /say prefix).
+function Api.Chat.Send(command)
+    local channel = ChatSettings.Channels[SystemData.ChatLogFilters.SAY]
+    SendChat(channel, L"/say " .. command)
+end
+
+---
 --- Prints a message to the chat window.
 ---@param wString string The message to print.
 ---@param filter string The filter to use.
@@ -3800,6 +3808,19 @@ end
 ---@field TexCoordY integer
 ---@field TexScale number
 
+-- ========================================================================== --
+-- Data - Skill Dynamic Data
+-- ========================================================================== --
+
+---
+--- Returns the skill dynamic data table (WindowData.SkillDynamicData).
+--- Each entry is indexed by the skill's server ID and has TempSkillValue,
+--- RealSkillValue, SkillState, and SkillCap fields.
+---@return SkillDynamicData[] The skill dynamic data table.
+function Data.SkillDynamicData()
+    return WindowData.SkillDynamicData
+end
+
 
 -- ========================================================================== --
 -- Components
@@ -4825,8 +4846,43 @@ function DefaultDebugWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
--- Components - Default - Object Handle
+-- Components - Default - Crystal Portal
 -- ========================================================================== --
+
+---@class DefaultCrystalPortal
+---@field WindowName string Name of the crystal portal window
+---@field Trammel table Trammel facet destination data (Dungeons, Moongates, Banks)
+---@field Felucca table Felucca facet destination data (Dungeons, Moongates, Banks)
+---@field NoWind boolean Whether wind is disabled due to skill check
+---@field LastSelection integer Last selected destination index
+---@field LastMap integer Last map (1=Trammel, 2=Felucca)
+---@field LastArea integer Last area (1=Dungeons, 2=Moongates, 3=Banks)
+---@field currentBase table Current destination list in use
+---@field Initialize fun() Initializes the crystal portal window
+---@field Shutdown fun() Shuts down the crystal portal window
+---@field OnShown fun() Handles the window being shown
+---@field CheckEnable fun() Checks and updates UI state based on selection
+---@field GO fun() Handles the teleport action
+---@field LabelOnMouseOver fun() Handles mouse over on labels
+---@field Toggle fun() Toggles the crystal portal window
+
+---@class DefaultCrystalPortalComponent : DefaultComponent
+local DefaultCrystalPortalComponent = {}
+DefaultCrystalPortalComponent.__index = DefaultCrystalPortalComponent
+
+---@return DefaultCrystalPortalComponent
+function DefaultCrystalPortalComponent:new()
+    local instance = DefaultComponent.new(self, "CrystalPortal") --[[@as DefaultCrystalPortalComponent]]
+    instance._proxy = instance:_createProxy(CrystalPortal)
+    instance._globalKey = "CrystalPortal"
+    _G.CrystalPortal = instance._proxy
+    return instance
+end
+
+---@return DefaultCrystalPortal
+function DefaultCrystalPortalComponent:getDefault()
+    return self._proxy or CrystalPortal --[[@as DefaultCrystalPortal]]
+end
 
 ---@return DefaultObjectHandleComponent
 function DefaultObjectHandleComponent:new()
@@ -6761,6 +6817,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultCrystalPortalComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6832,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.CrystalPortal = DefaultCrystalPortalComponent:new()
 
 -- ========================================================================== --
 -- Mod
