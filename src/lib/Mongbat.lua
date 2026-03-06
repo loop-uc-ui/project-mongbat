@@ -332,6 +332,26 @@ function Api.Chat.PrintToChatWindow(wString, filter)
     PrintWStringToChatWindow(wString, filter)
 end
 
+---
+--- Joins a chat channel.
+---@param name wstring The name of the channel to join.
+function Api.Chat.JoinChannel(name)
+    ChatJoinChannel(name)
+end
+
+---
+--- Leaves the current chat channel.
+function Api.Chat.LeaveChannel()
+    ChatLeaveChannel()
+end
+
+---
+--- Creates a new chat channel.
+---@param name wstring The name of the channel to create.
+function Api.Chat.CreateChannel(name)
+    ChatCreateChannel(name)
+end
+
 -- ========================================================================== --
 -- Api - Circle Image
 -- ========================================================================== --
@@ -2987,6 +3007,13 @@ Constants.SystemEvents.OnUpdateProcessed = {
     name = "OnUpdateProcessed"
 }
 
+Constants.SystemEvents.OnCurrentChannelUpdated = {
+    getEvent = function()
+        return SystemData.Events["CURRENT_CHANNEL_UPDATED"]
+    end,
+    name = "OnCurrentChannelUpdated"
+}
+
 Constants.CoreEvents = {}
 Constants.CoreEvents.OnInitialize = "OnInitialize"
 Constants.CoreEvents.OnShown = "OnShown"
@@ -3799,6 +3826,44 @@ end
 ---@field TexCoordX integer
 ---@field TexCoordY integer
 ---@field TexScale number
+
+
+-- ========================================================================== --
+-- Data - Channel List
+-- ========================================================================== --
+
+---@class ChannelListWrapper
+local ChannelListWrapper = {}
+ChannelListWrapper.__index = ChannelListWrapper
+
+---@return ChannelListWrapper
+function ChannelListWrapper:new()
+    local instance = setmetatable({}, self)
+    return instance
+end
+
+---@return integer Number of available channels
+function ChannelListWrapper:getCount()
+    return WindowData.ChannelListCount or 0
+end
+
+---@param index integer 1-based channel index
+---@return wstring Channel name
+function ChannelListWrapper:getName(index)
+    local entry = WindowData.ChannelList[index]
+    if entry then return entry end
+    return L""
+end
+
+---@return wstring The current channel name (empty string if none)
+function ChannelListWrapper:getCurrentChannel()
+    return WindowData.CurrentChannel or L""
+end
+
+---@return ChannelListWrapper
+function Data.ChannelList()
+    return ChannelListWrapper:new()
+end
 
 
 -- ========================================================================== --
@@ -4825,6 +4890,35 @@ function DefaultDebugWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Channel Window
+-- ========================================================================== --
+
+---@class DefaultChannelWindow
+
+---@class DefaultChannelWindowComponent : DefaultComponent
+local DefaultChannelWindowComponent = {}
+DefaultChannelWindowComponent.__index = DefaultChannelWindowComponent
+
+---@return DefaultChannelWindowComponent
+function DefaultChannelWindowComponent:new()
+    local instance = DefaultComponent.new(self, "ChannelWindow") --[[@as DefaultChannelWindowComponent]]
+    instance._proxy = instance:_createProxy(ChannelWindow)
+    instance._globalKey = "ChannelWindow"
+    _G.ChannelWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultChannelWindow
+function DefaultChannelWindowComponent:getDefault()
+    return self._proxy or ChannelWindow --[[@as DefaultChannelWindow]]
+end
+
+---@return Window
+function DefaultChannelWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Object Handle
 -- ========================================================================== --
 
@@ -5546,6 +5640,12 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnCurrentChannelUpdated()
+    withActiveView("OnCurrentChannelUpdated", function(window)
+        window:onCurrentChannelUpdated()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6110,6 +6210,14 @@ end
 function View:onKeyEscape()
     if self._model.OnKeyEscape ~= nil then
         self._model.OnKeyEscape(self)
+        return true
+    end
+    return false
+end
+
+function View:onCurrentChannelUpdated()
+    if self._model.OnCurrentChannelUpdated ~= nil then
+        self._model.OnCurrentChannelUpdated(self)
         return true
     end
     return false
@@ -6761,6 +6869,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultChannelWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6884,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.ChannelWindow = DefaultChannelWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
