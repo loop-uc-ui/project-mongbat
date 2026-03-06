@@ -23,10 +23,6 @@ local ICON_SCALE_MAX  = 10
 local ICON_SCALE_MIN  = 0.1
 local ICON_SCALE_STEP = 0.1
 
--- Saved original Shopkeeper lifecycle functions, used to restore on shutdown
-local savedInitialize = nil
-local savedShutdown   = nil
-
 ---@param context Context
 local function OnInitialize(context)
     local Api        = context.Api
@@ -65,10 +61,10 @@ local function OnInitialize(context)
     -- -----------------------------------------------------------------------
     local function stripFirstNumber(wStr)
         if not wStr then return L"" end
-        local s = WStringToString(wStr)
+        local s = Api.String.WStringToString(wStr)
         if not s or s == "" then return wStr end
         s = string.gsub(s, "^%d+ ", "")
-        return StringToWString(s)
+        return Api.String.StringToWString(s)
     end
 
     -- -----------------------------------------------------------------------
@@ -77,7 +73,7 @@ local function OnInitialize(context)
     -- -----------------------------------------------------------------------
     local function matchesFilter(name)
         if table.getn(filterPatterns) == 0 then return true end
-        local lname = string.lower(WStringToString(name or L""))
+        local lname = string.lower(Api.String.WStringToString(name or L""))
         for i = 1, table.getn(filterPatterns) do
             if not string.find(lname, filterPatterns[i], 1, true) then
                 return false
@@ -273,8 +269,8 @@ local function OnInitialize(context)
         -- Unregister old items
         for i = 1, table.getn(items) do
             if items[i].registered then
-                Api.Window.UnregisterData(WindowData.ObjectInfo.Type, items[i].id)
-                Api.Window.UnregisterData(WindowData.ItemProperties.Type, items[i].id)
+                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), items[i].id)
+                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), items[i].id)
                 items[i].registered = false
             end
         end
@@ -283,8 +279,8 @@ local function OnInitialize(context)
         local newItems = {}
         for i = 1, data.numItems do
             local slot = data.ContainedItems[i]
-            Api.Window.RegisterData(WindowData.ObjectInfo.Type, slot.objectId)
-            Api.Window.RegisterData(WindowData.ItemProperties.Type, slot.objectId)
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), slot.objectId)
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), slot.objectId)
 
             local objInfo  = Data.ObjectInfo(slot.objectId)
             local itemName = L""
@@ -722,8 +718,8 @@ local function OnInitialize(context)
             -- Try to get the merchant's name
             local mobileName = Data.MobileName(mId)
             local mobData    = mobileName and mobileName:getData()
-            if mobData and mobData.MobName and mobData.MobName ~= "" then
-                titleText = StringToWString(mobData.MobName)
+            if mobData and mobData.MobName ~= nil and mobData.MobName ~= L"" then
+                titleText = mobData.MobName
             else
                 titleText = L"NPC Store"
             end
@@ -760,7 +756,7 @@ local function OnInitialize(context)
             OnKeyEnter = function(self)
                 local text = self:getText()
                 if text and text ~= L"" then
-                    local textStr = string.lower(WStringToString(text))
+                    local textStr = string.lower(Api.String.WStringToString(text))
                     local found = false
                     for i = 1, table.getn(filterPatterns) do
                         if filterPatterns[i] == textStr then
@@ -860,8 +856,10 @@ local function OnInitialize(context)
         local IDX_CANCEL     = 8
         local IDX_CLOSE      = 9
 
-        windowView = Components.Window {
-            Name = "MongbatShopkeeperWindow",
+        -- Build the Window model.  Buy-mode update handlers are added
+        -- conditionally so the framework only registers those events in buy mode.
+        local windowModel = {
+            Name     = "MongbatShopkeeperWindow",
             Resizable = false,
             OnInitialize = function(self)
                 self:setDimensions(WIN_W, WIN_H)
@@ -915,23 +913,21 @@ local function OnInitialize(context)
             end,
             OnShutdown = function(self)
                 -- Unregister mode-specific data
-                if isSelling then
-                    -- Sell mode: nothing extra registered beyond PlayerStatus
-                else
-                    -- Buy mode: unregister merchant ObjectInfo, container, and all items
-                    Api.Window.UnregisterData(WindowData.ObjectInfo.Type, merchantId)
-                    Api.Window.UnregisterData(WindowData.ContainerWindow.Type, sellContainerId)
-                    Api.Window.UnregisterData(WindowData.MobileName.Type, merchantId)
+                if not isSelling then
+                    -- Buy mode: unregister merchant ObjectInfo, container, MobileName, and items
+                    Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), merchantId)
+                    Api.Window.UnregisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
+                    Api.Window.UnregisterData(Constants.DataEvents.OnUpdateMobileName.getType(), merchantId)
                     for i = 1, table.getn(items) do
                         if items[i].registered then
-                            Api.Window.UnregisterData(WindowData.ObjectInfo.Type, items[i].id)
-                            Api.Window.UnregisterData(WindowData.ItemProperties.Type, items[i].id)
+                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), items[i].id)
+                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), items[i].id)
                             items[i].registered = false
                         end
                     end
                 end
                 -- PlayerStatus was registered in Initialize; unregister it here
-                Api.Window.UnregisterData(WindowData.PlayerStatus.Type, 0)
+                Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
                 -- Reset per-session state
                 items           = {}
                 filterPatterns  = {}
@@ -950,93 +946,75 @@ local function OnInitialize(context)
             end
         }
 
-        windowView:create(true)
-
-        -- Register for ContainerWindow updates (buy mode only)
+        -- Declarative buy-mode event handlers.  The framework registers these
+        -- automatically via View:onInitialize() when they appear as model keys.
+        -- SystemData.ActiveWindow.name resolves to "MongbatShopkeeperWindow"
+        -- when ContainerWindow / ObjectInfo / ItemProperties events fire, so
+        -- the framework dispatches them here via Cache["MongbatShopkeeperWindow"].
         if not isSelling then
-            Api.Window.RegisterEventHandler(
-                "MongbatShopkeeperWindow",
-                WindowData.ContainerWindow.Event,
-                "MongbatShopkeeper.OnContainerUpdate"
-            )
-            Api.Window.RegisterEventHandler(
-                "MongbatShopkeeperWindow",
-                WindowData.ObjectInfo.Event,
-                "MongbatShopkeeper.OnObjectUpdate"
-            )
-            Api.Window.RegisterEventHandler(
-                "MongbatShopkeeperWindow",
-                WindowData.ItemProperties.Event,
-                "MongbatShopkeeper.OnItemPropertiesUpdate"
-            )
+            windowModel.OnUpdateContainerWindow = function(self, instanceId, data)
+                if instanceId == sellContainerId then
+                    loadBuyItems()
+                    refreshAll()
+                end
+            end
+
+            windowModel.OnUpdateObjectInfo = function(self, instanceId, objInfo)
+                if objInfo then
+                    for i = 1, table.getn(items) do
+                        if items[i].id == instanceId then
+                            local oldCart  = items[i].cartQty
+                            local newTotal = objInfo.shopQuantity or 0
+                            if oldCart > newTotal then oldCart = newTotal end
+                            items[i].totalQty = newTotal
+                            items[i].availQty = newTotal - oldCart
+                            items[i].cartQty  = oldCart
+                            items[i].price    = objInfo.shopValue or 0
+                            items[i].objType  = objInfo.objectType or 0
+                            break
+                        end
+                    end
+                end
+                refreshAll()
+            end
+
+            windowModel.OnUpdateItemProperties = function(self, instanceId, props)
+                if props and props.PropertiesList and props.PropertiesList[1] then
+                    local name = stripFirstNumber(props.PropertiesList[1])
+                    for i = 1, table.getn(items) do
+                        if items[i].id == instanceId then
+                            items[i].name = name
+                            break
+                        end
+                    end
+                end
+                refreshAll()
+            end
         end
+
+        windowView = Components.Window(windowModel)
+        windowView:create(true)
 
         -- Initial refresh
         refreshAll()
     end
 
     -- -----------------------------------------------------------------------
-    -- Container / object event callbacks (buy mode)
-    -- These are set on the raw global so the engine can call them.
+    -- disable() must be called BEFORE setting overrides.  disable() sets
+    -- _disabled=true on the proxy.  Override assignments go to _overrides
+    -- (not _original), so they are unaffected by the disabled state.
+    -- Any call to an _overrides key bypasses _disabled and executes our
+    -- custom function; calls to original-only keys return no-ops.
+    -- restore() clears _overrides and sets _disabled=false, reverting
+    -- everything cleanly without any manual save/restore bookkeeping.
     -- -----------------------------------------------------------------------
-    MongbatShopkeeper = MongbatShopkeeper or {}
-
-    function MongbatShopkeeper.OnContainerUpdate()
-        if Api.Window.GetUpdateInstanceId() == sellContainerId then
-            loadBuyItems()
-            refreshAll()
-        end
-    end
-
-    function MongbatShopkeeper.OnObjectUpdate()
-        -- Refresh item data for the updated object
-        local objId   = Api.Window.GetUpdateInstanceId()
-        local objInfo = Data.ObjectInfo(objId)
-        if objInfo then
-            for i = 1, table.getn(items) do
-                if items[i].id == objId then
-                    local oldCart  = items[i].cartQty
-                    local newTotal = objInfo.shopQuantity or 0
-                    if oldCart > newTotal then oldCart = newTotal end
-                    items[i].totalQty = newTotal
-                    items[i].availQty = newTotal - oldCart
-                    items[i].cartQty  = oldCart
-                    items[i].price    = objInfo.shopValue or 0
-                    items[i].objType  = objInfo.objectType or 0
-                    break
-                end
-            end
-        end
-        refreshAll()
-    end
-
-    function MongbatShopkeeper.OnItemPropertiesUpdate()
-        local objId = Api.Window.GetUpdateInstanceId()
-        local props = Data.ItemProperties(objId)
-        if props and props.PropertiesList and props.PropertiesList[1] then
-            local name = stripFirstNumber(props.PropertiesList[1])
-            for i = 1, table.getn(items) do
-                if items[i].id == objId then
-                    items[i].name = name
-                    break
-                end
-            end
-        end
-        refreshAll()
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Override Shopkeeper.Initialize — intercepts vendor window creation
-    -- Save original functions so we can restore them on mod shutdown.
-    -- -----------------------------------------------------------------------
-    savedInitialize = shopkeeperDefault:getDefault().Initialize
-    savedShutdown   = shopkeeperDefault:getDefault().Shutdown
+    shopkeeperDefault:disable()
 
     shopkeeperDefault:getDefault().Initialize = function()
         local defaultWin = Api.Window.GetActiveWindowName()
         local mId        = Api.Window.GetDynamicWindowId()
 
-        -- Destroy the default Shopkeeper XML window
+        -- Destroy the default Shopkeeper XML window immediately
         if Api.Window.DoesExist(defaultWin) then
             Api.Window.Destroy(defaultWin)
         end
@@ -1050,34 +1028,28 @@ local function OnInitialize(context)
 
         -- For buy mode: register ObjectInfo to get sellContainerId
         if not isSell then
-            Api.Window.RegisterData(WindowData.ObjectInfo.Type, mId)
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), mId)
             local objInfo = Data.ObjectInfo(mId)
             if objInfo then
                 sellContainerId = objInfo.sellContainerId or 0
             end
-            Api.Window.RegisterData(WindowData.ContainerWindow.Type, sellContainerId)
-            -- Register for MobileName to show vendor name
-            Api.Window.RegisterData(WindowData.MobileName.Type, mId)
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateMobileName.getType(), mId)
         end
 
         -- Register PlayerStatus for gold display
-        Api.Window.RegisterData(WindowData.PlayerStatus.Type, 0)
+        Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
 
         createShopWindow(mId, isSell)
     end
 
-    -- -----------------------------------------------------------------------
-    -- Override Shopkeeper.Shutdown — intercepts vendor window closure
-    -- -----------------------------------------------------------------------
+    -- Override Shopkeeper.Shutdown — called when the default XML window is torn
+    -- down (e.g. server closes shop).  Broadcast cancel and destroy our window
+    -- if it is still open; our window's OnShutdown handles data cleanup.
     shopkeeperDefault:getDefault().Shutdown = function()
-        -- Note: this is called when "Shopkeeper" XML window is being destroyed.
-        -- Do NOT try to re-destroy the window here — it is already being torn down.
-        -- Only handle MongbatShopkeeperWindow cleanup if it still exists
-        -- (e.g. server closed shop while our window was open).
         if windowView ~= nil then
             Api.Event.Broadcast(Constants.Broadcasts.ShopCancelOffer())
             Api.Window.Destroy("MongbatShopkeeperWindow")
-            -- window's OnShutdown handles PlayerStatus unregistration and state reset
         end
     end
 end
@@ -1086,18 +1058,12 @@ end
 local function OnShutdown(context)
     context.Api.Window.Destroy("MongbatShopkeeperWindow")
 
-    -- Restore original Initialize/Shutdown on the Shopkeeper global
+    -- restore() clears all _overrides (Initialize/Shutdown hooks) and
+    -- re-enables the original Shopkeeper functions.
     local shopkeeperDefault = context.Components.Defaults.Shopkeeper
-    if savedInitialize ~= nil then
-        shopkeeperDefault:getDefault().Initialize = savedInitialize
-        savedInitialize = nil
-    end
-    if savedShutdown ~= nil then
-        shopkeeperDefault:getDefault().Shutdown = savedShutdown
-        savedShutdown = nil
-    end
+    shopkeeperDefault:restore()
 
-    -- Restore the default Shopkeeper global proxy to original
+    -- Restore the original Shopkeeper global (removes the proxy wrapper).
     shopkeeperDefault:restoreGlobal()
 end
 

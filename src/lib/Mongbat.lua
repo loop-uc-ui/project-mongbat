@@ -2982,6 +2982,9 @@ Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar"
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
 Constants.DataEvents.OnUpdateShopData = DataEvent(WindowData.ShopData, "OnUpdateShopData")
+Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWindow, "OnUpdateContainerWindow")
+Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
+Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemProperties, "OnUpdateItemProperties")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -4308,6 +4311,9 @@ FilterInput.__index = FilterInput
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
 ---@field OnUpdateShopData fun(self: Window, shopData: ShopDataWrapper)?
+---@field OnUpdateContainerWindow fun(self: Window, instanceId: integer, data: WindowData.Container|nil)?
+---@field OnUpdateObjectInfo fun(self: Window, instanceId: integer, data: WindowData.ObjectInfo|nil)?
+---@field OnUpdateItemProperties fun(self: Window, instanceId: integer, data: table|nil)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4647,20 +4653,31 @@ function DefaultComponent:asComponent()
 end
 
 --- Creates a proxy table that wraps the original global table.
---- When disabled, all function calls become no-ops.
+--- When disabled, all function calls become no-ops UNLESS they were explicitly
+--- overridden via assignment (stored in _overrides). Overrides always execute,
+--- allowing a mod to intercept specific functions while the rest are suppressed.
 ---@param original table The original global table to wrap
 ---@return table proxy The proxy table
 function DefaultComponent:_createProxy(original)
     local proxy = {
         _disabled = false,
-        _original = original
+        _original = original,
+        _overrides = {}
     }
 
     setmetatable(proxy, {
         __index = function(self, key)
             -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" then
+            if key == "_disabled" or key == "_original" or key == "_overrides" then
                 return rawget(self, key)
+            end
+
+            -- Overrides always take precedence regardless of disabled state.
+            -- This lets mods hook Initialize/Shutdown while still suppressing
+            -- all other original functions via disable().
+            local override = rawget(self, "_overrides")[key]
+            if override ~= nil then
+                return override
             end
 
             local value = rawget(self, "_original")[key]
@@ -4674,12 +4691,13 @@ function DefaultComponent:_createProxy(original)
         end,
         __newindex = function(self, key, value)
             -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" then
+            if key == "_disabled" or key == "_original" or key == "_overrides" then
                 rawset(self, key, value)
                 return
             end
-            -- Forward writes to the original
-            rawget(self, "_original")[key] = value
+            -- Store as an override (not in _original).
+            -- restore() will clear all overrides, reverting to original behaviour.
+            rawget(self, "_overrides")[key] = value
         end
     })
 
@@ -4687,6 +4705,7 @@ function DefaultComponent:_createProxy(original)
 end
 
 --- Disables the default component. All function calls become no-ops.
+--- Functions explicitly overridden via assignment continue to work.
 function DefaultComponent:disable()
     local proxy = self._proxy
     if proxy then
@@ -4694,11 +4713,13 @@ function DefaultComponent:disable()
     end
 end
 
---- Restores the default component. Function calls work normally again.
+--- Restores the default component: re-enables original functions and clears
+--- any overrides set via assignment, leaving no trace of the mod's hooks.
 function DefaultComponent:restore()
     local proxy = self._proxy
     if proxy then
         proxy._disabled = false
+        proxy._overrides = {}
     end
 end
 
@@ -5665,6 +5686,24 @@ function EventHandler.OnUpdateShopData()
     end)
 end
 
+function EventHandler.OnUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(window)
+        window:onUpdateContainerWindow()
+    end)
+end
+
+function EventHandler.OnUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(window)
+        window:onUpdateObjectInfo()
+    end)
+end
+
+function EventHandler.OnUpdateItemProperties()
+    withActiveView("OnUpdateItemProperties", function(window)
+        window:onUpdateItemProperties()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -6230,6 +6269,33 @@ end
 function View:onUpdateShopData()
     if self._model.OnUpdateShopData ~= nil then
         self._model.OnUpdateShopData(self, Data.ShopData())
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    if self._model.OnUpdateContainerWindow ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateContainerWindow(self, instanceId, Data.ContainerWindow(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    if self._model.OnUpdateObjectInfo ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateObjectInfo(self, instanceId, Data.ObjectInfo(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateItemProperties()
+    if self._model.OnUpdateItemProperties ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateItemProperties(self, instanceId, Data.ItemProperties(instanceId))
         return true
     end
     return false
