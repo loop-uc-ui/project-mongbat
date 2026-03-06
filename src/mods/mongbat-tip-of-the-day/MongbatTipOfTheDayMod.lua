@@ -111,6 +111,7 @@ Mongbat.Mod {
         }:create(true)
     end,
     OnShutdown = function(context)
+        context.Api.Window.Destroy(NAME)
         context.Api.Settings.Apply()
         context.Api.CSV.Unload("TipoftheDayCSV")
         context.Components.Defaults.TipoftheDayWindow:restore()
