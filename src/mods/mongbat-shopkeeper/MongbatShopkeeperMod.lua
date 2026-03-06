@@ -74,12 +74,9 @@ local function OnInitialize(context)
     local function matchesFilter(name)
         if table.getn(filterPatterns) == 0 then return true end
         local lname = string.lower(Api.String.WStringToString(name or L""))
-        for i = 1, table.getn(filterPatterns) do
-            if not string.find(lname, filterPatterns[i], 1, true) then
-                return false
-            end
-        end
-        return true
+        return not Utils.Array.Find(filterPatterns, function(pattern)
+            return not string.find(lname, pattern, 1, true)
+        end)
     end
 
     -- -----------------------------------------------------------------------
@@ -87,12 +84,11 @@ local function OnInitialize(context)
     -- -----------------------------------------------------------------------
     local function computeTotal()
         local total = 0
-        for i = 1, table.getn(items) do
-            local item = items[i]
+        Utils.Array.ForEach(items, function(item)
             if item.cartQty > 0 then
                 total = total + item.cartQty * item.price
             end
-        end
+        end)
         return total
     end
 
@@ -101,23 +97,21 @@ local function OnInitialize(context)
     -- -----------------------------------------------------------------------
     local function getFilteredAvail()
         local result = {}
-        for i = 1, table.getn(items) do
-            local item = items[i]
+        Utils.Array.ForEach(items, function(item, i)
             if item.availQty > 0 and item.price > 0 and matchesFilter(item.name) then
                 table.insert(result, i)
             end
-        end
+        end)
         return result
     end
 
     local function getFilteredCart()
         local result = {}
-        for i = 1, table.getn(items) do
-            local item = items[i]
+        Utils.Array.ForEach(items, function(item, i)
             if item.cartQty > 0 then
                 table.insert(result, i)
             end
-        end
+        end)
         return result
     end
 
@@ -267,13 +261,13 @@ local function OnInitialize(context)
         if not data then return end
 
         -- Unregister old items
-        for i = 1, table.getn(items) do
-            if items[i].registered then
-                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), items[i].id)
-                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), items[i].id)
-                items[i].registered = false
+        Utils.Array.ForEach(items, function(item)
+            if item.registered then
+                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
+                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
+                item.registered = false
             end
-        end
+        end)
 
         -- Rebuild items list from container
         local newItems = {}
@@ -300,13 +294,8 @@ local function OnInitialize(context)
             end
 
             -- Find existing entry to preserve cartQty
-            local existingCartQty = 0
-            for j = 1, table.getn(items) do
-                if items[j].id == slot.objectId then
-                    existingCartQty = items[j].cartQty
-                    break
-                end
-            end
+            local existingItem    = Utils.Array.Find(items, function(item) return item.id == slot.objectId end)
+            local existingCartQty = existingItem and existingItem.cartQty or 0
 
             -- Clamp cartQty if vendor has less now
             if existingCartQty > qty then existingCartQty = qty end
@@ -391,11 +380,10 @@ local function OnInitialize(context)
     -- Clear all cart selections (reset to available)
     -- -----------------------------------------------------------------------
     local function clearCart()
-        for i = 1, table.getn(items) do
-            local item = items[i]
+        Utils.Array.ForEach(items, function(item)
             item.availQty = item.totalQty
             item.cartQty  = 0
-        end
+        end)
         availPage = 1
         cartPage  = 1
         refreshAll()
@@ -407,13 +395,12 @@ local function OnInitialize(context)
     local function acceptOffer()
         local offerIds  = {}
         local offerQtys = {}
-        for i = 1, table.getn(items) do
-            local item = items[i]
+        Utils.Array.ForEach(items, function(item)
             if item.cartQty > 0 then
                 table.insert(offerIds,  item.id)
                 table.insert(offerQtys, item.cartQty)
             end
-        end
+        end)
         if table.getn(offerIds) == 0 then
             Api.Window.Destroy("MongbatShopkeeperWindow")
             return
@@ -757,14 +744,8 @@ local function OnInitialize(context)
                 local text = self:getText()
                 if text and text ~= L"" then
                     local textStr = string.lower(Api.String.WStringToString(text))
-                    local found = false
-                    for i = 1, table.getn(filterPatterns) do
-                        if filterPatterns[i] == textStr then
-                            found = true
-                            break
-                        end
-                    end
-                    if not found then
+                    local existing = Utils.Array.Find(filterPatterns, function(p) return p == textStr end)
+                    if not existing then
                         table.insert(filterPatterns, textStr)
                     end
                     availPage = 1
@@ -918,13 +899,13 @@ local function OnInitialize(context)
                     Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), merchantId)
                     Api.Window.UnregisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
                     Api.Window.UnregisterData(Constants.DataEvents.OnUpdateMobileName.getType(), merchantId)
-                    for i = 1, table.getn(items) do
-                        if items[i].registered then
-                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), items[i].id)
-                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), items[i].id)
-                            items[i].registered = false
+                    Utils.Array.ForEach(items, function(item)
+                        if item.registered then
+                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
+                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
+                            item.registered = false
                         end
-                    end
+                    end)
                 end
                 -- PlayerStatus was registered in Initialize; unregister it here
                 Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
@@ -961,18 +942,16 @@ local function OnInitialize(context)
 
             windowModel.OnUpdateObjectInfo = function(self, instanceId, objInfo)
                 if objInfo then
-                    for i = 1, table.getn(items) do
-                        if items[i].id == instanceId then
-                            local oldCart  = items[i].cartQty
-                            local newTotal = objInfo.shopQuantity or 0
-                            if oldCart > newTotal then oldCart = newTotal end
-                            items[i].totalQty = newTotal
-                            items[i].availQty = newTotal - oldCart
-                            items[i].cartQty  = oldCart
-                            items[i].price    = objInfo.shopValue or 0
-                            items[i].objType  = objInfo.objectType or 0
-                            break
-                        end
+                    local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                    if found then
+                        local oldCart  = found.cartQty
+                        local newTotal = objInfo.shopQuantity or 0
+                        if oldCart > newTotal then oldCart = newTotal end
+                        found.totalQty = newTotal
+                        found.availQty = newTotal - oldCart
+                        found.cartQty  = oldCart
+                        found.price    = objInfo.shopValue or 0
+                        found.objType  = objInfo.objectType or 0
                     end
                 end
                 refreshAll()
@@ -980,12 +959,10 @@ local function OnInitialize(context)
 
             windowModel.OnUpdateItemProperties = function(self, instanceId, props)
                 if props and props.PropertiesList and props.PropertiesList[1] then
-                    local name = stripFirstNumber(props.PropertiesList[1])
-                    for i = 1, table.getn(items) do
-                        if items[i].id == instanceId then
-                            items[i].name = name
-                            break
-                        end
+                    local name  = stripFirstNumber(props.PropertiesList[1])
+                    local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                    if found then
+                        found.name = name
                     end
                 end
                 refreshAll()
