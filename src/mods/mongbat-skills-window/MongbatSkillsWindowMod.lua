@@ -29,6 +29,7 @@ local originalToggleSkillsWindow = nil
 local function OnInitialize(context)
     local Api = context.Api
     local Data = context.Data
+    local Utils = context.Utils
     local Constants = context.Constants
     local Components = context.Components
 
@@ -83,26 +84,20 @@ local function OnInitialize(context)
     -- Pre-cached lowercase skill names keyed by csvId (1..NUM_CSV_SKILLS)
     -- Built once at init to avoid repeated TID lookups on every keystroke
     local skillNamesLower = {}
-    do
-        local csv = Data.SkillsCSV()
-        if csv then
-            for i = 1, NUM_CSV_SKILLS do
-                skillNamesLower[i] = string.lower(Api.String.WStringToString(
-                    Api.String.GetStringFromTid(csv[i].NameTid)))
-            end
-        end
-    end
+    Utils.Table.ForEach(Data.SkillsCSV(), function(csvId, entry)
+        skillNamesLower[csvId] = string.lower(Api.String.WStringToString(
+            Api.String.GetStringFromTid(entry.NameTid)))
+    end)
 
     -- Rebuild filteredSkills from sortedSkills using current filterText.
     -- Side effect: resets scrollOffset to 0 so the list always starts from the top.
     local function rebuildFilteredList()
         filteredSkills = {}
-        for i = 1, NUM_CSV_SKILLS do
-            local csvId = sortedSkills[i]
+        Utils.Array.ForEach(sortedSkills, function(csvId)
             if filterText == "" or string.find(skillNamesLower[csvId] or "", filterText, 1, true) then
                 filteredSkills[#filteredSkills + 1] = csvId
             end
-        end
+        end)
         scrollOffset = 0
     end
 
@@ -112,9 +107,9 @@ local function OnInitialize(context)
         if csv == nil then return end
         -- Cache names to avoid repeated TID lookups in the comparator
         local names = {}
-        for i = 1, NUM_CSV_SKILLS do
-            names[i] = Api.String.WStringToString(Api.String.GetStringFromTid(csv[i].NameTid))
-        end
+        Utils.Array.ForEach(sortedSkills, function(csvId)
+            names[csvId] = Api.String.WStringToString(Api.String.GetStringFromTid(csv[csvId].NameTid))
+        end)
         table.sort(sortedSkills, function(a, b)
             return names[a] < names[b]
         end)
@@ -126,9 +121,9 @@ local function OnInitialize(context)
         if csv == nil then return end
         -- Cache values to avoid repeated wrapper allocations in the comparator
         local values = {}
-        for i = 1, NUM_CSV_SKILLS do
-            values[i] = Data.SkillDynamicData(csv[i].ServerId):getValue()
-        end
+        Utils.Array.ForEach(sortedSkills, function(csvId)
+            values[csvId] = Data.SkillDynamicData(csv[csvId].ServerId):getValue()
+        end)
         table.sort(sortedSkills, function(a, b)
             return values[a] > values[b]
         end)
@@ -189,9 +184,9 @@ local function OnInitialize(context)
 
     -- Update all visible rows
     local function updateAllRows()
-        for i = 1, VISIBLE_ROWS do
-            updateRow(i)
-        end
+        Utils.Array.ForEach(rowButtons, function(_, rowIndex)
+            updateRow(rowIndex)
+        end)
     end
 
     -- Update the total skill points label
@@ -265,14 +260,17 @@ local function OnInitialize(context)
         }:create(true)
     end
 
-    -- Find which visible row is displaying a given serverId, or nil if not visible
+    -- Find which visible row is displaying a given serverId, or nil if not visible.
+    -- Utils.Table.ForEach has no early-exit mechanism; we accumulate the first match
+    -- and guard with `found == nil`. With VISIBLE_ROWS = 15 the full iteration is negligible.
     local function findRowForServerId(serverId)
-        for i = 1, VISIBLE_ROWS do
-            if rowServerIds[i] == serverId then
-                return i
+        local found = nil
+        Utils.Table.ForEach(rowServerIds, function(rowIndex, id)
+            if id == serverId and found == nil then
+                found = rowIndex
             end
-        end
-        return nil
+        end)
+        return found
     end
 
     -- Scroll handler shared by all components
