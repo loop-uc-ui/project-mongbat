@@ -559,9 +559,9 @@ local function OnInitialize(context)
     -- ====================================================================== --
 
     -- Save the original Toggle for clean restoration on shutdown.
-    -- The proxy's __newindex forwards writes to the original CrystalPortal table.
-    originalCrystalPortalToggle = rawget(cpProxy, "_original") and
-        rawget(cpProxy, "_original").Toggle or nil
+    -- getOriginalTable() exposes the raw table the proxy wraps.
+    local originalTable = crystalPortalDefault:getOriginalTable()
+    originalCrystalPortalToggle = originalTable and originalTable.Toggle or nil
 
     cpProxy.Toggle = function()
         if Api.Window.DoesExist(NAME) then

@@ -4585,6 +4585,17 @@ function DefaultComponent:restoreGlobal()
     end
 end
 
+---
+--- Returns the raw original table that this component's proxy was created from.
+--- Use this to save and restore individual overridden functions during shutdown.
+---@return table|nil The original (un-proxied) table.
+function DefaultComponent:getOriginalTable()
+    if self._proxy then
+        return rawget(self._proxy, "_original")
+    end
+    return nil
+end
+
 -- ========================================================================== --
 -- Components - Default - Actions
 -- ========================================================================== --
@@ -4853,6 +4864,25 @@ function DefaultDebugWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
+---@return DefaultObjectHandleComponent
+function DefaultObjectHandleComponent:new()
+    local instance = DefaultComponent.new(self, "ObjectHandle") --[[@as DefaultObjectHandleComponent]]
+    instance._proxy = instance:_createProxy(ObjectHandleWindow)
+    instance._globalKey = "ObjectHandleWindow"
+    _G.ObjectHandleWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultObjectHandle
+function DefaultObjectHandleComponent:getDefault()
+    return self._proxy or ObjectHandleWindow --[[@as DefaultObjectHandle]]
+end
+
+---@return Window
+function DefaultObjectHandleComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
 -- ========================================================================== --
 -- Components - Default - Crystal Portal
 -- ========================================================================== --
@@ -4880,8 +4910,9 @@ DefaultCrystalPortalComponent.__index = DefaultCrystalPortalComponent
 
 ---@return DefaultCrystalPortalComponent
 function DefaultCrystalPortalComponent:new()
+    local original = CrystalPortal or {}
     local instance = DefaultComponent.new(self, "CrystalPortal") --[[@as DefaultCrystalPortalComponent]]
-    instance._proxy = instance:_createProxy(CrystalPortal)
+    instance._proxy = instance:_createProxy(original)
     instance._globalKey = "CrystalPortal"
     _G.CrystalPortal = instance._proxy
     return instance
@@ -4890,25 +4921,6 @@ end
 ---@return DefaultCrystalPortal
 function DefaultCrystalPortalComponent:getDefault()
     return self._proxy or CrystalPortal --[[@as DefaultCrystalPortal]]
-end
-
----@return DefaultObjectHandleComponent
-function DefaultObjectHandleComponent:new()
-    local instance = DefaultComponent.new(self, "ObjectHandle") --[[@as DefaultObjectHandleComponent]]
-    instance._proxy = instance:_createProxy(ObjectHandleWindow)
-    instance._globalKey = "ObjectHandleWindow"
-    _G.ObjectHandleWindow = instance._proxy
-    return instance
-end
-
----@return DefaultObjectHandle
-function DefaultObjectHandleComponent:getDefault()
-    return self._proxy or ObjectHandleWindow --[[@as DefaultObjectHandle]]
-end
-
----@return Window
-function DefaultObjectHandleComponent:asComponent()
-    return Window:new { Name = self.name }
 end
 
 -- ========================================================================== --
