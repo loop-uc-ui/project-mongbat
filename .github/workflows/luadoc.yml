@@ -2,7 +2,7 @@
 
 name: LuaDoc
 
-# Controls when the action will run. 
+# Controls when the action will run.
 # Disabled: LuaDoc parser fails on Mongbat's Lua dialect.
 # TODO: Re-enable once doc annotations are standardized.
 # on:
