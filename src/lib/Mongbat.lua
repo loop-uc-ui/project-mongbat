@@ -332,6 +332,15 @@ function Api.Chat.PrintToChatWindow(wString, filter)
     PrintWStringToChatWindow(wString, filter)
 end
 
+---
+--- Adds a player to the specified ignore list.
+---@param playerId number The entity ID of the player to ignore.
+---@param name string The name of the player to ignore.
+---@param listType number The ignore list type (e.g. SettingsWindow.IGNORE_LIST_ALL or IGNORE_LIST_CONF).
+function Api.Chat.AddPlayerToIgnoreList(playerId, name, listType)
+    AddPlayerToIgnoreList(playerId, name, listType)
+end
+
 -- ========================================================================== --
 -- Api - Circle Image
 -- ========================================================================== --
@@ -3531,6 +3540,46 @@ function Data.PlayerLocation()
 end
 
 -- ========================================================================== --
+-- Data - Recent Chat Player List
+-- ========================================================================== --
+
+---@class RecentChatPlayerListWrapper
+local RecentChatPlayerList = {}
+RecentChatPlayerList.__index = RecentChatPlayerList
+
+function RecentChatPlayerList:new()
+    return setmetatable({}, self)
+end
+
+---@return number
+function RecentChatPlayerList:getCount()
+    return WindowData.RecentChatPlayerListCount or 0
+end
+
+---@param index number
+---@return number
+function RecentChatPlayerList:getId(index)
+    if WindowData.RecentChatPlayerIdList then
+        return WindowData.RecentChatPlayerIdList[index] or 0
+    end
+    return 0
+end
+
+---@param index number
+---@return string
+function RecentChatPlayerList:getName(index)
+    if WindowData.RecentChatPlayerNameList then
+        return WindowData.RecentChatPlayerNameList[index] or L""
+    end
+    return L""
+end
+
+---@return RecentChatPlayerListWrapper
+function Data.RecentChatPlayerList()
+    return RecentChatPlayerList:new()
+end
+
+-- ========================================================================== --
 -- Data - Player Status
 -- ========================================================================== --
 
@@ -4072,6 +4121,27 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 ---@class DefaultObjectHandleComponent : DefaultComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
+---@class DefaultSettingsWindow
+---@field ignoreListType number
+---@field IGNORE_LIST_ALL number
+---@field IGNORE_LIST_CONF number
+---@field Initialize fun()
+---@field Shutdown fun()
+
+---@class DefaultSettingsWindowComponent : DefaultComponent
+local DefaultSettingsWindowComponent = {}
+DefaultSettingsWindowComponent.__index = DefaultSettingsWindowComponent
+
+---@class DefaultIgnoreWindow
+---@field Initialize fun()
+---@field Add_OnLButtonUp fun()
+---@field Cancel_OnLButtonUp fun()
+---@field SelectPlayer fun()
+
+---@class DefaultIgnoreWindowComponent : DefaultComponent
+local DefaultIgnoreWindowComponent = {}
+DefaultIgnoreWindowComponent.__index = DefaultIgnoreWindowComponent
 
 
 ---@class CircleImageModel : ViewModel
@@ -4845,6 +4915,42 @@ end
 ---@return Window
 function DefaultObjectHandleComponent:asComponent()
     return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Settings Window
+-- ========================================================================== --
+
+---@return DefaultSettingsWindowComponent
+function DefaultSettingsWindowComponent:new()
+    local instance = DefaultComponent.new(self, "SettingsWindow") --[[@as DefaultSettingsWindowComponent]]
+    instance._proxy = instance:_createProxy(SettingsWindow)
+    instance._globalKey = "SettingsWindow"
+    _G.SettingsWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultSettingsWindow
+function DefaultSettingsWindowComponent:getDefault()
+    return self._proxy or SettingsWindow --[[@as DefaultSettingsWindow]]
+end
+
+-- ========================================================================== --
+-- Components - Default - Ignore Window
+-- ========================================================================== --
+
+---@return DefaultIgnoreWindowComponent
+function DefaultIgnoreWindowComponent:new()
+    local instance = DefaultComponent.new(self, "IgnoreWindow") --[[@as DefaultIgnoreWindowComponent]]
+    instance._proxy = instance:_createProxy(IgnoreWindow)
+    instance._globalKey = "IgnoreWindow"
+    _G.IgnoreWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultIgnoreWindow
+function DefaultIgnoreWindowComponent:getDefault()
+    return self._proxy or IgnoreWindow --[[@as DefaultIgnoreWindow]]
 end
 
 -- ========================================================================== --
@@ -6761,6 +6867,8 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultSettingsWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultIgnoreWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6883,8 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.SettingsWindow = DefaultSettingsWindowComponent:new()
+Components.Defaults.IgnoreWindow = DefaultIgnoreWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
