@@ -272,7 +272,27 @@ The docs are outdated. If a doc example contradicts the repo code, the repo is c
 - **Use `wstring` correctly** -- UI text is almost always `wstring`. Use `L"literal"`, `towstring(number)`, `StringToWString(str)`.
 - **Builder pattern** -- show fluent chaining: `Components.Window{...}:setDimensions(w,h):create(true)`.
 - **Use Mongbat's event system** -- place event handler keys in model tables. Do not call raw engine registration functions in mods.
-- **All engine references must go through Mongbat context.** Mod code must **never** call raw engine globals (`WindowData.*`, `SystemData.*`, `Interface.*`, `DragSlot*`, `HandleSingleLeftClkTarget`, `UserActionUseItem`, `RequestContextMenu`, `ItemProperties.*`, `EquipmentData.*`, `DoesWindowNameExist`, `DestroyWindow`, `WindowSetDimensions`, `DynamicImageSetTexture`, etc.) directly. Use the equivalent from `context.Api`, `context.Data`, `context.Constants`, or `context.Components`. If the framework lacks a wrapper for a needed engine concept, **add it to `Mongbat.lua` first**, then use the wrapper in the mod.
+
+#### 3.1 All Engine References Go Through Mongbat Context
+
+Mod code must **never** call raw engine globals directly. Every reference to a global that originates from the Default UI or the engine runtime must be accessed through one of the Mongbat context namespaces (`Api`, `Data`, `Utils`, `Constants`, `Components`). If the framework lacks a wrapper for a needed engine concept, **add it to `Mongbat.lua` first**, then use the wrapper in the mod.
+
+The table below describes what belongs in each namespace. There is some nuance at the boundaries, but these rules hold for the vast majority of cases:
+
+| Namespace | What belongs here | Engine-side examples |
+|---|---|---|
+| **`Data`** | All **data reads** -- any reference to `SystemData.*`, `WindowData.*`, or other engine data tables. If the mod needs to read a value the engine populates, it goes through `Data`. | `SystemData.Settings.*`, `WindowData.PlayerStatus.*`, `SystemData.ActiveWindow.name`, `WindowData.ContainerWindow.*`, `SystemData.Hotbar.*` |
+| **`Api`** | Most **global functions** -- engine functions that perform actions, set state, or query the engine. Any function the engine exposes as a global callable. | `WindowSetShowing`, `DestroyWindow`, `CreateWindowFromTemplate`, `DynamicImageSetTexture`, `RegisterWindowData`, `StringToWString`, `GetStringFromTid`, `HandleSingleLeftClkTarget`, `UserActionUseItem`, `RequestContextMenu`, `BroadcastEvent` |
+| **`Constants`** | **Enumerations and static values** -- numeric IDs, event IDs, type codes, flag values. Anything that is a fixed constant, not a function or mutable data. | `SystemData.Events.*`, `SystemData.DragSource.SOURCETYPE_*`, `Window.Layers.*`, `Window.AnimationType.*`, TID constants |
+| **`Components`** | **UI element factories** and **DefaultComponents**. All windows and their associated global Lua tables (e.g., `StatusWindow`, `PetWindow`, `Shopkeeper`, `HotbarSystem`) are wrapped as DefaultComponents. | `StatusWindow`, `PetWindow`, `ContainerWindow`, `HotbarSystem`, `Shopkeeper`, `TradeWindow`, `ChatWindow` |
+| **`Utils`** | **Utility operations on primitives and tables** -- iteration, formatting, string manipulation, math helpers, table copying, etc. If the operation is a general-purpose transformation with no engine-specific semantics, it belongs in `Utils`. | Table iteration helpers, string formatting, number formatting, table merging/copying |
+
+**Key principles:**
+- **`Data` owns all data.** If you're reading `SystemData.*` or `WindowData.*`, it must go through `Data`. No exceptions.
+- **`Components.Defaults` owns all default windows.** Every default UI window's global table (`StatusWindow`, `Shopkeeper`, etc.) is a DefaultComponent. Mods access them via `ctx.Components.Defaults.<name>` and use `disable()` / `restore()`.
+- **`Api` owns all actions.** If you're calling a global function to make something happen (create, destroy, set, register, broadcast), it goes through `Api`.
+- **`Utils` owns generic operations.** Iterating a table, formatting a string for display, clamping a number -- these go through `Utils`. If the operation has no broader relevance beyond one mod's internal logic (e.g., a private helper that computes a mod-specific layout), it can remain local to the mod.
+- **`Constants` owns fixed values.** Event IDs, type enums, layer constants -- anything that is a static lookup value rather than a function or mutable state.
 
 **Bad** -- raw engine globals in mod code:
 ```lua
@@ -280,6 +300,9 @@ if DoesWindowNameExist(name) then DestroyWindow(name) end
 local data = WindowData.Paperdoll[playerId]
 DragSlotSetObjectMouseClickData(slot.slotId, SystemData.DragSource.SOURCETYPE_PAPERDOLL)
 ItemProperties.SetActiveItem(itemData)
+local formatted = string.format("%d / %d", current, max)
+for i, v in pairs(WindowData.SkillDynamicData) do ... end
+local name = GetStringFromTid(1079170)
 ```
 
 **Good** -- everything through Mongbat context:
@@ -289,9 +312,19 @@ local paperdoll = Data.Paperdoll(playerId)
 local slot = paperdoll:getSlot(slotIndex)
 Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
 Api.ItemProperties.SetActiveItem(itemData)
+local formatted = towstring(current) .. L" / " .. towstring(max)
+for i, v in Utils.Table.iterate(Data.SkillDynamicData()) do ... end
+local name = Api.String.GetStringFromTid(1079170)
 ```
 
-- **Keep mutable state as local as possible.** Only declare variables at file scope if they must survive across both `OnInitialize` and `OnShutdown`. Runtime state (view references, entity IDs, flags) should be `local` inside `OnInitialize` -- closures in model tables and nested functions capture them naturally. Prefer passing values through function parameters over sharing upvalues.
+#### 3.2 Variable Scoping
+
+**Store variables outside the mod context sparingly.** File-scope mutable state creates hidden coupling and makes lifecycle management error-prone. Follow these rules:
+
+1. **Declare variables as locally as possible.** Runtime state (view references, entity IDs, flags) should be `local` inside `OnInitialize`. Closures in model tables and nested functions capture them naturally.
+2. **Prefer passing values through function parameters** over sharing upvalues between distant functions.
+3. **File-scope constants are fine.** Immutable values like `local NAME = "MyMod"` or `local MAX_SLOTS = 10` defined above the mod registration are acceptable -- they never change and have no lifecycle concerns.
+4. **File-scope mutable state is a last resort.** Only use it when a value truly must survive across both `OnInitialize` and `OnShutdown` and cannot be plumbed through function parameters or the context object.
 
 **Bad** -- file-scope mutable state that only `OnInitialize` uses:
 ```lua
@@ -311,6 +344,8 @@ end
 
 **Good** -- state scoped inside `OnInitialize`, passed where needed:
 ```lua
+local NAME = "MyModWindow"  -- file-scope constant is fine
+
 local function OnInitialize(context)
     local playerId = context.Data.PlayerStatus():getId()
     local slotViews = {}
@@ -319,6 +354,42 @@ end
 
 local function OnShutdown(context)
     context.Api.Window.Destroy(NAME)
+end
+```
+
+#### 3.3 Framework Absorption of Repetitive Logic
+
+When a pattern appears at multiple call sites in mod code, **fold it into the framework** rather than duplicating it across mods. The framework should handle boilerplate so mods stay concise and declarative.
+
+**Push guard clauses into framework functions.** If mod code repeatedly null-checks before calling an `Api` function, the null check belongs inside the `Api` function itself. Mods should not need to defensively validate state that the framework can validate once.
+
+**Bad** -- guard logic repeated at every call site:
+```lua
+if Api.Window.DoesExist(name) then Api.Window.Destroy(name) end
+```
+
+**Good** -- `Api.Window.Destroy` handles the existence check internally:
+```lua
+Api.Window.Destroy(name)  -- no-op if window doesn't exist
+```
+
+**Add convenience functions when patterns repeat.** If multiple mods toggle a window's visibility, add a `toggle` method to the relevant domain rather than inlining the if/else at each call site. The framework function encapsulates existence checks, visibility queries, and state transitions in one place.
+
+**Do not duplicate checks the framework already performs.** If a framework method internally validates its arguments, performs type coercion, or handles nil gracefully, do not add the same check at the call site. Read the framework method's implementation to know what it already handles.
+
+#### 3.4 Type Annotations
+
+Use Lua annotations and comments to define types on functions and variables where the IDE would otherwise have trouble inferring them. This is especially important for:
+
+- **Function signatures** -- annotate parameters and return types.
+- **Table structures** -- annotate complex table shapes (model tables, data wrappers).
+- **Closure captures** -- when a variable's type is non-obvious due to metatable proxies or dynamic assignment.
+
+```lua
+--- @param playerId number The entity ID of the player
+--- @return table playerStatus The wrapped PlayerStatus data object
+local function getPlayerInfo(playerId)
+    return Data.PlayerStatus(playerId)
 end
 ```
 
