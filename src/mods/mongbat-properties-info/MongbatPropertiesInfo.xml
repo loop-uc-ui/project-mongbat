@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="../../../docs/Interface.xsd">
+  <Templates>
+
+    <!--
+      Property row template.
+      Children:
+        $parentIcon     – DynamicImage showing the property icon
+        $parentDisabled – DynamicImage overlay shown when the property is inactive
+        $parentName     – Label showing the property name
+    -->
+    <Window name="MongbatPropRow" draganddrop="false">
+      <Size>
+        <AbsPoint x="250" y="42" />
+      </Size>
+      <EventHandlers>
+        <EventHandler event="OnMouseOver"    function="Mongbat.EventHandler.MongbatPropertiesInfoOnMouseOver" />
+        <EventHandler event="OnMouseOverEnd" function="Mongbat.EventHandler.MongbatPropertiesInfoOnMouseOverEnd" />
+      </EventHandlers>
+      <Windows>
+        <DynamicImage name="$parentIcon" texturescale="2.0" handleinput="false">
+          <Size>
+            <AbsPoint x="36" y="36" />
+          </Size>
+          <Anchors>
+            <Anchor point="topleft" relativePoint="topleft">
+              <AbsPoint x="2" y="3" />
+            </Anchor>
+          </Anchors>
+        </DynamicImage>
+
+        <!-- Greyed-out overlay for inactive properties (hud_image grey square) -->
+        <DynamicImage name="$parentDisabled" texture="hud_image" texturescale="4.0"
+            handleinput="false" layer="default" alpha="0.55">
+          <Size>
+            <AbsPoint x="36" y="36" />
+          </Size>
+          <Anchors>
+            <Anchor point="topleft" relativePoint="topleft">
+              <AbsPoint x="2" y="3" />
+            </Anchor>
+          </Anchors>
+          <TexCoords x="22" y="258" />
+        </DynamicImage>
+
+        <Label name="$parentName" font="inter_medium_18" maxchars="64"
+            textalign="left" wordwrap="false" handleinput="false">
+          <Size>
+            <AbsPoint x="200" y="18" />
+          </Size>
+          <Anchors>
+            <Anchor point="topleft" relativePoint="topright" relativeTo="$parentIcon">
+              <AbsPoint x="4" y="9" />
+            </Anchor>
+          </Anchors>
+          <Color r="206" g="217" b="242" a="255" />
+        </Label>
+      </Windows>
+    </Window>
+
+    <!--
+      Main Properties Info window template.
+      Extends the standard MongbatWindow (MaskWindow) frame with an embedded
+      ScrollWindow for the property list.
+
+      Named children accessible from Lua (relative to the instance name N):
+        NScrollArea            – the ScrollWindow element
+        NScrollAreaScrollChild – the scrollable content pane (parent rows here)
+        NScrollAreaScrollbar   – the vertical scrollbar
+    -->
+    <MaskWindow name="MongbatPropertiesInfoWindow" movable="true">
+      <EventHandlers>
+        <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize" />
+      </EventHandlers>
+      <Windows>
+        <!-- Background -->
+        <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
+          <Anchors>
+            <Anchor point="topleft"     relativePoint="topleft"     relativeTo="$parent" />
+            <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent" />
+          </Anchors>
+        </FullResizeImage>
+
+        <!-- Frame -->
+        <FullResizeImage name="$parentFrame" inherits="UO_Simple_Frame"
+            layer="background" frameonly="true">
+          <Anchors>
+            <Anchor point="topleft"     relativePoint="topleft"     relativeTo="$parentBackground" />
+            <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parentBackground" />
+          </Anchors>
+        </FullResizeImage>
+
+        <!-- Scroll area for the property list -->
+        <ScrollWindow name="$parentScrollArea"
+            childscrollwindow="$parentScrollAreaScrollChild"
+            scrollbar="$parentScrollAreaScrollbar"
+            lineheight="42"
+            autoHideScrollBar="true">
+          <Anchors>
+            <Anchor point="topleft"     relativePoint="topleft"     relativeTo="$parent">
+              <AbsPoint x="5" y="5" />
+            </Anchor>
+            <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent">
+              <AbsPoint x="-5" y="-5" />
+            </Anchor>
+          </Anchors>
+          <Windows>
+            <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll"
+                layer="secondary">
+              <Anchors>
+                <Anchor point="topright"    relativePoint="topright" />
+                <Anchor point="bottomright" relativePoint="bottomright" />
+              </Anchors>
+            </VerticalScrollbar>
+
+            <Window name="$parentScrollChild" popable="false">
+              <Size>
+                <AbsPoint x="240" y="200" />
+              </Size>
+              <Anchors>
+                <Anchor point="topleft" relativePoint="topleft">
+                  <AbsPoint x="0" y="0" />
+                </Anchor>
+              </Anchors>
+            </Window>
+          </Windows>
+        </ScrollWindow>
+      </Windows>
+    </MaskWindow>
+
+  </Templates>
+</Interface>

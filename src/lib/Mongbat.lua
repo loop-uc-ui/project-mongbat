@@ -1388,6 +1388,28 @@ function Api.ScrollWindow.UpdateScrollRect(id)
     ScrollWindowUpdateScrollRect(id)
 end
 
+---
+--- Gets the current scroll offset of a scroll window.
+---@param id string The ID of the scroll window.
+---@return number The current offset.
+function Api.ScrollWindow.GetOffset(id)
+    return ScrollWindowGetOffset(id)
+end
+
+-- ========================================================================== --
+-- Api - Scrollbar
+-- ========================================================================== --
+
+Api.Scrollbar = {}
+
+---
+--- Gets the maximum scroll position of a vertical scrollbar.
+---@param id string The ID of the scrollbar.
+---@return number The maximum scroll position.
+function Api.Scrollbar.GetMaxPosition(id)
+    return VerticalScrollbarGetMaxScrollPosition(id)
+end
+
 -- ========================================================================== --
 -- Api - Slider
 -- ========================================================================== --
@@ -1476,6 +1498,37 @@ end
 ---@return string The string.
 function Api.String.WStringToString(wString)
     return WStringToString(wString)
+end
+
+---
+--- Gets an uppercase wstring from a TID.
+---@param tid number The TID.
+---@return wstring The uppercase wstring.
+function Api.String.GetStringUppercaseFromTid(tid)
+    return GetStringUpppercaseFromTid(tid)
+end
+
+---
+--- Replaces tokens in a string with provided values.
+---@param str string The template string.
+---@param tokens table The token replacement values.
+---@return wstring The string with tokens replaced.
+function Api.String.ReplaceTokens(str, tokens)
+    return ReplaceTokens(str, tokens)
+end
+
+-- ========================================================================== --
+-- Api - CSVUtilities
+-- ========================================================================== --
+
+Api.CSVUtilities = {}
+
+---
+--- Gets the number of rows in a CSV table.
+---@param csvTable table The CSV table.
+---@return number The number of rows.
+function Api.CSVUtilities.GetNumRows(csvTable)
+    return CSVUtilities.getNumRows(csvTable)
 end
 
 -- ========================================================================== --
@@ -2423,6 +2476,13 @@ end
 --- Clears the current mouse-over item tooltip.
 function Api.ItemProperties.ClearMouseOverItem()
     ItemProperties.ClearMouseOverItem()
+end
+
+---
+--- Gets the active item properties for the currently equipped items.
+---@return table<number, number>? The table of active property indices.
+function Api.ItemProperties.GetActiveProperties()
+    return ItemProperties.GetActiveProperties()
 end
 
 -- ========================================================================== --
@@ -3792,6 +3852,18 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
+-- Data - Player Item Properties CSV
+-- ========================================================================== --
+
+---
+--- Returns the PlayerItemPropCSV table containing all item property definitions.
+--- Each entry has TID (name), DescriptionTID fields.
+---@return table The WindowData.PlayerItemPropCSV table.
+function Data.PlayerItemPropCSV()
+    return WindowData.PlayerItemPropCSV
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 
@@ -4072,6 +4144,17 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 ---@class DefaultObjectHandleComponent : DefaultComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
+---@class DefaultPropertiesInfo
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field Toggle fun()
+---@field Close fun()
+---@field Restart fun()
+
+---@class DefaultPropertiesInfoComponent : DefaultComponent
+local DefaultPropertiesInfoComponent = {}
+DefaultPropertiesInfoComponent.__index = DefaultPropertiesInfoComponent
 
 
 ---@class CircleImageModel : ViewModel
@@ -4915,6 +4998,24 @@ end
 ---@return Window
 function DefaultPaperdollWindowComponent:asComponent()
     return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Properties Info
+-- ========================================================================== --
+
+---@return DefaultPropertiesInfoComponent
+function DefaultPropertiesInfoComponent:new()
+    local instance = DefaultComponent.new(self, "PropertiesInfo") --[[@as DefaultPropertiesInfoComponent]]
+    instance._proxy = instance:_createProxy(PropertiesInfo)
+    instance._globalKey = "PropertiesInfo"
+    _G.PropertiesInfo = instance._proxy
+    return instance
+end
+
+---@return DefaultPropertiesInfo
+function DefaultPropertiesInfoComponent:getDefault()
+    return self._proxy or PropertiesInfo --[[@as DefaultPropertiesInfo]]
 end
 
 -- ========================================================================== --
@@ -6761,6 +6862,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultPropertiesInfoComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6877,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.PropertiesInfo = DefaultPropertiesInfoComponent:new()
 
 -- ========================================================================== --
 -- Mod
