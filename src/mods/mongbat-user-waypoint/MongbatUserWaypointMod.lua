@@ -109,47 +109,6 @@ local WAYPOINT_CUSTOM_TYPE = 15
 -- Saved original functions for restore on shutdown
 local savedFunctions = {}
 
---- Finds the icon index in ICONS for a given icon ID.
----@param iconId number The icon ID to search for.
----@return number index 1-based index into ICONS, or 1 if not found.
-local function findIconIndex(iconId)
-    for i = 1, #ICONS do
-        if ICONS[i].id == iconId then
-            return i
-        end
-    end
-    return 1
-end
-
---- Extracts the display name from an encoded waypoint name string.
---- Strips _ICON_, _SCALE_, _DUNG_, _ABYSS_ metadata suffixes.
----@param encodedName wstring The encoded name from the engine.
----@return wstring The display name without metadata.
-local function extractDisplayName(encodedName)
-    if not encodedName or encodedName == L"" then
-        return L""
-    end
-    local s = WStringToString(encodedName)
-    -- Strip everything from _ICON_ onwards
-    local displayPart = string.match(s, "^(.-)_ICON_") or s
-    return StringToWString(displayPart)
-end
-
---- Parses the icon ID from an encoded waypoint name string.
----@param encodedName wstring The encoded name.
----@return number|nil The icon ID, or nil if not found.
-local function parseIconId(encodedName)
-    if not encodedName or encodedName == L"" then
-        return nil
-    end
-    local s = WStringToString(encodedName)
-    local idStr = string.match(s, "_ICON_(%d+)")
-    if idStr then
-        return tonumber(idStr)
-    end
-    return nil
-end
-
 --- Rounds a number to one decimal place.
 ---@param v number
 ---@return number
@@ -164,6 +123,45 @@ end
 local function createWaypointWindow(context, params, isViewMode)
     local Components = context.Components
     local Api        = context.Api
+    local Utils      = context.Utils
+
+    --- Finds the icon index in ICONS for a given icon ID.
+    ---@param iconId number The icon ID to search for.
+    ---@return number index 1-based index into ICONS, or 1 if not found.
+    local function findIconIndex(iconId)
+        local idx = Utils.Array.IndexOf(ICONS, function(icon) return icon.id == iconId end)
+        if idx == -1 then return 1 end
+        return idx
+    end
+
+    --- Extracts the display name from an encoded waypoint name string.
+    --- Strips _ICON_, _SCALE_, _DUNG_, _ABYSS_ metadata suffixes.
+    ---@param encodedName wstring The encoded name from the engine.
+    ---@return wstring The display name without metadata.
+    local function extractDisplayName(encodedName)
+        if not encodedName or encodedName == L"" then
+            return L""
+        end
+        local s = Api.String.WStringToString(encodedName)
+        -- Strip everything from _ICON_ onwards
+        local displayPart = string.match(s, "^(.-)_ICON_") or s
+        return Api.String.StringToWString(displayPart)
+    end
+
+    --- Parses the icon ID from an encoded waypoint name string.
+    ---@param encodedName wstring The encoded name.
+    ---@return number|nil The icon ID, or nil if not found.
+    local function parseIconId(encodedName)
+        if not encodedName or encodedName == L"" then
+            return nil
+        end
+        local s = Api.String.WStringToString(encodedName)
+        local idStr = string.match(s, "_ICON_(%d+)")
+        if idStr then
+            return tonumber(idStr)
+        end
+        return nil
+    end
 
     -- Per-window state
     local iconIndex = 1
