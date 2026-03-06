@@ -3216,6 +3216,14 @@ Constants.GumpIds = {}
 Constants.GumpIds.VendorSearch = 999112
 Constants.GumpIds.PetTrainingProgress = 999139
 
+Constants.HotbarSystem = {}
+Constants.HotbarSystem.TID_LOCK_HOTBAR    = 1115431
+Constants.HotbarSystem.TID_UNLOCK_HOTBAR  = 1115432
+Constants.HotbarSystem.TID_NEW_HOTBAR     = 1078020
+Constants.HotbarSystem.TID_CLEAR_ITEM     = 1077858
+Constants.HotbarSystem.TID_DESTROY_HOTBAR = 1078026
+Constants.HotbarSystem.TID_ASSIGN_HOTKEY  = 1078019
+
 
 -- ========================================================================== --
 -- Data
@@ -3954,6 +3962,58 @@ end
 ---@field TexCoordY integer
 ---@field TexScale number
 
+
+-- ========================================================================== --
+-- Data - Update Action Item
+-- ========================================================================== --
+
+---@class UpdateActionItemWrapper
+local UpdateActionItem = {}
+UpdateActionItem.__index = UpdateActionItem
+
+function UpdateActionItem:new()
+    return setmetatable({}, self)
+end
+
+--- The hotbar ID that contains the changed action.
+---@return integer|nil
+function UpdateActionItem:getHotbarId()
+    return SystemData.UpdateActionItem.hotbarId
+end
+
+--- The slot index of the changed action within the hotbar.
+---@return integer|nil
+function UpdateActionItem:getItemIndex()
+    return SystemData.UpdateActionItem.itemIndex
+end
+
+---@return UpdateActionItemWrapper
+function Data.UpdateActionItem()
+    return UpdateActionItem:new()
+end
+
+-- ========================================================================== --
+-- Data - Hotbar
+-- ========================================================================== --
+
+---@class HotbarDataWrapper
+local HotbarData = {}
+HotbarData.__index = HotbarData
+
+function HotbarData:new()
+    return setmetatable({}, self)
+end
+
+--- Returns the engine-authoritative list of active hotbar IDs.
+---@return table
+function HotbarData:getHotbarIds()
+    return SystemData.Hotbar.HotbarIds
+end
+
+---@return HotbarDataWrapper
+function Data.Hotbar()
+    return HotbarData:new()
+end
 
 -- ========================================================================== --
 -- Components

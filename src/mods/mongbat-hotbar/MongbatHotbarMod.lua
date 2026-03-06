@@ -75,8 +75,9 @@ local function OnInitialize(context)
     origHandleUpdateActionItem = hsDefault.HandleUpdateActionItem
 
     hsDefault.HandleUpdateActionItem = function()
-        local hotbarId = SystemData.UpdateActionItem.hotbarId
-        local itemIndex = SystemData.UpdateActionItem.itemIndex
+        local actionItem = Data.UpdateActionItem()
+        local hotbarId = actionItem:getHotbarId()
+        local itemIndex = actionItem:getItemIndex()
         if hotbarId == nil or itemIndex == nil then return end
         -- Only refresh slots belonging to our own hotbar windows.
         if hotbarWindows[hotbarId] == nil then return end
@@ -149,9 +150,9 @@ local function OnInitialize(context)
         local param = { hotbarId = hotbarId, slotIndex = slotIndex }
 
         if Api.Hotbar.IsLocked(hotbarId) then
-            Api.ContextMenu.CreateItem(HotbarSystem.TID_UNLOCK_HOTBAR, 0, "lock", param)
+            Api.ContextMenu.CreateItem(Constants.HotbarSystem.TID_UNLOCK_HOTBAR, 0, "lock", param)
         else
-            Api.ContextMenu.CreateItem(HotbarSystem.TID_LOCK_HOTBAR, 0, "lock", param)
+            Api.ContextMenu.CreateItem(Constants.HotbarSystem.TID_LOCK_HOTBAR, 0, "lock", param)
         end
 
         if isVertical(hotbarId) then
@@ -168,10 +169,10 @@ local function OnInitialize(context)
                 { hotbarId = hotbarId, count = count }, count == currentCount)
         end
 
-        Api.ContextMenu.CreateItem(HotbarSystem.TID_NEW_HOTBAR, 0, "new", param)
+        Api.ContextMenu.CreateItem(Constants.HotbarSystem.TID_NEW_HOTBAR, 0, "new", param)
 
         if slotIndex ~= nil and Api.Hotbar.HasItem(hotbarId, slotIndex) then
-            Api.ContextMenu.CreateItem(HotbarSystem.TID_CLEAR_ITEM, 0, "clear", param)
+            Api.ContextMenu.CreateItem(Constants.HotbarSystem.TID_CLEAR_ITEM, 0, "clear", param)
         end
 
         Api.ContextMenu.CreateItemWithString(L"Close", 0, "close", param, false)
@@ -313,7 +314,7 @@ local function OnInitialize(context)
     -- mod ran) and replace it with our MongbatHotbar{id} window.
     -- ------------------------------------------------------------------ --
 
-    for _, id in pairs(SystemData.Hotbar.HotbarIds) do
+    for _, id in pairs(Data.Hotbar():getHotbarIds()) do
         destroyDefaultWindow(id)
         createHotbarWindow(id)
     end
