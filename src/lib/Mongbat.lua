@@ -332,28 +332,6 @@ function Api.Chat.PrintToChatWindow(wString, filter)
     PrintWStringToChatWindow(wString, filter)
 end
 
----
---- Gets the color associated with a chat channel filter.
----@param filterId number The filter ID from SystemData.ChatLogFilters.
----@return table|nil color The color table { r, g, b }, or nil if not found.
-function Api.Chat.GetChannelColor(filterId)
-    return ChatSettings.ChannelColors[filterId]
-end
-
----
---- Gets the table of chat channel definitions.
----@return table channels The ChatSettings.Channels table.
-function Api.Chat.GetChannels()
-    return ChatSettings.Channels
-end
-
----
---- Gets the chat log filter ID table (e.g. SAY, WHISPER, YELL, ...).
----@return table filters The SystemData.ChatLogFilters table.
-function Api.Chat.GetLogFilters()
-    return SystemData.ChatLogFilters
-end
-
 -- ========================================================================== --
 -- Api - Circle Image
 -- ========================================================================== --
@@ -3821,6 +3799,34 @@ end
 ---@field TexCoordX integer
 ---@field TexCoordY integer
 ---@field TexScale number
+
+
+-- ========================================================================== --
+-- Data - Chat
+-- ========================================================================== --
+
+---
+--- Returns the color table for the given chat log filter ID.
+---@param filterId number The numeric filter ID (e.g. from Data.ChatLogFilters()).
+---@return table|nil color The color table { r, g, b }, or nil if not found.
+function Data.ChatChannelColor(filterId)
+    return ChatSettings.ChannelColors[filterId]
+end
+
+---
+--- Returns the engine's chat channel definitions table (ChatSettings.Channels).
+---@return table channels The channel entries keyed by filter ID.
+function Data.ChatChannels()
+    return ChatSettings.Channels
+end
+
+---
+--- Returns the engine's chat log filter ID table (SystemData.ChatLogFilters).
+--- Keys are uppercase channel names (SAY, WHISPER, YELL, …); values are numeric IDs.
+---@return table filters The log filter map.
+function Data.ChatLogFilters()
+    return SystemData.ChatLogFilters
+end
 
 
 -- ========================================================================== --

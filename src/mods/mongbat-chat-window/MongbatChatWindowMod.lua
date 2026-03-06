@@ -27,6 +27,7 @@ local FILTER_KEYS = {
 }
 
 -- Destroy all windows created by the default NewChatWindow system
+---@param api Api
 local function destroyNewChatWindows(api)
     -- Main window (XML-defined; destroying it also removes its XML children)
     api.Window.Destroy("NewChatWindow")
@@ -42,6 +43,7 @@ local function destroyNewChatWindows(api)
 end
 
 -- Destroy all windows created by the default ChatWindow (UO_ChatWindow) system
+---@param api Api
 local function destroyChatWindows(api)
     -- Main window (XML-defined; destroying it removes its XML children including tabs)
     api.Window.Destroy("ChatWindow")
@@ -72,8 +74,8 @@ local function OnInitialize(context)
     -- Engine data references (obtained once at initialization)
     -- ------------------------------------------------------------------ --
 
-    local filters  = context.Api.Chat.GetLogFilters()
-    local channels = context.Api.Chat.GetChannels()
+    local filters  = context.Data.ChatLogFilters()
+    local channels = context.Data.ChatChannels()
 
     -- ------------------------------------------------------------------ --
     -- Runtime state (local to this OnInitialize — closures capture these)
@@ -102,7 +104,7 @@ local function OnInitialize(context)
         if channelBtn == nil then return end
         local ch       = SEND_CHANNELS[activeChannelIdx]
         local filterId = filters[ch.key]
-        local color    = context.Api.Chat.GetChannelColor(filterId)
+        local color    = context.Data.ChatChannelColor(filterId)
         channelBtn:setText(ch.label)
         if color then
             channelBtn:setTextColor(context.Constants.ButtonStates.Normal,            color)
@@ -127,7 +129,7 @@ local function OnInitialize(context)
         local localKey   = entry.key
         local localLabel = entry.label
         local filterId   = filters[localKey]
-        local color      = filterId and context.Api.Chat.GetChannelColor(filterId) or nil
+        local color      = filterId and context.Data.ChatChannelColor(filterId) or nil
 
         local btn = context.Components.Button {
             OnInitialize = function(self)
@@ -207,7 +209,7 @@ local function OnInitialize(context)
             -- Set per-channel colours for the "Chat" log
             for _, ch in pairs(channels) do
                 if ch and ch.id and ch.logName then
-                    local color = context.Api.Chat.GetChannelColor(ch.id)
+                    local color = context.Data.ChatChannelColor(ch.id)
                     if color then
                         self:setFilterColor(ch.logName, ch.id, color)
                     end
