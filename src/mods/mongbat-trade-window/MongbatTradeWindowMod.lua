@@ -40,6 +40,7 @@ local function OnInitialize(context)
     local Data       = context.Data
     local Constants  = context.Constants
     local Components = context.Components
+    local Utils      = context.Utils
 
     local tradeDefault = Components.Defaults.TradeWindow
 
@@ -52,15 +53,6 @@ local function OnInitialize(context)
     -- Uses file-scoped _activeWindows so OnShutdown can clean up leaks.
 
     -- ------------------------------------------------------------------ --
-    -- Helper: safely destroy our Mongbat window
-    -- ------------------------------------------------------------------ --
-    local function destroyTradeWindow(mongbatName)
-        if Api.Window.DoesExist(mongbatName) then
-            Api.Window.Destroy(mongbatName)
-        end
-    end
-
-    -- ------------------------------------------------------------------ --
     -- Rebuild one side's item list from container data.
     -- Each slot is a Components.DynamicImage so it lives in Cache and
     -- receives OnMouseOver / OnMouseOverEnd via standard event dispatch.
@@ -70,10 +62,10 @@ local function OnInitialize(context)
     ---@param registeredItems table<integer, boolean>  updated in-place
     local function rebuildItemList(scrollChild, containerId, registeredItems)
         -- Unregister previously tracked objects
-        for id, _ in pairs(registeredItems) do
+        Utils.Table.ForEach(registeredItems, function(id, _)
             Api.Window.UnregisterData(
                 Constants.DataEvents.OnUpdateObjectInfo.getType(), id)
-        end
+        end)
         -- Destroy old slot windows (Cache cleanup fires automatically via
         -- the OnShutdown CoreEvent registered by Components.DynamicImage)
         local i = 1
@@ -82,9 +74,9 @@ local function OnInitialize(context)
             i = i + 1
         end
         -- Clear the table
-        for k, _ in pairs(registeredItems) do
+        Utils.Table.ForEach(registeredItems, function(k, _)
             registeredItems[k] = nil
-        end
+        end)
 
         local container = Data.ContainerWindow(containerId)
         local numItems  = container:getNumItems()
@@ -441,38 +433,6 @@ local function OnInitialize(context)
                 acceptButton:addAnchor("topleft", balPlatRow,
                     "bottomleft", 0, PADDING)
 
-                -- ---- Register per-window events for this trade instance ---- --
-                Api.Window.RegisterEventHandler(
-                    mongbatName,
-                    Constants.SystemEvents.OnTradeReceiveClose.getEvent(),
-                    "Mongbat.EventHandler.OnTradeReceiveClose"
-                )
-                Api.Window.RegisterEventHandler(
-                    mongbatName,
-                    Constants.SystemEvents.OnTradeReceiveAcceptMsg.getEvent(),
-                    "Mongbat.EventHandler.OnTradeReceiveAcceptMsg"
-                )
-                Api.Window.RegisterEventHandler(
-                    mongbatName,
-                    Constants.SystemEvents.OnTradeReceiveModifyGold.getEvent(),
-                    "Mongbat.EventHandler.OnTradeReceiveModifyGold"
-                )
-                Api.Window.RegisterEventHandler(
-                    mongbatName,
-                    Constants.SystemEvents.OnTradeReceiveBalance.getEvent(),
-                    "Mongbat.EventHandler.OnTradeReceiveBalance"
-                )
-                Api.Window.RegisterEventHandler(
-                    mongbatName,
-                    Constants.DataEvents.OnUpdateContainerWindow.getEvent(),
-                    "Mongbat.EventHandler.OnUpdateContainerWindow"
-                )
-                Api.Window.RegisterEventHandler(
-                    mongbatName,
-                    Constants.DataEvents.OnUpdateObjectInfo.getEvent(),
-                    "Mongbat.EventHandler.OnUpdateObjectInfo"
-                )
-
                 -- ---- Initial item list population ---- --
                 rebuildItemList(myScrollChild,    containerId,
                     myRegisteredItems)
@@ -555,14 +515,14 @@ local function OnInitialize(context)
             -- Trade closed by server or partner
             OnTradeReceiveClose = function(self)
                 -- Unregister container and item data
-                for id, _ in pairs(myRegisteredItems) do
+                Utils.Table.ForEach(myRegisteredItems, function(id, _)
                     Api.Window.UnregisterData(
                         Constants.DataEvents.OnUpdateObjectInfo.getType(), id)
-                end
-                for id, _ in pairs(theirRegisteredItems) do
+                end)
+                Utils.Table.ForEach(theirRegisteredItems, function(id, _)
                     Api.Window.UnregisterData(
                         Constants.DataEvents.OnUpdateObjectInfo.getType(), id)
-                end
+                end)
                 Api.Window.UnregisterData(
                     Constants.DataEvents.OnUpdateContainerWindow.getType(),
                     containerId)
@@ -570,7 +530,7 @@ local function OnInitialize(context)
                     Constants.DataEvents.OnUpdateContainerWindow.getType(),
                     containerId2)
                 _activeWindows[defaultWindowName] = nil
-                destroyTradeWindow(mongbatName)
+                Api.Window.Destroy(mongbatName)
             end,
 
             -- Right-click cancels the trade
@@ -607,7 +567,7 @@ local function OnInitialize(context)
         local defaultWindowName = Data.ActiveWindowName()
         local mongbatName       = _activeWindows[defaultWindowName]
         if mongbatName then
-            destroyTradeWindow(mongbatName)
+            Api.Window.Destroy(mongbatName)
             _activeWindows[defaultWindowName] = nil
         end
         Api.ItemProperties.ClearMouseOverItem()
@@ -621,13 +581,11 @@ local function OnInitialize(context)
         local defaultWindowName = Data.ActiveWindowName()
         local mongbatName       = _activeWindows[defaultWindowName]
         if mongbatName then
-            destroyTradeWindow(mongbatName)
+            Api.Window.Destroy(mongbatName)
             _activeWindows[defaultWindowName] = nil
         end
         Api.ItemProperties.ClearMouseOverItem()
-        if Api.Window.DoesExist(defaultWindowName) then
-            Api.Window.Destroy(defaultWindowName)
-        end
+        Api.Window.Destroy(defaultWindowName)
     end
 end
 
@@ -637,16 +595,15 @@ end
 ---@param context Context
 local function OnShutdown(context)
     local Api          = context.Api
+    local Utils        = context.Utils
     local tradeDefault = context.Components.Defaults.TradeWindow
 
     -- Destroy any Mongbat trade windows that are still open (e.g. during
     -- logout while a trade is in progress).
-    for defaultName, mongbatName in pairs(_activeWindows) do
-        if Api.Window.DoesExist(mongbatName) then
-            Api.Window.Destroy(mongbatName)
-        end
+    Utils.Table.ForEach(_activeWindows, function(defaultName, mongbatName)
+        Api.Window.Destroy(mongbatName)
         _activeWindows[defaultName] = nil
-    end
+    end)
     Api.ItemProperties.ClearMouseOverItem()
 
     -- Restore the individual function overrides so the original table is
