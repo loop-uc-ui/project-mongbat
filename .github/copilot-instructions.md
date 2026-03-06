@@ -394,6 +394,15 @@ local function getPlayerInfo(playerId)
 end
 ```
 
+#### 3.5 Lazy Window Creation
+
+**Prefer creating windows when they are needed, not at mod initialization.** Favor outright creation and destruction over hiding and showing. If a window is not visible, it should usually not exist.
+
+- **Create on demand, destroy when done.** When a user opens their inventory, create the container window. When they close it, destroy it. Do not pre-create it in `OnInitialize` and toggle visibility.
+- **Destruction over hiding.** Destroying a window fully releases its engine resources, event registrations, and data bindings. Hiding leaves all of that alive but invisible — wasteful and a source of stale-state bugs.
+- **Exceptions for always-present windows.** Top-level windows with broad, persistent relevance — the map, player paperdoll, player status bar, player backpack — may be created in `OnInitialize` because they are visible most or all of the time.
+- **When destruction is impractical**, hiding is acceptable. Some windows have expensive setup (complex data registration, engine-side state) where the cost of recreation outweighs the cost of keeping them hidden. Use judgment, but default to create/destroy.
+
 ### 4. Debugging Methodology
 
 When something doesn't work, follow this sequence -- **do not skip steps:**
