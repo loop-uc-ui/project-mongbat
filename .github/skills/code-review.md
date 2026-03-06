@@ -110,6 +110,7 @@ Every action in `OnInitialize` must have a corresponding reverse in `OnShutdown`
 - [ ] **No redundant guard clauses** at call sites for things the framework handles internally (e.g., existence checks before destroy, nil checks the API already performs).
 - [ ] **Repeated patterns across the mod** should be factored into helper functions — or into the framework if they'd apply to multiple mods.
 - [ ] **Framework additions in this PR** (`Mongbat.lua` changes) are properly structured: Data wrappers return objects with typed accessors, Api functions handle nil/error cases internally, Constants are accessed through functions or named entries.
+- [ ] **Operations that belong in `Utils` are routed through `Utils`** — raw iteration (`for` loops), string formatting, table manipulation, math helpers, and other general-purpose operations should use `Utils.*` per Section 3.1, not inline Lua primitives.
 
 ---
 
