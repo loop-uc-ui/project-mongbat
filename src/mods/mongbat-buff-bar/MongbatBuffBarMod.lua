@@ -27,6 +27,7 @@ local function OnInitialize(context)
     local Api = context.Api
     local Components = context.Components
     local Constants = context.Constants
+    local Utils = context.Utils
 
     -- Suppress default systems
     local buffDebuffDefault = Components.Defaults.BuffDebuff
@@ -101,8 +102,7 @@ local function OnInitialize(context)
 
     -- Reflow icon anchors for a container after add/remove
     local function reflowContainer(containerName, order, direction)
-        for i = 1, #order do
-            local buffId = order[i]
+        Utils.Array.ForEach(order, function(buffId, i)
             local entry = buffEntries[buffId]
             if entry then
                 entry.iconView:clearAnchors()
@@ -136,7 +136,7 @@ local function OnInitialize(context)
                     entry.timerView:addAnchor("top", entry.iconView:getName(), "bottom", 0, 1)
                 end
             end
-        end
+        end)
         resizeContainer(containerName, #order, direction)
     end
 
@@ -170,14 +170,14 @@ local function OnInitialize(context)
                 if not entry then return end
 
                 local nameStr = L""
-                for i = 1, #entry.nameVec do
-                    nameStr = nameStr .. entry.nameVec[i]
-                end
+                Utils.Array.ForEach(entry.nameVec, function(part, _)
+                    nameStr = nameStr .. part
+                end)
 
                 local bodyStr = L""
-                for i = 1, #entry.tooltipVec do
-                    bodyStr = bodyStr .. entry.tooltipVec[i]
-                end
+                Utils.Array.ForEach(entry.tooltipVec, function(part, _)
+                    bodyStr = bodyStr .. part
+                end)
 
                 local titleW = Api.String.TranslateMarkup(nameStr)
                 local bodyW = Api.String.TranslateMarkup(bodyStr)
@@ -215,14 +215,8 @@ local function OnInitialize(context)
         timerView:setParent(containerName)
 
         -- Copy name and tooltip vectors so tooltip survives future event updates
-        local nameVecCopy = {}
-        for i = 1, #nameVec do
-            nameVecCopy[i] = nameVec[i]
-        end
-        local tooltipVecCopy = {}
-        for i = 1, #tooltipVec do
-            tooltipVecCopy[i] = tooltipVec[i]
-        end
+        local nameVecCopy = Utils.Array.Copy(nameVec)
+        local tooltipVecCopy = Utils.Array.Copy(tooltipVec)
 
         return {
             iconView = iconView,
@@ -252,11 +246,9 @@ local function OnInitialize(context)
                 buffEntries[buffId] = nil
             end
 
-            for i = #order, 1, -1 do
-                if order[i] == buffId then
-                    table.remove(order, i)
-                    break
-                end
+            local idx = Utils.Array.IndexOf(order, function(item) return item == buffId end)
+            if idx ~= -1 then
+                Utils.Array.Remove(order, idx)
             end
 
             reflowContainer(containerName, order, direction)
@@ -272,35 +264,18 @@ local function OnInitialize(context)
                 entry.timerSecs = timerSecs
                 entry.hasTimer = hasTimer
                 -- Update cached name/tooltip vectors
-                local nameVecCopy = {}
-                for i = 1, buffDebuff:getNameVectorSize() do
-                    nameVecCopy[i] = nameVec[i]
-                end
-                local tooltipVecCopy = {}
-                for i = 1, buffDebuff:getTooltipVectorSize() do
-                    tooltipVecCopy[i] = tooltipVec[i]
-                end
-                entry.nameVec = nameVecCopy
-                entry.tooltipVec = tooltipVecCopy
+                entry.nameVec = Utils.Array.Copy(nameVec)
+                entry.tooltipVec = Utils.Array.Copy(tooltipVec)
                 updateTimerLabel(buffId)
             else
                 -- Create a new icon
-                local nameVecSnap = {}
-                for i = 1, buffDebuff:getNameVectorSize() do
-                    nameVecSnap[i] = nameVec[i]
-                end
-                local tooltipVecSnap = {}
-                for i = 1, buffDebuff:getTooltipVectorSize() do
-                    tooltipVecSnap[i] = tooltipVec[i]
-                end
-
                 local entry = createBuffIcon(
                     buffId, containerName,
-                    nameVecSnap, tooltipVecSnap,
+                    Utils.Array.Copy(nameVec), Utils.Array.Copy(tooltipVec),
                     timerSecs, hasTimer
                 )
                 buffEntries[buffId] = entry
-                table.insert(order, buffId)
+                Utils.Array.Add(order, buffId)
                 reflowContainer(containerName, order, direction)
                 updateTimerLabel(buffId)
             end
@@ -313,13 +288,13 @@ local function OnInitialize(context)
         if deltaTime < 1 then return end
         deltaTime = 0
 
-        for buffId, entry in pairs(buffEntries) do
+        Utils.Table.ForEach(buffEntries, function(buffId, entry)
             if entry.hasTimer and entry.timerSecs > 0 then
                 entry.timerSecs = entry.timerSecs - 1
                 if entry.timerSecs < 0 then entry.timerSecs = 0 end
                 updateTimerLabel(buffId)
             end
-        end
+        end)
     end
 
     -- Good bar: receives buff events and handles timer updates
