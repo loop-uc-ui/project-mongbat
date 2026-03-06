@@ -7,10 +7,8 @@ local function OnInitialize(context)
     targetWindow:disable()
 
     local targetId = 0
-    local nameLabel = nil
-    local healthBar = nil
 
-    nameLabel = context.Components.Label {
+    local nameLabel = context.Components.Label {
         OnInitialize = function(self)
             self:centerText()
         end,
@@ -20,30 +18,27 @@ local function OnInitialize(context)
         end
     }
 
-    healthBar = context.Components.StatusBar(
-        {
-            OnUpdateMobileStatus = function(self, mobileStatus)
-                self:setCurrentValue(mobileStatus:getCurrentHealth())
-                self:setMaxValue(mobileStatus:getMaxHealth())
-                if not self._colorSet then
-                    self:setColor(context.Constants.Colors.HealhBar[1])
-                    self._colorSet = true
-                end
-            end,
-            OnUpdateHealthBarColor = function(self, healthBarColor)
-                self:setColor(healthBarColor:getVisualStateColor())
+    local healthBar = context.Components.StatusBar {
+        OnUpdateMobileStatus = function(self, mobileStatus)
+            self:setCurrentValue(mobileStatus:getCurrentHealth())
+            self:setMaxValue(mobileStatus:getMaxHealth())
+            if not self._colorSet then
+                self:setColor(context.Constants.Colors.HealhBar[1])
                 self._colorSet = true
-            end,
-            OnLButtonUp = function()
-                if context.Data.Drag():isDraggingItem() then
-                    context.Api.Drag.DragToObject(targetId)
-                else
-                    context.Api.Target.LeftClick(targetId)
-                end
             end
-        },
-        nil
-    )
+        end,
+        OnUpdateHealthBarColor = function(self, healthBarColor)
+            self:setColor(healthBarColor:getVisualStateColor())
+            self._colorSet = true
+        end,
+        OnLButtonUp = function()
+            if context.Data.Drag():isDraggingItem() then
+                context.Api.Drag.DragToObject(targetId)
+            else
+                context.Api.Target.LeftClick(targetId)
+            end
+        end
+    }
 
     context.Components.Window {
         Name = NAME,
