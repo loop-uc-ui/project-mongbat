@@ -251,8 +251,8 @@ local function OnInitialize(context)
 
     -- Override ContainerWindow.Initialize: suppress the default window and create ours.
     containerDefault:getDefault().Initialize = function()
-        local id      = SystemData.DynamicWindowId
-        local maxSlots = SystemData.ActiveContainer.NumSlots
+        local id      = Data.DynamicWindowId()
+        local maxSlots = Data.ActiveContainerNumSlots()
         if not maxSlots or maxSlots <= 0 then
             maxSlots = FALLBACK_MAX_SLOTS
         end
@@ -296,7 +296,7 @@ local function OnInitialize(context)
 
     -- Override ContainerWindow.Shutdown: destroy our window and clean up.
     containerDefault:getDefault().Shutdown = function()
-        local defaultWin = SystemData.ActiveWindow.name
+        local defaultWin = Data.ActiveWindowName()
         local id = Api.Window.GetId(defaultWin)
         -- Fallback: extract from the window name if SetId was not called yet.
         if not id or id == 0 then

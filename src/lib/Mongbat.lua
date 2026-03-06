@@ -3907,6 +3907,38 @@ function Data.UpdateInstanceId()
 end
 
 -- ========================================================================== --
+-- Data - ActiveWindow / DynamicWindow / ActiveContainer
+-- ========================================================================== --
+
+---
+--- Returns the name of the engine's currently active window, as set by the
+--- engine before invoking any event callback (CoreEvent, SystemEvent, or
+--- DataEvent).  Equivalent to `SystemData.ActiveWindow.name`.
+---@return string
+function Data.ActiveWindowName()
+    return SystemData.ActiveWindow.name
+end
+
+---
+--- Returns the engine-assigned dynamic window ID that is current when a new
+--- dynamic window is being created.  Equivalent to `SystemData.DynamicWindowId`.
+--- Read this value only inside lifecycle callbacks such as
+--- `ContainerWindow.Initialize`.
+---@return number
+function Data.DynamicWindowId()
+    return SystemData.DynamicWindowId
+end
+
+---
+--- Returns the number of slots in the container that is currently being
+--- initialised by the engine.  Equivalent to `SystemData.ActiveContainer.NumSlots`.
+--- Read this value only inside `ContainerWindow.Initialize`.
+---@return number
+function Data.ActiveContainerNumSlots()
+    return SystemData.ActiveContainer.NumSlots
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 
