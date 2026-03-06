@@ -7,12 +7,17 @@ local BUTTON_WIDTH = 200
 local DESCRIPTION_HEIGHT = 150
 local ACTION_BAR_HEIGHT = 36
 
+--- Saved to restore Interface.InitBugReport on shutdown.
+---@type fun()|nil
+local _originalInitBugReport = nil
+
 ---@param ctx Context
 local function buildWindow(ctx)
     local Api = ctx.Api
     local Data = ctx.Data
     local Constants = ctx.Constants
     local Components = ctx.Components
+    local Utils = ctx.Utils
 
     local selectedType = Constants.BugTypes.Other
     local typeButtons = {}
@@ -20,11 +25,9 @@ local function buildWindow(ctx)
 
     local function selectType(t)
         selectedType = t
-        for i = 1, NUM_TYPES do
-            if typeButtons[i] then
-                typeButtons[i]:setChecked(selectedType == i)
-            end
-        end
+        Utils.Array.ForEach(typeButtons, function(btn, i)
+            btn:setChecked(selectedType == i)
+        end)
     end
 
     local function clearForm()
@@ -140,9 +143,9 @@ local function buildWindow(ctx)
             self:anchorToParentCenter()
 
             local allChildren = {}
-            for i = 1, NUM_TYPES do
-                allChildren[i] = typeList[i]
-            end
+            Utils.Array.ForEach(typeList, function(item, i)
+                allChildren[i] = item
+            end)
             allChildren[NUM_TYPES + 1] = descriptionBox
             allChildren[NUM_TYPES + 2] = submitButton
             allChildren[NUM_TYPES + 3] = clearButton
@@ -179,6 +182,7 @@ local function OnInitialize(ctx)
 
     -- Intercept Interface.InitBugReport to open our window instead
     local iface = Components.Defaults.Interface:getDefault()
+    _originalInitBugReport = iface.InitBugReport
     iface.InitBugReport = function()
         if Api.Window.DoesExist(NAME) then
             Api.Window.Destroy(NAME)
@@ -196,6 +200,11 @@ local function OnShutdown(ctx)
 
     Api.Window.UnregisterData(Constants.DataEvents.OnUpdateBugReport.getType(), 0)
     Api.Window.Destroy(NAME)
+
+    -- Restore the original Interface.InitBugReport
+    Components.Defaults.Interface:getDefault().InitBugReport = _originalInitBugReport
+    _originalInitBugReport = nil
+
     Components.Defaults.BugReportWindow:restore()
 end
 

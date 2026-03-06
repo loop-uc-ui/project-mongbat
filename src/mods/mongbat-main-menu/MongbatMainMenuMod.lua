@@ -75,6 +75,13 @@ Mongbat.Mod {
                             end
                         ),
                         Button(
+                            1077790,
+                            function ()
+                                context.Components.Defaults.Interface:getDefault().InitBugReport()
+                                self:setShowing(false)
+                            end
+                        ),
+                        Button(
                             L"Debug",
                             function ()
                                 context.Api.Window.ToggleWindow("MongbatDebugWindow")
