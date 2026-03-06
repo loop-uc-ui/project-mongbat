@@ -146,10 +146,10 @@ local function OnInitialize(context)
                 end
             end,
             OnEnableHealthBar = function(self)
-                context.Api.Window.SetShowing(self:getName(), true)
+                self:setShowing(true)
             end,
             OnDisableHealthBar = function(self)
-                context.Api.Window.SetShowing(self:getName(), false)
+                self:setShowing(false)
             end,
             OnEndHealthBarDrag = function(self)
                 -- OnUpdate handles detach while dragging; this is a no-op.
@@ -216,10 +216,10 @@ local function OnInitialize(context)
                 context.Api.Target.LeftClick(self:getId())
             end,
             OnEnableHealthBar = function(self)
-                context.Api.Window.SetShowing(self:getName(), true)
+                self:setShowing(true)
             end,
             OnDisableHealthBar = function(self)
-                context.Api.Window.SetShowing(self:getName(), false)
+                self:setShowing(false)
             end,
             OnEndHealthBarDrag = function(self)
                 -- Bar is now free-floating after a HealthBarManager drag.

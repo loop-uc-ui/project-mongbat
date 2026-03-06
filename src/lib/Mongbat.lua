@@ -4717,6 +4717,8 @@ end
 
 ---@class DefaultHealthBarManager
 ---@field OnBeginDragHealthBar fun(objectId: integer)
+---@field IsPartyMember fun(mobileId: integer): boolean
+---@field GetMemberIndex fun(mobileId: integer): integer
 
 ---@class DefaultHealthBarManagerComponent : DefaultComponent
 local DefaultHealthBarManagerComponent = {}
