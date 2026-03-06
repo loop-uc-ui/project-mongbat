@@ -77,14 +77,12 @@ Mongbat.Mod {
             }
         end
 
-        local window
-        window = context.Components.Window {
+        local window = context.Components.Window {
             Name = NAME,
             MinWidth = MIN_SIZE,
             MinHeight = MIN_SIZE,
             OnRButtonUp = function() end,
             OnInitialize = function(self)
-                context.Api.Window.RestorePosition(NAME, true)
                 syncWindowFromViewport(context, self)
                 self:setMovable(not locked)
 
@@ -99,6 +97,9 @@ Mongbat.Mod {
                 end)
 
                 self:setChildren { lockLabel }
+            end,
+            OnShown = function(self)
+                syncWindowFromViewport(context, self)
             end,
             OnLayout = function(self, children, child, index)
                 if index == 1 then
