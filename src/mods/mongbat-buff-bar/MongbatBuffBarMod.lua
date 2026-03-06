@@ -75,11 +75,11 @@ local function OnInitialize(context)
         local min = math.floor(secs / 60)
         if min > 60 then
             local h = math.floor(min / 60)
-            return StringToWString(tostring(h) .. "h")
+            return Api.String.StringToWString(tostring(h) .. "h")
         elseif min > 0 then
-            return StringToWString(tostring(min) .. "m")
+            return Api.String.StringToWString(tostring(min) .. "m")
         else
-            return StringToWString(tostring(secs) .. "s")
+            return Api.String.StringToWString(tostring(secs) .. "s")
         end
     end
 
