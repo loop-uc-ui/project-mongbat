@@ -6393,7 +6393,10 @@ function View:setId(id)
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
                     dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
-                    dataEvent == Constants.DataEvents.OnUpdateShopData
+                    dataEvent == Constants.DataEvents.OnUpdateShopData or
+                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
+                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
+                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6409,7 +6412,10 @@ function View:setId(id)
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
                     dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
-                    dataEvent == Constants.DataEvents.OnUpdateShopData
+                    dataEvent == Constants.DataEvents.OnUpdateShopData or
+                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
+                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
+                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
