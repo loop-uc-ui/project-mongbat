@@ -46,6 +46,7 @@ local function OnInitialize(context)
     local Data       = context.Data
     local Constants  = context.Constants
     local Components = context.Components
+    local Utils      = context.Utils
 
     -- Running count of rows currently in the scroll child.
     local totalRows = 0
@@ -115,31 +116,26 @@ local function OnInitialize(context)
     local function populateRows(activeProps)
         clearRows()
 
-        local csv     = Data.PlayerItemPropCSV()
-        local numRows = Api.CSVUtilities.GetNumRows(csv)
-        activeProps   = activeProps or {}
+        local csv   = Data.PlayerItemPropCSV()
+        activeProps = activeProps or {}
 
         local index = 1
 
         -- Active properties first.
-        for propIndex = 1, numRows do
-            if activeProps[propIndex] then
-                if csv[propIndex].TID ~= 0 then
-                    createRow(index, propIndex, true)
-                    index = index + 1
-                end
+        Utils.Array.ForEach(csv, function(entry, propIndex)
+            if activeProps[propIndex] and entry.TID ~= 0 then
+                createRow(index, propIndex, true)
+                index = index + 1
             end
-        end
+        end)
 
         -- Inactive properties below.
-        for propIndex = 1, numRows do
-            if not activeProps[propIndex] then
-                if csv[propIndex].TID ~= 0 then
-                    createRow(index, propIndex, false)
-                    index = index + 1
-                end
+        Utils.Array.ForEach(csv, function(entry, propIndex)
+            if not activeProps[propIndex] and entry.TID ~= 0 then
+                createRow(index, propIndex, false)
+                index = index + 1
             end
-        end
+        end)
 
         totalRows = index - 1
         resetScroll(Api)
@@ -150,22 +146,20 @@ local function OnInitialize(context)
     local function populateFiltered(text)
         clearRows()
 
-        local csv     = Data.PlayerItemPropCSV()
-        local numRows = Api.CSVUtilities.GetNumRows(csv)
-        local index   = 1
+        local csv   = Data.PlayerItemPropCSV()
+        local index = 1
 
-        for propIndex = 1, numRows do
-            local tid = csv[propIndex].TID
-            if tid ~= 0 then
+        Utils.Array.ForEach(csv, function(entry, propIndex)
+            if entry.TID ~= 0 then
                 local name = removeAfterSymbol(
-                    Api.String.GetStringUppercaseFromTid(tid), "~")
+                    Api.String.GetStringUppercaseFromTid(entry.TID), "~")
                 if wstring.find(wstring.lower(name), text) then
                     -- Show filtered results as active (highlighted).
                     createRow(index, propIndex, true)
                     index = index + 1
                 end
             end
-        end
+        end)
 
         totalRows = index - 1
         resetScroll(Api)
