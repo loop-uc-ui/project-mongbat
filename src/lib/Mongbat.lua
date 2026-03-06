@@ -424,6 +424,24 @@ function Api.ContextMenu.RequestMenu(id)
     RequestContextMenu(id)
 end
 
+---
+--- Creates a Lua context menu item with a string label.
+---@param text wstring The display text of the menu item.
+---@param disabled boolean|integer Whether the item is disabled (1=disabled, 0=enabled, or boolean).
+---@param returnCode string The return code passed to the callback when selected.
+---@param group integer The group index for the menu item.
+---@param separator boolean Whether this item is followed by a separator.
+function Api.ContextMenu.CreateLuaItem(text, disabled, returnCode, group, separator)
+    ContextMenu.CreateLuaContextMenuItemWithString(text, disabled, returnCode, group, separator)
+end
+
+---
+--- Activates the Lua context menu with a callback function.
+---@param callback fun(returnCode: string, param: any) The callback invoked when the user selects an item.
+function Api.ContextMenu.ActivateLua(callback)
+    ContextMenu.ActivateLuaContextMenu(callback)
+end
+
 -- ========================================================================== --
 -- Api - CSV
 -- ========================================================================== --
@@ -444,6 +462,19 @@ end
 ---@param name string The name of the CSV data to unload.
 function Api.CSV.Unload(name)
     UOUnloadCSVTable(name)
+end
+
+-- ========================================================================== --
+-- Api - RenameWindow
+-- ========================================================================== --
+
+Api.RenameWindow = {}
+
+---
+--- Opens the RenameWindow dialog for user text input.
+---@param data table Data table with keys: title (wstring), subtitle (wstring), callfunction (fun(id, text)), id (integer).
+function Api.RenameWindow.Create(data)
+    RenameWindow.Create(data)
 end
 
 -- ========================================================================== --
@@ -1189,6 +1220,14 @@ end
 ---@return boolean Whether the object is a mobile.
 function Api.Object.IsMobile(id)
     return IsMobile(id)
+end
+
+---
+--- Checks if an object is a pet.
+---@param id number The ID of the object.
+---@return boolean Whether the object is a pet.
+function Api.Object.IsPet(id)
+    return IsObjectIdPet(id)
 end
 
 ---
@@ -2335,6 +2374,14 @@ function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
 end
 
+---
+--- Returns true if the window has a saved position that can be restored.
+---@param window string The window name.
+---@return boolean
+function Api.Window.CanRestorePosition(window)
+    return WindowUtils.CanRestorePosition(window)
+end
+
 -- ========================================================================== --
 -- Api - Interface Core
 -- ========================================================================== --
@@ -3286,6 +3333,11 @@ function MobileName:getName()
     return self:getData().MobName
 end
 
+---@return integer
+function MobileName:getNotoriety()
+    return self:getData().Notoriety
+end
+
 function Data.MobileName(id)
     return MobileName:new(id)
 end
@@ -4072,6 +4124,57 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 ---@class DefaultObjectHandleComponent : DefaultComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
+---@class DefaultMobilesOnScreen
+---@field MobilesSort integer[]
+---@field MobilesSortReverse table
+---@field SavedFilter table
+---@field STRFilter wstring
+---@field DistanceSort boolean
+---@field locked boolean
+---@field isDirty boolean
+---@field Hidden boolean
+---@field Dockspotlocked boolean
+---@field UpdateLimit number
+---@field windowOffset number
+---@field CappedNumServerHealthBars integer
+---@field CurrentHandledCount integer
+---@field ManagedMobilesList integer[]
+---@field ManagedMobilesMap table
+---@field QueuedMobilesForDelete table
+---@field YellowEnabled boolean
+---@field GreyEnabled boolean
+---@field BlueEnabled boolean
+---@field RedEnabled boolean
+---@field GreenEnabled boolean
+---@field OrangeEnabled boolean
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field SlowUpdate fun(timePassed: number)
+---@field UpdateAnchors fun()
+---@field CleanMobileSortCache fun()
+---@field ShowPet fun()
+---@field HidePet fun()
+---@field AddHealthbar fun(mobileId: integer): boolean
+---@field RemoveHealthBar fun(mobileId: integer)
+---@field RemoveFromMobilesSort fun(mobileId: integer)
+---@field CanAddMobileOnScreen fun(noto: integer, mobileId: integer, data: table): boolean
+---@field IsManagedMobileOnScreen fun(mobileId: integer): boolean
+---@field IsPet fun(mobileId: integer): boolean
+---@field IsFarm fun(name: wstring): boolean
+---@field IsSummon fun(name: wstring, mobileId: integer): boolean
+---@field GetVisible fun(ignoreMain?: boolean): boolean
+---@field MarkHealthBarForDeletion fun(mobileId: integer)
+---@field UnMarkHealthBarForDeletion fun(mobileId: integer)
+---@field IsMarkedHealthBarForDeletion fun(mobileId: integer): boolean
+---@field AddMobileOnScreenCount fun(mobileId: integer)
+---@field RemoveMobileOnScreenCount fun(mobileId: integer)
+---@field Clear fun()
+---@field SetFilter fun(id: integer, value: wstring)
+
+---@class DefaultMobilesOnScreenComponent : DefaultComponent
+local DefaultMobilesOnScreenComponent = {}
+DefaultMobilesOnScreenComponent.__index = DefaultMobilesOnScreenComponent
 
 
 ---@class CircleImageModel : ViewModel
@@ -4914,6 +5017,29 @@ end
 
 ---@return Window
 function DefaultPaperdollWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Mobiles On Screen
+-- ========================================================================== --
+
+---@return DefaultMobilesOnScreenComponent
+function DefaultMobilesOnScreenComponent:new()
+    local instance = DefaultComponent.new(self, "MobilesOnScreenWindow") --[[@as DefaultMobilesOnScreenComponent]]
+    instance._proxy = instance:_createProxy(MobilesOnScreen)
+    instance._globalKey = "MobilesOnScreen"
+    _G.MobilesOnScreen = instance._proxy
+    return instance
+end
+
+---@return DefaultMobilesOnScreen
+function DefaultMobilesOnScreenComponent:getDefault()
+    return self._proxy or MobilesOnScreen --[[@as DefaultMobilesOnScreen]]
+end
+
+---@return Window
+function DefaultMobilesOnScreenComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6761,6 +6887,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultMobilesOnScreenComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6902,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.MobilesOnScreen = DefaultMobilesOnScreenComponent:new()
 
 -- ========================================================================== --
 -- Mod
