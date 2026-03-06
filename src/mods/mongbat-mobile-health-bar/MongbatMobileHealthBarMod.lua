@@ -202,11 +202,14 @@ local function OnInitialize(context)
                 }
             end,
             OnShutdown = function(self)
-                for idx, entry in pairs(partyBars) do
+                local foundIdx = nil
+                context.Utils.Table.ForEach(partyBars, function(idx, entry)
                     if entry.window == self then
-                        partyBars[idx] = nil
-                        break
+                        foundIdx = idx
                     end
+                end)
+                if foundIdx then
+                    partyBars[foundIdx] = nil
                 end
             end,
             OnRButtonUp = function(self)
@@ -243,12 +246,9 @@ local function OnInitialize(context)
     end
 
     local function hasPartyBar(mobileId)
-        for _, entry in pairs(partyBars) do
-            if entry.mobileId == mobileId then
-                return true
-            end
-        end
-        return false
+        return context.Utils.Table.Find(partyBars, function(_, entry)
+            return entry.mobileId == mobileId
+        end) ~= nil
     end
 
     local function refreshPartyBar(index, mobileId)
@@ -315,15 +315,15 @@ local function OnShutdown(context)
     -- Destroy all active health bar windows.
     local barSnapshot = bars
     bars = {}
-    for _, window in pairs(barSnapshot) do
+    context.Utils.Table.ForEach(barSnapshot, function(_, window)
         window:destroy()
-    end
+    end)
 
     local partyBarSnapshot = partyBars
     partyBars = {}
-    for _, entry in pairs(partyBarSnapshot) do
+    context.Utils.Table.ForEach(partyBarSnapshot, function(_, entry)
         entry.window:destroy()
-    end
+    end)
 end
 
 Mongbat.Mod {
