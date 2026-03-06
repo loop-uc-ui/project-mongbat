@@ -52,12 +52,12 @@ local function OnInitialize(ctx)
     ---@return Label
     local function createItemRow(i, itemData)
         local mapName = getFacetName(itemData.Map)
-        local displayText = "[" .. mapName .. "] " .. tostring(itemData.Name)
+        local displayText = L"[" .. towstring(mapName) .. L"] " .. towstring(tostring(itemData.Name))
 
         local row = ctx.Components.Label {
             Name = ITEM_PREFIX .. i,
             OnInitialize = function(self)
-                self:setText(towstring(displayText))
+                self:setText(displayText)
                 self:setDimensions(250, ITEM_H)
             end,
             OnLButtonUp = function(self)
@@ -137,8 +137,7 @@ local function OnInitialize(ctx)
             for map, array in pairs(waypointsData.Facet) do
                 for idx = 1, #array do
                     if string.find(string.lower(tostring(array[idx].Name)), textStr) then
-                        local wayData = ctx.Api.Waypoint.GetInfoAt(idx, map)
-                        if wayData ~= nil then
+                        if ctx.Api.Waypoint.GetInfoAt(idx, map) ~= nil then
                             local wp = {}
                             for k, v in pairs(array[idx]) do
                                 wp[k] = v
