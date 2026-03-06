@@ -3,12 +3,22 @@ local ROW_WIDTH = 200
 local PADDING = 8
 local HEADER_HEIGHT = 24
 local TOGGLE_W = 22
+local CMD_HEIGHT = 20
+local CMD_BTN_W = 30
+-- CMD_BTN_GAP is the vertical gap between the header row and the command button row.
+-- It is used both in the layout (to offset the command buttons below the header) and
+-- in the window height calculation to allocate that same gap space.
+local CMD_BTN_GAP = 4
+local CMD_BTN_SPACING = 4  -- horizontal gap between adjacent command buttons
 local LABEL_HEIGHT = 14
 local BAR_HEIGHT = 12
 local ROW_HEIGHT = 2 + LABEL_HEIGHT + 2 + BAR_HEIGHT + 2
 local ROW_GAP = 4
 
---- Layout for the main window: HeaderLabel at top-left, ToggleButton at top-right.
+--- Layout for the main window:
+---   index 1: HeaderLabel at top-left
+---   index 2: ToggleButton at top-right
+---   index 3-8: Command buttons in a row below the header
 local function MainLayout(window, _, child, index)
     child:clearAnchors()
     local winName = window:getName()
@@ -17,6 +27,13 @@ local function MainLayout(window, _, child, index)
     elseif index == 2 then
         local w = window:getDimensions().x
         child:addAnchor("topleft", winName, "topleft", w - PADDING - TOGGLE_W, PADDING)
+    else
+        -- Command buttons: laid out in a row below the header
+        -- xOff steps horizontally per button; yOff places them CMD_BTN_GAP below the header
+        local btnIndex = index - 2
+        local xOff = PADDING + (btnIndex - 1) * (CMD_BTN_W + CMD_BTN_SPACING)
+        local yOff = PADDING + HEADER_HEIGHT + CMD_BTN_GAP
+        child:addAnchor("topleft", winName, "topleft", xOff, yOff)
     end
 end
 
@@ -95,13 +112,9 @@ local function OnInitialize(context)
             {
                 Name = NAME .. "HealthLabel" .. petId,
                 OnUpdateMobileStatus = function(self, mobileStatus)
-                    self:setText(
-                        string.format(
-                            "%d / %d",
-                            mobileStatus:getCurrentHealth(),
-                            mobileStatus:getMaxHealth()
-                        )
-                    )
+                    local hp = mobileStatus:getCurrentHealth()
+                    local maxHp = mobileStatus:getMaxHealth()
+                    self:setText(towstring(hp) .. L" / " .. towstring(maxHp))
                 end
             }
         )
@@ -130,7 +143,9 @@ local function OnInitialize(context)
                     Api.Target.LeftClick(petId)
                 end
             end,
-            OnRButtonUp = function() end
+            OnRButtonUp = function()
+                Api.ContextMenu.RequestMenu(petId)
+            end
         }
     end
 
@@ -198,17 +213,45 @@ local function OnInitialize(context)
         }
     end
 
-    --- The main pet window containing the header and toggle button.
+    --- A single pet command button.
+    ---@param label wstring Button display label.
+    ---@param commandType number UserAction type from Constants.UserAction.PetCommand*.
+    ---@param actionId integer ActionsWindow action index for this command.
+    local function CmdButton(label, commandType, actionId)
+        return Components.Button {
+            Name = NAME .. "Cmd" .. actionId,
+            Template = "MongbatButton18",
+            OnInitialize = function(self)
+                self:setDimensions(CMD_BTN_W, CMD_HEIGHT)
+                self:setText(label)
+            end,
+            OnLButtonDown = function()
+                Api.Drag.SetActionMouseClickData(commandType, actionId, 0)
+            end
+        }
+    end
+
+    --- The main pet window containing the header, toggle, and command buttons.
     local function Window()
+        local winW = ROW_WIDTH + PADDING * 2
+        local winH = HEADER_HEIGHT + CMD_HEIGHT + PADDING * 2 + CMD_BTN_GAP
         return Components.Window {
             Name = NAME,
             Resizable = false,
             OnLayout = MainLayout,
             OnInitialize = function(self)
-                self:setDimensions(ROW_WIDTH + PADDING * 2, HEADER_HEIGHT + PADDING * 2)
+                self:setDimensions(winW, winH)
                 self:setChildren {
                     HeaderLabel(),
-                    ToggleButton()
+                    ToggleButton(),
+                    -- Action IDs match ActionsWindow.ActionData indices in the default UI's
+                    -- Source/ActionsWindow.lua (Groups[11] = Pet Commands).
+                    CmdButton(L"Com", Constants.UserAction.PetCommandCome(), 30),     -- [30] Come
+                    CmdButton(L"Grd", Constants.UserAction.PetCommandGuardMe(), 34),  -- [34] Guard Me
+                    CmdButton(L"Fol", Constants.UserAction.PetCommandFollowMe(), 32), -- [32] Follow Me
+                    CmdButton(L"Sty", Constants.UserAction.PetCommandStay(), 35),     -- [35] Stay
+                    CmdButton(L"Stp", Constants.UserAction.PetCommandStop(), 36),     -- [36] Stop
+                    CmdButton(L"Kil", Constants.UserAction.PetCommandAllKill(), 29)   -- [29] All Kill
                 }
             end,
             OnUpdatePets = function(_, pets)

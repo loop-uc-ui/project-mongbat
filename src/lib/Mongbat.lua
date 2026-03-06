@@ -3067,6 +3067,38 @@ Constants.GumpIds = {}
 Constants.GumpIds.VendorSearch = 999112
 Constants.GumpIds.PetTrainingProgress = 999139
 
+Constants.UserAction = {}
+
+---@return number
+function Constants.UserAction.PetCommandCome()
+    return SystemData.UserAction.TYPE_PET_COMMAND_COME
+end
+
+---@return number
+function Constants.UserAction.PetCommandGuardMe()
+    return SystemData.UserAction.TYPE_PET_COMMAND_GUARDME
+end
+
+---@return number
+function Constants.UserAction.PetCommandFollowMe()
+    return SystemData.UserAction.TYPE_PET_COMMAND_FOLLOWME
+end
+
+---@return number
+function Constants.UserAction.PetCommandStay()
+    return SystemData.UserAction.TYPE_PET_COMMAND_STAY
+end
+
+---@return number
+function Constants.UserAction.PetCommandStop()
+    return SystemData.UserAction.TYPE_PET_COMMAND_STOP
+end
+
+---@return number
+function Constants.UserAction.PetCommandAllKill()
+    return SystemData.UserAction.TYPE_PET_COMMAND_ALLKILL
+end
+
 
 -- ========================================================================== --
 -- Data
