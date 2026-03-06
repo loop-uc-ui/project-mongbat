@@ -9,6 +9,7 @@ local origHandleUpdateActionItem = nil
 ---@param context Context
 local function OnInitialize(context)
     local Api = context.Api
+    local Constants = context.Constants
     local Data = context.Data
     local Components = context.Components
 
@@ -102,19 +103,15 @@ local function OnInitialize(context)
         elseif returnCode == "orientation" then
             setVertical(hotbarId, not isVertical(hotbarId))
             -- Slot OnShutdown callbacks handle HotbarSystem un-registration.
-            if Api.Window.DoesExist(hotbarName) then
-                Api.Window.Destroy(hotbarName)
-                hotbarWindows[hotbarId] = nil
-            end
+            Api.Window.Destroy(hotbarName)
+            hotbarWindows[hotbarId] = nil
             createHotbarWindow(hotbarId)
 
         elseif returnCode == "slots" then
             local count = param.count
             setNumSlots(hotbarId, count)
-            if Api.Window.DoesExist(hotbarName) then
-                Api.Window.Destroy(hotbarName)
-                hotbarWindows[hotbarId] = nil
-            end
+            Api.Window.Destroy(hotbarName)
+            hotbarWindows[hotbarId] = nil
             createHotbarWindow(hotbarId)
 
         elseif returnCode == "new" then
@@ -133,11 +130,9 @@ local function OnInitialize(context)
             Api.Hotbar.ClearAction(slotName, hotbarId, param.slotIndex, true)
 
         elseif returnCode == "close" then
-            if Api.Window.DoesExist(hotbarName) then
-                -- Slot OnShutdown callbacks handle HotbarSystem un-registration.
-                Api.Window.Destroy(hotbarName)
-                hotbarWindows[hotbarId] = nil
-            end
+            -- Slot OnShutdown callbacks handle HotbarSystem un-registration.
+            Api.Window.Destroy(hotbarName)
+            hotbarWindows[hotbarId] = nil
         end
     end
 
@@ -335,10 +330,7 @@ local function OnShutdown(context)
     -- Each slot's OnShutdown callback calls Api.Hotbar.ClearAction to
     -- unregister from HotbarSystem before the window is removed.
     for id = 1, MAX_HOTBAR_ID do
-        local hotbarName = "MongbatHotbar" .. id
-        if Api.Window.DoesExist(hotbarName) then
-            Api.Window.Destroy(hotbarName)
-        end
+        Api.Window.Destroy("MongbatHotbar" .. id)
     end
 
     -- Restore the Hotbar Lua-callback proxy so the default UI works if
