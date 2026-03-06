@@ -123,6 +123,7 @@ Mongbat.Mod {
     OnInitialize = function(context)
         local Api        = context.Api
         local Data       = context.Data
+        local Utils      = context.Utils
         local Components = context.Components
 
         -- Obtain the proxy for the SkillsInfo global table.  We intentionally
@@ -161,9 +162,9 @@ Mongbat.Mod {
 
         --- Destroys all label windows from the current skill view.
         local function clearSections()
-            for _, labelName in ipairs(sectionLabels) do
+            Utils.Table.ForEach(sectionLabels, function(_, labelName)
                 Api.Window.Destroy(labelName)
-            end
+            end)
             sectionLabels = {}
             labelSeq = 0
         end
@@ -203,10 +204,10 @@ Mongbat.Mod {
         --- Updates the scroll child dimensions and resets the scroll position.
         local function refreshScroll()
             local totalH = 0
-            for _, labelName in ipairs(sectionLabels) do
+            Utils.Table.ForEach(sectionLabels, function(_, labelName)
                 local dims = Api.Window.GetDimensions(labelName)
                 totalH = totalH + dims.y
-            end
+            end)
             -- Add padding to account for inter-section gap offsets.
             Api.Window.SetDimensions(SCROLL_CHILD, 350, totalH + SCROLL_PADDING)
             Api.ScrollWindow.UpdateScrollRect(SCROLL_VIEW)
@@ -223,9 +224,8 @@ Mongbat.Mod {
             Template = "MongbatSkillsInfoTemplate",
             OnInitialize = function(self)
                 self:setDimensions(WINDOW_WIDTH, WINDOW_HEIGHT)
-                Api.Window.ClearAnchors(NAME)
-                Api.Window.AddAnchor(NAME, "topright", "SkillsWindow", "topleft", 0, 0)
-                Api.Window.RestorePosition(NAME)
+                self:clearAnchors()
+                self:addAnchor("topright", "SkillsWindow", "topleft", 0, 0)
             end,
         }
 
