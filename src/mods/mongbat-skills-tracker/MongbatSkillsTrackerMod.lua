@@ -109,10 +109,10 @@ local function OnInitialize(context)
     -- Freeze the current live deltas (called when Stop is pressed).
     local function freezeDeltas()
         frozenDeltas = {}
-        for serverId, startVal in pairs(sessionStartValues) do
+        context.Utils.Table.ForEach(sessionStartValues, function(serverId, startVal)
             local current = context.Data.SkillDynamicData(serverId):getRealValue()
             frozenDeltas[serverId] = current - startVal
-        end
+        end)
     end
 
     -- Update enabled/disabled state of session control buttons.
@@ -179,8 +179,7 @@ local function OnInitialize(context)
             end
         else
             local customSkills = context.Data.CustomSkills()
-            for i = 1, #customSkills do
-                local skillId = customSkills[i]
+            context.Utils.Array.ForEach(customSkills, function(skillId)
                 local csv = context.Data.SkillsCSV(skillId)
                 local serverId = csv:getServerId()
                 local dynamic = context.Data.SkillDynamicData(serverId)
@@ -205,7 +204,7 @@ local function OnInitialize(context)
                     color = COLOR_DEFAULT
                 end
                 rows[#rows + 1] = { text = text, color = color }
-            end
+            end)
         end
 
         -- Hide all pool labels
@@ -301,15 +300,18 @@ local function OnInitialize(context)
             )
 
             local windowName = self:getName()
-            for idx, btn in ipairs({ startBtnRef, stopBtnRef, resetBtnRef }) do
-                btn:create(false)
-                btn:onInitialize()
-                btn:setParent(windowName)
-                btn:clearAnchors()
-                btn:addAnchor(
-                    "topleft", windowName, "topleft",
-                    8 + (idx - 1) * (BTN_WIDTH + BTN_GAP), BTN_TOP)
-            end
+            context.Utils.Array.ForEach(
+                { startBtnRef, stopBtnRef, resetBtnRef },
+                function(btn, idx)
+                    btn:create(false)
+                    btn:onInitialize()
+                    btn:setParent(windowName)
+                    btn:clearAnchors()
+                    btn:addAnchor(
+                        "topleft", windowName, "topleft",
+                        8 + (idx - 1) * (BTN_WIDTH + BTN_GAP), BTN_TOP)
+                end
+            )
             updateButtonStates()
 
             -- ── Label pool ──────────────────────────────────────────────────
@@ -327,11 +329,7 @@ local function OnInitialize(context)
             rebuild(self)
         end,
         OnUpdateSkillDynamicData = function(self)
-            -- Only update the live display when tracking is active;
-            -- when stopped the delta display is intentionally frozen.
-            if sessionActive then
-                rebuild(self)
-            end
+            rebuild(self)
         end,
         OnRButtonUp = function(self, flags, x, y)
             if showAllMySkills then
