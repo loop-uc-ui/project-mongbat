@@ -311,6 +311,20 @@ function Api.Button.SetTextColor(id, r, g, b, a)
 end
 
 -- ========================================================================== --
+-- Api - Bug Report
+-- ========================================================================== --
+
+Api.BugReport = {}
+
+---
+--- Sends a bug report.
+---@param bugType integer The bug type (1-15).
+---@param text wstring The description text.
+function Api.BugReport.Send(bugType, text)
+    SendBugReport(bugType, text)
+end
+
+-- ========================================================================== --
 -- Api - Chat
 -- ========================================================================== --
 
@@ -330,6 +344,19 @@ end
 ---@param filter string The filter to use.
 function Api.Chat.PrintToChatWindow(wString, filter)
     PrintWStringToChatWindow(wString, filter)
+end
+
+-- ========================================================================== --
+-- Api - Dialog
+-- ========================================================================== --
+
+Api.Dialog = {}
+
+---
+--- Creates a standard UO dialog window.
+---@param data table Dialog data (titleTid, bodyTid, windowName).
+function Api.Dialog.CreateStandard(data)
+    UO_StandardDialog.CreateDialog(data)
 end
 
 -- ========================================================================== --
@@ -2918,6 +2945,27 @@ function Constants.Broadcasts.BugReport()
     return SystemData.Events["BUG_REPORT_SCREEN"]
 end
 
+-- ========================================================================== --
+-- Constants - Bug Types
+-- ========================================================================== --
+
+Constants.BugTypes = {}
+Constants.BugTypes.World       = 1
+Constants.BugTypes.Wearables   = 2
+Constants.BugTypes.Combat      = 3
+Constants.BugTypes.UI          = 4
+Constants.BugTypes.Crash       = 5
+Constants.BugTypes.Stuck       = 6
+Constants.BugTypes.Animations  = 7
+Constants.BugTypes.Performance = 8
+Constants.BugTypes.NPCs        = 9
+Constants.BugTypes.Creatures   = 10
+Constants.BugTypes.Pets        = 11
+Constants.BugTypes.Housing     = 12
+Constants.BugTypes.LostItem    = 13
+Constants.BugTypes.Exploit     = 14
+Constants.BugTypes.Other       = 15
+
 ---@class DataEvent
 ---@field getType fun(): integer
 ---@field getEvent fun(): integer
@@ -2951,6 +2999,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateBugReport = DataEvent(WindowData.BugReport, "OnUpdateBugReport")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3799,6 +3848,37 @@ end
 ---@field TexCoordX integer
 ---@field TexCoordY integer
 ---@field TexScale number
+
+
+-- ========================================================================== --
+-- Data - Bug Report
+-- ========================================================================== --
+
+---@class BugReportEntry
+---@field flagName wstring Server-provided label for this bug type
+
+---@class BugReportWrapper
+local BugReportData = {}
+BugReportData.__index = BugReportData
+
+function BugReportData:new()
+    return setmetatable({}, self)
+end
+
+--- Returns the bug type entry for a given index (1-15).
+---@param index integer The bug type index (1-based)
+---@return BugReportEntry|nil
+function BugReportData:getEntry(index)
+    if WindowData.BugReport then
+        return WindowData.BugReport[index]
+    end
+    return nil
+end
+
+---@return BugReportWrapper
+function Data.BugReport()
+    return BugReportData:new()
+end
 
 
 -- ========================================================================== --
@@ -4825,8 +4905,46 @@ function DefaultDebugWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
--- Components - Default - Object Handle
+-- Components - Default - Bug Report Window
 -- ========================================================================== --
+
+--- @class DefaultBugReportWindow
+--- @field bugTypes table
+--- @field Size integer
+--- @field selectedType integer
+--- @field TID table
+--- @field Initialize fun()
+--- @field Shutdown fun()
+--- @field Hide fun()
+--- @field OnOpen fun()
+--- @field OnClose fun()
+--- @field OnSelectBugType fun()
+--- @field SelectBugType fun(type: integer)
+--- @field OnSubmit fun()
+--- @field OnClear fun()
+
+---@class DefaultBugReportWindowComponent : DefaultComponent
+local DefaultBugReportWindowComponent = {}
+DefaultBugReportWindowComponent.__index = DefaultBugReportWindowComponent
+
+---@return DefaultBugReportWindowComponent
+function DefaultBugReportWindowComponent:new()
+    local instance = DefaultComponent.new(self, "BugReportWindow") --[[@as DefaultBugReportWindowComponent]]
+    instance._proxy = instance:_createProxy(BugReportWindow)
+    instance._globalKey = "BugReportWindow"
+    _G.BugReportWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultBugReportWindow
+function DefaultBugReportWindowComponent:getDefault()
+    return self._proxy or BugReportWindow --[[@as DefaultBugReportWindow]]
+end
+
+---@return Window
+function DefaultBugReportWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
 
 ---@return DefaultObjectHandleComponent
 function DefaultObjectHandleComponent:new()
@@ -6133,7 +6251,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateBugReport
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6148,7 +6267,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateBugReport
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -6761,6 +6881,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultBugReportWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6896,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.BugReportWindow = DefaultBugReportWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
