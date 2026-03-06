@@ -162,6 +162,21 @@ function Api.Ability.CastSpell(serverId)
 end
 
 -- ========================================================================== --
+-- Api - SpellsInfo
+-- ========================================================================== --
+
+Api.SpellsInfo = {}
+
+---
+--- Returns the skill variation range for the given spell ID, used to compute
+--- success chance as: ((skillLevel - minSkill) / variation) * 100.
+---@param spellId integer The spell ID (same range as used in GetAbilityData).
+---@return integer variation The skill variation range for the spell.
+function Api.SpellsInfo.GetVariation(spellId)
+    return SpellsInfo.GetVariation(spellId)
+end
+
+-- ========================================================================== --
 -- Api - Hotbar
 -- ========================================================================== --
 

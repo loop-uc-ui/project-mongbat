@@ -134,7 +134,7 @@ local function buildTooltip(Api, Data, Constants, bookId, abilityId)
                 skillLevel = 20
             end
 
-            local variation = SpellsInfo.GetVariation(abilityId)
+            local variation = Api.SpellsInfo.GetVariation(abilityId)
             local success
             if skillLevel < minskill then
                 success = 0
@@ -144,7 +144,8 @@ local function buildTooltip(Api, Data, Constants, bookId, abilityId)
                 success = ((skillLevel - minskill) * 100) / variation
             end
             success = string.format("%1.1f", success)
-            minskillStr = minskillStr .. L"<BR><BR>Success Chance: " ..
+            minskillStr = minskillStr ..
+                L"<BR><BR>" .. L"Success Chance: " ..
                 Api.String.StringToWString(tostring(success)) .. L"%"
         end
     end
@@ -212,8 +213,6 @@ local function SpellSlot(context, bookId, slotIndex)
             local icon, serverId = Api.Ability.GetAbilityData(abilityId)
             if serverId == nil then return end
             Api.Ability.CastSpell(serverId)
-        end,
-        OnRButtonDown = function(self)
         end,
         OnRButtonUp = function(self)
             local bookData = books[bookId]
