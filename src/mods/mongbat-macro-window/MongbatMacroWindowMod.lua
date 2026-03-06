@@ -78,7 +78,7 @@ local function OnInitialize(context)
         -- Binding
         local binding = Api.Macro.GetBinding(staticMacroId, macroIndex)
         if binding == L"" then
-            bindingView:setText(GetStringFromTid(TID_NO_KEYBINDING))
+            bindingView:setText(Api.String.GetStringFromTid(TID_NO_KEYBINDING))
         else
             bindingView:setText(binding)
         end
@@ -173,13 +173,13 @@ local function OnInitialize(context)
         if Api.Macro.HasBindingConflict() then
             -- Conflict: ask the user via a standard dialog whether to replace.
             local recordedKey  = Api.Macro.GetRecordedKey()
-            local conflictBody = GetStringFromTid(1079170) ..
+            local conflictBody = Api.String.GetStringFromTid(1079170) ..
                 L"\n\n" ..
                 Api.Hotbar.GetKeyName(
                     Api.Macro.GetConflictHotbarId(),
                     Api.Macro.GetConflictItemIndex(),
                     Api.Macro.GetConflictBindType()) ..
-                L"\n\n" .. GetStringFromTid(1094839)
+                L"\n\n" .. Api.String.GetStringFromTid(1094839)
 
             local yesButton = {
                 textTid  = 1049717,
@@ -281,12 +281,12 @@ local function OnInitialize(context)
         Template = "MongbatButton18",
         OnInitialize = function(self)
             self:setDimensions(100, 30)
-            self:setText(GetStringFromTid(TID_CREATE))
+            self:setText(Api.String.GetStringFromTid(TID_CREATE))
         end,
         OnLButtonUp = function(self)
             local newIndex = Api.Macro.AddMacroItem()
             Api.Macro.SetName(staticMacroId, newIndex,
-                GetStringFromTid(3000394) .. towstring(newIndex))
+                Api.String.GetStringFromTid(3000394) .. towstring(newIndex))
             Api.Macro.SetIconId(staticMacroId, newIndex, 0)
             Api.Macro.OpenEditWindow(staticMacroId, newIndex)
             Api.Window.SetShowing("ActionsWindow", true)
