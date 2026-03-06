@@ -38,9 +38,9 @@ local function OnInitialize(ctx)
 
     --- Destroys all current result row views and resets state.
     local function clearItemList()
-        for i = 1, totalItems do
+        ctx.Utils.Array.ForEach(items, function(_, i)
             ctx.Api.Window.Destroy(ITEM_PREFIX .. i)
-        end
+        end)
         items = {}
         itemViews = {}
         totalItems = 0
@@ -134,20 +134,17 @@ local function OnInitialize(ctx)
         -- Search built-in waypoints across all facets.
         local waypointsData = ctx.Data.Waypoints()
         if waypointsData and waypointsData.Facet then
-            for map, array in pairs(waypointsData.Facet) do
-                for idx = 1, #array do
-                    if string.find(string.lower(tostring(array[idx].Name)), textStr) then
+            ctx.Utils.Table.ForEach(waypointsData.Facet, function(map, array)
+                ctx.Utils.Array.ForEach(array, function(waypoint, idx)
+                    if string.find(string.lower(tostring(waypoint.Name)), textStr) then
                         if ctx.Api.Waypoint.GetInfoAt(idx, map) ~= nil then
-                            local wp = {}
-                            for k, v in pairs(array[idx]) do
-                                wp[k] = v
-                            end
+                            local wp = ctx.Utils.Table.Copy(waypoint)
                             wp.Map = map
                             table.insert(items, wp)
                         end
                     end
-                end
-            end
+                end)
+            end)
         end
 
         -- Search user-created waypoints (type 15 = custom).
@@ -177,9 +174,9 @@ local function OnInitialize(ctx)
 
         -- Build result rows.
         totalItems = #items
-        for i = 1, totalItems do
-            itemViews[i] = createItemRow(i, items[i])
-        end
+        ctx.Utils.Array.ForEach(items, function(itemData, i)
+            itemViews[i] = createItemRow(i, itemData)
+        end)
 
         -- Update total label and scroll rect.
         if totalLabel then
