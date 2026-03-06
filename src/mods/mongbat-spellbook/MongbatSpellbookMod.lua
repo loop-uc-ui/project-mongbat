@@ -300,13 +300,11 @@ local function OpenBook(context, bookId)
         local bookData      = Data.Spellbook(bookId)
 
         -- Highlight the selected tab.
-        for i = 1, bookState.numTabs do
-            if tabViews[i] then
-                tabViews[i]:setColor(i == tabNum
-                    and { r = 220, g = 200, b = 140, a = 255 }
-                    or  { r = 90,  g = 80,  b = 60,  a = 255 })
-            end
-        end
+        Utils.Array.ForEach(tabViews, function(view, i)
+            view:setColor(i == tabNum
+                and { r = 220, g = 200, b = 140, a = 255 }
+                or  { r = 90,  g = 80,  b = 60,  a = 255 })
+        end)
 
         -- Show tithing points for Chivalry.
         if tithLabel then
@@ -323,12 +321,10 @@ local function OpenBook(context, bookId)
             end
         end
 
-        for i = 1, MAX_SPELLS_PER_TAB do
-            local slot = slotViews[i]
-            if slot == nil then break end
-
+        Utils.Array.ForEach(slotViews, function(slot, i)
             local abilityId = firstSpellNum + pageOffset + i - 1
-            local icon, serverId, tid = Api.Ability.GetAbilityData(abilityId)
+            -- Only icon is needed here for texture lookup; serverId/tid used elsewhere.
+            local icon = Api.Ability.GetAbilityData(abilityId)
 
             if icon ~= nil and icon ~= 0 and i <= spellsPerTab then
                 local texture, tx, ty = Api.Icon.GetIconData(icon)
@@ -339,24 +335,24 @@ local function OpenBook(context, bookId)
             else
                 slot:setShowing(false)
             end
-        end
+        end)
     end
 
     -- ------------------------------------------------------------------ --
     -- Layout: arrange children in the window.
     -- ------------------------------------------------------------------ --
     -- Children are in a fixed order:
-    --   idx 1: title label
-    --   idx 2: tithing label
-    --   idx 3..10: tab buttons (MAX_SPELLS_PER_TAB = 8)
-    --   idx 11..18: spell slots (MAX_SPELLS_PER_TAB = 8)
+    --   idx 1: title label         (row 1: y = MARGIN)
+    --   idx 2: tithing label       (row 2: y = MARGIN + HEADER_H; hidden when not Chivalry)
+    --   idx 3..10: tab buttons     (row 3: y = MARGIN + 2*HEADER_H)
+    --   idx 11..18: spell slots    (4-column grid below tab row)
     local TAB_BASE  = 3
     local SLOT_BASE = 3 + MAX_SPELLS_PER_TAB  -- = 11
 
     local function BookLayout(window, children, child, idx)
         local winName2  = WIN_PREFIX .. bookId
-        local tabRowY   = MARGIN + HEADER_H
-        local slotRowY  = MARGIN + HEADER_H + TAB_H + ICON_PAD
+        local tabRowY   = MARGIN + 2 * HEADER_H
+        local slotRowY  = tabRowY + TAB_H + ICON_PAD
 
         -- Title label
         if idx == 1 then
@@ -364,7 +360,7 @@ local function OpenBook(context, bookId)
             child:addAnchor("topleft", winName2, "topleft", MARGIN, MARGIN)
             return
         end
-        -- Tithing label
+        -- Tithing label (second header row; hidden for non-Chivalry books)
         if idx == 2 then
             child:clearAnchors()
             child:addAnchor("topleft", winName2, "topleft", MARGIN, MARGIN + HEADER_H)
@@ -379,7 +375,7 @@ local function OpenBook(context, bookId)
                 tabRowY)
             return
         end
-        -- Spell slots (2-column grid below tab row)
+        -- Spell slots (4-column grid below tab row)
         local slotIdx = idx - SLOT_BASE + 1
         if slotIdx >= 1 and slotIdx <= MAX_SPELLS_PER_TAB then
             local col = (slotIdx - 1) % COLS
@@ -392,10 +388,11 @@ local function OpenBook(context, bookId)
     end
 
     -- Compute window dimensions.
+    -- Two header rows (title + tithing placeholder) + tab row + spell grid.
     local function bookWindowDimensions()
         local rows = math.ceil(MAX_SPELLS_PER_TAB / COLS)
         local w = MARGIN * 2 + COLS * ICON_SIZE + (COLS - 1) * ICON_PAD
-        local h = MARGIN * 2 + HEADER_H + TAB_H + ICON_PAD + rows * SPELL_ROW_H
+        local h = MARGIN * 2 + 2 * HEADER_H + TAB_H + ICON_PAD + rows * SPELL_ROW_H
         return w, h
     end
 
@@ -433,8 +430,6 @@ local function OpenBook(context, bookId)
             OnLButtonUp = function(self)
                 ShowTab(i)
             end,
-            OnMouseOver = function(self) end,
-            OnMouseOverEnd = function(self) end,
         }
         tabViews[i] = tabLabel
         table.insert(children, tabLabel)
@@ -462,9 +457,9 @@ local function OpenBook(context, bookId)
         end,
         OnShutdown = function(self)
             -- Clean up hotbar spell icon registrations.
-            for i = 1, MAX_SPELLS_PER_TAB do
+            Utils.Array.ForEach(slotViews, function(slot, i)
                 Api.Hotbar.UnregisterSpellIcon(WIN_PREFIX .. bookId .. "Slot" .. i)
-            end
+            end)
             books[bookId] = nil
         end,
         OnUpdateSpellbook = function(self, spellbook)
@@ -497,22 +492,20 @@ local function OpenBook(context, bookId)
 
                 -- Show/hide tab buttons and set tab labels.
                 local ordinals = { L"st", L"nd", L"rd" }
-                for i = 1, MAX_SPELLS_PER_TAB do
-                    if tabViews[i] then
-                        if i <= numTabs then
-                            if first == 1 then
-                                -- Magery uses ordinal labels (1st, 2nd, ... circle)
-                                local suffix = ordinals[i] or L"th"
-                                tabViews[i]:setText(towstring(i) .. suffix)
-                            else
-                                tabViews[i]:setText(towstring(i))
-                            end
-                            tabViews[i]:setShowing(true)
+                Utils.Array.ForEach(tabViews, function(view, i)
+                    if i <= numTabs then
+                        if first == 1 then
+                            -- Magery uses ordinal labels (1st, 2nd, ... circle)
+                            local suffix = ordinals[i] or L"th"
+                            view:setText(towstring(i) .. suffix)
                         else
-                            tabViews[i]:setShowing(false)
+                            view:setText(towstring(i))
                         end
+                        view:setShowing(true)
+                    else
+                        view:setShowing(false)
                     end
-                end
+                end)
 
                 -- Register spell icons for hotbar drag.
                 for i = first, first + spellsPerTab - 1 do
@@ -577,23 +570,17 @@ Mongbat.Mod {
         -- Override Initialize so the engine's call opens our window instead.
         originalSpellbook.Initialize = function()
             local bookId = Data.DynamicWindowId()
-            -- Hide the default XML window the engine just created.
-            local defaultWin = Data.ActiveWindowName()
-            if Api.Window.DoesExist(defaultWin) then
-                Api.Window.SetShowing(defaultWin, false)
-            end
+            -- Destroy the default XML window the engine just created so it does
+            -- not linger as a hidden resource.
+            Api.Window.Destroy(Data.ActiveWindowName())
             -- Open our Mongbat window.
             OpenBook(context, bookId)
         end
 
         -- Override Shutdown so our window is destroyed cleanly.
         originalSpellbook.Shutdown = function()
-            local defaultWin = Data.ActiveWindowName()
-            local bookId = Api.Window.GetId(defaultWin)
-            local ourWin = WIN_PREFIX .. bookId
-            if Api.Window.DoesExist(ourWin) then
-                Api.Window.Destroy(ourWin)
-            end
+            local bookId = Api.Window.GetId(Data.ActiveWindowName())
+            Api.Window.Destroy(WIN_PREFIX .. bookId)
         end
 
         -- Override ShutdownSpellIcon (called per spell icon on close).
@@ -617,23 +604,21 @@ Mongbat.Mod {
     end,
     OnShutdown = function(context)
         local Api        = context.Api
+        local Utils      = context.Utils
         local Components = context.Components
 
         -- Destroy any open spellbook windows.
-        for bookId, _ in pairs(books) do
-            local winName = WIN_PREFIX .. bookId
-            if Api.Window.DoesExist(winName) then
-                Api.Window.Destroy(winName)
-            end
-        end
+        Utils.Table.ForEach(books, function(bookId, _)
+            Api.Window.Destroy(WIN_PREFIX .. bookId)
+        end)
         books = {}
 
         -- Restore the original Spellbook functions.
         if savedSpellbookFunctions ~= nil then
             local originalSpellbook = Components.Defaults.Spellbook:getDefault()
-            for k, v in pairs(savedSpellbookFunctions) do
+            Utils.Table.ForEach(savedSpellbookFunctions, function(k, v)
                 originalSpellbook[k] = v
-            end
+            end)
             savedSpellbookFunctions = nil
         end
     end
