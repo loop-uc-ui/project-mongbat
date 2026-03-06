@@ -2623,6 +2623,18 @@ function Utils.Array.IndexOf(array, find)
     return -1
 end
 
+---Returns the 1-based index of the first element matching `find`, or `default` if not found.
+---@generic T
+---@param array T[]
+---@param find fun(item: T): boolean
+---@param default integer Fallback index when no match is found
+---@return integer
+function Utils.Array.IndexOfOrDefault(array, find, default)
+    local idx = Utils.Array.IndexOf(array, find)
+    if idx < 1 then return default end
+    return idx
+end
+
 ---@generic T
 ---@param array T[]
 ---@param find fun(item: T): boolean

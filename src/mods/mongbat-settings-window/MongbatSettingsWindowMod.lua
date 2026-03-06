@@ -65,7 +65,6 @@ local KEYBINDINGS = {
 
 -- Show-names combo options (index 1-3 stored in pending.showNamesIdx)
 local SHOWNAMES_LABELS = { L"None", L"Approaching", L"All" }
-local SHOWNAMES_IDS    = {}   -- populated in OnInitialize (engine values)
 
 -- Framerate combo options (index stored in pending.framerateIdx)
 local FPS_LABELS = { L"20", L"30", L"40", L"50", L"60", L"70", L"80", L"100", L"120", L"150", L"200" }
@@ -83,6 +82,10 @@ local function OnInitialize(context)
     local Api        = context.Api
     local Components = context.Components
     local Constants  = context.Constants
+    local Utils      = context.Utils
+
+    -- SHOWNAMES engine integer values: populated once from engine constants.
+    local SHOWNAMES_IDS = {}
 
     -- Snapshot SHOWNAMES constants via framework wrappers
     SHOWNAMES_IDS[1] = Constants.Settings.ShowNames.None()
@@ -115,16 +118,6 @@ local function OnInitialize(context)
     local bindingRefs  = {}   -- { label = Label, index = int }
 
     -- -----------------------------------------------------------------------
-    -- Helper: find index of value in an array, default to 1
-    -- -----------------------------------------------------------------------
-    local function findIndex(arr, value)
-        for i, v in ipairs(arr) do
-            if v == value then return i end
-        end
-        return 1
-    end
-
-    -- -----------------------------------------------------------------------
     -- loadSettings(): snapshot Data.Settings() -> pending, then refresh
     -- -----------------------------------------------------------------------
     local function loadSettings()
@@ -139,7 +132,8 @@ local function OnInitialize(context)
         pending.circleOfTrans   = s:getCircleOfTrans()
         pending.idleAnimation   = s:getIdleAnimation()
         pending.framerateMax    = s:getFramerateMax()
-        pending.framerateIdx    = findIndex(FPS_VALUES, s:getFramerateMax())
+        local framerateMax      = pending.framerateMax
+        pending.framerateIdx    = Utils.Array.IndexOfOrDefault(FPS_VALUES, function(v) return v == framerateMax end, 1)
 
         -- Sound
         pending.masterEnabled   = s:getMasterEnabled()
@@ -193,8 +187,8 @@ local function OnInitialize(context)
         pending.uiScale = math.floor(rawScale * 100 + 0.5)
 
         -- Mobiles on Screen (show names, stored as 1-based index)
-        pending.showNamesIdx = findIndex(SHOWNAMES_IDS,
-            s:getShowNames() or SHOWNAMES_IDS[1])
+        local showNames = s:getShowNames() or SHOWNAMES_IDS[1]
+        pending.showNamesIdx = Utils.Array.IndexOfOrDefault(SHOWNAMES_IDS, function(v) return v == showNames end, 1)
 
         -- Reset pending bindings
         pendingBindings = {}
@@ -267,9 +261,9 @@ local function OnInitialize(context)
         s:setShowNames(SHOWNAMES_IDS[pending.showNamesIdx])
 
         -- Key bindings
-        for atype, key in pairs(pendingBindings) do
+        Utils.Table.ForEach(pendingBindings, function(atype, key)
             Api.Settings.SetKeybinding(atype, key)
-        end
+        end)
         pendingBindings = {}
 
         Api.Settings.UserSettingsChanged()
@@ -279,24 +273,21 @@ local function OnInitialize(context)
     -- refreshAll(): push pending values into control views
     -- -----------------------------------------------------------------------
     local function refreshAll()
-        for _, c in ipairs(checkboxRefs) do
+        Utils.Array.ForEach(checkboxRefs, function(c)
             if c.view then c.view:setChecked(pending[c.key]) end
-        end
-        for _, c in ipairs(sliderRefs) do
+        end)
+        Utils.Array.ForEach(sliderRefs, function(c)
             if c.label then c.label:setText(c.fmt(pending[c.key])) end
-        end
-        for _, c in ipairs(comboRefs) do
+        end)
+        Utils.Array.ForEach(comboRefs, function(c)
             if c.label then c.label:setText(c.getLabel(pending[c.key])) end
-        end
-        for _, c in ipairs(bindingRefs) do
+        end)
+        Utils.Array.ForEach(bindingRefs, function(c)
             if c.label then
-                local b = pendingBindings[KEYBINDINGS[c.index].atype]
-                if b == nil then
-                    b = Api.Settings.GetKeybinding(KEYBINDINGS[c.index].atype)
-                end
+                local b = pendingBindings[KEYBINDINGS[c.index].atype] or Api.Settings.GetKeybinding(KEYBINDINGS[c.index].atype)
                 c.label:setText(b)
             end
-        end
+        end)
     end
 
     -- ======================================================================
@@ -646,12 +637,11 @@ local function OnInitialize(context)
         end,
     }
 
-    for i = 1, #KEYBINDINGS do
-        local bIdx = i
+    Utils.Array.ForEach(KEYBINDINGS, function(binding, bIdx)
         local bRef = { index = bIdx }
-        bindingRefs[#bindingRefs + 1] = bRef
+        Utils.Array.Add(bindingRefs, bRef)
 
-        bindingRows[#bindingRows + 1] = Components.Window {
+        Utils.Array.Add(bindingRows, Components.Window {
             Resizable = false,
             OnLayout  = NoOpLayout,
             OnInitialize = function(self)
@@ -659,10 +649,7 @@ local function OnInitialize(context)
                 self:setDimensions(CONTENT_W, ROW_H)
                 local colW   = math.floor(CONTENT_W / 2) - MARGIN
                 local setW   = ROW_H * 2
-                local keyVal = pendingBindings[KEYBINDINGS[bIdx].atype]
-                if keyVal == nil then
-                    keyVal = Api.Settings.GetKeybinding(KEYBINDINGS[bIdx].atype)
-                end
+                local keyVal = pendingBindings[binding.atype] or Api.Settings.GetKeybinding(binding.atype)
 
                 local keyLabel = Components.Label {
                     OnInitialize = function(s)
@@ -676,7 +663,7 @@ local function OnInitialize(context)
                 self:setChildren({
                     Components.Label {
                         OnInitialize = function(s)
-                            s:setText(KEYBINDINGS[bIdx].name)
+                            s:setText(binding.name)
                             s:setDimensions(colW, ROW_H)
                             s:addAnchor("topleft", parent, "topleft", MARGIN, 4)
                         end,
@@ -696,8 +683,8 @@ local function OnInitialize(context)
                     },
                 })
             end,
-        }
-    end
+        })
+    end)
 
     local keyBindPanel = TabPanel(bindingRows)
 
@@ -997,11 +984,11 @@ local function OnInitialize(context)
                 if recorded ~= L"" then
                     local atype = KEYBINDINGS[recordingIndex].atype
                     pendingBindings[atype] = recorded
-                    for _, ref in ipairs(bindingRefs) do
+                    Utils.Array.ForEach(bindingRefs, function(ref)
                         if ref.index == recordingIndex and ref.label then
                             ref.label:setText(recorded)
                         end
-                    end
+                    end)
                 end
                 recordingIndex = nil
             end,
