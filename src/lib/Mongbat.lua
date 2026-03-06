@@ -2349,6 +2349,13 @@ function Api.InterfaceCore.GetScaleFactor()
     return 1 / InterfaceCore.scale
 end
 
+---
+--- Gets the raw UI scale of the interface (InterfaceCore.scale).
+---@return number The raw UI scale.
+function Api.InterfaceCore.GetScale()
+    return InterfaceCore.scale
+end
+
 function Api.InterfaceCore.ReloadUI()
     InterfaceCore.ReloadUI()
 end
@@ -2985,6 +2992,13 @@ Constants.SystemEvents.OnUpdateProcessed = {
         return SystemData.Events["UPDATE_PROCESSED"]
     end,
     name = "OnUpdateProcessed"
+}
+
+Constants.SystemEvents.OnViewportChanged = {
+    getEvent = function()
+        return SystemData.Events["VIEWPORT_CHANGED"]
+    end,
+    name = "OnViewportChanged"
 }
 
 Constants.CoreEvents = {}
@@ -3792,6 +3806,55 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
+-- Data - Resolution
+-- ========================================================================== --
+
+---@class ResolutionWrapper
+local ResolutionData = {}
+ResolutionData.__index = ResolutionData
+
+function ResolutionData:new()
+    return setmetatable({}, self)
+end
+
+---@return boolean
+function ResolutionData:isViewportEnabled()
+    return SystemData.Settings.Resolution.viewportEnabled ~= false
+end
+
+---@return number
+function ResolutionData:getViewportPosX()
+    return SystemData.Settings.Resolution.viewportPos.x
+end
+
+---@return number
+function ResolutionData:getViewportPosY()
+    return SystemData.Settings.Resolution.viewportPos.y
+end
+
+---@return number
+function ResolutionData:getViewportSizeX()
+    return SystemData.Settings.Resolution.viewportSize.x
+end
+
+---@return number
+function ResolutionData:getViewportSizeY()
+    return SystemData.Settings.Resolution.viewportSize.y
+end
+
+---@return ResolutionWrapper
+function Data.Resolution()
+    return ResolutionData:new()
+end
+
+---
+--- Returns the screen resolution as a table with x and y fields.
+---@return SystemData.Position
+function Data.ScreenResolution()
+    return SystemData.screenResolution
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 
@@ -4156,6 +4219,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
+---@field OnViewportChanged fun(self: Window)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
 ---@field MinWidth number? Minimum width when resizing. Defaults to 100.
@@ -4821,6 +4885,52 @@ end
 
 ---@return Window
 function DefaultDebugWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Resize Window
+-- ========================================================================== --
+
+---@class DefaultResizeWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field Update fun(timePassed: number)
+---@field UpdateViewport fun()
+---@field StartMoving fun()
+---@field StopMoving fun()
+---@field OnResizeBegin fun()
+---@field OnResizeEnd fun()
+---@field UpdateHandles fun(width: number, height: number)
+---@field SendViewportData fun(windowWidth: number, windowHeight: number)
+---@field UpdateWindow fun()
+---@field OnViewportChanged fun()
+---@field Lock fun()
+---@field LockTooltip fun()
+---@field IsMoving boolean
+---@field Locked boolean
+---@field HANDLE_SIZE integer
+
+---@class DefaultResizeWindowComponent : DefaultComponent
+local DefaultResizeWindowComponent = {}
+DefaultResizeWindowComponent.__index = DefaultResizeWindowComponent
+
+---@return DefaultResizeWindowComponent
+function DefaultResizeWindowComponent:new()
+    local instance = DefaultComponent.new(self, "ResizeWindow") --[[@as DefaultResizeWindowComponent]]
+    instance._proxy = instance:_createProxy(ResizeWindow)
+    instance._globalKey = "ResizeWindow"
+    _G.ResizeWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultResizeWindow
+function DefaultResizeWindowComponent:getDefault()
+    return self._proxy or ResizeWindow --[[@as DefaultResizeWindow]]
+end
+
+---@return Window
+function DefaultResizeWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -5546,6 +5656,12 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnViewportChanged()
+    withActiveView("OnViewportChanged", function(window)
+        window:onViewportChanged()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6110,6 +6226,14 @@ end
 function View:onKeyEscape()
     if self._model.OnKeyEscape ~= nil then
         self._model.OnKeyEscape(self)
+        return true
+    end
+    return false
+end
+
+function View:onViewportChanged()
+    if self._model.OnViewportChanged ~= nil then
+        self._model.OnViewportChanged(self)
         return true
     end
     return false
@@ -6761,6 +6885,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultResizeWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6900,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.ResizeWindow = DefaultResizeWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
