@@ -228,6 +228,7 @@ Detailed procedural skills live in `.github/skills/`. **Read the relevant skill 
 | Skill | File | When to use |
 |---|---|---|
 | Reimplementing a Default UI Window | `.github/skills/reimplementing-default-ui.md` | Replacing any default UI window with a Mongbat mod. Covers research, suppression, data binding, interactions, and shutdown symmetry. |
+| Code Review | `.github/skills/code-review.md` | Reviewing a Mongbat mod PR. Checklist covering engine global violations, event system usage, DefaultComponent suppression, shutdown symmetry, variable scoping, wstring, framework absorption, component model, Lua compatibility, type annotations, acceptance criteria, and code quality. |
 
 ---
 
