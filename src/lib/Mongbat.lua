@@ -3683,6 +3683,14 @@ function PlayerStatus:isInWarMode()
     return self:getData().InWarMode or false
 end
 
+function PlayerStatus:getFollowers()
+    return self:getData().Followers or 0
+end
+
+function PlayerStatus:getMaxFollowers()
+    return self:getData().MaxFollowers or 0
+end
+
 function PlayerStatus:getId()
     return self:getData().PlayerId or 0
 end

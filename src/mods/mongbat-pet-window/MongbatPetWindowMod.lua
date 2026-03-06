@@ -52,6 +52,7 @@ end
 local function OnInitialize(context)
     local Api = context.Api
     local Data = context.Data
+    local Utils = context.Utils
     local Constants = context.Constants
     local Components = context.Components
 
@@ -64,9 +65,9 @@ local function OnInitialize(context)
 
     --- Destroys all current pet row windows and clears the tracking table.
     local function DestroyPetRows()
-        for _, row in pairs(petRowsByPetId) do
+        Utils.Table.ForEach(petRowsByPetId, function(_, row)
             row:destroy()
-        end
+        end)
         petRowsByPetId = {}
     end
 
@@ -157,11 +158,9 @@ local function OnInitialize(context)
         if not isExpanded then return end
 
         local petIds = pets:getPetIds()
-        local count = table.getn(petIds)
         local prevAnchor = NAME
 
-        for i = 1, count do
-            local petId = petIds[i]
+        Utils.Array.ForEach(petIds, function(petId)
             local row = PetRow(petId)
             row:create(false)
             row:clearAnchors()
@@ -169,7 +168,7 @@ local function OnInitialize(context)
             row:setShowing(true)
             petRowsByPetId[petId] = row
             prevAnchor = row:getName()
-        end
+        end)
     end
 
     --- The header label showing "Pets [x/y]".
@@ -181,12 +180,9 @@ local function OnInitialize(context)
                 self:setText(L"Pets")
             end,
             OnUpdatePlayerStatus = function(self, playerStatus)
-                local data = playerStatus:getData()
-                local followers = data.Followers or 0
-                local maxFollowers = data.MaxFollowers or 0
-                self:setText(
-                    L"Pets [" .. towstring(followers) .. L"/" .. towstring(maxFollowers) .. L"]"
-                )
+                local f = towstring(playerStatus:getFollowers())
+                local mf = towstring(playerStatus:getMaxFollowers())
+                self:setText(L"Pets [" .. f .. L"/" .. mf .. L"]")
             end
         }
     end
