@@ -15,6 +15,9 @@ Mongbat.Mod {
         end
 
         local csv = context.Data.TipoftheDayCSV()
+        if csv == nil or table.getn(csv) == 0 then
+            return
+        end
         local tipIndex = context.Api.Math.GetRandomNumber(table.getn(csv)) + 1
 
         local tipLabel = context.Components.Label {
