@@ -332,6 +332,28 @@ function Api.Chat.PrintToChatWindow(wString, filter)
     PrintWStringToChatWindow(wString, filter)
 end
 
+---
+--- Gets the color associated with a chat channel filter.
+---@param filterId number The filter ID from SystemData.ChatLogFilters.
+---@return table|nil color The color table { r, g, b }, or nil if not found.
+function Api.Chat.GetChannelColor(filterId)
+    return ChatSettings.ChannelColors[filterId]
+end
+
+---
+--- Gets the table of chat channel definitions.
+---@return table channels The ChatSettings.Channels table.
+function Api.Chat.GetChannels()
+    return ChatSettings.Channels
+end
+
+---
+--- Gets the chat log filter ID table (e.g. SAY, WHISPER, YELL, ...).
+---@return table filters The SystemData.ChatLogFilters table.
+function Api.Chat.GetLogFilters()
+    return SystemData.ChatLogFilters
+end
+
 -- ========================================================================== --
 -- Api - Circle Image
 -- ========================================================================== --
@@ -4825,6 +4847,62 @@ function DefaultDebugWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - New Chat Window
+-- ========================================================================== --
+
+---@class DefaultNewChatWindowComponent : DefaultComponent
+local DefaultNewChatWindowComponent = {}
+DefaultNewChatWindowComponent.__index = DefaultNewChatWindowComponent
+
+---@return DefaultNewChatWindowComponent
+function DefaultNewChatWindowComponent:new()
+    local instance = DefaultComponent.new(self, "NewChatWindow") --[[@as DefaultNewChatWindowComponent]]
+    instance._proxy = instance:_createProxy(NewChatWindow)
+    instance._globalKey = "NewChatWindow"
+    _G.NewChatWindow = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultNewChatWindowComponent:getDefault()
+    return self._proxy or NewChatWindow
+end
+
+---@return Window
+function DefaultNewChatWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Chat Window
+-- ========================================================================== --
+
+---@class DefaultChatWindowComponent : DefaultComponent
+local DefaultChatWindowComponent = {}
+DefaultChatWindowComponent.__index = DefaultChatWindowComponent
+
+---@return DefaultChatWindowComponent
+function DefaultChatWindowComponent:new()
+    local instance = DefaultComponent.new(self, "ChatWindow") --[[@as DefaultChatWindowComponent]]
+    if ChatWindow ~= nil then
+        instance._proxy = instance:_createProxy(ChatWindow)
+        instance._globalKey = "ChatWindow"
+        _G.ChatWindow = instance._proxy
+    end
+    return instance
+end
+
+---@return table
+function DefaultChatWindowComponent:getDefault()
+    return self._proxy or ChatWindow
+end
+
+---@return Window
+function DefaultChatWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Object Handle
 -- ========================================================================== --
 
@@ -5704,6 +5782,21 @@ end
 ---@return LogDisplay
 function LogDisplay:removeLog(logName)
     Api.LogDisplay.RemoveLog(self:getName(), logName)
+    return self
+end
+
+---Shows or hides the scrollbar on the log display
+---@param show boolean
+---@return LogDisplay
+function LogDisplay:showScrollbar(show)
+    Api.LogDisplay.ShowScrollbar(self:getName(), show)
+    return self
+end
+
+---Scrolls the log display to the bottom
+---@return LogDisplay
+function LogDisplay:scrollToBottom()
+    Api.LogDisplay.ScrollToBottom(self:getName())
     return self
 end
 
@@ -6775,6 +6868,8 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.NewChatWindow = DefaultNewChatWindowComponent:new()
+Components.Defaults.ChatWindow = DefaultChatWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
