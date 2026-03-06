@@ -20,6 +20,8 @@ LOCK_SYMBOLS[2] = L"\x25A0"
 
 local MAX_LOCK_STATE = 2
 
+local INFO_NAME = "MongbatSkillsInfo"
+
 -- Saved reference to the original Actions.ToggleSkillsWindow for restoration on shutdown
 local originalToggleSkillsWindow = nil
 
@@ -35,9 +37,7 @@ local function OnInitialize(context)
     skillsDefault:disable()
 
     -- Destroy the already-existing default window (created by Interface.lua at startup)
-    if Api.Window.DoesExist("SkillsWindow") then
-        Api.Window.Destroy("SkillsWindow")
-    end
+    Api.Window.Destroy("SkillsWindow")
 
     -- Load skill CSV data so WindowData.SkillsCSV is populated
     Api.Skill.LoadCSV()
@@ -55,6 +55,12 @@ local function OnInitialize(context)
     local rowServerIds = {}
     for i = 1, VISIBLE_ROWS do
         rowServerIds[i] = -1
+    end
+
+    -- rowCsvIds[i] = csvId currently displayed in visible row slot i
+    local rowCsvIds = {}
+    for i = 1, VISIBLE_ROWS do
+        rowCsvIds[i] = -1
     end
 
     -- References to visible row Button views
@@ -169,11 +175,13 @@ local function OnInitialize(context)
         if btn == nil then return end
         if csvId == nil then
             rowServerIds[rowIndex] = -1
+            rowCsvIds[rowIndex] = -1
             btn:setShowing(false)
         else
             local csv = Data.SkillsCSV()
             local serverId = csv and csv[csvId] and csv[csvId].ServerId or -1
             rowServerIds[rowIndex] = serverId
+            rowCsvIds[rowIndex] = csvId
             btn:setText(getRowText(csvId))
             btn:setShowing(true)
         end
@@ -195,6 +203,66 @@ local function OnInitialize(context)
         end
         local points = math.floor(total / 10)
         totalPointsLabel:setText(L"Total: " .. towstring(points) .. L" / 720")
+    end
+
+    -- Show a skill detail popup for a skill identified by its csvId.
+    -- Destroys any existing popup before creating the new one (lazy creation).
+    local function showSkillInfo(csvId)
+        Api.Window.Destroy(INFO_NAME)
+        local csv = Data.SkillsCSV()
+        if csv == nil or csv[csvId] == nil then return end
+        local entry = csv[csvId]
+        local skillData = Data.SkillDynamicData(entry.ServerId)
+        local lockState = skillData:getLockState()
+        local lockSym = LOCK_SYMBOLS[lockState] or LOCK_SYMBOLS[0]
+        local infoChildren = {
+            Components.Label {
+                OnInitialize = function(self)
+                    self:setDimensions(180, 20)
+                    self:setText(Api.String.GetStringFromTid(entry.NameTid))
+                end
+            },
+            Components.Label {
+                OnInitialize = function(self)
+                    self:setDimensions(180, 20)
+                    local realVal = skillData:getValue()
+                    local modVal = skillData:getModifiedValue()
+                    local text = L"Value: " .. formatValue(realVal)
+                    if modVal ~= realVal then
+                        text = text .. L" (" .. formatValue(modVal) .. L")"
+                    end
+                    self:setText(text)
+                end
+            },
+            Components.Label {
+                OnInitialize = function(self)
+                    self:setDimensions(180, 20)
+                    self:setText(L"Cap: " .. formatValue(skillData:getCap()))
+                end
+            },
+            Components.Label {
+                OnInitialize = function(self)
+                    self:setDimensions(180, 20)
+                    self:setText(L"Lock: " .. lockSym)
+                end
+            },
+        }
+        Components.Window {
+            Name = INFO_NAME,
+            Resizable = false,
+            OnInitialize = function(self)
+                self:setDimensions(200, 110)
+                self:setChildren(infoChildren)
+            end,
+            OnLayout = function(window, _, child, index)
+                local winName = window:getName()
+                child:clearAnchors()
+                child:addAnchor("topleft", winName, "topleft", 10, 10 + (index - 1) * 24)
+            end,
+            OnRButtonUp = function()
+                Api.Window.Destroy(INFO_NAME)
+            end
+        }:create(true)
     end
 
     -- Find which visible row is displaying a given serverId, or nil if not visible
@@ -247,6 +315,12 @@ local function OnInitialize(context)
                 local serverId = rowServerIds[rowIndex]
                 if serverId == nil or serverId < 0 then return end
                 Api.Skill.UseSkill(serverId)
+            end,
+            OnRButtonUp = function(self)
+                -- Show skill info popup for the skill in this row
+                local csvId = rowCsvIds[rowIndex]
+                if csvId == nil or csvId < 0 then return end
+                showSkillInfo(csvId)
             end,
             OnMouseWheel = function(self, x, y, delta)
                 onScroll(delta)
@@ -431,6 +505,7 @@ local function OnShutdown(context)
         context.Api.Window.UnregisterData(dataType, i)
     end
 
+    context.Api.Window.Destroy(INFO_NAME)
     context.Api.Window.Destroy(NAME)
 
     -- Unload the skills CSV table from memory
