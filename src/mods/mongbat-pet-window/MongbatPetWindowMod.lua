@@ -180,9 +180,9 @@ local function OnInitialize(context)
                 self:setText(L"Pets")
             end,
             OnUpdatePlayerStatus = function(self, playerStatus)
-                local f = towstring(playerStatus:getFollowers())
-                local mf = towstring(playerStatus:getMaxFollowers())
-                self:setText(L"Pets [" .. f .. L"/" .. mf .. L"]")
+                local followers = towstring(playerStatus:getFollowers())
+                local maxFollowers = towstring(playerStatus:getMaxFollowers())
+                self:setText(L"Pets [" .. followers .. L"/" .. maxFollowers .. L"]")
             end
         }
     end
