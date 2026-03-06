@@ -29,8 +29,10 @@ local ROW_H          = 28
 local ACCEPT_H       = 30
 
 -- File-scoped: must survive across OnInitialize and OnShutdown to allow
--- the original TradeWindow functions to be restored on mod unload.
+-- the original TradeWindow functions to be restored on mod unload, and to
+-- ensure any active trade windows are destroyed during mod shutdown.
 local _savedInit, _savedShutdown, _savedClose
+local _activeWindows = {}
 
 ---@param context Context
 local function OnInitialize(context)
@@ -47,7 +49,7 @@ local function OnInitialize(context)
     _savedClose    = tradeDefault:getDefault().CloseWindow
 
     -- Track active trade windows: defaultWindowName -> mongbatWindowName
-    local activeWindows = {}
+    -- Uses file-scoped _activeWindows so OnShutdown can clean up leaks.
 
     -- ------------------------------------------------------------------ --
     -- Helper: safely destroy our Mongbat window
@@ -59,8 +61,9 @@ local function OnInitialize(context)
     end
 
     -- ------------------------------------------------------------------ --
-    -- Rebuild one side's item list from container data
-    -- Slots are simple DynamicImage windows stacked top-to-bottom.
+    -- Rebuild one side's item list from container data.
+    -- Each slot is a Components.DynamicImage so it lives in Cache and
+    -- receives OnMouseOver / OnMouseOverEnd via standard event dispatch.
     -- ------------------------------------------------------------------ --
     ---@param scrollChild string  parent window for item slots
     ---@param containerId integer
@@ -71,7 +74,8 @@ local function OnInitialize(context)
             Api.Window.UnregisterData(
                 Constants.DataEvents.OnUpdateObjectInfo.getType(), id)
         end
-        -- Destroy old slot windows
+        -- Destroy old slot windows (Cache cleanup fires automatically via
+        -- the OnShutdown CoreEvent registered by Components.DynamicImage)
         local i = 1
         while Api.Window.DoesExist(scrollChild .. "Slot" .. i) do
             Api.Window.Destroy(scrollChild .. "Slot" .. i)
@@ -95,28 +99,52 @@ local function OnInitialize(context)
                     Constants.DataEvents.OnUpdateObjectInfo.getType(), oid)
 
                 local slotName = scrollChild .. "Slot" .. idx
-                Api.Window.CreateFromTemplate(
-                    slotName, "MongbatDynamicImage", scrollChild, true)
-                Api.Window.SetDimensions(slotName, ICON_SIZE, ICON_SIZE)
-                Api.Window.ClearAnchors(slotName)
+
+                -- Use Components.DynamicImage so the slot is in Cache and
+                -- can receive standard Mongbat event dispatch (mouse-over, etc.)
+                local slot = Components.DynamicImage {
+                    Name = slotName,
+                    OnInitialize = function(self)
+                        self:setDimensions(ICON_SIZE, ICON_SIZE)
+                        local info = Data.ObjectInfo(oid)
+                        local tex  = info:getIconTexture()
+                        if tex ~= "" then
+                            self:setTexture(tex,
+                                info:getIconX(), info:getIconY())
+                            Api.DynamicImage.SetTextureDimensions(
+                                self:getName(), ICON_SIZE, ICON_SIZE)
+                        end
+                    end,
+                    OnMouseOver = function(self)
+                        local itemData = {
+                            windowName = self:getName(),
+                            itemId     = oid,
+                            itemType   = Constants.ItemPropertyType.Item,
+                            detail     = Constants.ItemPropertyDetail.Long
+                        }
+                        Api.ItemProperties.SetActiveItem(itemData)
+                    end,
+                    OnMouseOverEnd = function(self)
+                        Api.ItemProperties.ClearMouseOverItem()
+                    end,
+                    OnLButtonDblClk = function(self)
+                        Api.UserAction.UseItem(oid, false)
+                    end
+                }
+
+                -- Create at Root first, then reparent to the scroll child
+                slot:create(true)
+                slot:onInitialize()
+                slot:setParent(scrollChild)
+                slot:clearAnchors()
                 if prevSlot == nil then
-                    Api.Window.AddAnchor(slotName, "topleft", scrollChild,
+                    slot:addAnchor("topleft", scrollChild,
                         "topleft", PADDING, PADDING)
                 else
-                    Api.Window.AddAnchor(slotName, "topleft", prevSlot,
+                    slot:addAnchor("topleft", prevSlot,
                         "bottomleft", 0, PADDING)
                 end
                 prevSlot = slotName
-
-                -- Set the icon texture
-                local info = Data.ObjectInfo(oid)
-                local tex  = info:getIconTexture()
-                if tex ~= "" then
-                    Api.DynamicImage.SetTexture(
-                        slotName, tex, info:getIconX(), info:getIconY())
-                    Api.DynamicImage.SetTextureDimensions(
-                        slotName, ICON_SIZE, ICON_SIZE)
-                end
             end
         end
     end
@@ -541,7 +569,7 @@ local function OnInitialize(context)
                 Api.Window.UnregisterData(
                     Constants.DataEvents.OnUpdateContainerWindow.getType(),
                     containerId2)
-                activeWindows[defaultWindowName] = nil
+                _activeWindows[defaultWindowName] = nil
                 destroyTradeWindow(mongbatName)
             end,
 
@@ -552,7 +580,7 @@ local function OnInitialize(context)
         }
 
         window:create(true)
-        activeWindows[defaultWindowName] = mongbatName
+        _activeWindows[defaultWindowName] = mongbatName
     end
 
     -- ------------------------------------------------------------------ --
@@ -577,10 +605,10 @@ local function OnInitialize(context)
     -- ------------------------------------------------------------------ --
     tradeDefault:getDefault().Shutdown = function()
         local defaultWindowName = Data.ActiveWindowName()
-        local mongbatName       = activeWindows[defaultWindowName]
+        local mongbatName       = _activeWindows[defaultWindowName]
         if mongbatName then
             destroyTradeWindow(mongbatName)
-            activeWindows[defaultWindowName] = nil
+            _activeWindows[defaultWindowName] = nil
         end
         Api.ItemProperties.ClearMouseOverItem()
     end
@@ -591,10 +619,10 @@ local function OnInitialize(context)
     -- ------------------------------------------------------------------ --
     tradeDefault:getDefault().CloseWindow = function()
         local defaultWindowName = Data.ActiveWindowName()
-        local mongbatName       = activeWindows[defaultWindowName]
+        local mongbatName       = _activeWindows[defaultWindowName]
         if mongbatName then
             destroyTradeWindow(mongbatName)
-            activeWindows[defaultWindowName] = nil
+            _activeWindows[defaultWindowName] = nil
         end
         Api.ItemProperties.ClearMouseOverItem()
         if Api.Window.DoesExist(defaultWindowName) then
@@ -608,7 +636,19 @@ end
 -- ========================================================================== --
 ---@param context Context
 local function OnShutdown(context)
+    local Api          = context.Api
     local tradeDefault = context.Components.Defaults.TradeWindow
+
+    -- Destroy any Mongbat trade windows that are still open (e.g. during
+    -- logout while a trade is in progress).
+    for defaultName, mongbatName in pairs(_activeWindows) do
+        if Api.Window.DoesExist(mongbatName) then
+            Api.Window.Destroy(mongbatName)
+        end
+        _activeWindows[defaultName] = nil
+    end
+    Api.ItemProperties.ClearMouseOverItem()
+
     -- Restore the individual function overrides so the original table is
     -- pristine before restoring the global pointer.
     if _savedInit then
