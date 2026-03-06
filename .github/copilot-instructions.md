@@ -303,6 +303,7 @@ DragSlotSetObjectMouseClickData(slot.slotId, SystemData.DragSource.SOURCETYPE_PA
 ItemProperties.SetActiveItem(itemData)
 local formatted = string.format("%d / %d", current, max)
 for i, v in pairs(WindowData.SkillDynamicData) do ... end
+for i = 1, #someArray do doSomething(someArray[i]) end
 local name = GetStringFromTid(1079170)
 ```
 
@@ -314,9 +315,12 @@ local slot = paperdoll:getSlot(slotIndex)
 Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
 Api.ItemProperties.SetActiveItem(itemData)
 local formatted = towstring(current) .. L" / " .. towstring(max)
-for i, v in Utils.Table.iterate(Data.SkillDynamicData()) do ... end
+Utils.Table.ForEach(Data.SkillDynamicData(), function(i, v) ... end)
+Utils.Table.ForEach(someArray, function(i, value) doSomething(value) end)
 local name = Api.String.GetStringFromTid(1079170)
 ```
+
+**Note on iteration:** Mod code should **never** use raw `for i = 1, #tbl`, `for k, v in pairs(tbl)`, or `for i, v in ipairs(tbl)` loops. Always use `Utils.Table.ForEach(tbl, function(k, v) ... end)`. This ensures nil-safety (the function is a no-op if the table is nil) and keeps iteration patterns consistent across all mods.
 
 #### 3.2 Variable Scoping
 
