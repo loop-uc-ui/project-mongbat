@@ -142,7 +142,6 @@ local function OnInitialize(context)
                 Api.Window.SetOffsetFromParent(barName, x, y)
             end,
             OnLButtonUp = function(self)
-                if not Api.Window.DoesExist(self:getName()) then return end
                 if Data.Drag():isDraggingItem() then
                     Api.Drag.DragToObject(self:getId())
                 else
@@ -150,7 +149,6 @@ local function OnInitialize(context)
                 end
             end,
             OnRButtonUp = function(self)
-                if not Api.Window.DoesExist(self:getName()) then return end
                 Api.ContextMenu.RequestMenu(self:getId())
             end
         }
