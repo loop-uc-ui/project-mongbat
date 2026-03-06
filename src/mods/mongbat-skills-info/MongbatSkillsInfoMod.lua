@@ -102,6 +102,17 @@ local TID_TRAINING       = 1155272
 -- TID for the "More" section header
 local TID_MORE = 1078601
 
+-- Layout constants
+local WINDOW_WIDTH    = 400
+local WINDOW_HEIGHT   = 500
+local SCROLL_PADDING  = 40
+
+-- Locale placeholder token present in certain TID strings (e.g. Requirements)
+local MARKUP_PLACEHOLDER = L" ~1_val~"
+
+-- Filesystem filename prefix for skill training text files
+local TRAINING_FILE_PREFIX = "uo-skillinfo-training-"
+
 -- ========================================================================== --
 -- Mod
 -- ========================================================================== --
@@ -197,7 +208,7 @@ Mongbat.Mod {
                 totalH = totalH + dims.y
             end
             -- Add padding to account for inter-section gap offsets.
-            Api.Window.SetDimensions(SCROLL_CHILD, 350, totalH + 40)
+            Api.Window.SetDimensions(SCROLL_CHILD, 350, totalH + SCROLL_PADDING)
             Api.ScrollWindow.UpdateScrollRect(SCROLL_VIEW)
             Api.ScrollWindow.SetOffset(SCROLL_VIEW, 0)
         end
@@ -211,7 +222,7 @@ Mongbat.Mod {
             Name     = NAME,
             Template = "MongbatSkillsInfoTemplate",
             OnInitialize = function(self)
-                self:setDimensions(400, 500)
+                self:setDimensions(WINDOW_WIDTH, WINDOW_HEIGHT)
                 Api.Window.ClearAnchors(NAME)
                 Api.Window.AddAnchor(NAME, "topright", "SkillsWindow", "topleft", 0, 0)
                 Api.Window.RestorePosition(NAME)
@@ -256,7 +267,7 @@ Mongbat.Mod {
             -- The engine's Requirements TID contains a " ~1_val~" placeholder;
             -- strip it for a clean header.
             local reqHeader  = wstring.gsub(
-                Api.String.GetStringFromTid(TID_REQUIRES), L" ~1_val~", L""
+                Api.String.GetStringFromTid(TID_REQUIRES), MARKUP_PLACEHOLDER, L""
             )
             lastLabel = addSection(
                 reqHeader,
@@ -300,7 +311,7 @@ Mongbat.Mod {
 
             -- 7. Training Methods (loaded from the filesystem; omitted if file is absent)
             local classNameStr = Api.String.WStringToString(className)
-            Api.File.LoadTextFile("uo-skillinfo-training-" .. classNameStr .. ".txt")
+            Api.File.LoadTextFile(TRAINING_FILE_PREFIX .. classNameStr .. ".txt")
             local trainText = Data.LoadedTextFile()
             if trainText and wstring.len(trainText) > 0 then
                 lastLabel = addSection(
