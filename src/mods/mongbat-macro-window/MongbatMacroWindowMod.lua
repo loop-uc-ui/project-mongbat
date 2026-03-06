@@ -105,8 +105,6 @@ local function OnInitialize(context)
     -- Context-menu callback
     -- ------------------------------------------------------------------ --
 
-    local contextMacroIndex = 0
-
     local function ContextMenuCallback(returnCode, param)
         if returnCode == RC_EDIT then
             Api.Macro.OpenEditWindow(staticMacroId, param)
@@ -128,7 +126,6 @@ local function OnInitialize(context)
     local function OnRButtonUp(self)
         local macroIndex = self:getId()
         if macroIndex == 0 or macroIndex > numMacros then return end
-        contextMacroIndex = macroIndex
         Api.ContextMenu.CreateLuaMenuItem(TID_EDIT_ITEM,     0, RC_EDIT,       macroIndex)
         Api.ContextMenu.CreateLuaMenuItem(TID_ASSIGN_HOTKEY, 0, RC_ASSIGN_KEY, macroIndex)
         Api.ContextMenu.CreateLuaMenuItem(TID_DESTROY,       0, RC_DESTROY,    macroIndex)
@@ -218,7 +215,7 @@ local function OnInitialize(context)
     -- ------------------------------------------------------------------ --
 
     --- Creates one icon DynamicImage for the given slot (1-based).
-    local function MakeIcon(slot)
+    local function MakeIcon()
         return Components.DynamicImage {
             OnInitialize = function(self)
                 self:setDimensions(ICON_SIZE, ICON_SIZE)
@@ -230,7 +227,7 @@ local function OnInitialize(context)
     end
 
     --- Creates one name Label for the given slot.
-    local function MakeName(slot)
+    local function MakeName()
         return Components.Label {
             OnInitialize = function(self)
                 local labelW = WINDOW_WIDTH - MARGIN * 2 - ICON_SIZE - MARGIN
@@ -243,7 +240,7 @@ local function OnInitialize(context)
     end
 
     --- Creates one binding Label for the given slot.
-    local function MakeBinding(slot)
+    local function MakeBinding()
         return Components.Label {
             OnInitialize = function(self)
                 local labelW = WINDOW_WIDTH - MARGIN * 2 - ICON_SIZE - MARGIN
@@ -262,9 +259,9 @@ local function OnInitialize(context)
 
     -- Slot rows: icons + name labels + binding labels
     for slot = 1, MAX_VISIBLE do
-        local iconView    = MakeIcon(slot)
-        local nameView    = MakeName(slot)
-        local bindingView = MakeBinding(slot)
+        local iconView    = MakeIcon()
+        local nameView    = MakeName()
+        local bindingView = MakeBinding()
         iconViews[slot]    = iconView
         nameViews[slot]    = nameView
         bindingViews[slot] = bindingView
@@ -333,7 +330,7 @@ local function OnInitialize(context)
     local contentHeight = MAX_VISIBLE * ROW_HEIGHT - (ROW_HEIGHT - ICON_SIZE)
     local windowHeight  = HEADER_HEIGHT + MARGIN + contentHeight + MARGIN + FOOTER_HEIGHT + MARGIN
 
-    local function MacroLayout(window, allChildren, child, index)
+    local function MacroLayout(window, _, child, index)
         local winName = window:getName()
         local labelX  = MARGIN + ICON_SIZE + MARGIN
 
