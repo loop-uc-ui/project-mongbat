@@ -18,6 +18,7 @@ local function OnInitialize(context)
     local Data = context.Data
     local Constants = context.Constants
     local Components = context.Components
+    local Utils = context.Utils
 
     local containerDefault = Components.Defaults.ContainerWindow
 
@@ -43,13 +44,10 @@ local function OnInitialize(context)
     ---@param gridIndex number
     ---@return number
     local function findItemAtGrid(containerId, gridIndex)
-        local items = Data.ContainerWindow(containerId):getItems()
-        for i = 1, #items do
-            if items[i].gridIndex == gridIndex then
-                return items[i].objectId
-            end
-        end
-        return 0
+        local item = Utils.Array.Find(Data.ContainerWindow(containerId):getItems(), function(item)
+            return item.gridIndex == gridIndex
+        end)
+        return item and item.objectId or 0
     end
 
     --- Updates a single slot's icon DynamicImage and quantity Label.
@@ -214,13 +212,11 @@ local function OnInitialize(context)
             for i = 1, maxSlots do
                 updateSlot(winName, i, 0)
             end
-            local numItems = containerData:getNumItems()
-            for i = 1, numItems do
-                local item = containerData:getItem(i)
+            Utils.Array.ForEach(containerData:getItems(), function(item)
                 if item and item.gridIndex and item.gridIndex >= 1 and item.gridIndex <= maxSlots then
                     updateSlot(winName, item.gridIndex, item.objectId)
                 end
-            end
+            end)
             titleLabel:setText(containerData:getContainerName())
         end
 
@@ -325,12 +321,11 @@ local function OnInitialize(context)
         local state = openContainers[containerId]
         if not state then return end
 
-        local items = Data.ContainerWindow(containerId):getItems()
-        for i = 1, #items do
-            if items[i].objectId == objectId then
-                updateSlot(state.windowName, items[i].gridIndex, objectId)
-                break
-            end
+        local found = Utils.Array.Find(Data.ContainerWindow(containerId):getItems(), function(item)
+            return item.objectId == objectId
+        end)
+        if found then
+            updateSlot(state.windowName, found.gridIndex, objectId)
         end
     end
 
@@ -342,15 +337,16 @@ end
 local function OnShutdown(context)
     local containerDefault    = context.Components.Defaults.ContainerWindow
     local containerDataType   = context.Constants.DataEvents.OnUpdateContainerWindow.getType()
+    local Utils = context.Utils
 
     -- Destroy all open Mongbat container windows and unregister their data.
-    for id, state in pairs(openContainers) do
+    Utils.Table.ForEach(openContainers, function(id, state)
         if context.Api.Window.DoesExist(state.windowName) then
             context.Api.Window.Destroy(state.windowName)
         end
         context.Api.Window.UnregisterData(containerDataType, id)
         containerDefault:getDefault().OpenContainers[id] = nil
-    end
+    end)
     openContainers = {}
 
     -- Restore the original ContainerWindow functions so the default UI resumes normally.
