@@ -154,6 +154,61 @@ function Api.Ability.GetWeaponAbilityId(index)
     return GetWeaponAbilityId(index) + 1000
 end
 
+---
+--- Casts a spell by server ID.
+---@param serverId number The server ID of the spell to cast.
+function Api.Ability.CastSpell(serverId)
+    UserActionCastSpell(serverId)
+end
+
+-- ========================================================================== --
+-- Api - Hotbar
+-- ========================================================================== --
+
+Api.Hotbar = {}
+
+---
+--- Registers a spell icon window for hotbar drag-to-hotbar support.
+---@param buttonName string The name of the spell icon button window.
+---@param serverId number The server ID of the spell.
+function Api.Hotbar.RegisterSpellIcon(buttonName, serverId)
+    HotbarSystem.RegisterSpellIcon(buttonName, serverId)
+end
+
+---
+--- Unregisters a spell icon window from the hotbar system.
+---@param windowName string The name of the window to unregister.
+function Api.Hotbar.UnregisterSpellIcon(windowName)
+    HotbarSystem.UnregisterSpellIcon(windowName)
+end
+
+---
+--- Returns the next available hotbar ID.
+---@return integer The next available hotbar ID.
+function Api.Hotbar.GetNextHotbarId()
+    return HotbarSystem.GetNextHotbarId()
+end
+
+---
+--- Spawns a new hotbar, optionally at a given ID with a given slot count.
+---@param hotbarId integer? Optional hotbar ID.
+---@param slots integer? Optional number of slots.
+---@return integer The new hotbar ID.
+function Api.Hotbar.SpawnNew(hotbarId, slots)
+    return HotbarSystem.SpawnNewHotbar(hotbarId, slots)
+end
+
+---
+--- Places a spell (or other action) onto a specific slot of a hotbar.
+---@param actionType integer The action type (e.g. SystemData.UserAction.TYPE_SPELL).
+---@param actionId integer The action/spell ID.
+---@param iconId integer The icon ID.
+---@param hotbarId integer The hotbar ID.
+---@param slotIndex integer The 1-based slot index.
+function Api.Hotbar.SetAction(actionType, actionId, iconId, hotbarId, slotIndex)
+    HotbarSystem.SetActionOnHotbar(actionType, actionId, iconId, hotbarId, slotIndex)
+end
+
 -- ========================================================================== --
 -- Api - Animated Image
 -- ========================================================================== --
@@ -2896,6 +2951,15 @@ function Constants.DragSource.Paperdoll()
     return SystemData.DragSource["SOURCETYPE_PAPERDOLL"]
 end
 
+Constants.UserAction = {}
+
+---
+--- Returns the TYPE_SPELL constant from SystemData.UserAction.
+---@return integer
+function Constants.UserAction.Spell()
+    return SystemData.UserAction.TYPE_SPELL
+end
+
 Constants.Broadcasts = {}
 
 function Constants.Broadcasts.Help()
@@ -2951,6 +3015,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateSpellbook = DataEvent(WindowData.Spellbook, "OnUpdateSpellbook")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3057,6 +3122,7 @@ Constants.TextAlignment.Center = "center"
 Constants.ItemPropertyType = {}
 Constants.ItemPropertyType.Item = WindowData.ItemProperties.TYPE_ITEM
 Constants.ItemPropertyType.WStringData = WindowData.ItemProperties.TYPE_WSTRINGDATA
+Constants.ItemPropertyType.Action = WindowData.ItemProperties.TYPE_ACTION
 
 Constants.ItemPropertyDetail = {}
 Constants.ItemPropertyDetail.Long = ItemProperties.DETAIL_LONG
@@ -3390,6 +3456,14 @@ end
 ---@return string
 function Data.MouseOverWindow()
     return SystemData.MouseOverWindow.name
+end
+
+---
+--- Returns the name of the engine's currently active window
+--- (set by the engine during CoreEvent and DataEvent callbacks).
+---@return string
+function Data.ActiveWindowName()
+    return SystemData.ActiveWindow.name
 end
 
 -- ========================================================================== --
@@ -3799,6 +3873,92 @@ end
 ---@field TexCoordX integer
 ---@field TexCoordY integer
 ---@field TexScale number
+
+
+-- ========================================================================== --
+-- Data - Spellbook
+-- ========================================================================== --
+
+---@class WindowData.Spellbook.Entry
+---@field firstSpellNum integer First spell number identifying the school
+---@field spells integer[] Spell availability flags indexed by offset (1 = known)
+
+---@class SpellbookWrapper
+local SpellbookData = {}
+SpellbookData.__index = SpellbookData
+
+---@param id number The dynamic window ID for this spellbook instance
+---@return SpellbookWrapper
+function SpellbookData:new(id)
+    local instance = setmetatable({}, self)
+    instance._id = id
+    return instance
+end
+
+---@return WindowData.Spellbook.Entry|nil
+function SpellbookData:getData()
+    return WindowData.Spellbook[self._id]
+end
+
+---@return integer The first spell number for this school (e.g. 1 = Magery, 101 = Necromancy)
+function SpellbookData:getFirstSpellNum()
+    local d = self:getData()
+    return d and d.firstSpellNum or 0
+end
+
+---@param offset integer 1-based offset within this book (spell 1 = firstSpellNum + offset - 1)
+---@return boolean Whether the player knows the spell at this offset
+function SpellbookData:isSpellKnown(offset)
+    local d = self:getData()
+    if d == nil then return false end
+    return d.spells ~= nil and d.spells[offset] == 1
+end
+
+---@param id number The dynamic window ID for this spellbook instance
+---@return SpellbookWrapper
+function Data.Spellbook(id)
+    return SpellbookData:new(id)
+end
+
+---
+--- Returns the current dynamic window ID assigned by the engine for the
+--- most recently opened dynamic window (spellbook, container, etc.).
+---@return number
+function Data.DynamicWindowId()
+    return SystemData.DynamicWindowId
+end
+
+-- ========================================================================== --
+-- Data - Skills
+-- ========================================================================== --
+
+---@class WindowData.SkillDefinition
+---@field ServerId integer Server-side skill ID
+---@field Name wstring Skill name
+---@field iconId integer Icon ID
+
+---@class WindowData.SkillDynamic
+---@field TempSkillValue integer Skill value × 10 (e.g. 1000 = 100.0)
+---@field BaseSkillValue integer Base skill value × 10
+---@field Cap integer Skill cap × 10
+
+---
+--- Returns the static skill CSV entry for a given 1-based skill index.
+--- Provides access to ServerId, Name, and iconId.
+---@param index integer 1-based index into WindowData.SkillsCSV
+---@return WindowData.SkillDefinition
+function Data.SkillsCSV(index)
+    return WindowData.SkillsCSV[index]
+end
+
+---
+--- Returns the dynamic skill entry for a given server-side skill ID.
+--- Provides TempSkillValue, BaseSkillValue, and Cap (all × 10).
+---@param serverId integer Server-side skill ID
+---@return WindowData.SkillDynamic
+function Data.SkillDynamicData(serverId)
+    return WindowData.SkillDynamicData[serverId]
+end
 
 
 -- ========================================================================== --
@@ -4825,6 +4985,48 @@ function DefaultDebugWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Spellbook
+-- ========================================================================== --
+
+--- @class DefaultSpellbook
+--- @field uniqueOrdinals wstring[] Array of ordinal suffixes
+--- @field bardMasteries wstring[] Bard mastery names
+--- @field TID table Table of TIDs for Active/Index/Passive labels
+--- @field numSpellsPerTab table Table mapping firstSpellNum to spells per tab
+--- @field MAX_SPELLS_PER_TAB integer Maximum spells per tab
+--- @field tithId integer Tithing stat ID
+--- @field OpenSpellbooks table Table tracking open spellbook windows
+--- @field Initialize fun() Initializes the spellbook window
+--- @field Shutdown fun() Shuts down the spellbook window
+--- @field UpdateSpells fun() Updates spell display
+--- @field ShowTab fun(tabnum: integer) Shows a specific tab
+--- @field SpellLButtonDown fun(flags: integer) Handles left button down on a spell
+--- @field SpellLButtonUp fun() Handles left button up on a spell (cast)
+--- @field SpellMouseOver fun() Handles mouse over on a spell
+--- @field ToggleTab fun() Handles tab toggle
+--- @field RegisterSpellIcon fun(spellbookId: integer, buttonId: integer, serverId: integer)
+--- @field ShutdownSpellIcon fun() Unregisters a spell icon
+--- @field IsMasteryBook fun(id: integer): boolean
+
+---@class DefaultSpellbookComponent : DefaultComponent
+local DefaultSpellbookComponent = {}
+DefaultSpellbookComponent.__index = DefaultSpellbookComponent
+
+---@return DefaultSpellbookComponent
+function DefaultSpellbookComponent:new()
+    local instance = DefaultComponent.new(self, "Spellbook") --[[@as DefaultSpellbookComponent]]
+    instance._proxy = instance:_createProxy(Spellbook)
+    instance._globalKey = "Spellbook"
+    _G.Spellbook = instance._proxy
+    return instance
+end
+
+---@return DefaultSpellbook
+function DefaultSpellbookComponent:getDefault()
+    return self._proxy or Spellbook --[[@as DefaultSpellbook]]
+end
+
+-- ========================================================================== --
 -- Components - Default - Object Handle
 -- ========================================================================== --
 
@@ -5480,6 +5682,12 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdateSpellbook()
+    withActiveView("OnUpdateSpellbook", function(window)
+        window:onUpdateSpellbook()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -6086,6 +6294,15 @@ end
 function View:onUpdatePlayerLocation(data)
     if self._model.OnUpdatePlayerLocation ~= nil then
         self._model.OnUpdatePlayerLocation(self, data)
+        return true
+    end
+    return false
+end
+
+function View:onUpdateSpellbook()
+    if self._model.OnUpdateSpellbook ~= nil then
+        local id = self:getId()
+        self._model.OnUpdateSpellbook(self, Data.Spellbook(id))
         return true
     end
     return false
@@ -6761,6 +6978,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultSpellbookComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6993,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.Spellbook = DefaultSpellbookComponent:new()
 
 -- ========================================================================== --
 -- Mod
