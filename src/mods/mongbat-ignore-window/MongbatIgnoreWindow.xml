@@ -3,16 +3,6 @@
   xsi:noNamespaceSchemaLocation="../../../docs/Interface.xsd">
   <Windows>
 
-    <!-- Item button template for each player row in the ignore list -->
-    <Button name="MongbatIgnoreWindowItem" inherits="MongbatButton">
-      <Size>
-        <AbsPoint x="280" y="22" />
-      </Size>
-      <EventHandlers>
-        <EventHandler event="OnLButtonUp" function="Mongbat.EventHandler.OnLButtonUp" />
-      </EventHandlers>
-    </Button>
-
     <!--
       Main window template. Includes the standard MongbatWindow frame layers plus
       a ScrollWindow that fills the interior. Item buttons are created at runtime

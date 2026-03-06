@@ -78,9 +78,7 @@ local function OnInitialize(context)
 
     --- Creates and shows the Mongbat ignore window.
     local function showIgnoreWindow()
-        if Api.Window.DoesExist(NAME) then
-            Api.Window.Destroy(NAME)
-        end
+        Api.Window.Destroy(NAME)
 
         -- MongbatIgnoreWindowTemplate has an OnInitialize event handler, so the
         -- engine fires Mongbat.EventHandler.OnInitialize automatically on create.
