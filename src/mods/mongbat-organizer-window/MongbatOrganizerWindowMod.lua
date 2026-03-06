@@ -148,50 +148,6 @@ local function agentDesc(desc, agentIndex)
     return (d and d[agentIndex]) or L""
 end
 
----@param desc AgentTypeDesc
----@param agentIndex integer
----@return wstring
-local function agentDisplayName(desc, agentIndex)
-    local custom = agentDesc(desc, agentIndex)
-    local base   = StringToWString(desc.key) .. L" " .. towstring(agentIndex)
-    if custom and custom ~= L"" then
-        return custom .. L" (" .. base .. L")"
-    end
-    return base
-end
-
---- Formats an item for display in the list.
----@param desc AgentTypeDesc
----@param item table
----@param itemIndex integer
----@return wstring
-local function formatItemLabel(desc, item, itemIndex)
-    if not item then return L"" end
-    local name = StringToWString(item.name or "")
-    if item.type and item.type ~= 0 then
-        local s = towstring(itemIndex) .. L". " .. name ..
-                  L" - Type: " .. towstring(item.type) ..
-                  L", Hue: "   .. towstring(item.hue or 0)
-        if desc.hasQta and item.qta then
-            s = s .. L", Amount: " .. towstring(item.qta)
-        end
-        return s
-    elseif item.id and item.id ~= 0 then
-        return towstring(itemIndex) .. L". " .. name .. L" - ID: " .. towstring(item.id)
-    end
-    return towstring(itemIndex) .. L". " .. name
-end
-
---- Strips leading numeric quantity (mirrors Shopkeeper.stripFirstNumber).
----@param name wstring
----@return wstring
-local function stripFirstNumber(name)
-    if not name then return L"" end
-    local s       = WStringToString(name)
-    local stripped = string.gsub(s, "^%d+%s*", "")
-    return StringToWString(stripped)
-end
-
 -- ============================================================
 -- Persistence helpers
 -- ============================================================
@@ -200,12 +156,13 @@ end
 ---@param desc AgentTypeDesc
 ---@param agentIndex integer
 ---@param Api table
-local function saveAgentItems(desc, agentIndex, Api)
+---@param Utils table
+local function saveAgentItems(desc, agentIndex, Api, Utils)
     local count = itemCount(desc, agentIndex)
     Api.Interface.SaveNumber("Organizer" .. desc.countKey .. "_Items" .. agentIndex, count)
     local list = Organizer[desc.listKey]
     if not list or not list[agentIndex] then return end
-    for k = 1, count do
+    Utils.Array.Range(count, function(k)
         local item = list[agentIndex][k]
         if item then
             Api.Interface.SaveString(
@@ -222,17 +179,18 @@ local function saveAgentItems(desc, agentIndex, Api)
                     desc.savePrefix .. agentIndex .. "it" .. k .. "Id",  item.id  or 0)
             end
         end
-    end
+    end)
 end
 
 --- Deletes all stored items for all agents of a given type (used before re-saving).
 ---@param desc AgentTypeDesc
 ---@param Api table
-local function deleteAllAgentItems(desc, Api)
+---@param Utils table
+local function deleteAllAgentItems(desc, Api, Utils)
     local count = agentCount(desc)
-    for i = 1, count do
+    Utils.Array.Range(count, function(i)
         local ic = itemCount(desc, i)
-        for k = 1, ic do
+        Utils.Array.Range(ic, function(k)
             Api.Interface.DeleteSetting(desc.savePrefix .. i .. "it" .. k .. "Name")
             Api.Interface.DeleteSetting(desc.savePrefix .. i .. "it" .. k .. "Type")
             Api.Interface.DeleteSetting(desc.savePrefix .. i .. "it" .. k .. "Hue")
@@ -241,7 +199,7 @@ local function deleteAllAgentItems(desc, Api)
             else
                 Api.Interface.DeleteSetting(desc.savePrefix .. i .. "it" .. k .. "Id")
             end
-        end
+        end)
         Api.Interface.DeleteSetting("Organizer" .. desc.countKey .. "_Items" .. i)
         Api.Interface.DeleteSetting("Organizer" .. desc.countKey .. "_Desc"  .. i)
         if desc.contKey then
@@ -250,17 +208,18 @@ local function deleteAllAgentItems(desc, Api)
         if desc.closeKey then
             Api.Interface.DeleteSetting("Organizer" .. desc.closeKey .. i)
         end
-    end
+    end)
 end
 
 --- Saves all agents of a type after a structural change (add/remove agent).
 ---@param desc AgentTypeDesc
 ---@param Api table
-local function saveAllAgents(desc, Api)
+---@param Utils table
+local function saveAllAgents(desc, Api, Utils)
     local count = agentCount(desc)
     Api.Interface.SaveNumber("Organizer" .. desc.countKey, count)
-    for i = 1, count do
-        saveAgentItems(desc, i, Api)
+    Utils.Array.Range(count, function(i)
+        saveAgentItems(desc, i, Api, Utils)
         Api.Interface.SaveWString("Organizer" .. desc.countKey .. "_Desc" .. i, agentDesc(desc, i))
         if desc.contKey then
             local cont  = Organizer[desc.contKey]
@@ -270,7 +229,7 @@ local function saveAllAgents(desc, Api)
             local cc = Organizer[desc.closeKey]
             Api.Interface.SaveBoolean("Organizer" .. desc.closeKey .. i, (cc and cc[i]) or false)
         end
-    end
+    end)
 end
 
 -- ============================================================
@@ -280,6 +239,7 @@ end
 ---@param context Context
 local function OnInitialize(context)
     local Api        = context.Api
+    local Utils      = context.Utils
     local Components = context.Components
     local Constants  = context.Constants
 
@@ -288,9 +248,7 @@ local function OnInitialize(context)
     orgDefault:disable()
 
     -- Destroy the default engine window if it already exists
-    if Api.Window.DoesExist(NAME) then
-        Api.Window.Destroy(NAME)
-    end
+    Api.Window.Destroy(NAME)
 
     -- --------------------------------------------------------
     -- Mutable state (all scoped inside OnInitialize)
@@ -317,13 +275,62 @@ local function OnInitialize(context)
     local refreshUI
 
     -- --------------------------------------------------------
+    -- String-conversion helpers (use Utils to avoid raw engine globals)
+    -- --------------------------------------------------------
+
+    --- Returns a display name for an agent (type prefix + index + optional desc).
+    ---@param desc AgentTypeDesc
+    ---@param agentIndex integer
+    ---@return wstring
+    local function agentDisplayName(desc, agentIndex)
+        local custom = agentDesc(desc, agentIndex)
+        local base   = Utils.String.ToWString(desc.key) .. L" " .. towstring(agentIndex)
+        if custom and custom ~= L"" then
+            return custom .. L" (" .. base .. L")"
+        end
+        return base
+    end
+
+    --- Formats an item for display in the list.
+    ---@param desc AgentTypeDesc
+    ---@param item table
+    ---@param itemIndex integer
+    ---@return wstring
+    local function formatItemLabel(desc, item, itemIndex)
+        if not item then return L"" end
+        local name = Utils.String.ToWString(item.name or "")
+        if item.type and item.type ~= 0 then
+            local s = towstring(itemIndex) .. L". " .. name ..
+                      L" - Type: " .. towstring(item.type) ..
+                      L", Hue: "   .. towstring(item.hue or 0)
+            if desc.hasQta and item.qta then
+                s = s .. L", Amount: " .. towstring(item.qta)
+            end
+            return s
+        elseif item.id and item.id ~= 0 then
+            return towstring(itemIndex) .. L". " .. name .. L" - ID: " .. towstring(item.id)
+        end
+        return towstring(itemIndex) .. L". " .. name
+    end
+
+    --- Strips leading numeric quantity (mirrors Shopkeeper.stripFirstNumber).
+    ---@param name wstring
+    ---@return wstring
+    local function stripFirstNumber(name)
+        if not name then return L"" end
+        local s       = Utils.String.FromWString(name)
+        local stripped = string.gsub(s, "^%d+%s*", "")
+        return Utils.String.ToWString(stripped)
+    end
+
+    -- --------------------------------------------------------
     -- Dynamic item list management
     -- --------------------------------------------------------
 
     local function clearItemList()
-        for _, v in ipairs(itemViews) do
+        Utils.Array.ForEach(itemViews, function(v)
             v:destroy()
-        end
+        end)
         itemViews = {}
     end
 
@@ -337,7 +344,7 @@ local function OnInitialize(context)
 
         -- Delete all stored keys for this agent first
         local ic = itemCount(desc, selectedIndex)
-        for k = 1, ic do
+        Utils.Array.Range(ic, function(k)
             Api.Interface.DeleteSetting(desc.savePrefix .. selectedIndex .. "it" .. k .. "Name")
             Api.Interface.DeleteSetting(desc.savePrefix .. selectedIndex .. "it" .. k .. "Type")
             Api.Interface.DeleteSetting(desc.savePrefix .. selectedIndex .. "it" .. k .. "Hue")
@@ -346,10 +353,10 @@ local function OnInitialize(context)
             else
                 Api.Interface.DeleteSetting(desc.savePrefix .. selectedIndex .. "it" .. k .. "Id")
             end
-        end
-        table.remove(list[selectedIndex], capturedIndex)
+        end)
+        Utils.Array.Remove(list[selectedIndex], capturedIndex)
         if items then items[selectedIndex] = math.max(0, (items[selectedIndex] or 1) - 1) end
-        saveAgentItems(desc, selectedIndex, Api)
+        saveAgentItems(desc, selectedIndex, Api, Utils)
         refreshUI()
     end
 
@@ -447,7 +454,7 @@ local function OnInitialize(context)
             local item = list and list[selectedIndex] and list[selectedIndex][j]
             if item then
                 local btn = makeItemRow(desc, item, j, prevName)
-                table.insert(itemViews, btn)
+                Utils.Array.Add(itemViews, btn)
                 prevName = btn:getName()
                 shown    = shown + 1
             end
@@ -513,106 +520,58 @@ local function OnInitialize(context)
     -- Targeting helpers
     -- --------------------------------------------------------
 
-    local function unregisterTargetHandler()
-        Api.Window.UnregisterEventHandler(
-            NAME, Constants.SystemEvents.OnTargetSendIdClient.getEvent())
-    end
-
-    local targetingForType = false
-
     --- Adds an item to the current agent after targeting.
+    --- Uses explicit typeIdx/agentIdx so that callbacks which capture these
+    --- at click-time are not affected by subsequent tab/agent selection changes.
     ---@param objectId number
-    ---@param qta number|nil
-    local function addItemFromObject(objectId, qta)
+    ---@param forType boolean  true = add by type, false = add by ID
+    ---@param typeIdx integer  agent type index (1-6) captured at click time
+    ---@param agentIdx integer agent index within type captured at click time
+    ---@param qta number|nil  quantity (for Restock/Buy/Sell)
+    local function addItemFromObject(objectId, forType, typeIdx, agentIdx, qta)
         local itemData = Data.ObjectInfo(objectId)
         if not itemData then return end
 
-        local desc  = getTypeDesc(selectedType)
+        local desc  = getTypeDesc(typeIdx)
         local items = Organizer[desc.itemsKey]
         local list  = Organizer[desc.listKey]
         if not items then return end
 
-        if not items[selectedIndex] then items[selectedIndex] = 0 end
-        items[selectedIndex] = items[selectedIndex] + 1
-        local j = items[selectedIndex]
+        if not items[agentIdx] then items[agentIdx] = 0 end
+        items[agentIdx] = items[agentIdx] + 1
+        local j = items[agentIdx]
 
-        if not list[selectedIndex] then list[selectedIndex] = {} end
+        if not list[agentIdx] then list[agentIdx] = {} end
 
-        local itemName = WStringToString(stripFirstNumber(itemData.name))
+        local itemName = Utils.String.FromWString(stripFirstNumber(itemData.name))
 
-        if targetingForType then
+        if forType then
             if desc.hasQta then
                 local item = { name=itemName, type=itemData.objectType, hue=itemData.hueId, qta=qta or 0 }
-                list[selectedIndex][j] = item
-                Api.Interface.SaveString(desc.savePrefix..selectedIndex.."it"..j.."Name", item.name)
-                Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Type", item.type)
-                Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Hue",  item.hue)
-                Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Qta",  item.qta)
+                list[agentIdx][j] = item
+                Api.Interface.SaveString(desc.savePrefix..agentIdx.."it"..j.."Name", item.name)
+                Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Type", item.type)
+                Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Hue",  item.hue)
+                Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Qta",  item.qta)
             else
                 local item = { name=itemName, type=itemData.objectType, hue=itemData.hueId, id=0 }
-                list[selectedIndex][j] = item
-                Api.Interface.SaveString(desc.savePrefix..selectedIndex.."it"..j.."Name", item.name)
-                Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Type", item.type)
-                Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Hue",  item.hue)
-                Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Id",   0)
+                list[agentIdx][j] = item
+                Api.Interface.SaveString(desc.savePrefix..agentIdx.."it"..j.."Name", item.name)
+                Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Type", item.type)
+                Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Hue",  item.hue)
+                Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Id",   0)
             end
         else
             -- Add by ID
             local item = { name=itemName, type=0, hue=0, id=objectId }
-            list[selectedIndex][j] = item
-            Api.Interface.SaveString(desc.savePrefix..selectedIndex.."it"..j.."Name", item.name)
-            Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Type", 0)
-            Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Hue",  0)
-            Api.Interface.SaveNumber(desc.savePrefix..selectedIndex.."it"..j.."Id",   objectId)
+            list[agentIdx][j] = item
+            Api.Interface.SaveString(desc.savePrefix..agentIdx.."it"..j.."Name", item.name)
+            Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Type", 0)
+            Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Hue",  0)
+            Api.Interface.SaveNumber(desc.savePrefix..agentIdx.."it"..j.."Id",   objectId)
         end
 
-        Api.Interface.SaveNumber("Organizer"..desc.countKey.."_Items"..selectedIndex, items[selectedIndex])
-        refreshUI()
-    end
-
-    local function onAddTypeTargetReceived()
-        unregisterTargetHandler()
-        local objectId = Data.RequestInfoObjectId()
-        if objectId == 0 then return end
-
-        local desc = getTypeDesc(selectedType)
-        if desc.hasQta then
-            local capturedId = objectId
-            Api.RenameWindow.Create {
-                title        = L"Set Amount",
-                subtitle     = L"Enter quantity:",
-                callfunction = function(_, amountStr)
-                    local amount = tonumber(amountStr)
-                    if type(amount) ~= "number" then return end
-                    targetingForType = true
-                    addItemFromObject(capturedId, amount)
-                end,
-                id = objectId,
-            }
-        else
-            targetingForType = true
-            addItemFromObject(objectId, nil)
-        end
-    end
-
-    local function onAddIdTargetReceived()
-        unregisterTargetHandler()
-        local objectId = Data.RequestInfoObjectId()
-        if objectId == 0 then return end
-        targetingForType = false
-        addItemFromObject(objectId, nil)
-    end
-
-    local function onAddContainerTargetReceived()
-        unregisterTargetHandler()
-        local bag  = Data.RequestInfoObjectId()
-        if bag == 0 then return end
-        local desc = getTypeDesc(selectedType)
-        if not desc.contKey then return end
-        local cont = Organizer[desc.contKey]
-        if not cont then return end
-        cont[selectedIndex] = bag
-        Api.Interface.SaveNumber("Organizer"..desc.contKey..selectedIndex, bag)
+        Api.Interface.SaveNumber("Organizer"..desc.countKey.."_Items"..agentIdx, items[agentIdx])
         refreshUI()
     end
 
@@ -621,7 +580,7 @@ local function OnInitialize(context)
     -- --------------------------------------------------------
 
     local function makeTypeTab(typeIndex)
-        local label = StringToWString(AGENT_TYPES[typeIndex].key)
+        local label = Utils.String.ToWString(AGENT_TYPES[typeIndex].key)
         return Components.Button {
             OnInitialize = function(self)
                 self:setDimensions(TAB_W, ROW_H)
@@ -773,11 +732,11 @@ local function OnInitialize(context)
                         local items = Organizer[d.itemsKey]
                         local descs = Organizer[d.descKey]
 
-                        deleteAllAgentItems(d, Api)
+                        deleteAllAgentItems(d, Api, Utils)
 
-                        table.remove(list,  capturedIndex)
-                        table.remove(items, capturedIndex)
-                        table.remove(descs, capturedIndex)
+                        Utils.Array.Remove(list,  capturedIndex)
+                        Utils.Array.Remove(items, capturedIndex)
+                        Utils.Array.Remove(descs, capturedIndex)
 
                         Organizer[d.countKey] = Organizer[d.countKey] - 1
                         if Organizer[d.countKey] <= 0 then
@@ -792,16 +751,16 @@ local function OnInitialize(context)
 
                         if d.contKey then
                             local cont = Organizer[d.contKey]
-                            table.remove(cont, capturedIndex)
+                            Utils.Array.Remove(cont, capturedIndex)
                             if #cont == 0 then cont[1] = 0 end
                         end
                         if d.closeKey then
                             local cc = Organizer[d.closeKey]
-                            table.remove(cc, capturedIndex)
+                            Utils.Array.Remove(cc, capturedIndex)
                             if #cc == 0 then cc[1] = false end
                         end
 
-                        saveAllAgents(d, Api)
+                        saveAllAgents(d, Api, Utils)
 
                         selectedIndex = 1
                         scrollOffset  = 0
@@ -849,17 +808,23 @@ local function OnInitialize(context)
                 Api.Interface.SaveNumber("Organizer"..desc.contKey..selectedIndex, 0)
                 refreshUI()
             else
-                -- Request target
+                -- Capture selection at click time so the callback targets the
+                -- correct agent even if the user navigates away before picking.
+                local capturedType  = selectedType
+                local capturedIndex = selectedIndex
                 Api.Target.RequestTargetInfo()
                 Api.Window.SendOverheadText(L"Click a container to set as default.", 1152, true)
-                -- Mongbat.EventHandler is the framework's global dispatch table.
-                -- Assigning here creates a named callback the engine can call by string.
-                -- The callback unregisters itself after one invocation.
-                Mongbat.EventHandler.OrganizerAddContainer = onAddContainerTargetReceived
-                Api.Window.RegisterEventHandler(
-                    NAME,
-                    Constants.SystemEvents.OnTargetSendIdClient.getEvent(),
-                    "Mongbat.EventHandler.OrganizerAddContainer")
+                Api.Target.RegisterOneShotTargetInfo(NAME, function()
+                    local bag = Data.RequestInfoObjectId()
+                    if bag == 0 then return end
+                    local d = getTypeDesc(capturedType)
+                    if not d.contKey then return end
+                    local c = Organizer[d.contKey]
+                    if not c then return end
+                    c[capturedIndex] = bag
+                    Api.Interface.SaveNumber("Organizer"..d.contKey..capturedIndex, bag)
+                    refreshUI()
+                end)
             end
         end
     }
@@ -890,14 +855,31 @@ local function OnInitialize(context)
         OnLButtonUp = function(self)
             local desc = getTypeDesc(selectedType)
             if not desc.hasType then return end
-            targetingForType = true
+            -- Capture selection at click time.
+            local capturedType  = selectedType
+            local capturedIndex = selectedIndex
             Api.Target.RequestTargetInfo()
             Api.Window.SendOverheadText(L"Click an item to add it by type.", 1152, true)
-            Mongbat.EventHandler.OrganizerAddType = onAddTypeTargetReceived
-            Api.Window.RegisterEventHandler(
-                NAME,
-                Constants.SystemEvents.OnTargetSendIdClient.getEvent(),
-                "Mongbat.EventHandler.OrganizerAddType")
+            Api.Target.RegisterOneShotTargetInfo(NAME, function()
+                local objectId = Data.RequestInfoObjectId()
+                if objectId == 0 then return end
+                local d = getTypeDesc(capturedType)
+                if d.hasQta then
+                    local capturedId = objectId
+                    Api.RenameWindow.Create {
+                        title        = L"Set Amount",
+                        subtitle     = L"Enter quantity:",
+                        callfunction = function(_, amountStr)
+                            local amount = tonumber(amountStr)
+                            if type(amount) ~= "number" then return end
+                            addItemFromObject(capturedId, true, capturedType, capturedIndex, amount)
+                        end,
+                        id = objectId,
+                    }
+                else
+                    addItemFromObject(objectId, true, capturedType, capturedIndex, nil)
+                end
+            end)
         end
     }
 
@@ -909,14 +891,16 @@ local function OnInitialize(context)
         OnLButtonUp = function(self)
             local desc = getTypeDesc(selectedType)
             if not desc.hasId then return end
-            targetingForType = false
+            -- Capture selection at click time.
+            local capturedType  = selectedType
+            local capturedIndex = selectedIndex
             Api.Target.RequestTargetInfo()
             Api.Window.SendOverheadText(L"Click an item to add it by ID.", 1152, true)
-            Mongbat.EventHandler.OrganizerAddId = onAddIdTargetReceived
-            Api.Window.RegisterEventHandler(
-                NAME,
-                Constants.SystemEvents.OnTargetSendIdClient.getEvent(),
-                "Mongbat.EventHandler.OrganizerAddId")
+            Api.Target.RegisterOneShotTargetInfo(NAME, function()
+                local objectId = Data.RequestInfoObjectId()
+                if objectId == 0 then return end
+                addItemFromObject(objectId, false, capturedType, capturedIndex, nil)
+            end)
         end
     }
 
@@ -1057,18 +1041,6 @@ end
 local function OnShutdown(context)
     context.Api.Window.SavePosition(NAME, true)
     context.Api.Window.Destroy(NAME)
-
-    -- Clean up any targeting event handlers we may have registered
-    if Mongbat.EventHandler.OrganizerAddType      then
-        Mongbat.EventHandler.OrganizerAddType = nil
-    end
-    if Mongbat.EventHandler.OrganizerAddId        then
-        Mongbat.EventHandler.OrganizerAddId = nil
-    end
-    if Mongbat.EventHandler.OrganizerAddContainer then
-        Mongbat.EventHandler.OrganizerAddContainer = nil
-    end
-
     context.Components.Defaults.OrganizerWindow:restore()
 end
 

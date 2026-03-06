@@ -1565,6 +1565,32 @@ function Api.Target.RequestTargetInfo()
     RequestTargetInfo()
 end
 
+---
+--- Registers a one-shot TARGET_SEND_ID_CLIENT handler for a window.
+--- The callback is called exactly once (on the next target pick) and then
+--- automatically unregistered.  The object ID is retrieved inside the
+--- callback via Data.RequestInfoObjectId().
+--- Each call uses a unique handler key, so multiple simultaneous registrations
+--- on the same window are safe (though only the most-recently-registered
+--- system event handler will fire, since the engine routes to one callback).
+---@param windowName string The window to register the event on.
+---@param callback fun() Called once when the player picks a target.
+function Api.Target.RegisterOneShotTargetInfo(windowName, callback)
+    Api.Target._seq = (Api.Target._seq or 0) + 1
+    local handlerKey = "TargetOnce_" .. windowName .. "_" .. Api.Target._seq
+    Mongbat.EventHandler[handlerKey] = function()
+        Api.Window.UnregisterEventHandler(
+            windowName,
+            Constants.SystemEvents.OnTargetSendIdClient.getEvent())
+        Mongbat.EventHandler[handlerKey] = nil
+        callback()
+    end
+    Api.Window.RegisterEventHandler(
+        windowName,
+        Constants.SystemEvents.OnTargetSendIdClient.getEvent(),
+        "Mongbat.EventHandler." .. handlerKey)
+end
+
 -- ========================================================================== --
 -- Api - Text Log
 -- ========================================================================== --
@@ -2713,6 +2739,17 @@ function Utils.Array.Add(array, item, pos)
         table.insert(array, pos, item)
     else
         table.insert(array, item)
+    end
+end
+
+---
+--- Calls fn(i) for i = 1 to n. Safe when n is nil or <= 0.
+---@param n integer|nil The upper bound (inclusive).
+---@param fn fun(i: integer) The callback.
+function Utils.Array.Range(n, fn)
+    if not n or n <= 0 then return end
+    for i = 1, n do
+        fn(i)
     end
 end
 
