@@ -189,7 +189,7 @@ local function OnInitialize(context)
 
     --- Returns true when the player has at least MAGERY_REQUIRED Magery skill.
     local function hasMagery()
-        local skillsCSV = WindowData.SkillsCSV
+        local skillsCSV = Data.SkillsCSV()
         local skillData = Data.SkillDynamicData()
         if skillsCSV == nil or skillData == nil then return false end
         local row = skillsCSV[MAGERY_SKILL_CSV_INDEX]

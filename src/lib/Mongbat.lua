@@ -3821,6 +3821,14 @@ function Data.SkillDynamicData()
     return WindowData.SkillDynamicData
 end
 
+---
+--- Returns the skills CSV table (WindowData.SkillsCSV).
+--- Each entry is a Skill with ServerId, NameTid, DescriptionTid, etc.
+---@return Skill[] The skills CSV table.
+function Data.SkillsCSV()
+    return WindowData.SkillsCSV
+end
+
 
 -- ========================================================================== --
 -- Components
