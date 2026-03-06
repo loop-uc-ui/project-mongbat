@@ -11,6 +11,7 @@ local function OnInitialize(context)
     local Api = context.Api
     local Constants = context.Constants
     local Data = context.Data
+    local Utils = context.Utils
     local Components = context.Components
 
     -- Disable the Hotbar Lua-callback proxy so that XML-triggered
@@ -158,11 +159,11 @@ local function OnInitialize(context)
 
         -- Slot-count sub-menu: offer 6 / 8 / 10 / 12 presets; mark current.
         local currentCount = getNumSlots(hotbarId)
-        for _, count in ipairs({ 6, 8, 10, 12 }) do
+        Utils.Array.ForEach({ 6, 8, 10, 12 }, function(count, _)
             local label = towstring(count) .. L" Slots"
             Api.ContextMenu.CreateItemWithString(label, 0, "slots",
                 { hotbarId = hotbarId, count = count }, count == currentCount)
-        end
+        end)
 
         Api.ContextMenu.CreateItem(Constants.HotbarSystem.TID_NEW_HOTBAR, 0, "new", param)
 
@@ -309,10 +310,10 @@ local function OnInitialize(context)
     -- mod ran) and replace it with our MongbatHotbar{id} window.
     -- ------------------------------------------------------------------ --
 
-    for _, id in pairs(Data.Hotbar():getHotbarIds()) do
+    Utils.Table.ForEach(Data.Hotbar():getHotbarIds(), function(_, id)
         destroyDefaultWindow(id)
         createHotbarWindow(id)
-    end
+    end)
 end
 
 ---@param context Context
