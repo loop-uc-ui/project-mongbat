@@ -2,7 +2,7 @@ local NAME = "MongbatSkillsWindow"
 
 -- Layout constants
 local MARGIN = 10
-local HEADER_H = 60
+local HEADER_H = 86
 local ROW_H = 26
 local VISIBLE_ROWS = 15
 local WIN_W = 320
@@ -69,6 +69,37 @@ local function OnInitialize(context)
         sortedSkills[i] = i
     end
 
+    -- Current filter text (lowercase plain string for matching)
+    local filterText = ""
+    -- Ordered subset of sortedSkills that pass the current filter
+    local filteredSkills = {}
+
+    -- Pre-cached lowercase skill names keyed by csvId (1..NUM_CSV_SKILLS)
+    -- Built once at init to avoid repeated TID lookups on every keystroke
+    local skillNamesLower = {}
+    do
+        local csv = Data.SkillsCSV()
+        if csv then
+            for i = 1, NUM_CSV_SKILLS do
+                skillNamesLower[i] = string.lower(Api.String.WStringToString(
+                    Api.String.GetStringFromTid(csv[i].NameTid)))
+            end
+        end
+    end
+
+    -- Rebuild filteredSkills from sortedSkills using current filterText.
+    -- Side effect: resets scrollOffset to 0 so the list always starts from the top.
+    local function rebuildFilteredList()
+        filteredSkills = {}
+        for i = 1, NUM_CSV_SKILLS do
+            local csvId = sortedSkills[i]
+            if filterText == "" or string.find(skillNamesLower[csvId] or "", filterText, 1, true) then
+                filteredSkills[#filteredSkills + 1] = csvId
+            end
+        end
+        scrollOffset = 0
+    end
+
     -- Sort helpers
     local function sortByName()
         local csv = Data.SkillsCSV()
@@ -81,6 +112,7 @@ local function OnInitialize(context)
         table.sort(sortedSkills, function(a, b)
             return names[a] < names[b]
         end)
+        rebuildFilteredList()
     end
 
     local function sortByValue()
@@ -94,6 +126,7 @@ local function OnInitialize(context)
         table.sort(sortedSkills, function(a, b)
             return values[a] > values[b]
         end)
+        rebuildFilteredList()
     end
 
     -- Apply default sort (alphabetical by name)
@@ -131,7 +164,7 @@ local function OnInitialize(context)
     -- Update a single visible row slot's content
     local function updateRow(rowIndex)
         local slotIndex = rowIndex + scrollOffset
-        local csvId = sortedSkills[slotIndex]
+        local csvId = filteredSkills[slotIndex]
         local btn = rowButtons[rowIndex]
         if btn == nil then return end
         if csvId == nil then
@@ -176,7 +209,7 @@ local function OnInitialize(context)
 
     -- Scroll handler shared by all components
     local function onScroll(delta)
-        local maxScroll = math.max(0, NUM_CSV_SKILLS - VISIBLE_ROWS)
+        local maxScroll = math.max(0, #filteredSkills - VISIBLE_ROWS)
         if delta > 0 then
             scrollOffset = math.max(0, scrollOffset - 1)
         else
@@ -258,7 +291,6 @@ local function OnInitialize(context)
         end,
         OnLButtonUp = function(self)
             sortByName()
-            scrollOffset = 0
             updateAllRows()
         end,
         OnMouseWheel = function(self, x, y, delta)
@@ -278,7 +310,6 @@ local function OnInitialize(context)
         end,
         OnLButtonUp = function(self)
             sortByValue()
-            scrollOffset = 0
             updateAllRows()
         end,
         OnMouseWheel = function(self, x, y, delta)
@@ -287,11 +318,30 @@ local function OnInitialize(context)
     }
     children[4] = sortValueBtn
 
+    -- Filter input: typing narrows the skill list to matching names
+    local filterInput = Components.FilterInput {
+        OnInitialize = function(self)
+            self:setDimensions(WIN_W - MARGIN * 2 - 16, 22)
+        end,
+        OnTextChanged = function(self, text)
+            filterText = string.lower(Api.String.WStringToString(text))
+            rebuildFilteredList()
+            updateAllRows()
+        end,
+        OnKeyEscape = function(self)
+            self:clear()
+            filterText = ""
+            rebuildFilteredList()
+            updateAllRows()
+        end
+    }
+    children[5] = filterInput
+
     -- Visible row buttons (15 slots)
     for i = 1, VISIBLE_ROWS do
         local btn = SkillRowButton(i)
         rowButtons[i] = btn
-        children[4 + i] = btn
+        children[5 + i] = btn
     end
 
     -- Custom layout: positions header children then fixed-position row slots
@@ -313,9 +363,13 @@ local function OnInitialize(context)
             -- Sort-by-value button: right of sort-by-name
             child:clearAnchors()
             child:addAnchor("topleft", winName, "topleft", MARGIN + 82, MARGIN + 26)
+        elseif index == 5 then
+            -- Filter input: below sort row
+            child:clearAnchors()
+            child:addAnchor("topleft", winName, "topleft", MARGIN, MARGIN + 52)
         else
             -- Skill row slots: stacked below the header area
-            local rowIndex = index - 4
+            local rowIndex = index - 5
             local y = HEADER_H + (rowIndex - 1) * ROW_H
             child:clearAnchors()
             child:addAnchor("topleft", winName, "topleft", MARGIN, y)
