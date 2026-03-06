@@ -65,6 +65,7 @@ local function OnInitialize(context)
     local Api        = context.Api
     local Constants  = context.Constants
     local Components = context.Components
+    local Utils      = context.Utils
 
     -- Suppress the default ActionsWindow
     local actionsWindowDefault = Components.Defaults.ActionsWindow
@@ -81,12 +82,10 @@ local function OnInitialize(context)
     -- Build a flat list of visible actions for each group
     -- -----------------------------------------------------------------------
     ---@type table[][]   groupItems[groupIndex] = array of { index, data, name } entries
-    local groupItems = {}
-    for gi = 1, #groups do
+    local groupItems = Utils.Array.MapToArray(groups, function(group)
         local items = {}
-        local group = groups[gi]
         if group and group.index then
-            for _, idx in pairs(group.index) do
+            Utils.Table.ForEach(group.index, function(_, idx)
                 local ad = actionData[idx]
                 if ad and ad.inActionWindow == true then
                     items[#items + 1] = {
@@ -95,10 +94,10 @@ local function OnInitialize(context)
                         name  = getActionName(ad, Api),
                     }
                 end
-            end
+            end)
         end
-        groupItems[gi] = items
-    end
+        return items
+    end)
 
     -- -----------------------------------------------------------------------
     -- State (scoped to OnInitialize; closures capture these)
@@ -149,16 +148,12 @@ local function OnInitialize(context)
             return
         end
         local lower = wstring.lower(filterText)
-        local result = {}
-        for gi = 1, #groups do
-            local items = groupItems[gi] or {}
-            for _, item in ipairs(items) do
-                if wstring.find(wstring.lower(item.name), lower) then
-                    result[#result + 1] = item
-                end
+        filteredItems = Utils.Array.Filter(
+            Utils.Array.Concat(groupItems),
+            function(item)
+                return wstring.find(wstring.lower(item.name), lower) ~= nil
             end
-        end
-        filteredItems = result
+        )
     end
 
     --- Refreshes all visible item slots to reflect currentGroup + currentPage
