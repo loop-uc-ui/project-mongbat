@@ -4,11 +4,29 @@
 
 local MAX_LABELS = 100
 local LABEL_PREFIX = "MongbatQuickStat_"
+local DEFAULT_LABEL_PREFIX = "QuickStat_"
 local REFRESH_RATE = 1
+
+-- Saved originals restored in OnShutdown (proxy __newindex writes to _original permanently)
+local originals = {}
 
 local function OnInitialize(context)
     local default = context.Components.Defaults.QuickStats
-    default:disable()
+    -- Do NOT call disable() — CharacterSheet calls QuickStats.DoesLabelExist/GetId through
+    -- the proxy at runtime. Disabling would make those no-ops and break label creation.
+
+    local defaultQS = default:getDefault()
+
+    -- Save originals before overriding so OnShutdown can restore them
+    originals.Initialize     = defaultQS.Initialize
+    originals.Shutdown       = defaultQS.Shutdown
+    originals.DoesLabelExist = defaultQS.DoesLabelExist
+    originals.GetId          = defaultQS.GetId
+
+    -- Destroy any default QuickStat windows that the engine created before this mod loaded
+    for i = 1, MAX_LABELS do
+        context.Api.Window.Destroy(DEFAULT_LABEL_PREFIX .. i)
+    end
 
     -- Runtime state scoped to this initialization
     local labels = {}     -- [id] = settings table
@@ -116,15 +134,12 @@ local function OnInitialize(context)
         if lab.objectType then
             local qty = 0
             local backPackItems = context.Api.Interface.GetBackPackItems()
-            if backPackItems then
-                for i = 1, #backPackItems do
-                    local uid = backPackItems[i]
-                    local info = context.Api.Items.GetObjectInfo(uid)
-                    if info and info.objectType == lab.objectType then
-                        qty = qty + (info.quantity or 0)
-                    end
+            context.Utils.Array.ForEach(backPackItems, function(uid)
+                local info = context.Api.Items.GetObjectInfo(uid)
+                if info and info.objectType == lab.objectType then
+                    qty = qty + (info.quantity or 0)
                 end
-            end
+            end)
             return tostring(qty), "", ""
         end
 
@@ -502,8 +517,6 @@ local function OnInitialize(context)
     -- Public API exposed through QuickStats proxy
     -- ====================================================================== --
 
-    local defaultQS = default:getDefault()
-
     defaultQS.DoesLabelExist = function(attributeId, isObject)
         for i = 1, MAX_LABELS do
             local lab = labels[i]
@@ -602,16 +615,22 @@ local function OnInitialize(context)
 end
 
 local function OnShutdown(context)
-    for i = 1, MAX_LABELS do
-        local name = LABEL_PREFIX .. i
-        if context.Api.Window.DoesExist(name) then
-            context.Api.Window.Destroy(name)
-        end
-    end
-    if context.Api.Window.DoesExist("MongbatQuickStatsRoot") then
-        context.Api.Window.Destroy("MongbatQuickStatsRoot")
-    end
-    context.Components.Defaults.QuickStats:restore()
+    local qs = context.Components.Defaults.QuickStats:getDefault()
+
+    -- Call our overridden Shutdown to save and destroy all label windows
+    qs.Shutdown()
+
+    -- Destroy the polling root window
+    context.Api.Window.Destroy("MongbatQuickStatsRoot")
+
+    -- Restore original QuickStats functions so the default system works after our mod exits
+    qs.Initialize     = originals.Initialize
+    qs.Shutdown       = originals.Shutdown
+    qs.DoesLabelExist = originals.DoesLabelExist
+    qs.GetId          = originals.GetId
+    qs.CreateLabel    = nil
+
+    originals = {}
 end
 
 Mongbat.Mod {
