@@ -159,6 +159,7 @@ local originalCrystalPortalToggle = nil
 local function OnInitialize(context)
     local Api        = context.Api
     local Data       = context.Data
+    local Utils      = context.Utils
     local Components = context.Components
     local Constants  = context.Constants
 
@@ -218,17 +219,10 @@ local function OnInitialize(context)
             pool = facetData.Banks
         end
 
-        local result = {}
-        local mage   = hasMagery()
-        for i = 1, #pool do
-            local entry = pool[i]
-            if entry.name == L"Wind" and not mage then
-                -- Wind requires Magery >= 71.5
-            else
-                result[#result + 1] = entry
-            end
-        end
-        return result
+        local mage = hasMagery()
+        return Utils.Array.Filter(pool, function(entry)
+            return entry.name ~= L"Wind" or mage
+        end)
     end
 
     --- Clamps selectedIndex into [1, #currentList].
