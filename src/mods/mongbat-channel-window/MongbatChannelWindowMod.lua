@@ -3,10 +3,21 @@ local CREATE_CHANNEL_NAME = "MongbatCreateChannelWindow"
 
 local COLOR_SELECTED = { r = 255, g = 215, b = 0 }
 
+--- Saved originals restored in OnShutdown. File-scope is justified because
+--- these values bridge OnInitialize and OnShutdown and cannot be passed
+--- through closures.
+local savedInitialize = nil
+local savedShutdown = nil
+
 ---@param context Context
 local function OnInitialize(context)
     local channelWindow = context.Components.Defaults.ChannelWindow
-    channelWindow:disable()
+
+    -- Save originals before overriding so they can be restored in OnShutdown.
+    -- Do NOT call disable() — when disabled, the proxy returns a no-op for
+    -- every function, including our own Initialize override.
+    savedInitialize = channelWindow:getDefault().Initialize
+    savedShutdown = channelWindow:getDefault().Shutdown
 
     local currentSelection = 1
 
@@ -158,48 +169,47 @@ local function OnInitialize(context)
         end
 
         currentSelection = 1
-        local channels = context.Data.ChannelList()
-        local count = channels:getCount()
 
         ---@type Label[]
         local rows = {}
 
-        for i = 1, count do
-            local index = i
-            local row = context.Components.Label {
-                Name = context.Utils.String.Format("MongbatChannelRow_%d", index),
-                Id = index,
-                OnInitialize = function(self)
-                    self:setDimensions(230, 20)
-                    self:setText(channels:getName(index))
-                    if index == currentSelection then
+        context.Utils.Array.ForEach(
+            context.Data.ChannelList():getNames(),
+            function(channelName, index)
+                rows[index] = context.Components.Label {
+                    Name = context.Utils.String.Format("MongbatChannelRow_%d", index),
+                    Id = index,
+                    OnInitialize = function(self)
+                        self:setDimensions(230, 20)
+                        self:setText(channelName)
+                        if index == currentSelection then
+                            self:setTextColor(COLOR_SELECTED)
+                        else
+                            self:setTextColor(context.Constants.Colors.White)
+                        end
+                    end,
+                    OnLButtonUp = function(self)
+                        local previous = currentSelection
+                        currentSelection = self:getId()
+                        if rows[previous] then
+                            rows[previous]:setTextColor(context.Constants.Colors.White)
+                        end
                         self:setTextColor(COLOR_SELECTED)
-                    else
-                        self:setTextColor(context.Constants.Colors.White)
                     end
-                end,
-                OnLButtonUp = function(self)
-                    local previous = currentSelection
-                    currentSelection = self:getId()
-                    if rows[previous] then
-                        rows[previous]:setTextColor(context.Constants.Colors.White)
-                    end
-                    self:setTextColor(COLOR_SELECTED)
-                end
-            }
-            rows[index] = row
-        end
+                }
+            end
+        )
 
-        local children = {
-            CurrentChannelLabel(),
-            CurrentChannelDescLabel(),
-            JoinButton(),
-            LeaveButton(),
-            CreateButton()
+        local children = context.Utils.Array.Concat {
+            {
+                CurrentChannelLabel(),
+                CurrentChannelDescLabel(),
+                JoinButton(),
+                LeaveButton(),
+                CreateButton()
+            },
+            rows
         }
-        for i = 1, #rows do
-            children[#children + 1] = rows[i]
-        end
 
         context.Components.Window {
             Name = NAME,
@@ -230,7 +240,16 @@ end
 local function OnShutdown(context)
     context.Api.Window.Destroy(CREATE_CHANNEL_NAME)
     context.Api.Window.Destroy(NAME)
-    context.Components.Defaults.ChannelWindow:restore()
+
+    local channelWindow = context.Components.Defaults.ChannelWindow
+    if savedInitialize then
+        channelWindow:getDefault().Initialize = savedInitialize
+        savedInitialize = nil
+    end
+    if savedShutdown then
+        channelWindow:getDefault().Shutdown = savedShutdown
+        savedShutdown = nil
+    end
 end
 
 Mongbat.Mod {

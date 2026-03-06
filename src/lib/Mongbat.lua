@@ -3860,6 +3860,16 @@ function ChannelListWrapper:getCurrentChannel()
     return WindowData.CurrentChannel or L""
 end
 
+---@return wstring[] Ordered array of channel names
+function ChannelListWrapper:getNames()
+    local count = WindowData.ChannelListCount or 0
+    local names = {}
+    for i = 1, count do
+        names[i] = WindowData.ChannelList[i] or L""
+    end
+    return names
+end
+
 ---@return ChannelListWrapper
 function Data.ChannelList()
     return ChannelListWrapper:new()
