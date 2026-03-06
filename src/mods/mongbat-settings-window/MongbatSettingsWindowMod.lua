@@ -82,11 +82,12 @@ local FADE_LABELS = { L"1s", L"2s", L"3s", L"4s", L"5s" }
 local function OnInitialize(context)
     local Api        = context.Api
     local Components = context.Components
+    local Constants  = context.Constants
 
-    -- Populate engine-value arrays that need engine globals
-    SHOWNAMES_IDS[1] = SystemData.Settings.GameOptions.SHOWNAMES_NONE
-    SHOWNAMES_IDS[2] = SystemData.Settings.GameOptions.SHOWNAMES_APPROACHING
-    SHOWNAMES_IDS[3] = SystemData.Settings.GameOptions.SHOWNAMES_ALL
+    -- Snapshot SHOWNAMES constants via framework wrappers
+    SHOWNAMES_IDS[1] = Constants.Settings.ShowNames.None()
+    SHOWNAMES_IDS[2] = Constants.Settings.ShowNames.Approaching()
+    SHOWNAMES_IDS[3] = Constants.Settings.ShowNames.All()
 
     -- Disable the default settings window and destroy the existing XML window
     local settingsDefault = Components.Defaults.SettingsWindow
@@ -124,144 +125,146 @@ local function OnInitialize(context)
     end
 
     -- -----------------------------------------------------------------------
-    -- loadSettings(): snapshot SystemData.Settings.* -> pending, then refresh
+    -- loadSettings(): snapshot Data.Settings() -> pending, then refresh
     -- -----------------------------------------------------------------------
     local function loadSettings()
+        local s = context.Data.Settings()
         -- Graphics (gamma stored as integer 0-200 = float×100)
-        pending.useFullScreen   = SystemData.Settings.Resolution.useFullScreen
-        pending.gamma           = math.floor(SystemData.Settings.Resolution.gamma * 100 + 0.5)
-        pending.showShadows     = SystemData.Settings.Resolution.showShadows
-        pending.enableVSync     = SystemData.Settings.Resolution.enableVSync
-        pending.showWindowFrame = SystemData.Settings.Resolution.showWindowFrame
-        pending.displayFoliage  = SystemData.Settings.Resolution.displayFoliage
-        pending.circleOfTrans   = SystemData.Settings.GameOptions.circleOfTransEnabled
-        pending.idleAnimation   = SystemData.Settings.Optimization.idleAnimation
-        pending.framerateMax    = SystemData.Settings.Resolution.framerateMax
-        pending.framerateIdx    = findIndex(FPS_VALUES, SystemData.Settings.Resolution.framerateMax)
+        pending.useFullScreen   = s:getUseFullScreen()
+        pending.gamma           = math.floor(s:getGamma() * 100 + 0.5)
+        pending.showShadows     = s:getShowShadows()
+        pending.enableVSync     = s:getEnableVSync()
+        pending.showWindowFrame = s:getShowWindowFrame()
+        pending.displayFoliage  = s:getDisplayFoliage()
+        pending.circleOfTrans   = s:getCircleOfTrans()
+        pending.idleAnimation   = s:getIdleAnimation()
+        pending.framerateMax    = s:getFramerateMax()
+        pending.framerateIdx    = findIndex(FPS_VALUES, s:getFramerateMax())
 
         -- Sound
-        pending.masterEnabled   = SystemData.Settings.Sound.master.enabled
-        pending.masterVolume    = SystemData.Settings.Sound.master.volume
-        pending.effectsEnabled  = SystemData.Settings.Sound.effects.enabled
-        pending.effectsVolume   = SystemData.Settings.Sound.effects.volume
-        pending.musicEnabled    = SystemData.Settings.Sound.music.enabled
-        pending.musicVolume     = SystemData.Settings.Sound.music.volume
-        pending.footsteps       = SystemData.Settings.Sound.footsteps.enabled
+        pending.masterEnabled   = s:getMasterEnabled()
+        pending.masterVolume    = s:getMasterVolume()
+        pending.effectsEnabled  = s:getEffectsEnabled()
+        pending.effectsVolume   = s:getEffectsVolume()
+        pending.musicEnabled    = s:getMusicEnabled()
+        pending.musicVolume     = s:getMusicVolume()
+        pending.footsteps       = s:getFootsteps()
 
         -- Options
-        pending.alwaysRun            = SystemData.Settings.GameOptions.alwaysRun
-        pending.enableAutorun        = SystemData.Settings.GameOptions.enableAutorun
-        pending.enablePathfinding    = SystemData.Settings.GameOptions.enablePathfinding
-        pending.queryBeforeCriminal  = SystemData.Settings.GameOptions.queryBeforeCriminalAction
-        pending.ignoreMouseOnSelf    = SystemData.Settings.GameOptions.ignoreMouseActionsOnSelf
-        pending.holdShiftToUnstack   = SystemData.Settings.GameOptions.holdShiftToUnstack
-        pending.shiftRightClick      = SystemData.Settings.GameOptions.shiftRightClickContextMenus
-        pending.targetQueueing       = SystemData.Settings.GameOptions.targetQueueing
-        pending.alwaysAttack         = SystemData.Settings.GameOptions.alwaysAttack
-        pending.showCorpseNames      = SystemData.Settings.GameOptions.showCorpseNames
-        pending.showTooltips         = SystemData.Settings.Interface.showTooltips
-        pending.overheadChat         = SystemData.Settings.Interface.OverheadChat
-        pending.enableChatLog        = SystemData.Settings.GameOptions.enableChatLog
-        pending.noWarOnPets          = SystemData.Settings.GameOptions.noWarOnPets
-        pending.noWarOnParty         = SystemData.Settings.GameOptions.noWarOnParty
+        pending.alwaysRun            = s:getAlwaysRun()
+        pending.enableAutorun        = s:getEnableAutorun()
+        pending.enablePathfinding    = s:getEnablePathfinding()
+        pending.queryBeforeCriminal  = s:getQueryBeforeCriminal()
+        pending.ignoreMouseOnSelf    = s:getIgnoreMouseOnSelf()
+        pending.holdShiftToUnstack   = s:getHoldShiftToUnstack()
+        pending.shiftRightClick      = s:getShiftRightClick()
+        pending.targetQueueing       = s:getTargetQueueing()
+        pending.alwaysAttack         = s:getAlwaysAttack()
+        pending.showCorpseNames      = s:getShowCorpseNames()
+        pending.showTooltips         = s:getShowTooltips()
+        pending.overheadChat         = s:getOverheadChat()
+        pending.enableChatLog        = s:getEnableChatLog()
+        pending.noWarOnPets          = s:getNoWarOnPets()
+        pending.noWarOnParty         = s:getNoWarOnParty()
 
         -- Legacy
-        pending.legacyContainers = SystemData.Settings.Interface.LegacyContainers
-        pending.legacyPaperdolls = SystemData.Settings.Interface.LegacyPaperdolls
-        pending.legacyChat       = SystemData.Settings.Interface.LegacyChat
-        pending.legacyTargeting  = SystemData.Settings.GameOptions.legacyTargeting
+        pending.legacyContainers = s:getLegacyContainers()
+        pending.legacyPaperdolls = s:getLegacyPaperdolls()
+        pending.legacyChat       = s:getLegacyChat()
+        pending.legacyTargeting  = s:getLegacyTargeting()
 
         -- Profanity
-        pending.badWordFilter    = SystemData.Settings.Profanity.BadWordFilter
-        pending.ignoreListFilter = SystemData.Settings.Profanity.IgnoreListFilter
-        pending.ignoreConfFilter = SystemData.Settings.Profanity.IgnoreConfListFilter
+        pending.badWordFilter    = s:getBadWordFilter()
+        pending.ignoreListFilter = s:getIgnoreListFilter()
+        pending.ignoreConfFilter = s:getIgnoreConfFilter()
 
         -- Overhead Text (fade delay index 1-5)
-        local fadeDelay = SystemData.Settings.Interface.OverheadChatFadeDelay or 1
+        local fadeDelay = s:getOverheadChatFadeDelay() or 1
         if fadeDelay < 1 then fadeDelay = 1 end
         if fadeDelay > 5 then fadeDelay = 5 end
         pending.overheadChatFade = fadeDelay
-        pending.partyInvitePopUp = SystemData.Settings.Interface.partyInvitePopUp
+        pending.partyInvitePopUp = s:getPartyInvitePopUp()
 
         -- Containers
-        pending.showStrLabel = SystemData.Settings.GameOptions.showStrLabel
+        pending.showStrLabel = s:getShowStrLabel()
 
         -- Healthbars (UI scale stored as integer 50-150 = float×100)
-        local rawScale = SystemData.Settings.Interface.customUiScale or 1.0
+        local rawScale = s:getCustomUiScale() or 1.0
         pending.uiScale = math.floor(rawScale * 100 + 0.5)
 
         -- Mobiles on Screen (show names, stored as 1-based index)
         pending.showNamesIdx = findIndex(SHOWNAMES_IDS,
-            SystemData.Settings.GameOptions.showNames or SHOWNAMES_IDS[1])
+            s:getShowNames() or SHOWNAMES_IDS[1])
 
         -- Reset pending bindings
         pendingBindings = {}
     end
 
     -- -----------------------------------------------------------------------
-    -- applySettings(): write pending -> SystemData.Settings.*, call engine
+    -- applySettings(): write pending -> Data.Settings(), call engine
     -- -----------------------------------------------------------------------
     local function applySettings()
+        local s = context.Data.Settings()
         -- Graphics
-        SystemData.Settings.Resolution.useFullScreen         = pending.useFullScreen
-        SystemData.Settings.Resolution.gamma                 = pending.gamma / 100
-        SystemData.Settings.Resolution.showShadows           = pending.showShadows
-        SystemData.Settings.Resolution.enableVSync           = pending.enableVSync
-        SystemData.Settings.Resolution.showWindowFrame       = pending.showWindowFrame
-        SystemData.Settings.Resolution.displayFoliage        = pending.displayFoliage
-        SystemData.Settings.GameOptions.circleOfTransEnabled = pending.circleOfTrans
-        SystemData.Settings.Optimization.idleAnimation       = pending.idleAnimation
-        SystemData.Settings.Resolution.framerateMax          = FPS_VALUES[pending.framerateIdx]
+        s:setUseFullScreen(pending.useFullScreen)
+        s:setGamma(pending.gamma / 100)
+        s:setShowShadows(pending.showShadows)
+        s:setEnableVSync(pending.enableVSync)
+        s:setShowWindowFrame(pending.showWindowFrame)
+        s:setDisplayFoliage(pending.displayFoliage)
+        s:setCircleOfTrans(pending.circleOfTrans)
+        s:setIdleAnimation(pending.idleAnimation)
+        s:setFramerateMax(FPS_VALUES[pending.framerateIdx])
 
         -- Sound
-        SystemData.Settings.Sound.master.enabled    = pending.masterEnabled
-        SystemData.Settings.Sound.master.volume     = pending.masterVolume
-        SystemData.Settings.Sound.effects.enabled   = pending.effectsEnabled
-        SystemData.Settings.Sound.effects.volume    = pending.effectsVolume
-        SystemData.Settings.Sound.music.enabled     = pending.musicEnabled
-        SystemData.Settings.Sound.music.volume      = pending.musicVolume
-        SystemData.Settings.Sound.footsteps.enabled = pending.footsteps
+        s:setMasterEnabled(pending.masterEnabled)
+        s:setMasterVolume(pending.masterVolume)
+        s:setEffectsEnabled(pending.effectsEnabled)
+        s:setEffectsVolume(pending.effectsVolume)
+        s:setMusicEnabled(pending.musicEnabled)
+        s:setMusicVolume(pending.musicVolume)
+        s:setFootsteps(pending.footsteps)
 
         -- Options
-        SystemData.Settings.GameOptions.alwaysRun                   = pending.alwaysRun
-        SystemData.Settings.GameOptions.enableAutorun               = pending.enableAutorun
-        SystemData.Settings.GameOptions.enablePathfinding           = pending.enablePathfinding
-        SystemData.Settings.GameOptions.queryBeforeCriminalAction   = pending.queryBeforeCriminal
-        SystemData.Settings.GameOptions.ignoreMouseActionsOnSelf    = pending.ignoreMouseOnSelf
-        SystemData.Settings.GameOptions.holdShiftToUnstack          = pending.holdShiftToUnstack
-        SystemData.Settings.GameOptions.shiftRightClickContextMenus = pending.shiftRightClick
-        SystemData.Settings.GameOptions.targetQueueing              = pending.targetQueueing
-        SystemData.Settings.GameOptions.alwaysAttack                = pending.alwaysAttack
-        SystemData.Settings.GameOptions.showCorpseNames             = pending.showCorpseNames
-        SystemData.Settings.Interface.showTooltips                  = pending.showTooltips
-        SystemData.Settings.Interface.OverheadChat                  = pending.overheadChat
-        SystemData.Settings.GameOptions.enableChatLog               = pending.enableChatLog
-        SystemData.Settings.GameOptions.noWarOnPets                 = pending.noWarOnPets
-        SystemData.Settings.GameOptions.noWarOnParty                = pending.noWarOnParty
+        s:setAlwaysRun(pending.alwaysRun)
+        s:setEnableAutorun(pending.enableAutorun)
+        s:setEnablePathfinding(pending.enablePathfinding)
+        s:setQueryBeforeCriminal(pending.queryBeforeCriminal)
+        s:setIgnoreMouseOnSelf(pending.ignoreMouseOnSelf)
+        s:setHoldShiftToUnstack(pending.holdShiftToUnstack)
+        s:setShiftRightClick(pending.shiftRightClick)
+        s:setTargetQueueing(pending.targetQueueing)
+        s:setAlwaysAttack(pending.alwaysAttack)
+        s:setShowCorpseNames(pending.showCorpseNames)
+        s:setShowTooltips(pending.showTooltips)
+        s:setOverheadChat(pending.overheadChat)
+        s:setEnableChatLog(pending.enableChatLog)
+        s:setNoWarOnPets(pending.noWarOnPets)
+        s:setNoWarOnParty(pending.noWarOnParty)
 
         -- Legacy
-        SystemData.Settings.Interface.LegacyContainers  = pending.legacyContainers
-        SystemData.Settings.Interface.LegacyPaperdolls  = pending.legacyPaperdolls
-        SystemData.Settings.Interface.LegacyChat        = pending.legacyChat
-        SystemData.Settings.GameOptions.legacyTargeting = pending.legacyTargeting
+        s:setLegacyContainers(pending.legacyContainers)
+        s:setLegacyPaperdolls(pending.legacyPaperdolls)
+        s:setLegacyChat(pending.legacyChat)
+        s:setLegacyTargeting(pending.legacyTargeting)
 
         -- Profanity
-        SystemData.Settings.Profanity.BadWordFilter        = pending.badWordFilter
-        SystemData.Settings.Profanity.IgnoreListFilter     = pending.ignoreListFilter
-        SystemData.Settings.Profanity.IgnoreConfListFilter = pending.ignoreConfFilter
+        s:setBadWordFilter(pending.badWordFilter)
+        s:setIgnoreListFilter(pending.ignoreListFilter)
+        s:setIgnoreConfFilter(pending.ignoreConfFilter)
 
         -- Overhead Text
-        SystemData.Settings.Interface.OverheadChatFadeDelay = pending.overheadChatFade
-        SystemData.Settings.Interface.partyInvitePopUp      = pending.partyInvitePopUp
+        s:setOverheadChatFadeDelay(pending.overheadChatFade)
+        s:setPartyInvitePopUp(pending.partyInvitePopUp)
 
         -- Containers
-        SystemData.Settings.GameOptions.showStrLabel = pending.showStrLabel
+        s:setShowStrLabel(pending.showStrLabel)
 
         -- Healthbars / UI Scale
-        SystemData.Settings.Interface.customUiScale = pending.uiScale / 100
+        s:setCustomUiScale(pending.uiScale / 100)
 
         -- Mobiles
-        SystemData.Settings.GameOptions.showNames = SHOWNAMES_IDS[pending.showNamesIdx]
+        s:setShowNames(SHOWNAMES_IDS[pending.showNamesIdx])
 
         -- Key bindings
         for atype, key in pairs(pendingBindings) do
@@ -746,7 +749,7 @@ local function OnInitialize(context)
                             s:addAnchor("topright", parent, "topright", -MARGIN, 0)
                         end,
                         OnLButtonUp = function()
-                            Api.Event.Broadcast(SystemData.Events.RESET_MMO_KEY_BINDINGS)
+                            Api.Event.Broadcast(Constants.Broadcasts.ResetMmoKeyBindings())
                             pendingBindings = {}
                             refreshAll()
                         end,
@@ -776,7 +779,7 @@ local function OnInitialize(context)
                             s:addAnchor("topright", parent, "topright", -MARGIN, 0)
                         end,
                         OnLButtonUp = function()
-                            Api.Event.Broadcast(SystemData.Events.RESET_LEGACY_KEY_BINDINGS)
+                            Api.Event.Broadcast(Constants.Broadcasts.ResetLegacyKeyBindings())
                             pendingBindings = {}
                             refreshAll()
                         end,
