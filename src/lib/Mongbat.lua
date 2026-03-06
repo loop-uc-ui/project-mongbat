@@ -2398,6 +2398,30 @@ function Api.Interface.GetPaperdollOpen()
 end
 
 ---
+--- Sets whether the player's backpack is considered open by the engine.
+---@param open boolean
+function Api.Interface.SetBackpackOpen(open)
+    Interface.BackpackOpen = open
+end
+
+---
+--- Gets whether the player's backpack is considered open by the engine.
+---@return boolean
+function Api.Interface.GetBackpackOpen()
+    return Interface.BackpackOpen
+end
+
+---
+--- Marks a window for automatic destruction when the player closes it
+--- (via Escape or a close button). The engine checks this table when
+--- processing close events.
+---@param windowName string The name of the window.
+---@param value boolean True to enable auto-destroy on close.
+function Api.Interface.SetDestroyWindowOnClose(windowName, value)
+    Interface.DestroyWindowOnClose[windowName] = value
+end
+
+---
 --- Gets mobile data for a given ID from the engine.
 ---@param id number The mobile ID.
 ---@param includeEquipment boolean Whether to include equipment data.
@@ -3880,6 +3904,38 @@ end
 ---@return number
 function Data.UpdateInstanceId()
     return WindowData.UpdateInstanceId
+end
+
+-- ========================================================================== --
+-- Data - ActiveWindow / DynamicWindow / ActiveContainer
+-- ========================================================================== --
+
+---
+--- Returns the name of the engine's currently active window, as set by the
+--- engine before invoking any event callback (CoreEvent, SystemEvent, or
+--- DataEvent).  Equivalent to `SystemData.ActiveWindow.name`.
+---@return string
+function Data.ActiveWindowName()
+    return SystemData.ActiveWindow.name
+end
+
+---
+--- Returns the engine-assigned dynamic window ID that is current when a new
+--- dynamic window is being created.  Equivalent to `SystemData.DynamicWindowId`.
+--- Read this value only inside lifecycle callbacks such as
+--- `ContainerWindow.Initialize`.
+---@return number
+function Data.DynamicWindowId()
+    return SystemData.DynamicWindowId
+end
+
+---
+--- Returns the number of slots in the container that is currently being
+--- initialised by the engine.  Equivalent to `SystemData.ActiveContainer.NumSlots`.
+--- Read this value only inside `ContainerWindow.Initialize`.
+---@return number
+function Data.ActiveContainerNumSlots()
+    return SystemData.ActiveContainer.NumSlots
 end
 
 -- ========================================================================== --
