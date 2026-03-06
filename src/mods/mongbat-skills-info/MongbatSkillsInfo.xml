@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../Interface.xsd">
+    <Windows>
+
+        <!-- Section header label: gold text, word-wrapped, auto-resizing height -->
+        <Label name="SkillsInfoLabelHeader" font="UO_GoldButtonText" maxchars="256" textalign="left" autoresize="true" handleinput="false" wordwrap="true">
+            <Size>
+                <AbsPoint x="350" y="0" />
+            </Size>
+            <Color r="204" g="178" b="100" a="255" />
+        </Label>
+
+        <!-- Section body label: default text, word-wrapped, auto-resizing height -->
+        <Label name="SkillsInfoLabelBody" font="UO_DefaultText" maxchars="10000" textalign="left" autoresize="true" handleinput="false" wordwrap="true">
+            <Size>
+                <AbsPoint x="350" y="0" />
+            </Size>
+            <Color r="206" g="217" b="242" a="255" />
+        </Label>
+
+        <!--
+            Main window template.  Instance name must be "MongbatSkillsInfoWindow".
+            $parent is substituted with the instance name by the engine, so child
+            window names become deterministic:
+              $parentScrollView              -> MongbatSkillsInfoWindowScrollView
+              $parentScrollViewScrollbar     -> MongbatSkillsInfoWindowScrollViewScrollbar
+              $parentScrollViewScrollChild   -> MongbatSkillsInfoWindowScrollViewScrollChild
+              $parentScrollViewScrollChildContent -> MongbatSkillsInfoWindowScrollViewScrollChildContent
+        -->
+        <MaskWindow name="MongbatSkillsInfoTemplate" movable="true">
+            <Size>
+                <AbsPoint x="400" y="500" />
+            </Size>
+            <EventHandlers>
+                <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize" />
+            </EventHandlers>
+            <Windows>
+                <!-- Body background -->
+                <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
+                    <Anchors>
+                        <Anchor point="topleft" relativePoint="topleft" relativeTo="$parent" />
+                        <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent" />
+                    </Anchors>
+                </FullResizeImage>
+
+                <!-- Inner frame -->
+                <FullResizeImage name="$parentFrame" inherits="UO_Simple_Frame" layer="background" frameonly="true">
+                    <Anchors>
+                        <Anchor point="topleft" relativePoint="topleft" relativeTo="$parentBackground" />
+                        <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parentBackground" />
+                    </Anchors>
+                </FullResizeImage>
+
+                <!--
+                    Scroll window.  The childscrollwindow and scrollbar attributes
+                    reference names that are $parent-prefixed relative to this
+                    element's parent (the MaskWindow root = $parent).  This matches
+                    the child element names defined inside the ScrollWindow, where
+                    $parent refers to the ScrollWindow itself ($parentScrollView).
+                -->
+                <ScrollWindow name="$parentScrollView"
+                              childscrollwindow="$parentScrollViewScrollChild"
+                              scrollbar="$parentScrollViewScrollbar"
+                              lineheight="18"
+                              autoHideScrollBar="true">
+                    <Anchors>
+                        <Anchor point="topleft" relativePoint="topleft" relativeTo="$parent">
+                            <AbsPoint x="10" y="36" />
+                        </Anchor>
+                        <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent">
+                            <AbsPoint x="-10" y="-10" />
+                        </Anchor>
+                    </Anchors>
+                    <Windows>
+                        <VerticalScrollbar name="$parentScrollViewScrollbar" inherits="MongbatVertScroll" layer="secondary">
+                            <Anchors>
+                                <Anchor point="topright" relativePoint="topright">
+                                    <AbsPoint x="0" y="0" />
+                                </Anchor>
+                                <Anchor point="bottomright" relativePoint="bottomright" />
+                            </Anchors>
+                        </VerticalScrollbar>
+                        <Window name="$parentScrollViewScrollChild" popable="false">
+                            <Anchors>
+                                <Anchor point="topleft" relativePoint="topleft" />
+                            </Anchors>
+                            <Windows>
+                                <!-- Content container: labels are anchored inside here -->
+                                <Window name="$parentScrollViewScrollChildContent">
+                                    <Size>
+                                        <AbsPoint x="350" y="0" />
+                                    </Size>
+                                </Window>
+                            </Windows>
+                        </Window>
+                    </Windows>
+                </ScrollWindow>
+            </Windows>
+        </MaskWindow>
+
+    </Windows>
+</Interface>

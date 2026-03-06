@@ -1478,6 +1478,27 @@ function Api.String.WStringToString(wString)
     return WStringToString(wString)
 end
 
+---
+--- Expands markup tokens (e.g. ~1_val~) in a wstring returned by GetStringFromTid.
+---@param text wstring The text containing markup tokens.
+---@return wstring The text with tokens expanded.
+function Api.String.TranslateMarkup(text)
+    return WindowUtils.translateMarkup(text)
+end
+
+-- ========================================================================== --
+-- Api - File
+-- ========================================================================== --
+
+Api.File = {}
+
+---
+--- Loads a text file from the filesystem into WindowData.UOLoadTextFile.
+---@param filename string The name/path of the file to load.
+function Api.File.LoadTextFile(filename)
+    UOLoadTextFile(filename)
+end
+
 -- ========================================================================== --
 -- Api - Target
 -- ========================================================================== --
@@ -2333,6 +2354,14 @@ end
 ---@param ignoreBounds boolean Whether to ignore the bounds of the window.
 function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
+end
+
+---
+--- Sets the title text in a window's chrome title bar.
+---@param windowName string The name of the window.
+---@param title wstring The title text.
+function Api.Window.SetTitle(windowName, title)
+    WindowUtils.SetWindowTitle(windowName, title)
 end
 
 -- ========================================================================== --
@@ -3792,6 +3821,18 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
+-- Data - Loaded Text File
+-- ========================================================================== --
+
+---
+--- Returns the text content loaded by a prior Api.File.LoadTextFile() call.
+--- Returns nil if no file has been loaded or the result is empty.
+---@return wstring? The loaded text, or nil.
+function Data.LoadedTextFile()
+    return WindowData.UOLoadTextFile and WindowData.UOLoadTextFile.Text or nil
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 
@@ -4073,6 +4114,14 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+---@class DefaultSkillsInfo
+---@field DisplayId integer The currently displayed skill index
+---@field ClearGump fun() Clears the skill info gump and destroys dynamic windows
+---@field UpdateGump fun(DisplaySkill: integer) Updates the skill info gump for the given skill
+
+---@class DefaultSkillsInfoComponent : DefaultComponent
+local DefaultSkillsInfoComponent = {}
+DefaultSkillsInfoComponent.__index = DefaultSkillsInfoComponent
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4821,6 +4870,29 @@ end
 
 ---@return Window
 function DefaultDebugWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Skills Info
+-- ========================================================================== --
+
+---@return DefaultSkillsInfoComponent
+function DefaultSkillsInfoComponent:new()
+    local instance = DefaultComponent.new(self, "SkillsInfo") --[[@as DefaultSkillsInfoComponent]]
+    instance._proxy = instance:_createProxy(SkillsInfo)
+    instance._globalKey = "SkillsInfo"
+    _G.SkillsInfo = instance._proxy
+    return instance
+end
+
+---@return DefaultSkillsInfo
+function DefaultSkillsInfoComponent:getDefault()
+    return self._proxy or SkillsInfo --[[@as DefaultSkillsInfo]]
+end
+
+---@return Window
+function DefaultSkillsInfoComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6761,6 +6833,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultSkillsInfoComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6848,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.SkillsInfo = DefaultSkillsInfoComponent:new()
 
 -- ========================================================================== --
 -- Mod
