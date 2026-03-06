@@ -1078,6 +1078,20 @@ function Api.LogDisplay.IsScrolledToTop(name)
 end
 
 -- ========================================================================== --
+-- Api - Math
+-- ========================================================================== --
+
+Api.Math = {}
+
+---
+--- Gets a random number between 0 and max-1.
+---@param max number The maximum value (exclusive).
+---@return number A random number between 0 and max-1.
+function Api.Math.GetRandomNumber(max)
+    return GetRandomNumber(max)
+end
+
+-- ========================================================================== --
 -- Api - Mod
 -- ========================================================================== --
 
@@ -1386,6 +1400,19 @@ end
 ---@param id string The ID of the scroll window.
 function Api.ScrollWindow.UpdateScrollRect(id)
     ScrollWindowUpdateScrollRect(id)
+end
+
+-- ========================================================================== --
+-- Api - Settings
+-- ========================================================================== --
+
+Api.Settings = {}
+
+---
+--- Applies current settings changes, pushing them to the C++ layer.
+function Api.Settings.Apply()
+    SettingsWindow.UpdateSettings()
+    UserSettingsChanged()
 end
 
 -- ========================================================================== --
@@ -3802,6 +3829,32 @@ end
 
 
 -- ========================================================================== --
+-- Data - Settings
+-- ========================================================================== --
+
+---
+--- Returns the SystemData.Settings table for reading and modifying game settings.
+---@return table The settings table.
+function Data.Settings()
+    return SystemData.Settings
+end
+
+-- ========================================================================== --
+-- Data - TipoftheDayCSV
+-- ========================================================================== --
+
+---@class WindowData.TipoftheDayCSV.Entry
+---@field TipTID integer The TID for the tip text.
+
+---
+--- Returns the loaded TipoftheDay CSV data.
+---@return WindowData.TipoftheDayCSV.Entry[] The array of tip entries.
+function Data.TipoftheDayCSV()
+    return WindowData.TipoftheDayCSV
+end
+
+
+-- ========================================================================== --
 -- Components
 -- ========================================================================== --
 
@@ -4072,6 +4125,18 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 ---@class DefaultObjectHandleComponent : DefaultComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
+---@class DefaultTipoftheDayWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field GetRandomTip fun()
+---@field ButtonUpNext fun()
+---@field ButtonUpClose fun()
+---@field ButtonUpShowOption fun()
+
+---@class DefaultTipoftheDayWindowComponent : DefaultComponent
+local DefaultTipoftheDayWindowComponent = {}
+DefaultTipoftheDayWindowComponent.__index = DefaultTipoftheDayWindowComponent
 
 
 ---@class CircleImageModel : ViewModel
@@ -4914,6 +4979,29 @@ end
 
 ---@return Window
 function DefaultPaperdollWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - TipoftheDay Window
+-- ========================================================================== --
+
+---@return DefaultTipoftheDayWindowComponent
+function DefaultTipoftheDayWindowComponent:new()
+    local instance = DefaultComponent.new(self, "TipoftheDayWindow") --[[@as DefaultTipoftheDayWindowComponent]]
+    instance._proxy = instance:_createProxy(TipoftheDayWindow)
+    instance._globalKey = "TipoftheDayWindow"
+    _G.TipoftheDayWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultTipoftheDayWindow
+function DefaultTipoftheDayWindowComponent:getDefault()
+    return self._proxy or TipoftheDayWindow --[[@as DefaultTipoftheDayWindow]]
+end
+
+---@return Window
+function DefaultTipoftheDayWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6761,6 +6849,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultTipoftheDayWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6775,6 +6864,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.TipoftheDayWindow = DefaultTipoftheDayWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod

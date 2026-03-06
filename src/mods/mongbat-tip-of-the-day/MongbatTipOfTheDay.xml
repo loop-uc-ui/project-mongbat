@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="../../../docs/Interface.xsd">
+  <Templates>
+    <Label name="MongbatTipOfTheDayLabel" font="inter_medium_18" wordwrap="true" maxchars="512" textalign="left">
+      <Size>
+        <AbsPoint x="480" y="120" />
+      </Size>
+      <Color r="206" g="217" b="242" a="255" />
+    </Label>
+  </Templates>
+</Interface>
