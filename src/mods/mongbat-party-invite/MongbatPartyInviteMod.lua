@@ -1,9 +1,19 @@
 local NAME = "MongbatPartyInviteWindow"
 
+-- File-scope: needed by both OnInitialize and OnShutdown to restore overridden functions
+local originalInitialize
+local originalShutdown
+local originalCloseWindow
+
 ---@param context Context
 local function OnInitialize(context)
     local default = context.Components.Defaults.PartyInviteWindow
     local doNotShowChecked = false
+
+    -- Save originals before overriding so OnShutdown can restore them
+    originalInitialize = default:getDefault().Initialize
+    originalShutdown = default:getDefault().Shutdown
+    originalCloseWindow = default:getDefault().CloseWindow
 
     local function destroyWindow()
         context.Api.Window.Destroy(NAME)
@@ -65,6 +75,14 @@ local function OnInitialize(context)
                 }
             end
         }:create(true)
+
+        -- Mirror the default UI's window-level CLOSE_PARTY_INVITE registration so the
+        -- engine signal reaches CloseWindow even though we skipped the original Initialize.
+        context.Api.Window.RegisterEventHandler(
+            "PartyInviteWindow",
+            context.Constants.Broadcasts.ClosePartyInvite(),
+            "PartyInviteWindow.CloseWindow"
+        )
     end
 
     default:getDefault().Initialize = function()
@@ -81,18 +99,28 @@ local function OnInitialize(context)
         destroyWindow()
     end
 
-    context.Api.Event.RegisterEventHandler(
-        context.Constants.Broadcasts.ClosePartyInvite(),
-        function()
-            context.Api.Window.Destroy("PartyInviteWindow")
-        end
-    )
+    -- CloseWindow is called by the CLOSE_PARTY_INVITE engine signal (registered above in
+    -- createWindow). Destroying "PartyInviteWindow" triggers the overridden Shutdown.
+    default:getDefault().CloseWindow = function()
+        context.Api.Window.Destroy("PartyInviteWindow")
+    end
 end
 
 ---@param context Context
 local function OnShutdown(context)
+    local default = context.Components.Defaults.PartyInviteWindow
+
+    -- If a party invite is showing, destroy the XML window first so the overridden Shutdown
+    -- fires (declining the pending invite and applying the "do not show" setting) before we
+    -- restore the originals.
+    context.Api.Window.Destroy("PartyInviteWindow")
     context.Api.Window.Destroy(NAME)
-    context.Components.Defaults.PartyInviteWindow:restore()
+
+    -- Restore the functions we overwrote on the original table.
+    default:getDefault().Initialize = originalInitialize
+    default:getDefault().Shutdown = originalShutdown
+    default:getDefault().CloseWindow = originalCloseWindow
+    default:restore()
 end
 
 Mongbat.Mod {
