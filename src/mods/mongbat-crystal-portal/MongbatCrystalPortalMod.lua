@@ -161,12 +161,6 @@ local GAP      = 8
 local originalCrystalPortalToggle = nil
 
 local function OnInitialize()
-    local Api        = Api
-    local Data       = Data
-    local Utils      = Utils
-    local Components = Components
-    local Constants  = Constants
-
     -- Intercept CrystalPortal.Toggle via the DefaultComponent proxy.
     -- We do NOT call disable() because that would also suppress our own Toggle
     -- replacement (the proxy no-ops all functions when disabled, including
@@ -578,9 +572,6 @@ local function OnInitialize()
 end
 
 local function OnShutdown()
-    local Api        = Api
-    local Components = Components
-
     -- Destroy our window if it is open
     Api.Window.Destroy(NAME)
 
