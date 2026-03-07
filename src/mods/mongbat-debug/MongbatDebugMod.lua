@@ -1,6 +1,9 @@
 local NAME = "MongbatDebugWindow"
 local FILTERED_LOG = "MongbatDebugFiltered"
 
+local Api = Mongbat.Api
+local Components = Mongbat.Components
+
 local FilterColors = {
     [1] = { r = 255, g = 0,   b = 255 }, -- System: Magenta
     [2] = { r = 255, g = 0,   b = 0   }, -- Error: Red
@@ -10,26 +13,25 @@ local FilterColors = {
 
 --- Populates the filtered text log with entries matching the filter text,
 --- then toggles visibility between the full and filtered LogDisplays.
----@param ctx Context
 ---@param fullLog LogDisplay
 ---@param filteredLog LogDisplay
 ---@param text wstring
-local function applyFilter(ctx, fullLog, filteredLog, text)
+local function applyFilter(fullLog, filteredLog, text)
     if wstring.len(text) <= 0 then
         filteredLog:setShowing(false)
         fullLog:setShowing(true)
         return
     end
 
-    ctx.Api.TextLog.Clear(FILTERED_LOG)
+    Api.TextLog.Clear(FILTERED_LOG)
     local lowerFilter = wstring.lower(text)
 
     for _, logName in ipairs({ "UiLog", "DebugPrint" }) do
-        local count = ctx.Api.TextLog.GetNumEntries(logName)
+        local count = Api.TextLog.GetNumEntries(logName)
         for i = 0, count - 1 do
-            local _, filterType, entryText = ctx.Api.TextLog.GetEntry(logName, i)
+            local _, filterType, entryText = Api.TextLog.GetEntry(logName, i)
             if entryText and wstring.find(wstring.lower(entryText), lowerFilter) then
-                ctx.Api.TextLog.AddEntry(FILTERED_LOG, filterType, entryText)
+                Api.TextLog.AddEntry(FILTERED_LOG, filterType, entryText)
             end
         end
     end
@@ -38,25 +40,24 @@ local function applyFilter(ctx, fullLog, filteredLog, text)
     filteredLog:setShowing(true)
 end
 
----@param ctx Context
-local function OnInitialize(ctx)
-    local original = ctx.Components.Defaults.DebugWindow
+local function OnInitialize()
+    local original = Components.Defaults.DebugWindow
     original:disable()
 
-    ctx.Api.TextLog.Create("DebugPrint", 500)
-    ctx.Api.TextLog.SetEnabled("DebugPrint", true)
-    ctx.Api.TextLog.Clear("DebugPrint")
-    ctx.Api.TextLog.SetIncrementalSaving("DebugPrint", true, "logs/Debug.Print.log")
-    ctx.Api.TextLog.SetEnabled("UiLog", true)
-    ctx.Api.TextLog.SetIncrementalSaving("UiLog", true, "logs/lua.log")
+    Api.TextLog.Create("DebugPrint", 500)
+    Api.TextLog.SetEnabled("DebugPrint", true)
+    Api.TextLog.Clear("DebugPrint")
+    Api.TextLog.SetIncrementalSaving("DebugPrint", true, "logs/Debug.Print.log")
+    Api.TextLog.SetEnabled("UiLog", true)
+    Api.TextLog.SetIncrementalSaving("UiLog", true, "logs/lua.log")
 
-    ctx.Api.TextLog.Create(FILTERED_LOG, 500)
-    ctx.Api.TextLog.SetEnabled(FILTERED_LOG, true)
+    Api.TextLog.Create(FILTERED_LOG, 500)
+    Api.TextLog.SetEnabled(FILTERED_LOG, true)
     for id = 1, 4 do
-        ctx.Api.TextLog.AddFilterType(FILTERED_LOG, id, L"")
+        Api.TextLog.AddFilterType(FILTERED_LOG, id, L"")
     end
 
-    local fullLogDisplay = ctx.Components.LogDisplay {
+    local fullLogDisplay = Components.LogDisplay {
         OnInitialize = function(self)
             self:showTimestamp(false)
             self:showLogName(true)
@@ -70,7 +71,7 @@ local function OnInitialize(ctx)
         end,
     }
 
-    local filteredLogDisplay = ctx.Components.LogDisplay {
+    local filteredLogDisplay = Components.LogDisplay {
         OnInitialize = function(self)
             self:showTimestamp(false)
             self:showLogName(false)
@@ -85,17 +86,17 @@ local function OnInitialize(ctx)
         end,
     }
 
-    local filterInput = ctx.Components.FilterInput {
+    local filterInput = Components.FilterInput {
         OnTextChanged = function(self, text)
-            applyFilter(ctx, fullLogDisplay, filteredLogDisplay, text)
+            applyFilter(fullLogDisplay, filteredLogDisplay, text)
         end,
         OnKeyEscape = function(self)
             self:clear()
-            applyFilter(ctx, fullLogDisplay, filteredLogDisplay, L"")
+            applyFilter(fullLogDisplay, filteredLogDisplay, L"")
         end,
     }
 
-    ctx.Components.Window({
+    Components.Window({
         Name = NAME,
         OnLayout = function(window, children, child, index)
             local dimens = window:getDimensions()
@@ -123,11 +124,10 @@ local function OnInitialize(ctx)
     }):create(false)
 end
 
----@param ctx Context
-local function OnShutdown(ctx)
-    ctx.Api.Window.Destroy(NAME)
-    ctx.Api.TextLog.Destroy(FILTERED_LOG)
-    local original = ctx.Components.Defaults.DebugWindow
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    Api.TextLog.Destroy(FILTERED_LOG)
+    local original = Components.Defaults.DebugWindow
     original:restore()
 end
 
