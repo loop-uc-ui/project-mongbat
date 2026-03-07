@@ -119,7 +119,7 @@ Component                  -- Base: name, type, xml-template support
             ├─ Label       -- Text display (font, color, alignment)
             ├─ StatusBar   -- Progress bar (current/max values, tints)
             ├─ CircleImage -- Circular texture
-            ├─ DynamicImage-- Runtime-assigned texture with coordinates
+            ├─ DynamicImage -- Runtime-assigned texture with coordinates
             ├─ EditTextBox -- Text input field
             ├─ LogDisplay  -- Multi-line scrolling text area
             ├─ ScrollWindow-- Scrollable container with vertical item rows
