@@ -159,5 +159,26 @@
           </Size>
       </FullResizeImage>
 
+      <SliderBar name="MongbatSliderBar" inherits="UO_Default_Horizontal_SliderBar">
+          <Size>
+              <AbsPoint x="160" y="16" />
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnSlide" function="Mongbat.EventHandler.OnSlide"/>
+          </EventHandlers>
+      </SliderBar>
+
+      <ComboBox name="MongbatComboBox" inherits="UO_Default_ComboBox">
+          <Size>
+              <AbsPoint x="181" y="27" />
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnSelChanged" function="Mongbat.EventHandler.OnSelChanged"/>
+          </EventHandlers>
+      </ComboBox>
+
+      <Button name="MongbatCheckBox" inherits="UO_Default_Check_Button">
+      </Button>
+
     </Windows>
 </Interface>
