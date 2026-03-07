@@ -5,15 +5,17 @@ local WINDOW_HEIGHT = 280
 local ITEM_WIDTH = 280
 local SCROLL_NAME = NAME .. "Scroll"
 local SCROLL_CHILD = NAME .. "ScrollChild"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
 
 -- Saved default IgnoreWindow functions, shared between OnInitialize and OnShutdown.
 local savedFunctions = {}
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Data = context.Data
-    local Components = context.Components
+local function OnInitialize()
+    local Api = Api
+    local Data = Data
+    local Components = Components
 
     local ignoreDefault = Components.Defaults.IgnoreWindow:getDefault()
     local settingsDefault = Components.Defaults.SettingsWindow:getDefault()
@@ -117,13 +119,12 @@ local function OnInitialize(context)
     Api.Window.Destroy("IgnoreWindow")
 end
 
----@param context Context
-local function OnShutdown(context)
+local function OnShutdown()
     -- Destroy our window if it is open.
-    context.Api.Window.Destroy(NAME)
+    Api.Window.Destroy(NAME)
 
     -- Restore the original IgnoreWindow functions.
-    local ignoreDefault = context.Components.Defaults.IgnoreWindow:getDefault()
+    local ignoreDefault = Components.Defaults.IgnoreWindow:getDefault()
     ignoreDefault.Initialize = savedFunctions.Initialize
     ignoreDefault.Add_OnLButtonUp = savedFunctions.Add_OnLButtonUp
     ignoreDefault.Cancel_OnLButtonUp = savedFunctions.Cancel_OnLButtonUp
