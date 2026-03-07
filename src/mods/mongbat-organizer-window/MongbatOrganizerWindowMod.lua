@@ -7,6 +7,11 @@
 -- continue to read from it without modification.
 -- ============================================================
 
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Utils = Mongbat.Utils
+
 local NAME = "OrganizerWindow"
 
 -- Layout constants
@@ -32,7 +37,7 @@ local RENAME_W = 72   -- [Rename]
 local ADDAGNT_W = 28  -- [+]
 local REMAGNT_W = 28  -- [-]
 local DEF_W    = 100  -- [Set Default] / "(Default)"
--- sum = 28+2+182+2+28+4+72+2+28+2+28+2+100 = 480 ✓
+-- sum = 28+2+182+2+28+4+72+2+28+2+28+2+100 = 480 ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“
 
 -- Container-row widths
 local CONT_BTN_W  = 150
@@ -58,15 +63,15 @@ local WIN_H = ITEM_Y + MAX_VISIBLE * (ITEM_H + ITEM_GAP) + MARGIN + 30
 -- ============================================================
 
 ---@class AgentTypeDesc
----@field key        string   Display prefix ("Organizer", "Undress", …)
----@field countKey   string   Organizer.*count* field ("Organizers","Undresses",…)
----@field listKey    string   Organizer.*list* field ("Organizer","Undress",…)
+---@field key        string   Display prefix ("Organizer", "Undress", ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦)
+---@field countKey   string   Organizer.*count* field ("Organizers","Undresses",ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦)
+---@field listKey    string   Organizer.*list* field ("Organizer","Undress",ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦)
 ---@field itemsKey   string   Organizer.*_Items field
 ---@field descKey    string   Organizer.*_Desc  field
 ---@field contKey    string|nil  Organizer.*_Cont  field (nil = no container)
 ---@field closeKey   string|nil  Organizer.*_CloseCont field
 ---@field activeKey  string   Organizer.Active* field
----@field savePrefix string   Item key prefix ("Organizer","Undress",…)
+---@field savePrefix string   Item key prefix ("Organizer","Undress",ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦)
 ---@field hasType    boolean
 ---@field hasId      boolean
 ---@field hasQta     boolean
@@ -236,12 +241,11 @@ end
 -- OnInitialize / OnShutdown
 -- ============================================================
 
----@param context Context
-local function OnInitialize(context)
-    local Api        = context.Api
-    local Utils      = context.Utils
-    local Components = context.Components
-    local Constants  = context.Constants
+local function OnInitialize()
+    local Api        = Api
+    local Utils      = Utils
+    local Components = Components
+    local Constants  = Constants
 
     -- Suppress the default OrganizerWindow UI
     local orgDefault = Components.Defaults.OrganizerWindow
@@ -1032,16 +1036,15 @@ local function OnInitialize(context)
 
     window:create(false)
     -- The engine fires OnInitialize via Mongbat.xml, which calls window:onInitialize()
-    -- and then calls refreshUI via the model's OnInitialize → setChildren → Layout flow.
+    -- and then calls refreshUI via the model's OnInitialize ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ setChildren ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Layout flow.
     -- We call refreshUI explicitly here to set initial text/visibility on controls.
     refreshUI()
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.SavePosition(NAME, true)
-    context.Api.Window.Destroy(NAME)
-    context.Components.Defaults.OrganizerWindow:restore()
+local function OnShutdown()
+    Api.Window.SavePosition(NAME, true)
+    Api.Window.Destroy(NAME)
+    Components.Defaults.OrganizerWindow:restore()
 end
 
 Mongbat.Mod {
