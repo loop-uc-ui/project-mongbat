@@ -140,7 +140,7 @@ local function OnInitialize(ctx)
                         if ctx.Api.Waypoint.GetInfoAt(idx, map) ~= nil then
                             local wp = ctx.Utils.Table.Copy(waypoint)
                             wp.Map = map
-                            table.insert(items, wp)
+                            ctx.Utils.Array.Add(items, wp)
                         end
                     end
                 end)
@@ -166,7 +166,7 @@ local function OnInitialize(ctx)
                         Map  = data.facet,
                     }
                     if wstring.find(wstring.lower(wname), lowerText) then
-                        table.insert(items, wp)
+                        ctx.Utils.Array.Add(items, wp)
                     end
                 end
             end
