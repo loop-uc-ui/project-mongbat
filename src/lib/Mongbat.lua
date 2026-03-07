@@ -4237,6 +4237,16 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
 
+---@class ScrollWindowModel : ViewModel
+---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
+---@field OnInitialize fun(self: ScrollWindow)?
+---@field OnShutdown fun(self: ScrollWindow)?
+
+---@class ScrollWindow : View
+---@field _items View[] Views added as rows into the scroll content area.
+local ScrollWindow = {}
+ScrollWindow.__index = ScrollWindow
+
 ---@class StatusBar: View
 ---@field label Label?
 local StatusBar = {}
@@ -5707,6 +5717,127 @@ function Components.LogDisplay(model)
 end
 
 -- ========================================================================== --
+-- Components - Scroll Window
+-- ========================================================================== --
+
+---@param model ScrollWindowModel?
+---@return ScrollWindow
+function ScrollWindow:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatScrollWindow"
+    local instance = View.new(self, model) --[[@as ScrollWindow]]
+    instance._items = {}
+    return instance
+end
+
+---@return string
+function ScrollWindow:_getContainerName()
+    return self.name .. "Cont"
+end
+
+function ScrollWindow:onInitialize()
+    View.onInitialize(self)
+end
+
+function ScrollWindow:onShutdown()
+    self:clearItems()
+    View.onShutdown(self)
+end
+
+function ScrollWindow:onDimensionsChanged(width, height)
+    self:_updateLayout()
+    View.onDimensionsChanged(self, width, height)
+end
+
+--- Adds a view as the next row in the scroll area. The view is created,
+--- initialised, re-parented into the content container, and the scroll rect
+--- is updated automatically.
+---
+--- The view must be a freshly-constructed, not-yet-created component
+--- (e.g. returned directly from a Components.* factory call).
+---@param view View
+---@return View
+function ScrollWindow:addItem(view)
+    local contName = self:_getContainerName()
+    view:create(true)
+    view:onInitialize()
+    view:setParent(contName)
+    local itemHeight = self:_getItemHeight()
+    local yOffset = #self._items * itemHeight
+    view:clearAnchors()
+    view:addAnchor("topleft", contName, "topleft", 0, yOffset)
+    Utils.Array.Add(self._items, view)
+    self:_updateLayout()
+    return view
+end
+
+--- Removes a previously added view from the scroll area. The view is
+--- destroyed and the remaining rows are re-laid-out vertically.
+---@param view View
+function ScrollWindow:removeItem(view)
+    local idx = Utils.Array.IndexOf(self._items, function(v) return v == view end)
+    if idx == -1 then return end
+    view:destroy()
+    Utils.Array.Remove(self._items, idx)
+    self:_updateLayout()
+end
+
+--- Destroys all rows and resets the scroll offset to the top.
+function ScrollWindow:clearItems()
+    Utils.Array.ForEach(self._items, function(item)
+        item:destroy()
+    end)
+    self._items = {}
+    self:_updateLayout()
+    self:setOffset(0)
+end
+
+--- Re-anchors all remaining rows so they are stacked contiguously, then
+--- resizes the content container and updates the engine scroll rect.
+function ScrollWindow:_updateLayout()
+    local contName = self:_getContainerName()
+    if not Api.Window.DoesExist(contName) then return end
+    local itemHeight = self:_getItemHeight()
+    Utils.Array.ForEach(self._items, function(item, index)
+        item:clearAnchors()
+        item:addAnchor("topleft", contName, "topleft", 0, (index - 1) * itemHeight)
+    end)
+    local dims = self:getDimensions()
+    local totalHeight = #self._items * itemHeight
+    Api.Window.SetDimensions(contName, dims.x, totalHeight)
+    Api.ScrollWindow.UpdateScrollRect(self.name)
+end
+
+---@return number
+function ScrollWindow:_getItemHeight()
+    return self._model.ItemHeight or 50
+end
+
+--- Sets the scroll offset (in pixels from the top of the content area).
+---@param offset number
+---@return ScrollWindow
+function ScrollWindow:setOffset(offset)
+    Api.ScrollWindow.SetOffset(self.name, offset)
+    return self
+end
+
+--- Manually triggers a scroll rect update. Call this if the items in the
+--- scroll area are resized externally.
+---@return ScrollWindow
+function ScrollWindow:updateScrollRect()
+    Api.ScrollWindow.UpdateScrollRect(self.name)
+    return self
+end
+
+---@param model ScrollWindowModel?
+---@return ScrollWindow
+function Components.ScrollWindow(model)
+    local scrollWindow = ScrollWindow:new(model)
+    Cache[scrollWindow:getName()] = scrollWindow
+    return scrollWindow
+end
+
+-- ========================================================================== --
 -- Components - Status Bar
 -- ========================================================================== --
 
@@ -6734,6 +6865,7 @@ setmetatable(Button, { __index = Window })
 setmetatable(EditTextBox, { __index = View })
 setmetatable(Label, { __index = View })
 setmetatable(LogDisplay, { __index = View })
+setmetatable(ScrollWindow, { __index = View })
 setmetatable(StatusBar, { __index = View })
 setmetatable(Gump, { __index = Window })
 setmetatable(CircleImage, { __index = View })
