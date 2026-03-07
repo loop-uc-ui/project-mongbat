@@ -234,7 +234,7 @@
           </EventHandlers>
       </Button>
 
-      <AnimatedImage name="MongbatCooldownDisplay" fps="10" texture="cooldown" movable="false" handleinput="false" layer="popup" poppable="false" sticky="false">
+      <AnimatedImage name="MongbatCooldownDisplay" inherits="CooldownEffect" handleinput="false" layer="popup">
           <Size>
               <AbsPoint x="48" y="48" />
           </Size>

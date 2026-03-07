@@ -5935,7 +5935,7 @@ end
 
 ---@return string
 function ScrollWindow:_getContainerName()
-    return self.name .. "ChildCont"
+    return self.name .. "Cont"
 end
 
 ---@return boolean
@@ -6575,35 +6575,35 @@ function ActionButtonGroup:onInitialize()
     local count = self._model.Count or 12
     local buttonSize = self._model.ButtonSize or 50
     local spacing = self._model.Spacing or 0
-    local groupSelf = self
+    local group = self
 
     for i = 1, count do
         local button = Components.ActionButton {
             Name = self:getName() .. "Button" .. i,
             Id = i,
             OnLButtonDown = function(btn, flags, x, y)
-                if groupSelf._model.OnButtonLButtonDown then
-                    groupSelf._model.OnButtonLButtonDown(groupSelf, btn, i, flags, x, y)
+                if group._model.OnButtonLButtonDown then
+                    group._model.OnButtonLButtonDown(group, btn, i, flags, x, y)
                 end
             end,
             OnLButtonUp = function(btn, flags, x, y)
-                if groupSelf._model.OnButtonLButtonUp then
-                    groupSelf._model.OnButtonLButtonUp(groupSelf, btn, i, flags, x, y)
+                if group._model.OnButtonLButtonUp then
+                    group._model.OnButtonLButtonUp(group, btn, i, flags, x, y)
                 end
             end,
             OnRButtonUp = function(btn, flags, x, y)
-                if groupSelf._model.OnButtonRButtonUp then
-                    groupSelf._model.OnButtonRButtonUp(groupSelf, btn, i, flags, x, y)
+                if group._model.OnButtonRButtonUp then
+                    group._model.OnButtonRButtonUp(group, btn, i, flags, x, y)
                 end
             end,
             OnMouseOver = function(btn)
-                if groupSelf._model.OnButtonMouseOver then
-                    groupSelf._model.OnButtonMouseOver(groupSelf, btn, i)
+                if group._model.OnButtonMouseOver then
+                    group._model.OnButtonMouseOver(group, btn, i)
                 end
             end,
             OnMouseOverEnd = function(btn)
-                if groupSelf._model.OnButtonMouseOverEnd then
-                    groupSelf._model.OnButtonMouseOverEnd(groupSelf, btn, i)
+                if group._model.OnButtonMouseOverEnd then
+                    group._model.OnButtonMouseOverEnd(group, btn, i)
                 end
             end,
         }
@@ -6665,9 +6665,10 @@ end
 
 --- Plays the cooldown animation overlay.
 ---@param loop boolean? Whether to loop (default false).
+---@param hideWhenDone boolean? Whether to hide when finished (default false).
 ---@return CooldownDisplay
-function CooldownDisplay:play(loop)
-    self:startAnimation(1, loop or false, true, 0)
+function CooldownDisplay:play(loop, hideWhenDone)
+    self:startAnimation(1, loop or false, hideWhenDone or false, 0)
     return self
 end
 
@@ -6701,7 +6702,7 @@ end
 
 function DockableWindow:onInitialize()
     Window.onInitialize(self)
-    Api.Window.SavePosition(self:getName(), false, self:getName())
+    self:restorePosition(false)
 end
 
 function DockableWindow:onShutdown()
