@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<Windows>
+		<!--
+		  Minimal ActionButtonDef-based template for Mongbat hotbar slots.
+		  Inheriting ActionButtonDef creates the named sub-windows that
+		  HotbarSystem.UpdateActionButton writes to:
+		    $parentSquareIcon  – the action icon DynamicImage
+		    $parentOverlay     – button overlay / border
+		    $parentHotkey      – key-binding label
+		    $parentAlert       – alert indicator
+		    $parentDisabled    – disabled overlay
+		  Without these sub-windows, HotbarSystem.RegisterAction cannot display
+		  icons or drive cooldown animation.
+		  sticky="false" prevents the button from staying visually pressed after
+		  the player releases the left mouse button.
+		-->
+		<Button name="MongbatHotbarSlot" inherits="ActionButtonDef" sticky="false">
+			<Size>
+				<AbsPoint x="50" y="50" />
+			</Size>
+		</Button>
+	</Windows>
+</Interface>
