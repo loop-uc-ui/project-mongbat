@@ -1,4 +1,7 @@
 local NAME = "MacroWindow"
+local Api = Mongbat.Api
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
 
 -- Layout constants
 local ICON_SIZE     = 40
@@ -21,11 +24,10 @@ local TID_EDIT_ITEM     = 1078196   -- "Edit"
 local TID_ASSIGN_HOTKEY = 1078019   -- "Assign Hotkey"
 local TID_DESTROY       = 1078351   -- "Destroy Macro"
 
----@param context Context
-local function OnInitialize(context)
-    local Api        = context.Api
-    local Constants  = context.Constants
-    local Components = context.Components
+local function OnInitialize()
+    local Api        = Api
+    local Constants  = Constants
+    local Components = Components
 
     -- Suppress the default MacroWindow
     local macroDefault = Components.Defaults.MacroWindow
@@ -406,10 +408,9 @@ local function OnInitialize(context)
     MacroWindow():create(false)
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
-    context.Components.Defaults.MacroWindow:restore()
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    Components.Defaults.MacroWindow:restore()
 end
 
 Mongbat.Mod {
