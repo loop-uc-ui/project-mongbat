@@ -2,6 +2,11 @@ local NAME = "MongbatChannelWindow"
 local CREATE_CHANNEL_NAME = "MongbatCreateChannelWindow"
 
 local COLOR_SELECTED = { r = 255, g = 215, b = 0 }
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 --- Saved originals restored in OnShutdown. File-scope is justified because
 --- these values bridge OnInitialize and OnShutdown and cannot be passed
@@ -9,12 +14,11 @@ local COLOR_SELECTED = { r = 255, g = 215, b = 0 }
 local savedInitialize = nil
 local savedShutdown = nil
 
----@param context Context
-local function OnInitialize(context)
-    local channelWindow = context.Components.Defaults.ChannelWindow
+local function OnInitialize()
+    local channelWindow = Components.Defaults.ChannelWindow
 
     -- Save originals before overriding so they can be restored in OnShutdown.
-    -- Do NOT call disable() — when disabled, the proxy returns a no-op for
+    -- Do NOT call disable() â€” when disabled, the proxy returns a no-op for
     -- every function, including our own Initialize override.
     savedInitialize = channelWindow:getDefault().Initialize
     savedShutdown = channelWindow:getDefault().Shutdown
@@ -23,25 +27,25 @@ local function OnInitialize(context)
 
     --- Builds and shows the Create Channel sub-dialog.
     local function openCreateDialog()
-        if context.Api.Window.DoesExist(CREATE_CHANNEL_NAME) then
+        if Api.Window.DoesExist(CREATE_CHANNEL_NAME) then
             return
         end
 
-        local textEntry = context.Components.EditTextBox {}
+        local textEntry = Components.EditTextBox {}
 
         local function submit()
             local text = textEntry:getText()
             if text and text ~= L"" then
-                context.Api.Chat.CreateChannel(text)
+                Api.Chat.CreateChannel(text)
             end
-            context.Api.Window.Destroy(CREATE_CHANNEL_NAME)
-            context.Api.Window.Destroy(NAME)
+            Api.Window.Destroy(CREATE_CHANNEL_NAME)
+            Api.Window.Destroy(NAME)
         end
 
         local function OkayButton()
-            return context.Components.Button {
+            return Components.Button {
                 OnInitialize = function(self)
-                    self:setText(context.Api.String.GetStringFromTid(3000093))
+                    self:setText(Api.String.GetStringFromTid(3000093))
                 end,
                 OnLButtonUp = function()
                     submit()
@@ -50,22 +54,22 @@ local function OnInitialize(context)
         end
 
         local function CancelButton()
-            return context.Components.Button {
+            return Components.Button {
                 OnInitialize = function(self)
-                    self:setText(context.Api.String.GetStringFromTid(1006045))
+                    self:setText(Api.String.GetStringFromTid(1006045))
                 end,
                 OnLButtonUp = function()
-                    context.Api.Window.Destroy(CREATE_CHANNEL_NAME)
+                    Api.Window.Destroy(CREATE_CHANNEL_NAME)
                 end
             }
         end
 
-        context.Components.Window {
+        Components.Window {
             Name = CREATE_CHANNEL_NAME,
             OnInitialize = function(self)
                 self:setDimensions(280, 140)
                 self:anchorToParentCenter()
-                self:setTitle(context.Api.String.GetStringFromTid(1114077))
+                self:setTitle(Api.String.GetStringFromTid(1114077))
                 self:setChildren {
                     textEntry,
                     OkayButton(),
@@ -74,7 +78,7 @@ local function OnInitialize(context)
                 textEntry:setFocus(true)
             end,
             OnRButtonUp = function()
-                context.Api.Window.Destroy(CREATE_CHANNEL_NAME)
+                Api.Window.Destroy(CREATE_CHANNEL_NAME)
             end
         }:create(true)
     end
@@ -83,18 +87,18 @@ local function OnInitialize(context)
     ---@return Label
     local function CurrentChannelLabel()
         local function refreshText(self)
-            local channels = context.Data.ChannelList()
+            local channels = Data.ChannelList()
             local current = channels:getCurrentChannel()
             if current == L"" then
-                self:setText(context.Api.String.GetStringFromTid(1011051))
-                self:setTextColor(context.Constants.Colors.OffWhite)
+                self:setText(Api.String.GetStringFromTid(1011051))
+                self:setTextColor(Constants.Colors.OffWhite)
             else
                 self:setText(current)
-                self:setTextColor(context.Constants.Colors.White)
+                self:setTextColor(Constants.Colors.White)
             end
         end
 
-        return context.Components.Label {
+        return Components.Label {
             OnInitialize = function(self)
                 self:setDimensions(250, 20)
                 refreshText(self)
@@ -108,11 +112,11 @@ local function OnInitialize(context)
     --- Builds the "Your Current Channel:" descriptor label.
     ---@return Label
     local function CurrentChannelDescLabel()
-        return context.Components.Label {
+        return Components.Label {
             OnInitialize = function(self)
                 self:setDimensions(250, 20)
-                self:setText(context.Api.String.GetStringFromTid(1114072))
-                self:setTextColor(context.Constants.Colors.White)
+                self:setText(Api.String.GetStringFromTid(1114072))
+                self:setTextColor(Constants.Colors.White)
             end
         }
     end
@@ -120,17 +124,17 @@ local function OnInitialize(context)
     --- Builds the Join button.
     ---@return Button
     local function JoinButton()
-        return context.Components.Button {
+        return Components.Button {
             OnInitialize = function(self)
-                self:setText(context.Api.String.GetStringFromTid(1114074))
+                self:setText(Api.String.GetStringFromTid(1114074))
             end,
             OnLButtonUp = function()
-                local channels = context.Data.ChannelList()
+                local channels = Data.ChannelList()
                 local name = channels:getName(currentSelection)
                 if name and name ~= L"" then
-                    context.Api.Chat.JoinChannel(name)
+                    Api.Chat.JoinChannel(name)
                 end
-                context.Api.Window.Destroy(NAME)
+                Api.Window.Destroy(NAME)
             end
         }
     end
@@ -138,13 +142,13 @@ local function OnInitialize(context)
     --- Builds the Leave button.
     ---@return Button
     local function LeaveButton()
-        return context.Components.Button {
+        return Components.Button {
             OnInitialize = function(self)
-                self:setText(context.Api.String.GetStringFromTid(1114075))
+                self:setText(Api.String.GetStringFromTid(1114075))
             end,
             OnLButtonUp = function()
-                context.Api.Chat.LeaveChannel()
-                context.Api.Window.Destroy(NAME)
+                Api.Chat.LeaveChannel()
+                Api.Window.Destroy(NAME)
             end
         }
     end
@@ -152,9 +156,9 @@ local function OnInitialize(context)
     --- Builds the Create button.
     ---@return Button
     local function CreateButton()
-        return context.Components.Button {
+        return Components.Button {
             OnInitialize = function(self)
-                self:setText(context.Api.String.GetStringFromTid(1114076))
+                self:setText(Api.String.GetStringFromTid(1114076))
             end,
             OnLButtonUp = function()
                 openCreateDialog()
@@ -164,7 +168,7 @@ local function OnInitialize(context)
 
     --- Creates and shows the channel window, reading channel data at creation time.
     local function createWindow()
-        if context.Api.Window.DoesExist(NAME) then
+        if Api.Window.DoesExist(NAME) then
             return
         end
 
@@ -173,11 +177,11 @@ local function OnInitialize(context)
         ---@type Label[]
         local rows = {}
 
-        context.Utils.Array.ForEach(
-            context.Data.ChannelList():getNames(),
+        Utils.Array.ForEach(
+            Data.ChannelList():getNames(),
             function(channelName, index)
-                rows[index] = context.Components.Label {
-                    Name = context.Utils.String.Format("MongbatChannelRow_%d", index),
+                rows[index] = Components.Label {
+                    Name = Utils.String.Format("MongbatChannelRow_%d", index),
                     Id = index,
                     OnInitialize = function(self)
                         self:setDimensions(230, 20)
@@ -185,14 +189,14 @@ local function OnInitialize(context)
                         if index == currentSelection then
                             self:setTextColor(COLOR_SELECTED)
                         else
-                            self:setTextColor(context.Constants.Colors.White)
+                            self:setTextColor(Constants.Colors.White)
                         end
                     end,
                     OnLButtonUp = function(self)
                         local previous = currentSelection
                         currentSelection = self:getId()
                         if rows[previous] then
-                            rows[previous]:setTextColor(context.Constants.Colors.White)
+                            rows[previous]:setTextColor(Constants.Colors.White)
                         end
                         self:setTextColor(COLOR_SELECTED)
                     end
@@ -200,7 +204,7 @@ local function OnInitialize(context)
             end
         )
 
-        local children = context.Utils.Array.Concat {
+        local children = Utils.Array.Concat {
             {
                 CurrentChannelLabel(),
                 CurrentChannelDescLabel(),
@@ -211,16 +215,16 @@ local function OnInitialize(context)
             rows
         }
 
-        context.Components.Window {
+        Components.Window {
             Name = NAME,
             OnInitialize = function(self)
                 self:setDimensions(300, 375)
                 self:anchorToParentCenter()
-                self:setTitle(context.Api.String.GetStringFromTid(1114073))
+                self:setTitle(Api.String.GetStringFromTid(1114073))
                 self:setChildren(children)
             end,
             OnRButtonUp = function()
-                context.Api.Window.Destroy(NAME)
+                Api.Window.Destroy(NAME)
             end
         }:create(true)
     end
@@ -229,19 +233,18 @@ local function OnInitialize(context)
         -- The engine has already created the default "ChannelWindow" XML template
         -- window before calling Initialize. Destroy it so only our Mongbat window
         -- is visible.
-        context.Api.Window.Destroy("ChannelWindow")
+        Api.Window.Destroy("ChannelWindow")
         createWindow()
     end
 
     channelWindow:getDefault().Shutdown = function() end
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(CREATE_CHANNEL_NAME)
-    context.Api.Window.Destroy(NAME)
+local function OnShutdown()
+    Api.Window.Destroy(CREATE_CHANNEL_NAME)
+    Api.Window.Destroy(NAME)
 
-    local channelWindow = context.Components.Defaults.ChannelWindow
+    local channelWindow = Components.Defaults.ChannelWindow
     if savedInitialize then
         channelWindow:getDefault().Initialize = savedInitialize
         savedInitialize = nil
