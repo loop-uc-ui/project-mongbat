@@ -2942,6 +2942,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdatePets = DataEvent(WindowData.Pets, "OnUpdatePets")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3056,6 +3057,38 @@ Constants.ItemPropertyDetail.Short = ItemProperties.DETAIL_SHORT
 Constants.GumpIds = {}
 Constants.GumpIds.VendorSearch = 999112
 Constants.GumpIds.PetTrainingProgress = 999139
+
+Constants.UserAction = {}
+
+---@return number
+function Constants.UserAction.PetCommandCome()
+    return SystemData.UserAction.TYPE_PET_COMMAND_COME
+end
+
+---@return number
+function Constants.UserAction.PetCommandGuardMe()
+    return SystemData.UserAction.TYPE_PET_COMMAND_GUARDME
+end
+
+---@return number
+function Constants.UserAction.PetCommandFollowMe()
+    return SystemData.UserAction.TYPE_PET_COMMAND_FOLLOWME
+end
+
+---@return number
+function Constants.UserAction.PetCommandStay()
+    return SystemData.UserAction.TYPE_PET_COMMAND_STAY
+end
+
+---@return number
+function Constants.UserAction.PetCommandStop()
+    return SystemData.UserAction.TYPE_PET_COMMAND_STOP
+end
+
+---@return number
+function Constants.UserAction.PetCommandAllKill()
+    return SystemData.UserAction.TYPE_PET_COMMAND_ALLKILL
+end
 
 
 -- ========================================================================== --
@@ -3325,6 +3358,14 @@ end
 
 function MobileStatus:getNotorietyColor()
     return Constants.Colors.Notoriety[self:getNotoriety() + 1]
+end
+
+function MobileStatus:getCurrentHealth()
+    return self:getData().CurrentHealth or 0
+end
+
+function MobileStatus:getMaxHealth()
+    return self:getData().MaxHealth or 0
 end
 
 function Data.MobileStatus(id)
@@ -3633,6 +3674,14 @@ function PlayerStatus:isInWarMode()
     return self:getData().InWarMode or false
 end
 
+function PlayerStatus:getFollowers()
+    return self:getData().Followers or 0
+end
+
+function PlayerStatus:getMaxFollowers()
+    return self:getData().MaxFollowers or 0
+end
+
 function PlayerStatus:getId()
     return self:getData().PlayerId or 0
 end
@@ -3707,6 +3756,44 @@ end
 ---@return PaperdollWrapper
 function Data.Paperdoll(id)
     return PaperdollData:new(id)
+end
+
+-- ========================================================================== --
+-- Data - Pets
+-- ========================================================================== --
+
+---@class WindowData.Pets
+---@field PetId integer[]
+---@field Type integer
+---@field Event integer
+
+---@class PetsWrapper
+local PetsData = {}
+PetsData.__index = PetsData
+
+function PetsData:new()
+    return setmetatable({}, self)
+end
+
+---@return WindowData.Pets
+function PetsData:getData()
+    return WindowData.Pets or { PetId = {} }
+end
+
+---@return integer[]
+function PetsData:getPetIds()
+    local data = self:getData()
+    return data.PetId or {}
+end
+
+---@return integer
+function PetsData:getCount()
+    return table.getn(self:getPetIds())
+end
+
+---@return PetsWrapper
+function Data.Pets()
+    return PetsData:new()
 end
 
 -- ========================================================================== --
@@ -4056,6 +4143,15 @@ DefaultWarShieldComponent.__index = DefaultWarShieldComponent
 local DefaultPaperdollWindowComponent = {}
 DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 
+---@class DefaultPetWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field UpdatePet fun()
+
+---@class DefaultPetWindowComponent : DefaultComponent
+local DefaultPetWindowComponent = {}
+DefaultPetWindowComponent.__index = DefaultPetWindowComponent
+
 ---@class DefaultObjectHandle
 ---@field CreateObjectHandles fun()
 ---@field DestroyObjectHandles fun()
@@ -4146,6 +4242,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdatePets fun(self: Window, pets: PetsWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4165,6 +4262,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
+---@field OnUpdatePets fun(self: Label, pets: PetsWrapper)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -4223,6 +4321,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdatePets fun(self: View, pets: PetsWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4909,8 +5008,27 @@ function DefaultPaperdollWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
--- Components - Dynamic Image
+-- Components - Default - Pet Window
 -- ========================================================================== --
+
+---@return DefaultPetWindowComponent
+function DefaultPetWindowComponent:new()
+    local instance = DefaultComponent.new(self, "PetWindow") --[[@as DefaultPetWindowComponent]]
+    instance._proxy = instance:_createProxy(PetWindow)
+    instance._globalKey = "PetWindow"
+    _G.PetWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultPetWindow
+function DefaultPetWindowComponent:getDefault()
+    return self._proxy or PetWindow --[[@as DefaultPetWindow]]
+end
+
+---@return Window
+function DefaultPetWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
 
 ---@param model DynamicImageModel?
 ---@return DynamicImage
@@ -5471,6 +5589,12 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdatePets()
+    withActiveView("OnUpdatePets", function(window)
+        window:onUpdatePets()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -5904,6 +6028,7 @@ function View:onInitialize()
         self:onUpdateMobileStatus()
         self:onUpdateHealthBarColor()
         self:onUpdatePaperdoll()
+        self:onUpdatePets()
     end)
 end
 
@@ -6033,6 +6158,14 @@ function View:onUpdatePaperdoll()
     return false
 end
 
+function View:onUpdatePets()
+    if self._model.OnUpdatePets ~= nil then
+        self._model.OnUpdatePets(self, Data.Pets())
+        return true
+    end
+    return false
+end
+
 function View:onLButtonDblClk(flags, x, y)
     if self._model.OnLButtonDblClk ~= nil then
         self._model.OnLButtonDblClk(self, flags, x, y)
@@ -6124,7 +6257,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdatePets
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6139,7 +6273,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdatePets
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -6752,6 +6887,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultPetWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6902,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.PetWindow = DefaultPetWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
@@ -6927,7 +7064,8 @@ local mod = Mod:new {
         local register = {
             Constants.DataEvents.OnUpdatePlayerStatus,
             Constants.DataEvents.OnUpdateRadar,
-            Constants.DataEvents.OnUpdatePlayerLocation
+            Constants.DataEvents.OnUpdatePlayerLocation,
+            Constants.DataEvents.OnUpdatePets
         }
 
         Utils.Array.ForEach(
@@ -6948,6 +7086,7 @@ local mod = Mod:new {
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+        Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePets.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
