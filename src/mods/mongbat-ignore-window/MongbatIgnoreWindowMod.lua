@@ -13,10 +13,6 @@ local Components = Mongbat.Components
 local savedFunctions = {}
 
 local function OnInitialize()
-    local Api = Api
-    local Data = Data
-    local Components = Components
-
     local ignoreDefault = Components.Defaults.IgnoreWindow:getDefault()
     local settingsDefault = Components.Defaults.SettingsWindow:getDefault()
 
