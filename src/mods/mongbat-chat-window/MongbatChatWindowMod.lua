@@ -1,4 +1,9 @@
 local NAME = "MongbatChatWindowWindow"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- Maximum number of dynamic bookmark tabs the default NewChatWindow can create
 local MAX_TABS = 20
@@ -56,36 +61,35 @@ local function destroyChatWindows(api)
     api.Window.Destroy("ChatWindowSetOpacityWindow")
 end
 
----@param context Context
-local function OnInitialize(context)
+local function OnInitialize()
     -- ------------------------------------------------------------------ --
     -- Suppress both default chat systems (proxy + full window destruction)
     -- ------------------------------------------------------------------ --
 
-    local newChatDefault = context.Components.Defaults.NewChatWindow
+    local newChatDefault = Components.Defaults.NewChatWindow
     newChatDefault:disable()
-    destroyNewChatWindows(context.Api)
+    destroyNewChatWindows(Api)
 
-    local chatDefault = context.Components.Defaults.ChatWindow
+    local chatDefault = Components.Defaults.ChatWindow
     chatDefault:disable()
-    destroyChatWindows(context.Api)
+    destroyChatWindows(Api)
 
     -- ------------------------------------------------------------------ --
     -- Engine data references (obtained once at initialization)
     -- ------------------------------------------------------------------ --
 
-    local filters  = context.Data.ChatLogFilters()
-    local channels = context.Data.ChatChannels()
+    local filters  = Data.ChatLogFilters()
+    local channels = Data.ChatChannels()
 
     -- ------------------------------------------------------------------ --
-    -- Runtime state (local to this OnInitialize — closures capture these)
+    -- Runtime state (local to this OnInitialize â€” closures capture these)
     -- ------------------------------------------------------------------ --
 
     local activeChannelIdx = 1
 
     -- All message types enabled by default
     local filterEnabled = {}
-    context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
+    Utils.Array.ForEach(FILTER_KEYS, function(entry)
         filterEnabled[entry.key] = true
     end)
 
@@ -104,13 +108,13 @@ local function OnInitialize(context)
         if channelBtn == nil then return end
         local ch       = SEND_CHANNELS[activeChannelIdx]
         local filterId = filters[ch.key]
-        local color    = context.Data.ChatChannelColor(filterId)
+        local color    = Data.ChatChannelColor(filterId)
         channelBtn:setText(ch.label)
         if color then
-            channelBtn:setTextColor(context.Constants.ButtonStates.Normal,            color)
-            channelBtn:setTextColor(context.Constants.ButtonStates.Highlighted,       color)
-            channelBtn:setTextColor(context.Constants.ButtonStates.Pressed,           color)
-            channelBtn:setTextColor(context.Constants.ButtonStates.PressedHighlighted,color)
+            channelBtn:setTextColor(Constants.ButtonStates.Normal,            color)
+            channelBtn:setTextColor(Constants.ButtonStates.Highlighted,       color)
+            channelBtn:setTextColor(Constants.ButtonStates.Pressed,           color)
+            channelBtn:setTextColor(Constants.ButtonStates.PressedHighlighted,color)
         end
     end
 
@@ -125,22 +129,22 @@ local function OnInitialize(context)
     -- Toolbar: filter toggle buttons + timestamp + alpha controls
     -- ------------------------------------------------------------------ --
 
-    context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
+    Utils.Array.ForEach(FILTER_KEYS, function(entry)
         local localKey   = entry.key
         local localLabel = entry.label
         local filterId   = filters[localKey]
-        local color      = filterId and context.Data.ChatChannelColor(filterId) or nil
+        local color      = filterId and Data.ChatChannelColor(filterId) or nil
 
-        local btn = context.Components.Button {
+        local btn = Components.Button {
             OnInitialize = function(self)
                 self:setCheckButton(true)
                 self:setChecked(true)
                 self:setText(localLabel)
                 if color then
-                    self:setTextColor(context.Constants.ButtonStates.Normal,            color)
-                    self:setTextColor(context.Constants.ButtonStates.Highlighted,       color)
-                    self:setTextColor(context.Constants.ButtonStates.Pressed,           color)
-                    self:setTextColor(context.Constants.ButtonStates.PressedHighlighted,color)
+                    self:setTextColor(Constants.ButtonStates.Normal,            color)
+                    self:setTextColor(Constants.ButtonStates.Highlighted,       color)
+                    self:setTextColor(Constants.ButtonStates.Pressed,           color)
+                    self:setTextColor(Constants.ButtonStates.PressedHighlighted,color)
                 end
             end,
             OnLButtonUp = function(self)
@@ -155,7 +159,7 @@ local function OnInitialize(context)
 
     -- Timestamp toggle
     local showTimestamp = false
-    local timestampBtn = context.Components.Button {
+    local timestampBtn = Components.Button {
         OnInitialize = function(self)
             self:setCheckButton(true)
             self:setChecked(false)
@@ -171,26 +175,26 @@ local function OnInitialize(context)
     }
 
     -- Alpha decrement (-)
-    local alphaDecrBtn = context.Components.Button {
+    local alphaDecrBtn = Components.Button {
         OnInitialize = function(self)
             self:setText(L"-")
         end,
         OnLButtonUp = function(self)
             currentAlpha = currentAlpha - 0.1
             if currentAlpha < 0.1 then currentAlpha = 0.1 end
-            context.Api.Window.SetAlpha(NAME, currentAlpha)
+            Api.Window.SetAlpha(NAME, currentAlpha)
         end,
     }
 
     -- Alpha increment (+)
-    local alphaIncrBtn = context.Components.Button {
+    local alphaIncrBtn = Components.Button {
         OnInitialize = function(self)
             self:setText(L"+")
         end,
         OnLButtonUp = function(self)
             currentAlpha = currentAlpha + 0.1
             if currentAlpha > 1.0 then currentAlpha = 1.0 end
-            context.Api.Window.SetAlpha(NAME, currentAlpha)
+            Api.Window.SetAlpha(NAME, currentAlpha)
         end,
     }
 
@@ -198,7 +202,7 @@ local function OnInitialize(context)
     -- Log display
     -- ------------------------------------------------------------------ --
 
-    logDisplay = context.Components.LogDisplay {
+    logDisplay = Components.LogDisplay {
         OnInitialize = function(self)
             self:showTimestamp(false)
             self:showLogName(false)
@@ -207,9 +211,9 @@ local function OnInitialize(context)
             self:addLog("Chat", true)
 
             -- Set per-channel colours for the "Chat" log
-            context.Utils.Table.ForEach(channels, function(_, ch)
+            Utils.Table.ForEach(channels, function(_, ch)
                 if ch and ch.id and ch.logName then
-                    local color = context.Data.ChatChannelColor(ch.id)
+                    local color = Data.ChatChannelColor(ch.id)
                     if color then
                         self:setFilterColor(ch.logName, ch.id, color)
                     end
@@ -217,7 +221,7 @@ local function OnInitialize(context)
             end)
 
             -- Explicitly enable all filter types to match initial filter button state
-            context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
+            Utils.Array.ForEach(FILTER_KEYS, function(entry)
                 local filterId = filters[entry.key]
                 if filterId then
                     self:setFilterState("Chat", filterId, true)
@@ -232,7 +236,7 @@ local function OnInitialize(context)
     -- Bottom row: channel-cycle button + text input
     -- ------------------------------------------------------------------ --
 
-    channelBtn = context.Components.Button {
+    channelBtn = Components.Button {
         OnInitialize = function(self)
             updateChannelButton()
         end,
@@ -245,14 +249,14 @@ local function OnInitialize(context)
         end,
     }
 
-    local textInput = context.Components.EditTextBox {
+    local textInput = Components.EditTextBox {
         OnKeyEnter = function(self)
             local text = self:getText()
             if text and wstring.len(text) > 0 then
                 local ch       = SEND_CHANNELS[activeChannelIdx]
                 local filterId = filters[ch.key]
                 if filterId then
-                    context.Api.Chat.SendChat(filterId, text)
+                    Api.Chat.SendChat(filterId, text)
                 end
                 self:clear()
             end
@@ -277,7 +281,7 @@ local function OnInitialize(context)
     local numFilters     = #FILTER_KEYS
     local numToolbarBtns = numFilters + 3   -- filters + Time + - + +
 
-    context.Components.Window({
+    Components.Window({
         Name = NAME,
         OnLayout = function(window, children, child, index)
             local dimens   = window:getDimensions()
@@ -333,7 +337,7 @@ local function OnInitialize(context)
             self:addAnchor("bottomleft", "Root", "bottomleft", 10, -10)
 
             local childList = {}
-            context.Utils.Array.ForEach(FILTER_KEYS, function(entry)
+            Utils.Array.ForEach(FILTER_KEYS, function(entry)
                 table.insert(childList, filterButtons[entry.key])
             end)
             table.insert(childList, timestampBtn)
@@ -349,13 +353,12 @@ local function OnInitialize(context)
     updateChannelButton()
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
 
     -- Restore the proxy tables so the engine can re-initialize them on next login
-    context.Components.Defaults.NewChatWindow:restore()
-    context.Components.Defaults.ChatWindow:restore()
+    Components.Defaults.NewChatWindow:restore()
+    Components.Defaults.ChatWindow:restore()
 end
 
 Mongbat.Mod {
