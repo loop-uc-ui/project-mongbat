@@ -77,7 +77,7 @@ local function OnInitialize()
     -- Patterns are plain ASCII lowercased strings.
     -- -----------------------------------------------------------------------
     local function matchesFilter(name)
-        if table.getn(filterPatterns) == 0 then return true end
+        if Utils.Table.IsEmpty(filterPatterns) then return true end
         local lname = string.lower(Api.String.WStringToString(name or L""))
         return not Utils.Array.Find(filterPatterns, function(pattern)
             return not string.find(lname, pattern, 1, true)
@@ -104,7 +104,7 @@ local function OnInitialize()
         local result = {}
         Utils.Array.ForEach(items, function(item, i)
             if item.availQty > 0 and item.price > 0 and matchesFilter(item.name) then
-                table.insert(result, i)
+                Utils.Array.Add(result, i)
             end
         end)
         return result
@@ -114,7 +114,7 @@ local function OnInitialize()
         local result = {}
         Utils.Array.ForEach(items, function(item, i)
             if item.cartQty > 0 then
-                table.insert(result, i)
+                Utils.Array.Add(result, i)
             end
         end)
         return result
@@ -208,7 +208,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     local function refreshAvailPanel()
         local filtered = getFilteredAvail()
-        local total    = table.getn(filtered)
+        local total    = #filtered
         local maxPage  = math.max(1, math.ceil(total / ITEMS_PER_PAGE))
         if availPage > maxPage then availPage = maxPage end
 
@@ -229,7 +229,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     local function refreshCartPanel()
         local filtered = getFilteredCart()
-        local total    = table.getn(filtered)
+        local total    = #filtered
         local maxPage  = math.max(1, math.ceil(total / ITEMS_PER_PAGE))
         if cartPage > maxPage then cartPage = maxPage end
 
@@ -276,8 +276,7 @@ local function OnInitialize()
 
         -- Rebuild items list from container
         local newItems = {}
-        for i = 1, data.numItems do
-            local slot = data.ContainedItems[i]
+        Utils.Array.ForEach(data.ContainedItems, function(slot)
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), slot.objectId)
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), slot.objectId)
 
@@ -305,7 +304,7 @@ local function OnInitialize()
             -- Clamp cartQty if vendor has less now
             if existingCartQty > qty then existingCartQty = qty end
 
-            table.insert(newItems, {
+            Utils.Array.Add(newItems, {
                 id         = slot.objectId,
                 name       = itemName,
                 price      = price,
@@ -315,7 +314,7 @@ local function OnInitialize()
                 objType    = objType,
                 registered = true
             })
-        end
+        end)
         items = newItems
     end
 
@@ -329,7 +328,7 @@ local function OnInitialize()
         for i = 1, count do
             local entry = shopData:getSellItem(i)
             if entry then
-                table.insert(items, {
+                Utils.Array.Add(items, {
                     id       = entry.id,
                     name     = stripFirstNumber(entry.name),
                     price    = entry.price,
@@ -402,11 +401,11 @@ local function OnInitialize()
         local offerQtys = {}
         Utils.Array.ForEach(items, function(item)
             if item.cartQty > 0 then
-                table.insert(offerIds,  item.id)
-                table.insert(offerQtys, item.cartQty)
+                Utils.Array.Add(offerIds,  item.id)
+                Utils.Array.Add(offerQtys, item.cartQty)
             end
         end)
-        if table.getn(offerIds) == 0 then
+        if Utils.Table.IsEmpty(offerIds) then
             Api.Window.Destroy("MongbatShopkeeperWindow")
             return
         end
@@ -609,7 +608,7 @@ local function OnInitialize()
         for row = 1, ITEMS_PER_PAGE do
             local rowView = ItemRow(isCartPanel)
             rowViews[row] = rowView
-            table.insert(children, rowView)
+            Utils.Array.Add(children, rowView)
         end
 
         -- Pagination buttons
@@ -653,8 +652,8 @@ local function OnInitialize()
             end
         }
 
-        table.insert(children, prevBtn)
-        table.insert(children, nextBtn)
+        Utils.Array.Add(children, prevBtn)
+        Utils.Array.Add(children, nextBtn)
 
         local panelWindow = Components.Window {
             OnInitialize = function(self)
@@ -751,7 +750,7 @@ local function OnInitialize()
                     local textStr = string.lower(Api.String.WStringToString(text))
                     local existing = Utils.Array.Find(filterPatterns, function(p) return p == textStr end)
                     if not existing then
-                        table.insert(filterPatterns, textStr)
+                        Utils.Array.Add(filterPatterns, textStr)
                     end
                     availPage = 1
                     refreshAvailPanel()
