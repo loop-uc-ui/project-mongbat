@@ -1,16 +1,20 @@
 local NAME = "MongbatPlayerStatusWindow"
 
----@param context Context
-local function OnInitialize(context)
-    local original = context.Components.Defaults.StatusWindow
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Constants = Mongbat.Constants
+local Components = Mongbat.Components
+
+local function OnInitialize()
+    local original = Components.Defaults.StatusWindow
     original:asComponent():setShowing(false)
     original:disable()
-    local warShield = context.Components.Defaults.WarShield
+    local warShield = Components.Defaults.WarShield
     warShield:asComponent():setShowing(false)
     warShield:disable()
 
     local function PlayerName()
-        return context.Components.Label {
+        return Components.Label {
             OnUpdatePlayerStatus = function(self, playerStatus)
                 self:setId(playerStatus:getId())
             end,
@@ -24,7 +28,7 @@ local function OnInitialize(context)
     ---@param onUpdateHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
     ---@param label LabelModel
     local function StatusBar(onUpdatePlayerStatus, onUpdateHealthBarColor, label)
-        return context.Components.StatusBar(
+        return Components.StatusBar(
             {
                 OnUpdatePlayerStatus = onUpdatePlayerStatus,
                 OnUpdateHealthBarColor = onUpdateHealthBarColor
@@ -40,7 +44,7 @@ local function OnInitialize(context)
                 self:setCurrentValue(playerStatus:getCurrentHealth())
                 self:setMaxValue(playerStatus:getMaxHealth())
                 if not self._colorSet then
-                    self:setColor(context.Constants.Colors.HealhBar[1])
+                    self:setColor(Constants.Colors.HealhBar[1])
                     self._colorSet = true
                 end
             end,
@@ -65,7 +69,7 @@ local function OnInitialize(context)
     local function ManaStatusBar()
         return StatusBar(
             function(self, playerStatus)
-                self:setColor(context.Constants.Colors.Blue)
+                self:setColor(Constants.Colors.Blue)
                 self:setCurrentValue(playerStatus:getCurrentMana())
                 self:setMaxValue(playerStatus:getMaxMana())
             end,
@@ -87,7 +91,7 @@ local function OnInitialize(context)
     local function StaminaStatusBar()
         return StatusBar(
             function(self, playerStatus)
-                self:setColor(context.Constants.Colors.YellowDark)
+                self:setColor(Constants.Colors.YellowDark)
                 self:setCurrentValue(playerStatus:getCurrentStamina())
                 self:setMaxValue(playerStatus:getMaxStamina())
             end,
@@ -107,7 +111,7 @@ local function OnInitialize(context)
     end
 
     local function Window()
-        return context.Components.Window {
+        return Components.Window {
             Name = NAME,
             OnInitialize = function(self)
                 self:setDimensions(200, 150)
@@ -123,19 +127,19 @@ local function OnInitialize(context)
                 local frame = self:getFrame()
                 self:setId(playerStatus:getId())
                 if playerStatus:isInWarMode() then
-                    frame:setColor(context.Constants.Colors.Notoriety[6])
+                    frame:setColor(Constants.Colors.Notoriety[6])
                 else
-                    frame:setColor(context.Constants.Colors.Notoriety[1])
+                    frame:setColor(Constants.Colors.Notoriety[1])
                 end
             end,
             OnLButtonDblClk = function(self)
-                context.Api.UserAction.UseItem(self:getId())
+                Api.UserAction.UseItem(self:getId())
             end,
             OnLButtonUp = function(self)
-                if context.Data.Drag():isDraggingItem() then
-                    context.Api.Drag.DragToObject(self:getId())
+                if Data.Drag():isDraggingItem() then
+                    Api.Drag.DragToObject(self:getId())
                 else
-                    context.Api.Target.LeftClick(self:getId())
+                    Api.Target.LeftClick(self:getId())
                 end
             end
         }
@@ -144,13 +148,12 @@ local function OnInitialize(context)
     Window():create(true)
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
-    local original = context.Components.Defaults.StatusWindow
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    local original = Components.Defaults.StatusWindow
     original:restore()
     original:asComponent():setShowing(true)
-    local warShield = context.Components.Defaults.WarShield
+    local warShield = Components.Defaults.WarShield
     warShield:restore()
     warShield:asComponent():setShowing(true)
 end
