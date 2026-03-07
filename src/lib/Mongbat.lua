@@ -1701,6 +1701,40 @@ function Api.Waypoint.GetInfo(id)
 end
 
 -- ========================================================================== --
+-- Api - Coord
+-- ========================================================================== --
+
+Api.Coord = {}
+
+-- Capture the original MapCommon coordinate utilities before any DefaultComponent
+-- proxy replaces the global. This ensures they work even when MapCommon is disabled.
+local _mcConvertToXYMinutes = MapCommon.ConvertToXYMinutes
+local _mcGetSextantLocationStrings = MapCommon.GetSextantLocationStrings
+
+---
+--- Converts lat/long sextant coordinates to x/y game coordinates.
+---@param latVal number Latitude value in degrees.minutes format (e.g. 45.30)
+---@param longVal number Longitude value in degrees.minutes format
+---@param latDir wstring Direction "N" or "S"
+---@param longDir wstring Direction "W" or "E"
+---@param facet number Facet ID
+---@param area number Area ID
+---@return number, number x, y game coordinates
+function Api.Coord.ConvertToXYMinutes(latVal, longVal, latDir, longDir, facet, area)
+    return _mcConvertToXYMinutes(latVal, longVal, latDir, longDir, facet, area)
+end
+
+---
+--- Gets sextant location strings (lat/long) for given game coordinates.
+---@param x number X game coordinate
+---@param y number Y game coordinate
+---@param facet number Facet ID
+---@return wstring, wstring, wstring, wstring latStr, longStr, latDir, longDir
+function Api.Coord.GetSextantLocationStrings(x, y, facet)
+    return _mcGetSextantLocationStrings(x, y, facet)
+end
+
+-- ========================================================================== --
 -- Api - Window
 -- ========================================================================== --
 
@@ -3791,6 +3825,38 @@ end
 ---@field TexCoordY integer
 ---@field TexScale number
 
+-- ========================================================================== --
+-- Data - Waypoint Display
+-- ========================================================================== --
+
+---@class WindowData.WaypointDisplay
+---@field Type integer
+---@field typeNames wstring[]
+
+---@class WaypointDisplayWrapper
+local WaypointDisplayData = {}
+WaypointDisplayData.__index = WaypointDisplayData
+
+function WaypointDisplayData:new()
+    return setmetatable({}, self)
+end
+
+---@return WindowData.WaypointDisplay
+function WaypointDisplayData:getData()
+    return WindowData.WaypointDisplay or {}
+end
+
+---@return wstring[]
+function WaypointDisplayData:getTypeNames()
+    local data = self:getData()
+    return data.typeNames or {}
+end
+
+--- Returns a WaypointDisplayWrapper for accessing WindowData.WaypointDisplay.
+---@return WaypointDisplayWrapper
+function Data.WaypointDisplay()
+    return WaypointDisplayData:new()
+end
 
 -- ========================================================================== --
 -- Components
@@ -4786,6 +4852,36 @@ end
 
 function DefaultMapWindowComponent:asComponent()
     return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - User Waypoint Window
+-- ========================================================================== --
+
+---@class DefaultUserWaypointWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field InitializeCreateWaypointData fun(params: table)
+---@field InitializeViewWaypointData fun(params: table)
+---@field OnOkay fun()
+---@field OnCancel fun()
+
+---@class DefaultUserWaypointWindowComponent : DefaultComponent
+local DefaultUserWaypointWindowComponent = {}
+DefaultUserWaypointWindowComponent.__index = DefaultUserWaypointWindowComponent
+
+---@return DefaultUserWaypointWindowComponent
+function DefaultUserWaypointWindowComponent:new()
+    local instance = DefaultComponent.new(self, "UserWaypointWindow") --[[@as DefaultUserWaypointWindowComponent]]
+    instance._proxy = instance:_createProxy(UserWaypointWindow)
+    instance._globalKey = "UserWaypointWindow"
+    _G.UserWaypointWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultUserWaypointWindow
+function DefaultUserWaypointWindowComponent:getDefault()
+    return self._proxy or UserWaypointWindow --[[@as DefaultUserWaypointWindow]]
 end
 
 -- ========================================================================== --
@@ -6752,6 +6848,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultUserWaypointWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6863,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.UserWaypointWindow = DefaultUserWaypointWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
