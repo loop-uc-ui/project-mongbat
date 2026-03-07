@@ -31,12 +31,6 @@ local INFO_NAME = "MongbatSkillsInfo"
 local originalToggleSkillsWindow = nil
 
 local function OnInitialize()
-    local Api = Api
-    local Data = Data
-    local Utils = Utils
-    local Constants = Constants
-    local Components = Components
-
     -- Suppress the default SkillsWindow
     local skillsDefault = Components.Defaults.SkillsWindow
     skillsDefault:disable()
