@@ -415,6 +415,24 @@ function Api.ContextMenu.RequestMenu(id)
     RequestContextMenu(id)
 end
 
+---
+--- Creates a Lua context menu item with a string label.
+---@param text wstring The display text for the menu item.
+---@param flag number The flag value (usually 0).
+---@param returnCode string The return code passed to the callback.
+---@param menuType number The menu type (usually 2).
+---@param greyed boolean Whether the item is greyed out.
+function Api.ContextMenu.CreateLuaItem(text, flag, returnCode, menuType, greyed)
+    ContextMenu.CreateLuaContextMenuItemWithString(text, flag, returnCode, menuType, greyed)
+end
+
+---
+--- Activates the Lua context menu, calling callback when an item is selected.
+---@param callback fun(returnCode: string, param: any)
+function Api.ContextMenu.ActivateLuaMenu(callback)
+    ContextMenu.ActivateLuaContextMenu(callback)
+end
+
 -- ========================================================================== --
 -- Api - CSV
 -- ========================================================================== --
@@ -780,6 +798,47 @@ end
 ---@return number The item properties object ID.
 function Api.Gump.GetItemPropertiesObjectId(gumpId, windowName)
     return GenericGumpGetItemPropertiesId(gumpId, windowName)
+end
+
+-- ========================================================================== --
+-- Api - Dialog
+-- ========================================================================== --
+
+Api.Dialog = {}
+
+---
+--- Creates a standard UO dialog (confirmation/choice dialog).
+---@param config table Dialog config: { windowName, title, body, buttons[] }
+--- Each button: { textTid, callback? }
+function Api.Dialog.Create(config)
+    UO_StandardDialog.CreateDialog(config)
+end
+
+---
+--- Returns the TID for the standard "OK" button in a UO dialog.
+---@return number
+function Api.Dialog.TID_OK()
+    return UO_StandardDialog.TID_OK
+end
+
+---
+--- Returns the TID for the standard "Cancel" button in a UO dialog.
+---@return number
+function Api.Dialog.TID_CANCEL()
+    return UO_StandardDialog.TID_CANCEL
+end
+
+-- ========================================================================== --
+-- Api - Rename Window
+-- ========================================================================== --
+
+Api.RenameWindow = {}
+
+---
+--- Opens the rename input window.
+---@param rdata table Config: { title, subtitle, callfunction, id }
+function Api.RenameWindow.Create(rdata)
+    RenameWindow.Create(rdata)
 end
 
 -- ========================================================================== --
@@ -1487,6 +1546,40 @@ end
 ---@return table All mobile targets.
 function Api.Target.GetAllMobileTargets()
     return GetAllMobileTargets()
+end
+
+---
+--- Requests that the player click to select an object (targeting cursor).
+--- The result is stored in SystemData.RequestInfo.ObjectId after the
+--- TARGET_SEND_ID_CLIENT event fires.
+function Api.Target.RequestTargetInfo()
+    RequestTargetInfo()
+end
+
+---
+--- Registers a one-shot TARGET_SEND_ID_CLIENT handler for a window.
+--- The callback is called exactly once (on the next target pick) and then
+--- automatically unregistered.  The object ID is retrieved inside the
+--- callback via Data.RequestInfoObjectId().
+--- Each call uses a unique handler key, so multiple simultaneous registrations
+--- on the same window are safe (though only the most-recently-registered
+--- system event handler will fire, since the engine routes to one callback).
+---@param windowName string The window to register the event on.
+---@param callback fun() Called once when the player picks a target.
+function Api.Target.RegisterOneShotTargetInfo(windowName, callback)
+    Api.Target._seq = (Api.Target._seq or 0) + 1
+    local handlerKey = "TargetOnce_" .. windowName .. "_" .. Api.Target._seq
+    Mongbat.EventHandler[handlerKey] = function()
+        Api.Window.UnregisterEventHandler(
+            windowName,
+            Constants.SystemEvents.OnTargetSendIdClient.getEvent())
+        Mongbat.EventHandler[handlerKey] = nil
+        callback()
+    end
+    Api.Window.RegisterEventHandler(
+        windowName,
+        Constants.SystemEvents.OnTargetSendIdClient.getEvent(),
+        "Mongbat.EventHandler." .. handlerKey)
 end
 
 -- ========================================================================== --
@@ -2326,6 +2419,15 @@ function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
 end
 
+---
+--- Displays overhead text above the player's character.
+---@param text wstring The text to display.
+---@param hue number The text hue.
+---@param show boolean Whether to show or hide the text.
+function Api.Window.SendOverheadText(text, hue, show)
+    WindowUtils.SendOverheadText(text, hue, show)
+end
+
 -- ========================================================================== --
 -- Api - Interface Core
 -- ========================================================================== --
@@ -2372,6 +2474,30 @@ end
 
 function Api.Interface.LoadBoolean(key, default)
     return Interface.LoadBoolean(key, default)
+end
+
+---
+--- Saves a wide string setting.
+---@param key string The key.
+---@param value wstring The value to save.
+function Api.Interface.SaveWString(key, value)
+    Interface.SaveWString(key, value)
+end
+
+---
+--- Loads a wide string setting.
+---@param key string The key.
+---@param default wstring The default value.
+---@return wstring
+function Api.Interface.LoadWString(key, default)
+    return Interface.LoadWString(key, default)
+end
+
+---
+--- Deletes a saved setting by key.
+---@param key string The key to delete.
+function Api.Interface.DeleteSetting(key)
+    Interface.DeleteSetting(key)
 end
 
 ---
@@ -2604,6 +2730,17 @@ function Utils.Array.Add(array, item, pos)
         table.insert(array, pos, item)
     else
         table.insert(array, item)
+    end
+end
+
+---
+--- Calls fn(i) for i = 1 to n. Safe when n is nil or <= 0.
+---@param n integer|nil The upper bound (inclusive).
+---@param fn fun(i: integer) The callback.
+function Utils.Array.Range(n, fn)
+    if not n or n <= 0 then return end
+    for i = 1, n do
+        fn(i)
     end
 end
 
@@ -2976,6 +3113,13 @@ Constants.SystemEvents.OnUpdateProcessed = {
         return SystemData.Events["UPDATE_PROCESSED"]
     end,
     name = "OnUpdateProcessed"
+}
+
+Constants.SystemEvents.OnTargetSendIdClient = {
+    getEvent = function()
+        return SystemData.Events["TARGET_SEND_ID_CLIENT"]
+    end,
+    name = "OnTargetSendIdClient"
 }
 
 Constants.CoreEvents = {}
@@ -3408,6 +3552,25 @@ end
 
 function Data.Object(id)
     return Object:new(id)
+end
+
+---
+--- Gets item data from the engine's ObjectInfo table by object ID.
+--- This is populated after RequestTargetInfo() + TARGET_SEND_ID_CLIENT event.
+---@param id number The object ID.
+---@return table|nil The ObjectInfo data: { name, objectType, hueId, ... }
+function Data.ObjectInfo(id)
+    return WindowData.ObjectInfo[id]
+end
+
+---
+--- Gets the ID of the targeted object after a RequestTargetInfo() call.
+---@return number The targeted object ID (0 if none).
+function Data.RequestInfoObjectId()
+    if SystemData.RequestInfo then
+        return SystemData.RequestInfo.ObjectId or 0
+    end
+    return 0
 end
 
 -- ========================================================================== --
@@ -4796,6 +4959,10 @@ end
 local DefaultDebugWindowComponent = {}
 DefaultDebugWindowComponent.__index = DefaultDebugWindowComponent
 
+---@class DefaultOrganizerWindowComponent : DefaultComponent
+local DefaultOrganizerWindowComponent = {}
+DefaultOrganizerWindowComponent.__index = DefaultOrganizerWindowComponent
+
 ---@return DefaultDebugWindowComponent
 function DefaultDebugWindowComponent:new()
     local instance = DefaultComponent.new(self, "DebugWindow") --[[@as DefaultDebugWindowComponent]]
@@ -4812,6 +4979,29 @@ end
 
 ---@return Window
 function DefaultDebugWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Organizer Window
+-- ========================================================================== --
+
+---@return DefaultOrganizerWindowComponent
+function DefaultOrganizerWindowComponent:new()
+    local instance = DefaultComponent.new(self, "OrganizerWindow") --[[@as DefaultOrganizerWindowComponent]]
+    instance._proxy = instance:_createProxy(OrganizerWindow)
+    instance._globalKey = "OrganizerWindow"
+    _G.OrganizerWindow = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultOrganizerWindowComponent:getDefault()
+    return self._proxy or OrganizerWindow
+end
+
+---@return Window
+function DefaultOrganizerWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6752,6 +6942,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultOrganizerWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6957,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.OrganizerWindow = DefaultOrganizerWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
