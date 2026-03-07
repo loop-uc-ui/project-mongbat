@@ -122,6 +122,11 @@ Component                  -- Base: name, type, xml-template support
             ├─ DynamicImage-- Runtime-assigned texture with coordinates
             ├─ EditTextBox -- Text input field
             ├─ LogDisplay  -- Multi-line scrolling text area
+            ├─ ScrollWindow-- Scrollable container with vertical item rows
+            ├─ SliderBar   -- Horizontal slider with OnSlide callback
+            ├─ ComboBox    -- Drop-down selector with OnSelChanged callback
+            ├─ ListBox     -- Data-driven list (mods provide rowdef template)
+            ├─ CheckBox    -- Sticky check-button with optional Label (composite)
             └─ Gump        -- Server-sent generic gump wrapper
 ```
 

@@ -91,6 +91,26 @@
           </Windows>
       </LogDisplay>
 
+      <ScrollWindow name="MongbatScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" lineheight="55" autoHideScrollBar="true">
+        <Windows>
+          <Window name="$parentChild">
+            <Windows>
+              <Window name="$parentCont">
+                <Size>
+                  <AbsPoint x="0" y="0" />
+                </Size>
+              </Window>
+            </Windows>
+          </Window>
+          <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll">
+            <Anchors>
+              <Anchor point="topright" relativePoint="topright" />
+              <Anchor point="bottomright" relativePoint="bottomright" />
+            </Anchors>
+          </VerticalScrollbar>
+        </Windows>
+      </ScrollWindow>
+
       <CircleImage name="MongbatCircleImage">
         <Size>
           <AbsPoint x="200" y="200" />
