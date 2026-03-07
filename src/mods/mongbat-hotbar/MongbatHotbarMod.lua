@@ -12,12 +12,6 @@ local Utils = Mongbat.Utils
 local origHandleUpdateActionItem = nil
 
 local function OnInitialize()
-    local Api = Api
-    local Constants = Constants
-    local Data = Data
-    local Utils = Utils
-    local Components = Components
-
     -- Disable the Hotbar Lua-callback proxy so that XML-triggered
     -- Hotbar.Initialize / Hotbar.ItemLButtonDown / etc. become no-ops.
     Components.Defaults.Hotbar:disable()
@@ -321,9 +315,6 @@ local function OnInitialize()
 end
 
 local function OnShutdown()
-    local Api = Api
-    local Components = Components
-
     -- Restore HotbarSystem.HandleUpdateActionItem to the original engine
     -- function so the default UI works correctly after mod unload.
     local hsDefault = Components.Defaults.HotbarSystem:getDefault()
