@@ -11,22 +11,25 @@ local BTN_TOP = 8
 local ROWS_TOP = BTN_TOP + BTN_HEIGHT + 8   -- first skill row y-offset (34)
 local MIN_HEIGHT = ROWS_TOP + ROW_HEIGHT + 16
 local SAVE_KEY = "MongbatSkillsTracker.ShowAllMySkills"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Utils = Mongbat.Utils
 
 -- Colors for delta display
 local COLOR_DEFAULT = { r = 255, g = 255, b = 255 }
 local COLOR_GAIN    = { r = 64,  g = 192, b = 64  }
 local COLOR_LOSS    = { r = 192, g = 64,  b = 64  }
 
----@param context Context
-local function OnInitialize(context)
-    local showAllMySkills = context.Api.Interface.LoadBoolean(SAVE_KEY, true)
+local function OnInitialize()
+    local showAllMySkills = Api.Interface.LoadBoolean(SAVE_KEY, true)
 
     -- Session state
     local sessionActive = false
     local sessionStartValues = {}   -- serverId -> value-in-tenths at session start
     local frozenDeltas = {}         -- serverId -> delta frozen at Stop time
 
-    local skillsTracker = context.Components.Defaults.SkillsTracker
+    local skillsTracker = Components.Defaults.SkillsTracker
     skillsTracker:asComponent():setShowing(false)
     skillsTracker:disable()
 
@@ -39,7 +42,7 @@ local function OnInitialize(context)
     local resetBtnRef = nil
 
     local function makeLabelForPool()
-        return context.Components.Label {
+        return Components.Label {
             OnLButtonDown = function(self, flags, x, y)
                 if windowRef ~= nil then
                     windowRef:onLButtonDown(flags, x, y)
@@ -88,7 +91,7 @@ local function OnInitialize(context)
     local function getDelta(serverId)
         if not sessionStartValues[serverId] then return nil end
         if sessionActive then
-            return context.Data.SkillDynamicData(serverId):getRealValue() - sessionStartValues[serverId]
+            return Data.SkillDynamicData(serverId):getRealValue() - sessionStartValues[serverId]
         else
             return frozenDeltas[serverId]
         end
@@ -99,18 +102,18 @@ local function OnInitialize(context)
         sessionStartValues = {}
         frozenDeltas = {}
         for i = 1, SKILL_COUNT do
-            local csv = context.Data.SkillsCSV(i)
+            local csv = Data.SkillsCSV(i)
             local serverId = csv:getServerId()
             sessionStartValues[serverId] =
-                context.Data.SkillDynamicData(serverId):getRealValue()
+                Data.SkillDynamicData(serverId):getRealValue()
         end
     end
 
     -- Freeze the current live deltas (called when Stop is pressed).
     local function freezeDeltas()
         frozenDeltas = {}
-        context.Utils.Table.ForEach(sessionStartValues, function(serverId, startVal)
-            local current = context.Data.SkillDynamicData(serverId):getRealValue()
+        Utils.Table.ForEach(sessionStartValues, function(serverId, startVal)
+            local current = Data.SkillDynamicData(serverId):getRealValue()
             frozenDeltas[serverId] = current - startVal
         end)
     end
@@ -118,13 +121,13 @@ local function OnInitialize(context)
     -- Update enabled/disabled state of session control buttons.
     local function updateButtonStates()
         if startBtnRef and startBtnRef:doesExist() then
-            context.Api.Button.SetDisabled(startBtnRef:getName(), sessionActive)
+            Api.Button.SetDisabled(startBtnRef:getName(), sessionActive)
         end
         if stopBtnRef and stopBtnRef:doesExist() then
-            context.Api.Button.SetDisabled(stopBtnRef:getName(), not sessionActive)
+            Api.Button.SetDisabled(stopBtnRef:getName(), not sessionActive)
         end
         if resetBtnRef and resetBtnRef:doesExist() then
-            context.Api.Button.SetDisabled(
+            Api.Button.SetDisabled(
                 resetBtnRef:getName(), next(sessionStartValues) == nil)
         end
     end
@@ -137,13 +140,13 @@ local function OnInitialize(context)
         if showAllMySkills then
             local totalUsed = 0
             for i = 1, SKILL_COUNT do
-                local csv = context.Data.SkillsCSV(i)
+                local csv = Data.SkillsCSV(i)
                 local serverId = csv:getServerId()
-                local dynamic = context.Data.SkillDynamicData(serverId)
+                local dynamic = Data.SkillDynamicData(serverId)
                 local value = dynamic:getRealValue()
                 totalUsed = totalUsed + value
                 if value > 0 then
-                    local nameStr = context.Utils.String.FromWString(csv:getName())
+                    local nameStr = Utils.String.FromWString(csv:getName())
                     local delta = getDelta(serverId)
                     local text, color
                     if delta ~= nil then
@@ -178,13 +181,13 @@ local function OnInitialize(context)
                 }
             end
         else
-            local customSkills = context.Data.CustomSkills()
-            context.Utils.Array.ForEach(customSkills, function(skillId)
-                local csv = context.Data.SkillsCSV(skillId)
+            local customSkills = Data.CustomSkills()
+            Utils.Array.ForEach(customSkills, function(skillId)
+                local csv = Data.SkillsCSV(skillId)
                 local serverId = csv:getServerId()
-                local dynamic = context.Data.SkillDynamicData(serverId)
+                local dynamic = Data.SkillDynamicData(serverId)
                 local value = dynamic:getRealValue()
-                local nameStr = context.Utils.String.FromWString(csv:getName())
+                local nameStr = Utils.String.FromWString(csv:getName())
                 local delta = getDelta(serverId)
                 local text, color
                 if delta ~= nil then
@@ -209,7 +212,7 @@ local function OnInitialize(context)
 
         -- Hide all pool labels
         for i = 1, MAX_ROWS do
-            if context.Api.Window.DoesExist(labelPool[i]:getName()) then
+            if Api.Window.DoesExist(labelPool[i]:getName()) then
                 labelPool[i]:setShowing(false)
             end
         end
@@ -222,7 +225,7 @@ local function OnInitialize(context)
             local label     = labelPool[i]
             local labelName = label:getName()
 
-            if context.Api.Window.DoesExist(labelName) then
+            if Api.Window.DoesExist(labelName) then
                 label:setShowing(true)
                 label:setText(rows[i].text)
                 label:setTextColor(rows[i].color)
@@ -248,10 +251,10 @@ local function OnInitialize(context)
     -- Context menu callback
     local function onContextMenuCallback(returnCode, param)
         if returnCode == "all" then
-            context.Api.Interface.SaveBoolean(SAVE_KEY, true)
+            Api.Interface.SaveBoolean(SAVE_KEY, true)
             showAllMySkills = true
         elseif returnCode == "custom" then
-            context.Api.Interface.SaveBoolean(SAVE_KEY, false)
+            Api.Interface.SaveBoolean(SAVE_KEY, false)
             showAllMySkills = false
         end
         if windowRef ~= nil then
@@ -263,7 +266,7 @@ local function OnInitialize(context)
     -- Because these are not in Window:setChildren, the Window lifecycle does not
     -- wrap them.  We call create() + onInitialize() directly, then reparent.
     local function makeControlButton(label, onLButtonUp)
-        return context.Components.Button {
+        return Components.Button {
             OnInitialize = function(self)
                 self:setText(label)
                 self:setDimensions(BTN_WIDTH, BTN_HEIGHT)
@@ -272,14 +275,14 @@ local function OnInitialize(context)
         }
     end
 
-    local window = context.Components.Window {
+    local window = Components.Window {
         Name = NAME,
         Resizable = false,
         OnInitialize = function(self)
             windowRef = self
             self:setDimensions(WINDOW_WIDTH, MIN_HEIGHT)
 
-            -- ── Session control buttons ────────────────────────────────────
+            -- â”€â”€ Session control buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             startBtnRef = makeControlButton(L"Start", function()
                 snapshotCurrentValues()
                 sessionActive = true
@@ -300,7 +303,7 @@ local function OnInitialize(context)
             )
 
             local windowName = self:getName()
-            context.Utils.Array.ForEach(
+            Utils.Array.ForEach(
                 { startBtnRef, stopBtnRef, resetBtnRef },
                 function(btn, idx)
                     btn:create(false)
@@ -314,7 +317,7 @@ local function OnInitialize(context)
             )
             updateButtonStates()
 
-            -- ── Label pool ──────────────────────────────────────────────────
+            -- â”€â”€ Label pool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             -- Because these labels are not passed to Window:setChildren, the
             -- normal component lifecycle does not apply.  We call create() +
             -- onInitialize() directly to register their event handlers, then
@@ -333,24 +336,23 @@ local function OnInitialize(context)
         end,
         OnRButtonUp = function(self, flags, x, y)
             if showAllMySkills then
-                context.Api.ContextMenu.CreateLuaItem(
-                    context.Api.String.GetStringFromTid(1154801), 0, "custom", 2, false)
+                Api.ContextMenu.CreateLuaItem(
+                    Api.String.GetStringFromTid(1154801), 0, "custom", 2, false)
             else
-                context.Api.ContextMenu.CreateLuaItem(
-                    context.Api.String.GetStringFromTid(1154802), 0, "all", 2, false)
+                Api.ContextMenu.CreateLuaItem(
+                    Api.String.GetStringFromTid(1154802), 0, "all", 2, false)
             end
-            context.Api.ContextMenu.ActivateLua(onContextMenuCallback)
+            Api.ContextMenu.ActivateLua(onContextMenuCallback)
         end
     }
 
     window:create(true)
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
 
-    local skillsTracker = context.Components.Defaults.SkillsTracker
+    local skillsTracker = Components.Defaults.SkillsTracker
     skillsTracker:restore()
     skillsTracker:asComponent():setShowing(true)
 end
