@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="../../../docs/Interface.xsd">
+  <Windows>
+
+    <!--
+      Main window template. Includes the standard MongbatWindow frame layers plus
+      a ScrollWindow that fills the interior. Item buttons are created at runtime
+      inside $parentScrollChild.
+    -->
+    <MaskWindow name="MongbatIgnoreWindowTemplate" movable="true">
+      <EventHandlers>
+        <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize" />
+      </EventHandlers>
+      <Windows>
+
+        <!-- Body background -->
+        <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
+          <Anchors>
+            <Anchor point="topleft" relativePoint="topleft" relativeTo="$parent" />
+            <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent" />
+          </Anchors>
+        </FullResizeImage>
+
+        <!-- Inner frame -->
+        <FullResizeImage name="$parentFrame" inherits="UO_Simple_Frame" layer="background" frameonly="true">
+          <Anchors>
+            <Anchor point="topleft" relativePoint="topleft" relativeTo="$parentBackground" />
+            <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parentBackground" />
+          </Anchors>
+        </FullResizeImage>
+
+        <!-- Scroll area: fills the window with a small inset margin -->
+        <ScrollWindow name="$parentScroll" childscrollwindow="$parentScrollChild" scrollbar="$parentScrollbar" lineheight="22" autoHideScrollBar="true">
+          <Anchors>
+            <Anchor point="topleft" relativePoint="topleft" relativeTo="$parent">
+              <AbsPoint x="12" y="30" />
+            </Anchor>
+            <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent">
+              <AbsPoint x="-12" y="-12" />
+            </Anchor>
+          </Anchors>
+          <Windows>
+            <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll">
+              <Anchors>
+                <Anchor point="topright" relativePoint="topright" />
+                <Anchor point="bottomright" relativePoint="bottomright" />
+              </Anchors>
+            </VerticalScrollbar>
+            <Window name="$parentScrollChild">
+              <Size>
+                <AbsPoint x="280" y="0" />
+              </Size>
+            </Window>
+          </Windows>
+        </ScrollWindow>
+
+      </Windows>
+    </MaskWindow>
+
+  </Windows>
+</Interface>
