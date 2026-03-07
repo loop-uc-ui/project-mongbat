@@ -16,17 +16,21 @@ local CURSOR_OFFSET_Y = -16
 -- Mod
 ----------------------------------------------------------------
 
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+
 Mongbat.Mod {
     Name = "MongbatDistanceCounter",
     Path = "/src/mods/mongbat-distance-counter",
-    OnInitialize = function(context)
+    OnInitialize = function()
 
         --- 2:1 isometric pixel metric → Chebyshev tile distance.
         local function isoMetric(dx, dy)
             return math.max(math.abs(dx + 2 * dy), math.abs(2 * dy - dx))
         end
 
-        local label = context.Components.Label {
+        local label = Components.Label {
             Name = NAME,
             OnInitialize = function(self)
                 self:setDimensions(60, 20)
@@ -34,21 +38,21 @@ Mongbat.Mod {
                 self:setLayer():overlay()
             end,
             OnUpdate = function(self)
-                if not context.Data.Cursor():isTarget() then
+                if not Data.Cursor():isTarget() then
                     self:setText("")
                     return
                 end
 
-                local scaleFactor = context.Api.InterfaceCore.GetScaleFactor()
+                local scaleFactor = Api.InterfaceCore.GetScaleFactor()
 
                 -- Viewport bounds (screen pixels)
-                local vpX, vpY = context.Api.Window.GetPosition("ResizeWindow")
-                local vpDims = context.Api.Window.GetDimensions("ResizeWindow")
+                local vpX, vpY = Api.Window.GetPosition("ResizeWindow")
+                local vpDims = Api.Window.GetDimensions("ResizeWindow")
                 local vpW = vpDims.x * scaleFactor
                 local vpH = vpDims.y * scaleFactor
 
                 -- Mouse position (screen pixels)
-                local pos = context.Data.MousePosition()
+                local pos = Data.MousePosition()
                 local mx = pos.x
                 local my = pos.y
 
@@ -76,9 +80,7 @@ Mongbat.Mod {
         label:create(true)
         label:onInitialize()
     end,
-    OnShutdown = function(context)
-        if context.Api.Window.DoesExist(NAME) then
-            context.Api.Window.Destroy(NAME)
-        end
+    OnShutdown = function()
+        Api.Window.Destroy(NAME)
     end
 }
