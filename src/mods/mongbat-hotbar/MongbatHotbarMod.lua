@@ -1,18 +1,22 @@
 local DEFAULT_SLOTS = 12
 local SLOT_SIZE = 50
 local MAX_HOTBAR_ID = 24
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- Saved across OnInitialize / OnShutdown so the original engine function can
 -- be restored when the mod is unloaded.
 local origHandleUpdateActionItem = nil
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Constants = context.Constants
-    local Data = context.Data
-    local Utils = context.Utils
-    local Components = context.Components
+local function OnInitialize()
+    local Api = Api
+    local Constants = Constants
+    local Data = Data
+    local Utils = Utils
+    local Components = Components
 
     -- Disable the Hotbar Lua-callback proxy so that XML-triggered
     -- Hotbar.Initialize / Hotbar.ItemLButtonDown / etc. become no-ops.
@@ -191,7 +195,7 @@ local function OnInitialize(context)
         local currentUseSlot = 0
 
         -- ---------------------------------------------------------------- --
-        -- Slot buttons — one per action slot.
+        -- Slot buttons â€” one per action slot.
         --
         -- Naming: Hotbar{id}Button{slot} matches the pattern that
         --   HotbarSystem.Update parses when iterating SpecialActions, and that
@@ -316,10 +320,9 @@ local function OnInitialize(context)
     end)
 end
 
----@param context Context
-local function OnShutdown(context)
-    local Api = context.Api
-    local Components = context.Components
+local function OnShutdown()
+    local Api = Api
+    local Components = Components
 
     -- Restore HotbarSystem.HandleUpdateActionItem to the original engine
     -- function so the default UI works correctly after mod unload.
