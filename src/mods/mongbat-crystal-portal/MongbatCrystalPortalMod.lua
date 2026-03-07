@@ -1,4 +1,9 @@
 local NAME = "MongbatCrystalPortal"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- ========================================================================== --
 -- Destination Tables
@@ -155,13 +160,12 @@ local GAP      = 8
 -- Must survive across OnInitialize and OnShutdown, so file-scope state is used.
 local originalCrystalPortalToggle = nil
 
----@param context Context
-local function OnInitialize(context)
-    local Api        = context.Api
-    local Data       = context.Data
-    local Utils      = context.Utils
-    local Components = context.Components
-    local Constants  = context.Constants
+local function OnInitialize()
+    local Api        = Api
+    local Data       = Data
+    local Utils      = Utils
+    local Components = Components
+    local Constants  = Constants
 
     -- Intercept CrystalPortal.Toggle via the DefaultComponent proxy.
     -- We do NOT call disable() because that would also suppress our own Toggle
@@ -307,7 +311,7 @@ local function OnInitialize(context)
             end
         end
 
-        -- Destination row: [◄] | destination label | [►]
+        -- Destination row: [â—„] | destination label | [â–º]
         local function destRowLayout(window, children, child, index)
             local dims   = window:getDimensions()
             local arrowW = 32
@@ -431,7 +435,7 @@ local function OnInitialize(context)
         categoryRow:setChildren { dungeonBtn, moongateBtn, bankBtn }
 
         -- ------------------------------------------------------------------ --
-        -- Destination selector row: [◄]  Name  [►]
+        -- Destination selector row: [â—„]  Name  [â–º]
         -- ------------------------------------------------------------------ --
 
         local destRow = Components.Window {
@@ -559,7 +563,7 @@ local function OnInitialize(context)
 
     cpProxy.Toggle = function()
         if Api.Window.DoesExist(NAME) then
-            -- Portal is open — persist state and close it
+            -- Portal is open â€” persist state and close it
             Api.Interface.SaveNumber(KEY_MAP,       facet)
             Api.Interface.SaveNumber(KEY_AREA,      category)
             Api.Interface.SaveNumber(KEY_SELECTION, selectedIndex)
@@ -573,10 +577,9 @@ local function OnInitialize(context)
     end
 end
 
----@param context Context
-local function OnShutdown(context)
-    local Api        = context.Api
-    local Components = context.Components
+local function OnShutdown()
+    local Api        = Api
+    local Components = Components
 
     -- Destroy our window if it is open
     Api.Window.Destroy(NAME)
