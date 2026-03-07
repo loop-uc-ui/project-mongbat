@@ -5,6 +5,11 @@ local PADDING = 4
 local MARGIN = 8
 local HEADER_HEIGHT = 22
 local FALLBACK_MAX_SLOTS = 125
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- Tracks open container windows: containerId -> { windowName }
 local openContainers = {}
@@ -12,13 +17,12 @@ local openContainers = {}
 -- Original ContainerWindow functions saved before overriding, restored on shutdown.
 local savedFunctions = {}
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Data = context.Data
-    local Constants = context.Constants
-    local Components = context.Components
-    local Utils = context.Utils
+local function OnInitialize()
+    local Api = Api
+    local Data = Data
+    local Constants = Constants
+    local Components = Components
+    local Utils = Utils
 
     local containerDefault = Components.Defaults.ContainerWindow
 
@@ -333,18 +337,17 @@ local function OnInitialize(context)
     containerDefault:getDefault().MiniModelUpdate = function() end
 end
 
----@param context Context
-local function OnShutdown(context)
-    local containerDefault    = context.Components.Defaults.ContainerWindow
-    local containerDataType   = context.Constants.DataEvents.OnUpdateContainerWindow.getType()
-    local Utils = context.Utils
+local function OnShutdown()
+    local containerDefault    = Components.Defaults.ContainerWindow
+    local containerDataType   = Constants.DataEvents.OnUpdateContainerWindow.getType()
+    local Utils = Utils
 
     -- Destroy all open Mongbat container windows and unregister their data.
     Utils.Table.ForEach(openContainers, function(id, state)
-        if context.Api.Window.DoesExist(state.windowName) then
-            context.Api.Window.Destroy(state.windowName)
+        if Api.Window.DoesExist(state.windowName) then
+            Api.Window.Destroy(state.windowName)
         end
-        context.Api.Window.UnregisterData(containerDataType, id)
+        Api.Window.UnregisterData(containerDataType, id)
         containerDefault:getDefault().OpenContainers[id] = nil
     end)
     openContainers = {}
