@@ -1,4 +1,9 @@
 local NAME = "MongbatSkillsWindow"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- Layout constants
 local MARGIN = 10
@@ -12,7 +17,7 @@ local WIN_H = HEADER_H + VISIBLE_ROWS * ROW_H + MARGIN + 16
 local NUM_CSV_SKILLS = 58
 local MAX_SERVER_ID = 57
 
--- Lock state display symbols: 0=increasing (▲), 1=decreasing (▼), 2=locked (■)
+-- Lock state display symbols: 0=increasing (â–²), 1=decreasing (â–¼), 2=locked (â– )
 local LOCK_SYMBOLS = {}
 LOCK_SYMBOLS[0] = L"\x25B2"
 LOCK_SYMBOLS[1] = L"\x25BC"
@@ -25,13 +30,12 @@ local INFO_NAME = "MongbatSkillsInfo"
 -- Saved reference to the original Actions.ToggleSkillsWindow for restoration on shutdown
 local originalToggleSkillsWindow = nil
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Data = context.Data
-    local Utils = context.Utils
-    local Constants = context.Constants
-    local Components = context.Components
+local function OnInitialize()
+    local Api = Api
+    local Data = Data
+    local Utils = Utils
+    local Constants = Constants
+    local Components = Components
 
     -- Suppress the default SkillsWindow
     local skillsDefault = Components.Defaults.SkillsWindow
@@ -133,7 +137,7 @@ local function OnInitialize(context)
     -- Apply default sort (alphabetical by name)
     sortByName()
 
-    -- Format a raw skill integer (value × 10) as "NN.N"
+    -- Format a raw skill integer (value Ã— 10) as "NN.N"
     local function formatValue(raw)
         if raw == nil or raw == 0 then return L"0.0" end
         local whole = math.floor(raw / 10)
@@ -489,28 +493,27 @@ local function OnInitialize(context)
     updateTotalPoints()
 end
 
----@param context Context
-local function OnShutdown(context)
+local function OnShutdown()
     -- Restore the original skills toggle action
     if originalToggleSkillsWindow ~= nil then
-        context.Api.Actions.SetToggleSkillsWindow(originalToggleSkillsWindow)
+        Api.Actions.SetToggleSkillsWindow(originalToggleSkillsWindow)
         originalToggleSkillsWindow = nil
     end
 
     -- Unregister skill dynamic data for all server IDs
-    local dataType = context.Constants.DataEvents.OnUpdateSkillDynamicData.getType()
+    local dataType = Constants.DataEvents.OnUpdateSkillDynamicData.getType()
     for i = 0, MAX_SERVER_ID do
-        context.Api.Window.UnregisterData(dataType, i)
+        Api.Window.UnregisterData(dataType, i)
     end
 
-    context.Api.Window.Destroy(INFO_NAME)
-    context.Api.Window.Destroy(NAME)
+    Api.Window.Destroy(INFO_NAME)
+    Api.Window.Destroy(NAME)
 
     -- Unload the skills CSV table from memory
-    context.Api.Skill.UnloadCSV()
+    Api.Skill.UnloadCSV()
 
     -- Restore the default SkillsWindow
-    context.Components.Defaults.SkillsWindow:restore()
+    Components.Defaults.SkillsWindow:restore()
 end
 
 Mongbat.Mod {
