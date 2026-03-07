@@ -1,4 +1,7 @@
 local NAME = "MongbatUserWaypointWindow"
+local Api = Mongbat.Api
+local Components = Mongbat.Components
+local Utils = Mongbat.Utils
 
 -- Window layout constants
 local WIN_W = 460
@@ -120,10 +123,10 @@ end
 ---@param context Context The Mongbat context object.
 ---@param params table  Params table from the map context menu.
 ---@param isViewMode boolean True for view/edit mode, false for create mode.
-local function createWaypointWindow(context, params, isViewMode)
-    local Components = context.Components
-    local Api        = context.Api
-    local Utils      = context.Utils
+local function createWaypointWindow(params, isViewMode)
+    local Components = Components
+    local Api        = Api
+    local Utils      = Utils
 
     --- Finds the icon index in ICONS for a given icon ID.
     ---@param iconId number The icon ID to search for.
@@ -883,9 +886,8 @@ end
 -- OnInitialize / OnShutdown
 -- ============================================================
 
----@param context Context
-local function OnInitialize(context)
-    local proxy = context.Components.Defaults.UserWaypointWindow:getDefault()
+local function OnInitialize()
+    local proxy = Components.Defaults.UserWaypointWindow:getDefault()
 
     -- Save originals for symmetric restore
     savedFunctions = {
@@ -903,27 +905,26 @@ local function OnInitialize(context)
 
     -- Override the two entry-points the map calls to open the window
     proxy.InitializeCreateWaypointData = function(params)
-        context.Api.Window.Destroy(NAME)
-        createWaypointWindow(context, params, false)
+        Api.Window.Destroy(NAME)
+        createWaypointWindow(params, false)
     end
 
     proxy.InitializeViewWaypointData = function(params)
-        context.Api.Window.Destroy(NAME)
-        createWaypointWindow(context, params, true)
+        Api.Window.Destroy(NAME)
+        createWaypointWindow(params, true)
     end
 
     -- Hide the original XML window if the engine created it at startup
-    if context.Api.Window.DoesExist("UserWaypointWindow") then
-        context.Api.Window.SetShowing("UserWaypointWindow", false)
+    if Api.Window.DoesExist("UserWaypointWindow") then
+        Api.Window.SetShowing("UserWaypointWindow", false)
     end
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
 
     -- Restore all overridden functions so the default UI can work again
-    local proxy = context.Components.Defaults.UserWaypointWindow:getDefault()
+    local proxy = Components.Defaults.UserWaypointWindow:getDefault()
     proxy.Initialize                   = savedFunctions.Initialize
     proxy.Shutdown                     = savedFunctions.Shutdown
     proxy.InitializeCreateWaypointData = savedFunctions.InitializeCreateWaypointData
