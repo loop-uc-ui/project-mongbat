@@ -2957,6 +2957,20 @@ Constants.SystemEvents.OnEndHealthBarDrag = {
     name = "OnEndHealthBarDrag"
 }
 
+Constants.SystemEvents.OnEnableHealthBar = {
+    getEvent = function()
+        return SystemData.Events["ENABLE_HEALTHBAR_WINDOW"]
+    end,
+    name = "OnEnableHealthBar"
+}
+
+Constants.SystemEvents.OnDisableHealthBar = {
+    getEvent = function()
+        return SystemData.Events["DISABLE_HEALTHBAR_WINDOW"]
+    end,
+    name = "OnDisableHealthBar"
+}
+
 Constants.SystemEvents.OnLButtonUpProcessed = {
     getEvent = function()
         return SystemData.Events["L_BUTTON_UP_PROCESSED"]
@@ -3329,6 +3343,41 @@ end
 
 function Data.MobileStatus(id)
     return MobileStatus:new(id)
+end
+
+-- ========================================================================== --
+-- Data - Party Member
+-- ========================================================================== --
+
+---@class WindowData.PartyMember
+---@field memberId integer
+
+---@class PartyMemberWrapper
+---@field _index integer
+local PartyMember = {}
+PartyMember.__index = PartyMember
+
+function PartyMember:new(index)
+    local instance = setmetatable({}, self)
+    instance._index = index
+    return instance
+end
+
+---@return WindowData.PartyMember
+function PartyMember:getData()
+    return WindowData.PartyMember[self._index]
+end
+
+function PartyMember:getMemberId()
+    local data = self:getData()
+    if data then
+        return data.memberId
+    end
+    return 0
+end
+
+function Data.PartyMember(index)
+    return PartyMember:new(index)
 end
 
 -- ========================================================================== --
@@ -4139,6 +4188,8 @@ FilterInput.__index = FilterInput
 ---@field OnMouseOverEnd fun(self: Window)?
 ---@field OnMouseWheel fun(self: Window, x: number, y: number, delta: number)?
 ---@field OnEndHealthBarDrag fun(self: Window)?
+---@field OnEnableHealthBar fun(self: Window)?
+---@field OnDisableHealthBar fun(self: Window)?
 ---@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: Window, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
@@ -4216,6 +4267,8 @@ LogDisplay.__index = LogDisplay
 ---@field OnMouseOver fun(self: View)?
 ---@field OnMouseOverEnd fun(self: View)?
 ---@field OnEndHealthBarDrag fun(self: View)?
+---@field OnEnableHealthBar fun(self: View)?
+---@field OnDisableHealthBar fun(self: View)?
 ---@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileName fun(self: View, mobileName: MobileNameWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
@@ -4655,6 +4708,8 @@ end
 
 ---@class DefaultHealthBarManager
 ---@field OnBeginDragHealthBar fun(objectId: integer)
+---@field IsPartyMember fun(mobileId: integer): boolean
+---@field GetMemberIndex fun(mobileId: integer): integer
 
 ---@class DefaultHealthBarManagerComponent : DefaultComponent
 local DefaultHealthBarManagerComponent = {}
@@ -4674,6 +4729,62 @@ function DefaultHealthBarManagerComponent:getDefault()
     return self._proxy or HealthBarManager --[[@as DefaultHealthBarManager]]
 end
 
+
+-- ========================================================================= --
+-- Components - Default - Mobile Health Bar
+-- ========================================================================= --
+
+---@class DefaultMobileHealthBar
+---@field CreateHealthBar fun(mobileId: integer)
+---@field CloseWindowByMobileId fun(mobileId: integer)
+---@field HasWindow fun(mobileId: integer): boolean
+
+---@class DefaultMobileHealthBarComponent : DefaultComponent
+local DefaultMobileHealthBarComponent = {}
+DefaultMobileHealthBarComponent.__index = DefaultMobileHealthBarComponent
+
+---@return DefaultMobileHealthBarComponent
+function DefaultMobileHealthBarComponent:new()
+    local instance = DefaultComponent.new(self, "MobileHealthBar") --[[@as DefaultMobileHealthBarComponent]]
+    instance._proxy = instance:_createProxy(MobileHealthBar)
+    instance._globalKey = "MobileHealthBar"
+    _G.MobileHealthBar = instance._proxy
+    return instance
+end
+
+---@return DefaultMobileHealthBar
+function DefaultMobileHealthBarComponent:getDefault()
+    return self._proxy or MobileHealthBar --[[@as DefaultMobileHealthBar]]
+end
+
+-- ========================================================================= --
+-- Components - Default - Party Health Bar
+-- ========================================================================= --
+
+---@class DefaultPartyHealthBar
+---@field CreateHealthBar fun(mobileId: integer, useDefaultPos: boolean)
+---@field CloseWindowByIndex fun(windowIndex: integer)
+---@field HasWindow fun(mobileId: integer): boolean
+---@field HasWindowByIndex fun(windowIndex: integer): boolean
+---@field RefreshHealthBar fun(windowIndex: integer, mobileId: integer)
+
+---@class DefaultPartyHealthBarComponent : DefaultComponent
+local DefaultPartyHealthBarComponent = {}
+DefaultPartyHealthBarComponent.__index = DefaultPartyHealthBarComponent
+
+---@return DefaultPartyHealthBarComponent
+function DefaultPartyHealthBarComponent:new()
+    local instance = DefaultComponent.new(self, "PartyHealthBar") --[[@as DefaultPartyHealthBarComponent]]
+    instance._proxy = instance:_createProxy(PartyHealthBar)
+    instance._globalKey = "PartyHealthBar"
+    _G.PartyHealthBar = instance._proxy
+    return instance
+end
+
+---@return DefaultPartyHealthBar
+function DefaultPartyHealthBarComponent:getDefault()
+    return self._proxy or PartyHealthBar --[[@as DefaultPartyHealthBar]]
+end
 
 -- ========================================================================= --
 -- Components - Default - Interface
@@ -5501,6 +5612,18 @@ function EventHandler.OnEndHealthBarDrag()
     end)
 end
 
+function EventHandler.OnEnableHealthBar()
+    withActiveView("OnEnableHealthBar", function(window)
+        window:onEnableHealthBar()
+    end)
+end
+
+function EventHandler.OnDisableHealthBar()
+    withActiveView("OnDisableHealthBar", function(window)
+        window:onDisableHealthBar()
+    end)
+end
+
 function EventHandler.OnUpdateRadar()
     withActiveView("OnUpdateRadar", function(window)
         window:onUpdateRadar(WindowData.Radar)
@@ -6060,6 +6183,22 @@ end
 function View:onEndHealthBarDrag()
     if self._model.OnEndHealthBarDrag ~= nil then
         self._model.OnEndHealthBarDrag(self)
+        return true
+    end
+    return false
+end
+
+function View:onEnableHealthBar()
+    if self._model.OnEnableHealthBar ~= nil then
+        self._model.OnEnableHealthBar(self)
+        return true
+    end
+    return false
+end
+
+function View:onDisableHealthBar()
+    if self._model.OnDisableHealthBar ~= nil then
+        self._model.OnDisableHealthBar(self)
         return true
     end
     return false
@@ -6747,6 +6886,8 @@ setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
+setmetatable(DefaultMobileHealthBarComponent, { __index = DefaultComponent })
+setmetatable(DefaultPartyHealthBarComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
@@ -6761,6 +6902,8 @@ Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
+Components.Defaults.MobileHealthBar = DefaultMobileHealthBarComponent:new()
+Components.Defaults.PartyHealthBar = DefaultPartyHealthBarComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
