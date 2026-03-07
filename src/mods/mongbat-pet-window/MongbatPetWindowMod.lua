@@ -54,12 +54,6 @@ local function PetRowLayout(window, _, child, index)
 end
 
 local function OnInitialize()
-    local Api = Api
-    local Data = Data
-    local Utils = Utils
-    local Constants = Constants
-    local Components = Components
-
     local petRowsByPetId = {}
     local isExpanded = true
 
