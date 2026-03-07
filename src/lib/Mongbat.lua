@@ -2326,6 +2326,28 @@ function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
 end
 
+---
+--- Returns the name of the currently active (event-dispatching) window.
+---@return string
+function Api.Window.GetActiveWindowName()
+    return SystemData.ActiveWindow.name
+end
+
+---
+--- Returns the dynamic window ID set by the engine when a dynamic window is created
+--- (e.g. the merchant ID for a Shopkeeper window).
+---@return integer
+function Api.Window.GetDynamicWindowId()
+    return SystemData.DynamicWindowId
+end
+
+---
+--- Returns the UpdateInstanceId from the most recent WindowData update event.
+---@return integer
+function Api.Window.GetUpdateInstanceId()
+    return WindowData.UpdateInstanceId
+end
+
 -- ========================================================================== --
 -- Api - Interface Core
 -- ========================================================================== --
@@ -2498,6 +2520,36 @@ function Utils.Array.Filter(array, predicate)
     )
 end
 
+---@generic T
+---@param array T[]
+---@param predicate fun(item: T, index: integer): boolean
+---@return integer[]
+function Utils.Array.Indices(array, predicate)
+    return Utils.Array.MapToArray(
+        array,
+        function(item, index)
+            if predicate(item, index) then
+                return index
+            else
+                return nil
+            end
+        end
+    )
+end
+
+---@generic T, R
+---@param array T[]
+---@param reducer fun(accumulator: R, item: T, index: integer): R
+---@param initial R
+---@return R
+function Utils.Array.Reduce(array, reducer, initial)
+    local acc = initial
+    Utils.Array.ForEach(array, function(item, index)
+        acc = reducer(acc, item, index)
+    end)
+    return acc
+end
+
 ---@generic K
 ---@param arrays K[][]
 ---@return K[]
@@ -2581,6 +2633,26 @@ function Utils.Array.Find(array, find)
     return nil
 end
 
+--- Returns true if every element in the array satisfies the predicate.
+--- Returns true for nil or empty arrays (vacuous truth).
+---@generic T
+---@param array T[]?
+---@param predicate fun(item: T, index: integer): boolean
+---@return boolean
+function Utils.Array.Every(array, predicate)
+    if not array or #array == 0 then
+        return true
+    end
+
+    for i = 1, #array do
+        if not predicate(array[i], i) then
+            return false
+        end
+    end
+
+    return true
+end
+
 ---@generic T
 ---@param array T[]
 ---@param forEach fun(item: T, index: integer)
@@ -2605,6 +2677,29 @@ function Utils.Array.Add(array, item, pos)
     else
         table.insert(array, item)
     end
+end
+
+--- Returns true if the array is nil or has no elements.
+---@param array any[]?
+---@return boolean
+function Utils.Array.IsEmpty(array)
+    return not array or #array == 0
+end
+
+--- Adds item to the array only if it is not already present (by == equality).
+--- Returns true if the item was added, false if it was already in the array.
+---@generic T
+---@param array T[]
+---@param item T
+---@return boolean added
+function Utils.Array.AddUnique(array, item)
+    for i = 1, #array do
+        if array[i] == item then
+            return false
+        end
+    end
+    table.insert(array, item)
+    return true
 end
 
 -- ========================================================================== --
@@ -2825,6 +2920,16 @@ function Utils.String.FromWString(text)
     end
 end
 
+--- Returns true if text is nil, empty string "", or empty wstring L"".
+--- @param text string|wstring|nil
+--- @return boolean
+function Utils.String.IsEmpty(text)
+    if text == nil then return true end
+    if text == "" then return true end
+    if text == L"" then return true end
+    return false
+end
+
 function Utils.String.ToWString(text)
     if text == nil then return L"" end
     if type(text) == "number" then
@@ -2839,6 +2944,7 @@ function Utils.String.ToWString(text)
 end
 
 function Utils.String.Lower(text)
+    if text == nil then return "" end
     if type(text) == "string" then
         return string.lower(text)
     elseif type(text) == "wstring" then
@@ -2847,6 +2953,7 @@ function Utils.String.Lower(text)
 end
 
 function Utils.String.Upper(text)
+    if text == nil then return "" end
     if type(text) == "string" then
         return string.upper(text)
     elseif type(text) == "wstring" then
@@ -2854,11 +2961,122 @@ function Utils.String.Upper(text)
     end
 end
 
+--- Substitutes all occurrences of pattern in text.
+--- Accepts string or wstring; returns the same type as the input.
+--- Nil input returns L"".
+---@param text string|wstring|nil
+---@param pattern string Lua pattern
+---@param replacement string
+---@return string|wstring
+function Utils.String.Replace(text, pattern, replacement)
+    if text == nil then return L"" end
+    if type(text) == "wstring" then
+        local s = Api.String.WStringToString(text)
+        return Api.String.StringToWString(string.gsub(s, pattern, replacement))
+    end
+    return string.gsub(text, pattern, replacement)
+end
+
+--- Searches for the first occurrence of pattern in text.
+--- Accepts string or wstring. Returns start/end positions (always integers).
+---@param text string|wstring|nil
+---@param pattern string Lua pattern or plain substring
+---@param init integer? Start position (default 1)
+---@param plain boolean? If true, pattern is a plain string
+---@param ignoreCase boolean? If true, lowercases both text and pattern before matching
+---@return integer|nil startPos
+---@return integer|nil endPos
+function Utils.String.Find(text, pattern, init, plain, ignoreCase)
+    if text == nil then return nil end
+    if type(text) == "wstring" then
+        text = Api.String.WStringToString(text)
+    end
+    if ignoreCase then
+        text = string.lower(text)
+        pattern = string.lower(pattern)
+    end
+    return string.find(text, pattern, init, plain)
+end
+
+--- Returns true if text contains the given pattern.
+--- Accepts string or wstring.
+---@param text string|wstring|nil
+---@param pattern string Lua pattern or plain substring
+---@param plain boolean? If true, pattern is a plain string
+---@param ignoreCase boolean? If true, lowercases both text and pattern before matching
+---@return boolean
+function Utils.String.Contains(text, pattern, plain, ignoreCase)
+    return Utils.String.Find(text, pattern, 1, plain, ignoreCase) ~= nil
+end
+
+--- Returns the first match of pattern in text, or nil if no match.
+--- When the pattern contains captures, returns the first capture.
+--- Accepts string or wstring; returns the same type as the input (or nil).
+---@param text string|wstring|nil
+---@param pattern string Lua pattern
+---@return string|wstring|nil
+function Utils.String.Match(text, pattern)
+    if text == nil then return nil end
+    local isW = type(text) == "wstring"
+    local s = isW and Api.String.WStringToString(text) or text
+    local result = string.match(s, pattern)
+    if result == nil then return nil end
+    if isW then return Api.String.StringToWString(result) end
+    return result
+end
+
+--- Returns an array of all matches of pattern in text.
+--- When the pattern contains captures, each element is the first capture.
+--- Accepts string or wstring; elements are the same type as the input.
+--- Returns an empty table if no matches or text is nil.
+---@param text string|wstring|nil
+---@param pattern string Lua pattern
+---@return (string|wstring)[]
+function Utils.String.MatchAll(text, pattern)
+    local results = {}
+    if text == nil then return results end
+    local isW = type(text) == "wstring"
+    local s = isW and Api.String.WStringToString(text) or text
+    for match in string.gmatch(s, pattern) do
+        if isW then
+            results[#results + 1] = Api.String.StringToWString(match)
+        else
+            results[#results + 1] = match
+        end
+    end
+    return results
+end
+
 ---@param fmt string
 ---@param ... any
 ---@return string
 function Utils.String.Format(fmt, ...)
     return string.format(fmt, ...)
+end
+
+--- Concatenates any mix of string, wstring, number, or nil values into a single wstring.
+--- Numbers are converted to their display representation (e.g. 123 → L"123"), NOT treated as TIDs.
+--- Nil values are skipped.
+--- @param ... string|wstring|number|nil
+--- @return wstring
+function Utils.String.Concat(...)
+    local result = L""
+    for i = 1, arg.n do
+        local v = arg[i]
+        if v ~= nil then
+            local t = type(v)
+            if t == "wstring" then
+                result = result .. v
+            elseif t == "number" then
+                result = result .. towstring(v)
+            elseif t == "string" then
+                result = result .. Api.String.StringToWString(v)
+            else
+                result = result .. Api.String.StringToWString(tostring(v))
+            end
+        end
+    end
+    return result
 end
 
 -- ========================================================================== --
@@ -2909,6 +3127,14 @@ function Constants.Broadcasts.BugReport()
     return SystemData.Events["BUG_REPORT_SCREEN"]
 end
 
+function Constants.Broadcasts.ShopOfferAccept()
+    return SystemData.Events["SHOP_OFFER_ACCEPT"]
+end
+
+function Constants.Broadcasts.ShopCancelOffer()
+    return SystemData.Events["SHOP_CANCEL_OFFER"]
+end
+
 ---@class DataEvent
 ---@field getType fun(): integer
 ---@field getEvent fun(): integer
@@ -2942,6 +3168,10 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateShopData = DataEvent(WindowData.ShopData, "OnUpdateShopData")
+Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWindow, "OnUpdateContainerWindow")
+Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
+Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemProperties, "OnUpdateItemProperties")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3638,6 +3868,11 @@ function PlayerStatus:getId()
 end
 
 ---@return integer
+function PlayerStatus:getGold()
+    return self:getData().Gold or 0
+end
+
+---@return integer
 function PlayerStatus:getEvent()
     return self:getData().Event
 end
@@ -3783,10 +4018,230 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
--- Data - Radar
+-- Data - ShopData
 -- ========================================================================== --
 
----@class WindowData.Radar
+---@class WindowData.ShopData.SellList
+---@field Names wstring[]
+---@field Quantities integer[]
+---@field Ids integer[]
+---@field Prices integer[]
+---@field Types integer[]
+
+---@class WindowData.ShopData
+---@field IsSelling boolean
+---@field Sell WindowData.ShopData.SellList
+---@field OfferIds integer[]
+---@field OfferQuantities integer[]
+---@field Type integer
+---@field Event integer
+
+---@class ShopDataItem
+---@field id integer Object ID of the item
+---@field name wstring Display name of the item
+---@field price integer Gold price per unit
+---@field quantity integer Available quantity
+---@field objType integer Object type for icon rendering
+
+---@class ShopDataWrapper
+local ShopData = {}
+ShopData.__index = ShopData
+
+---@return ShopDataWrapper
+function ShopData:new()
+    local instance = setmetatable({}, self)
+    return instance
+end
+
+---@return boolean
+function ShopData:isSelling()
+    return WindowData.ShopData and WindowData.ShopData.IsSelling == true
+end
+
+---@return integer Number of sell items
+function ShopData:getSellCount()
+    if not WindowData.ShopData or not WindowData.ShopData.Sell then
+        return 0
+    end
+    return table.getn(WindowData.ShopData.Sell.Names)
+end
+
+---@param index integer 1-based index
+---@return ShopDataItem|nil
+function ShopData:getSellItem(index)
+    local sell = WindowData.ShopData and WindowData.ShopData.Sell
+    if not sell then return nil end
+    if sell.Quantities[index] == 0 then return nil end
+    return {
+        id       = sell.Ids[index],
+        name     = sell.Names[index],
+        price    = sell.Prices[index],
+        quantity = sell.Quantities[index],
+        objType  = sell.Types[index]
+    }
+end
+
+--- Returns all sell items as an array, skipping entries with zero quantity.
+---@return ShopDataItem[]
+function ShopData:getSellItems()
+    local result = {}
+    local count = self:getSellCount()
+    for i = 1, count do
+        local entry = self:getSellItem(i)
+        if entry then
+            table.insert(result, entry)
+        end
+    end
+    return result
+end
+
+---@param offerIds integer[]
+---@param offerQuantities integer[]
+function ShopData:setOffer(offerIds, offerQuantities)
+    if not WindowData.ShopData then return end
+    for i = 1, table.getn(offerIds) do
+        WindowData.ShopData.OfferIds[i] = offerIds[i]
+        WindowData.ShopData.OfferQuantities[i] = offerQuantities[i]
+    end
+end
+
+---@return ShopDataWrapper
+function Data.ShopData()
+    return ShopData:new()
+end
+
+-- ========================================================================== --
+-- Data - ObjectInfo
+-- ========================================================================== --
+
+---@class WindowData.ObjectInfo
+---@field name wstring Display name of the object
+---@field objectType integer Numeric type ID of the object
+---@field shopValue integer Gold price per unit (shop context)
+---@field shopQuantity integer Available quantity in shop
+---@field sellContainerId integer Container ID for buy mode
+---@field quantity integer Quantity of the item
+---@field containerId integer Parent container's object ID
+---@field hueId integer Hue/color ID
+---@field Type integer
+---@field Event integer
+
+---@class ObjectInfoWrapper
+local ObjectInfoData = {}
+ObjectInfoData.__index = ObjectInfoData
+
+---@param id integer The object ID
+---@return ObjectInfoWrapper
+function ObjectInfoData:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return WindowData.ObjectInfo|nil
+function ObjectInfoData:getData()
+    if WindowData.ObjectInfo then
+        return WindowData.ObjectInfo[self._id]
+    end
+    return nil
+end
+
+--- Returns true if the engine has ObjectInfo data for this ID.
+---@return boolean
+function ObjectInfoData:exists()
+    return self:getData() ~= nil
+end
+
+--- Returns the object ID this wrapper was created for.
+---@return integer
+function ObjectInfoData:getId()
+    return self._id
+end
+
+--- Returns the display name of the object.
+---@return wstring
+function ObjectInfoData:getName()
+    local data = self:getData()
+    return data and data.name or L""
+end
+
+--- Returns the numeric type ID of the object.
+---@return integer
+function ObjectInfoData:getObjectType()
+    local data = self:getData()
+    return data and data.objectType or 0
+end
+
+--- Returns the gold price per unit (shop context).
+---@return integer
+function ObjectInfoData:getShopValue()
+    local data = self:getData()
+    return data and data.shopValue or 0
+end
+
+--- Returns the available quantity in shop.
+---@return integer
+function ObjectInfoData:getShopQuantity()
+    local data = self:getData()
+    return data and data.shopQuantity or 0
+end
+
+--- Returns the container ID for buy mode.
+---@return integer
+function ObjectInfoData:getSellContainerId()
+    local data = self:getData()
+    return data and data.sellContainerId or 0
+end
+
+--- Returns the quantity of the item.
+---@return integer
+function ObjectInfoData:getQuantity()
+    local data = self:getData()
+    return data and data.quantity or 0
+end
+
+--- Returns the parent container's object ID.
+---@return integer
+function ObjectInfoData:getContainerId()
+    local data = self:getData()
+    return data and data.containerId or 0
+end
+
+--- Returns the hue/color ID.
+---@return integer
+function ObjectInfoData:getHueId()
+    local data = self:getData()
+    return data and data.hueId or 0
+end
+
+--- Returns ObjectInfo data wrapped for the given object ID.
+---@param id integer The object ID.
+---@return ObjectInfoWrapper
+function Data.ObjectInfo(id)
+    return ObjectInfoData:new(id)
+end
+
+-- ========================================================================== --
+-- Data - ContainerWindow
+-- ========================================================================== --
+
+---
+--- Returns raw ContainerWindow data for the given container ID.
+---@param id integer The container ID.
+---@return WindowData.Container|nil
+function Data.ContainerWindow(id)
+    return WindowData.ContainerWindow and WindowData.ContainerWindow[id] or nil
+end
+
+-- ========================================================================== --
+-- Data - ItemProperties
+-- ========================================================================== --
+
+---
+--- Returns raw ItemProperties data for the given object ID.
+---@param id integer The object ID.
+---@return table|nil
+function Data.ItemProperties(id)
+    return WindowData.ItemProperties and WindowData.ItemProperties[id] or nil
+end
 ---@field TexCoordX integer
 ---@field TexCoordY integer
 ---@field TexScale number
@@ -4064,6 +4519,13 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+---@class DefaultShopkeeper
+---@field Initialize fun()
+---@field Shutdown fun()
+
+local DefaultShopkeeperComponent = {}
+DefaultShopkeeperComponent.__index = DefaultShopkeeperComponent
+
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4146,6 +4608,10 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdateShopData fun(self: Window, shopData: ShopDataWrapper)?
+---@field OnUpdateContainerWindow fun(self: Window, instanceId: integer, data: WindowData.Container|nil)?
+---@field OnUpdateObjectInfo fun(self: Window, instanceId: integer, data: ObjectInfoWrapper)?
+---@field OnUpdateItemProperties fun(self: Window, instanceId: integer, data: table|nil)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4223,6 +4689,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdateShopData fun(self: View, shopData: ShopDataWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4484,20 +4951,31 @@ function DefaultComponent:asComponent()
 end
 
 --- Creates a proxy table that wraps the original global table.
---- When disabled, all function calls become no-ops.
+--- When disabled, all function calls become no-ops UNLESS they were explicitly
+--- overridden via assignment (stored in _overrides). Overrides always execute,
+--- allowing a mod to intercept specific functions while the rest are suppressed.
 ---@param original table The original global table to wrap
 ---@return table proxy The proxy table
 function DefaultComponent:_createProxy(original)
     local proxy = {
         _disabled = false,
-        _original = original
+        _original = original,
+        _overrides = {}
     }
 
     setmetatable(proxy, {
         __index = function(self, key)
             -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" then
+            if key == "_disabled" or key == "_original" or key == "_overrides" then
                 return rawget(self, key)
+            end
+
+            -- Overrides always take precedence regardless of disabled state.
+            -- This lets mods hook Initialize/Shutdown while still suppressing
+            -- all other original functions via disable().
+            local override = rawget(self, "_overrides")[key]
+            if override ~= nil then
+                return override
             end
 
             local value = rawget(self, "_original")[key]
@@ -4511,12 +4989,13 @@ function DefaultComponent:_createProxy(original)
         end,
         __newindex = function(self, key, value)
             -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" then
+            if key == "_disabled" or key == "_original" or key == "_overrides" then
                 rawset(self, key, value)
                 return
             end
-            -- Forward writes to the original
-            rawget(self, "_original")[key] = value
+            -- Store as an override (not in _original).
+            -- restore() will clear all overrides, reverting to original behaviour.
+            rawget(self, "_overrides")[key] = value
         end
     })
 
@@ -4524,6 +5003,7 @@ function DefaultComponent:_createProxy(original)
 end
 
 --- Disables the default component. All function calls become no-ops.
+--- Functions explicitly overridden via assignment continue to work.
 function DefaultComponent:disable()
     local proxy = self._proxy
     if proxy then
@@ -4531,11 +5011,13 @@ function DefaultComponent:disable()
     end
 end
 
---- Restores the default component. Function calls work normally again.
+--- Restores the default component: re-enables original functions and clears
+--- any overrides set via assignment, leaving no trace of the mod's hooks.
 function DefaultComponent:restore()
     local proxy = self._proxy
     if proxy then
         proxy._disabled = false
+        proxy._overrides = {}
     end
 end
 
@@ -4839,6 +5321,31 @@ function DefaultObjectHandleComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Shopkeeper
+-- ========================================================================== --
+
+---@class DefaultShopkeeperComponent : DefaultComponent
+
+---@return DefaultShopkeeperComponent
+function DefaultShopkeeperComponent:new()
+    local instance = DefaultComponent.new(self, "Shopkeeper") --[[@as DefaultShopkeeperComponent]]
+    instance._proxy = instance:_createProxy(Shopkeeper)
+    instance._globalKey = "Shopkeeper"
+    _G.Shopkeeper = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultShopkeeperComponent:getDefault()
+    return self._proxy or Shopkeeper
+end
+
+---@return Window
+function DefaultShopkeeperComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Status Window
 -- ========================================================================== --
 
@@ -4947,6 +5454,14 @@ end
 
 function DynamicImage:hasTexture()
     return Api.DynamicImage.HasTexture(self:getName())
+end
+
+--- Updates this DynamicImage as an item icon from object/equipment data.
+--- Accepts either raw engine data or an ObjectInfoWrapper (auto-unwrapped via getData()).
+---@param slotData table|ObjectInfoWrapper The object/slot data (e.g., from Data.ObjectInfo).
+function DynamicImage:updateItemIcon(slotData)
+    local data = type(slotData.getData) == "function" and slotData:getData() or slotData
+    Api.Equipment.UpdateItemIcon(self:getName(), data)
 end
 
 ---@param model DynamicImageModel?
@@ -5468,6 +5983,30 @@ end
 function EventHandler.OnUpdatePaperdoll()
     withActiveView("OnUpdatePaperdoll", function(window)
         window:onUpdatePaperdoll()
+    end)
+end
+
+function EventHandler.OnUpdateShopData()
+    withActiveView("OnUpdateShopData", function(window)
+        window:onUpdateShopData()
+    end)
+end
+
+function EventHandler.OnUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(window)
+        window:onUpdateContainerWindow()
+    end)
+end
+
+function EventHandler.OnUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(window)
+        window:onUpdateObjectInfo()
+    end)
+end
+
+function EventHandler.OnUpdateItemProperties()
+    withActiveView("OnUpdateItemProperties", function(window)
+        window:onUpdateItemProperties()
     end)
 end
 
@@ -6033,6 +6572,41 @@ function View:onUpdatePaperdoll()
     return false
 end
 
+function View:onUpdateShopData()
+    if self._model.OnUpdateShopData ~= nil then
+        self._model.OnUpdateShopData(self, Data.ShopData())
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    if self._model.OnUpdateContainerWindow ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateContainerWindow(self, instanceId, Data.ContainerWindow(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    if self._model.OnUpdateObjectInfo ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateObjectInfo(self, instanceId, Data.ObjectInfo(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateItemProperties()
+    if self._model.OnUpdateItemProperties ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateItemProperties(self, instanceId, Data.ItemProperties(instanceId))
+        return true
+    end
+    return false
+end
+
 function View:onLButtonDblClk(flags, x, y)
     if self._model.OnLButtonDblClk ~= nil then
         self._model.OnLButtonDblClk(self, flags, x, y)
@@ -6124,7 +6698,11 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateShopData or
+                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
+                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
+                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6139,7 +6717,11 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateShopData or
+                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
+                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
+                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -6746,6 +7328,7 @@ setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
+setmetatable(DefaultShopkeeperComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
@@ -6760,6 +7343,7 @@ Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
+Components.Defaults.Shopkeeper = DefaultShopkeeperComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
