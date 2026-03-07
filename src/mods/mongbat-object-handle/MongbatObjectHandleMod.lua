@@ -1,22 +1,28 @@
 ---@type Window[]
 local handles = {}
 
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Utils = Mongbat.Utils
+local Constants = Mongbat.Constants
+local Components = Mongbat.Components
+
 Mongbat.Mod {
     Name = "MongbatObjectHandle",
     Path = "/src/mods/mongbat-object-handle",
-    OnInitialize = function(context)
-        local default = context.Components.Defaults.ObjectHandle
+    OnInitialize = function()
+        local default = Components.Defaults.ObjectHandle
 
         ---@param handle ObjectHandle
         local function Label(handle)
-            return context.Components.Label {
+            return Components.Label {
                 Name = "ObjectHandleLabel" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
                     self:setDimensions(#handle.name * 12, 32)
                     self:setText(handle.name)
                     self:centerText()
-                    local color = context.Constants.Colors.Notoriety[handle.notoriety]
+                    local color = Constants.Colors.Notoriety[handle.notoriety]
                     self:setTextColor(color)
                 end
             }
@@ -24,7 +30,7 @@ Mongbat.Mod {
 
         ---@param handle ObjectHandle
         local function Window(handle)
-            return context.Components.Window {
+            return Components.Window {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
@@ -36,7 +42,7 @@ Mongbat.Mod {
                     self:onMouseOverEnd()
 
                     if handle.isMobile then
-                        local color = context.Constants.Colors.Notoriety[handle.notoriety]
+                        local color = Constants.Colors.Notoriety[handle.notoriety]
                         self:getFrame():setColor(color)
                     end
                 end,
@@ -50,18 +56,18 @@ Mongbat.Mod {
                     self:setAlpha(0.7):setLayer():background()
                 end,
                 OnLButtonDblClk = function(self)
-                    context.Api.UserAction.UseItem(self:getId())
+                    Api.UserAction.UseItem(self:getId())
                 end,
                 OnLButtonUp = function(self)
-                    if context.Data.Drag():isDraggingItem() then
-                        context.Api.Drag.DragToObject(self:getId())
+                    if Data.Drag():isDraggingItem() then
+                        Api.Drag.DragToObject(self:getId())
                     else
-                        context.Api.Target.LeftClick(self:getId())
+                        Api.Target.LeftClick(self:getId())
                     end
                 end,
                 OnLButtonDown = function(self)
                     if handle.isMobile then
-                        context.Components.Defaults.HealthBarManager
+                        Components.Defaults.HealthBarManager
                             :getDefault()
                             .OnBeginDragHealthBar(self:getId())
                     end
@@ -70,8 +76,8 @@ Mongbat.Mod {
         end
 
         default:getDefault().CreateObjectHandles = function()
-            handles = context.Utils.Table.MapToArray(
-                context.Data.ObjectHandles():getHandles(),
+            handles = Utils.Table.MapToArray(
+                Data.ObjectHandles():getHandles(),
                 function (_, v)
                     local window = Window(v)
                     window:create(true)
@@ -81,7 +87,7 @@ Mongbat.Mod {
         end
 
         default:getDefault().DestroyObjectHandles = function()
-            context.Utils.Array.ForEach(
+            Utils.Array.ForEach(
                 handles,
                 function (window)
                     window:destroy()

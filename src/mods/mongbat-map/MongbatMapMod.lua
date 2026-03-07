@@ -4,15 +4,20 @@ local window
 local WINDOW_SIZE = 400
 local MARGIN = 8
 
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Utils = Mongbat.Utils
+local Components = Mongbat.Components
+
 Mongbat.Mod {
     Name = "MongbatMap",
     Path = "/src/mods/mongbat-map",
-    OnInitialize = function(context)
-        local mapWindow = context.Components.Defaults.MapWindow
+    OnInitialize = function()
+        local mapWindow = Components.Defaults.MapWindow
         mapWindow:asComponent():setShowing(false)
         mapWindow:disable()
 
-        local mapCommon = context.Components.Defaults.MapCommon
+        local mapCommon = Components.Defaults.MapCommon
         mapCommon:disable()
 
         -- Track whether the radar is centered on the player
@@ -44,15 +49,15 @@ Mongbat.Mod {
             if zoom.current < zoom.min then
                 zoom.current = zoom.min
             end
-            context.Api.Radar.SetZoom(zoom.current)
+            Api.Radar.SetZoom(zoom.current)
         end
 
         --- Queries the engine for zoom boundaries and applies an initial zoom.
         --- Mirrors MapCommon.UpdateZoomValues + initial AdjustZoom.
         local function initializeZoom()
-            local facet = context.Api.Radar.GetFacet()
-            local area = context.Api.Radar.GetArea()
-            local maxZoom = context.Api.Radar.GetMaxZoom(facet, area)
+            local facet = Api.Radar.GetFacet()
+            local area = Api.Radar.GetArea()
+            local maxZoom = Api.Radar.GetMaxZoom(facet, area)
             if maxZoom and maxZoom > 0 then
                 zoom.max = maxZoom
                 zoom.step = maxZoom / 5
@@ -62,7 +67,7 @@ Mongbat.Mod {
             end
             zoom.min = -2.0
 
-            local savedZoom = context.Api.Radar.GetCurrentZoom()
+            local savedZoom = Api.Radar.GetCurrentZoom()
             if savedZoom ~= 0 then
                 zoom.current = savedZoom
                 adjustZoom(0)
@@ -74,10 +79,10 @@ Mongbat.Mod {
         --- Returns the coordinate + facet display text.
         --- Shows player coords when centered on player, otherwise the map center.
         local function formatLocationText()
-            local Radar = context.Api.Radar
+            local Radar = Api.Radar
             local x, y
             if centerOnPlayer then
-                local loc = context.Data.PlayerLocation()
+                local loc = Data.PlayerLocation()
                 x = loc:getX()
                 y = loc:getY()
             else
@@ -85,10 +90,10 @@ Mongbat.Mod {
             end
             local facet = Radar.GetFacet()
             local facetTid = Radar.GetFacetLabel(facet)
-            local facetName = context.Utils.String.FromWString(
-                context.Api.String.GetStringFromTid(facetTid)
+            local facetName = Utils.String.FromWString(
+                Api.String.GetStringFromTid(facetTid)
             )
-            return context.Utils.String.Format("%d, %d - %s", x, y, facetName)
+            return Utils.String.Format("%d, %d - %s", x, y, facetName)
         end
 
         -- Track last radar size to avoid redundant SetWindowSize calls
@@ -101,7 +106,7 @@ Mongbat.Mod {
             lastRadarH = h
 
             -- Save the current view center before resizing
-            local Radar = context.Api.Radar
+            local Radar = Api.Radar
             local savedX, savedY = Radar.GetCenter()
             local facet = Radar.GetFacet()
             local area = Radar.GetArea()
@@ -115,14 +120,14 @@ Mongbat.Mod {
         end
 
         local function Map()
-            return context.Components.DynamicImage {
+            return Components.DynamicImage {
                 OnInitialize = function(self)
                     -- Activate the radar (mirrors MapWindow.ActivateMap)
                     local dims = self:getDimensions()
                     updateRadarSize(dims.x, dims.y)
-                    context.Api.Radar.SetRotation(0)
-                    context.Api.Radar.SetWindowOffset(0, 0)
-                    context.Api.Radar.SetCenterOnPlayer(true)
+                    Api.Radar.SetRotation(0)
+                    Api.Radar.SetWindowOffset(0, 0)
+                    Api.Radar.SetCenterOnPlayer(true)
                     initializeZoom()
                 end,
                 OnUpdateRadar = function(self, data)
@@ -136,14 +141,14 @@ Mongbat.Mod {
                     adjustZoom(-delta)
                 end,
                 OnLButtonDown = function(self, flags)
-                    if context.Data.IsShift(flags) then
+                    if Data.IsShift(flags) then
                         isPanning = true
                         centerOnPlayer = false
-                        local pos = context.Data.MousePosition()
+                        local pos = Data.MousePosition()
                         lastMouseX = pos.x
                         lastMouseY = pos.y
-                        context.Api.Radar.SetCenterOnPlayer(false)
-                        context.Api.Window.SetMoving(self:getParent(), false)
+                        Api.Radar.SetCenterOnPlayer(false)
+                        Api.Window.SetMoving(self:getParent(), false)
                     end
                 end,
                 OnLButtonUp = function(self)
@@ -157,12 +162,12 @@ Mongbat.Mod {
                 OnLButtonDblClk = function(self)
                     isPanning = false
                     centerOnPlayer = true
-                    context.Api.Radar.SetCenterOnPlayer(true)
+                    Api.Radar.SetCenterOnPlayer(true)
                 end,
                 OnUpdate = function(self)
                     if not isPanning then return end
 
-                    local pos = context.Data.MousePosition()
+                    local pos = Data.MousePosition()
                     local mouseX = pos.x
                     local mouseY = pos.y
                     local deltaX = mouseX - lastMouseX
@@ -172,7 +177,7 @@ Mongbat.Mod {
 
                     if deltaX == 0 and deltaY == 0 then return end
 
-                    local Radar = context.Api.Radar
+                    local Radar = Api.Radar
                     local facet = Radar.GetFacet()
                     local area = Radar.GetArea()
                     local mapCenterX, mapCenterY = Radar.GetCenter()
@@ -192,7 +197,7 @@ Mongbat.Mod {
         --- Label in the lower-left corner showing coordinates and facet name.
         --- Displays player coords when centered on player, map center otherwise.
         local function CoordsLabel()
-            return context.Components.Label {
+            return Components.Label {
                 Template = "MongbatLabelSmall",
                 OnInitialize = function(self)
                     self:setDimensions(WINDOW_SIZE, 16)
@@ -211,7 +216,7 @@ Mongbat.Mod {
         end
 
         local function Window()
-            return context.Components.Window {
+            return Components.Window {
                 Name = "MongbatMapWindow",
                 MinWidth = 100 + MARGIN * 2,
                 MinHeight = 100 + MARGIN * 2,
@@ -241,15 +246,15 @@ Mongbat.Mod {
         window:create(true)
     end,
 
-    OnShutdown = function(context)
+    OnShutdown = function()
         if window ~= nil then
             window:destroy()
         end
 
-        local mapCommon = context.Components.Defaults.MapCommon
+        local mapCommon = Components.Defaults.MapCommon
         mapCommon:restore()
 
-        local mapWindow = context.Components.Defaults.MapWindow
+        local mapWindow = Components.Defaults.MapWindow
         mapWindow:restore()
         mapWindow:asComponent():setShowing(true)
     end,
