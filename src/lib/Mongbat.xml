@@ -159,5 +159,28 @@
           </Size>
       </FullResizeImage>
 
+      <!-- Generic scroll window: use Api.Window.CreateFromTemplate to instantiate. -->
+      <!-- The scrollbar and scroll child names will resolve via $parent substitution. -->
+      <ScrollWindow name="MongbatScrollWindow" childscrollwindow="$parentScrollChild" scrollbar="$parentScrollbar" lineheight="20" autoHideScrollBar="true">
+          <Windows>
+              <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll">
+                  <Anchors>
+                      <Anchor point="topright" relativePoint="topright" />
+                      <Anchor point="bottomright" relativePoint="bottomright" />
+                  </Anchors>
+              </VerticalScrollbar>
+              <Window name="$parentScrollChild" popable="false">
+                  <Size>
+                      <AbsPoint x="230" y="200" />
+                  </Size>
+                  <Anchors>
+                      <Anchor point="topleft" relativePoint="topleft">
+                          <AbsPoint x="0" y="0" />
+                      </Anchor>
+                  </Anchors>
+              </Window>
+          </Windows>
+      </ScrollWindow>
+
     </Windows>
 </Interface>

@@ -1700,6 +1700,37 @@ function Api.Waypoint.GetInfo(id)
     return UOGetWaypointInfo(id)
 end
 
+---
+--- Gets the info for a built-in waypoint at a specific index within a facet.
+---@param index number The index within the facet's waypoint array.
+---@param facet number The facet/map index.
+---@return any The waypoint info, or nil if not found.
+function Api.Waypoint.GetInfoAt(index, facet)
+    return UOGetWaypointInfo(index, facet)
+end
+
+-- ========================================================================== --
+-- Api - Map
+-- ========================================================================== --
+
+Api.Map = {}
+
+---
+--- Centers the radar on a location, finding the appropriate area automatically.
+--- Iterates areas from highest to 0 and uses the first area that contains the
+--- given coordinates, mirroring the logic from the default MapFind.Locate().
+---@param x number The x-coordinate of the location.
+---@param y number The y-coordinate of the location.
+---@param facet number The facet/map index.
+function Api.Map.CenterOnLocation(x, y, facet)
+    for areaIndex = Api.Radar.GetAreaCount(facet), 0, -1 do
+        if Api.Radar.IsLocationInArea(x, y, facet, areaIndex) then
+            Api.Radar.CenterOnLocation(x, y, facet, areaIndex, false)
+            return
+        end
+    end
+end
+
 -- ========================================================================== --
 -- Api - Window
 -- ========================================================================== --
@@ -3791,6 +3822,51 @@ end
 ---@field TexCoordY integer
 ---@field TexScale number
 
+-- ========================================================================== --
+-- Data - Waypoint List
+-- ========================================================================== --
+
+---@class WindowData.WaypointList
+---@field waypointCount number
+
+---@class WaypointListWrapper
+local WaypointListWrapper = {}
+WaypointListWrapper.__index = WaypointListWrapper
+
+---@return WaypointListWrapper
+function WaypointListWrapper:new()
+    return setmetatable({}, WaypointListWrapper)
+end
+
+---@return WindowData.WaypointList
+function WaypointListWrapper:getData()
+    return WindowData.WaypointList
+end
+
+---@return number
+function WaypointListWrapper:getCount()
+    return self:getData().waypointCount
+end
+
+---@return WaypointListWrapper
+function Data.WaypointList()
+    return WaypointListWrapper:new()
+end
+
+-- ========================================================================== --
+-- Data - Waypoints
+-- ========================================================================== --
+
+---@class WaypointsData
+---@field Facet table<number, table> Facet-indexed table of built-in waypoint arrays.
+
+---
+--- Returns the global Waypoints table containing built-in location data.
+--- Access built-in waypoints via Data.Waypoints().Facet[facetIndex].
+---@return WaypointsData
+function Data.Waypoints()
+    return Waypoints
+end
 
 -- ========================================================================== --
 -- Components
@@ -4813,6 +4889,39 @@ end
 ---@return Window
 function DefaultDebugWindowComponent:asComponent()
     return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Map Find
+-- ========================================================================== --
+
+---@class DefaultMapFind
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field Toggle fun()
+---@field Close fun()
+
+---@class DefaultMapFindComponent : DefaultComponent
+local DefaultMapFindComponent = {}
+DefaultMapFindComponent.__index = DefaultMapFindComponent
+
+---@return DefaultMapFindComponent
+function DefaultMapFindComponent:new()
+    local instance = DefaultComponent.new(self, "MapFind") --[[@as DefaultMapFindComponent]]
+    instance._proxy = instance:_createProxy(MapFind)
+    instance._globalKey = "MapFind"
+    _G.MapFind = instance._proxy
+    return instance
+end
+
+---@return DefaultMapFind
+function DefaultMapFindComponent:getDefault()
+    return self._proxy or MapFind --[[@as DefaultMapFind]]
+end
+
+---@return Window
+function DefaultMapFindComponent:asComponent()
+    return Window:new { Name = "MapFindWindow" }
 end
 
 -- ========================================================================== --
@@ -6752,6 +6861,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultMapFindComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6876,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.MapFind = DefaultMapFindComponent:new()
 
 -- ========================================================================== --
 -- Mod
