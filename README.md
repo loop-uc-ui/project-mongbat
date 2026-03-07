@@ -122,6 +122,7 @@ Component                  -- Base: name, type, xml-template support
             ├─ DynamicImage-- Runtime-assigned texture with coordinates
             ├─ EditTextBox -- Text input field
             ├─ LogDisplay  -- Multi-line scrolling text area
+            ├─ ScrollWindow-- Scrollable container with vertical item rows
             └─ Gump        -- Server-sent generic gump wrapper
 ```
 
