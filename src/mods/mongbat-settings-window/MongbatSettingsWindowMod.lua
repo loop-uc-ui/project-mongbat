@@ -83,11 +83,6 @@ local FADE_LABELS = { L"1s", L"2s", L"3s", L"4s", L"5s" }
 -- ========================================================================== --
 
 local function OnInitialize()
-    local Api        = Api
-    local Components = Components
-    local Constants  = Constants
-    local Utils      = Utils
-
     -- SHOWNAMES engine integer values: populated once from engine constants.
     local SHOWNAMES_IDS = {}
 
