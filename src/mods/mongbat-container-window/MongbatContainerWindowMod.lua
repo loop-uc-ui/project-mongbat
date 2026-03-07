@@ -18,12 +18,6 @@ local openContainers = {}
 local savedFunctions = {}
 
 local function OnInitialize()
-    local Api = Api
-    local Data = Data
-    local Constants = Constants
-    local Components = Components
-    local Utils = Utils
-
     local containerDefault = Components.Defaults.ContainerWindow
 
     -- Save the original functions exactly once so they can be restored in OnShutdown.
@@ -304,7 +298,7 @@ local function OnInitialize()
         Api.Gump.OnCloseContainer(id)
 
         local state = openContainers[id]
-        if state and Api.Window.DoesExist(state.windowName) then
+        if state then
             Api.Window.Destroy(state.windowName)
         end
         openContainers[id] = nil
@@ -338,15 +332,12 @@ local function OnInitialize()
 end
 
 local function OnShutdown()
-    local containerDefault    = Components.Defaults.ContainerWindow
-    local containerDataType   = Constants.DataEvents.OnUpdateContainerWindow.getType()
-    local Utils = Utils
+    local containerDefault  = Components.Defaults.ContainerWindow
+    local containerDataType = Constants.DataEvents.OnUpdateContainerWindow.getType()
 
     -- Destroy all open Mongbat container windows and unregister their data.
     Utils.Table.ForEach(openContainers, function(id, state)
-        if Api.Window.DoesExist(state.windowName) then
-            Api.Window.Destroy(state.windowName)
-        end
+        Api.Window.Destroy(state.windowName)
         Api.Window.UnregisterData(containerDataType, id)
         containerDefault:getDefault().OpenContainers[id] = nil
     end)
