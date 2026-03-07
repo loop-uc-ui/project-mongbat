@@ -6,6 +6,12 @@
 -- ========================================================================== --
 
 -- TID string constants  (My Offer, Their Offer, Accept, Cancel, Trade)
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
+
 local TID_MY_OFFER    = 1077713
 local TID_THEIR_OFFER = 3000145
 local TID_ACCEPT      = 1013076
@@ -34,13 +40,12 @@ local ACCEPT_H       = 30
 local _savedInit, _savedShutdown, _savedClose
 local _activeWindows = {}
 
----@param context Context
-local function OnInitialize(context)
-    local Api        = context.Api
-    local Data       = context.Data
-    local Constants  = context.Constants
-    local Components = context.Components
-    local Utils      = context.Utils
+local function OnInitialize()
+    local Api        = Api
+    local Data       = Data
+    local Constants  = Constants
+    local Components = Components
+    local Utils      = Utils
 
     local tradeDefault = Components.Defaults.TradeWindow
 
@@ -459,7 +464,7 @@ local function OnInitialize(context)
                 end
             end,
 
-            -- Individual item info updated — refresh the affected side
+            -- Individual item info updated ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â refresh the affected side
             OnUpdateObjectInfo = function(self, objectInfo)
                 local oid = objectInfo:getId()
                 if myRegisteredItems[oid] then
@@ -592,11 +597,10 @@ end
 -- ========================================================================== --
 -- OnShutdown: restore the original TradeWindow functions and global
 -- ========================================================================== --
----@param context Context
-local function OnShutdown(context)
-    local Api          = context.Api
-    local Utils        = context.Utils
-    local tradeDefault = context.Components.Defaults.TradeWindow
+local function OnShutdown()
+    local Api          = Api
+    local Utils        = Utils
+    local tradeDefault = Components.Defaults.TradeWindow
 
     -- Destroy any Mongbat trade windows that are still open (e.g. during
     -- logout while a trade is in progress).
