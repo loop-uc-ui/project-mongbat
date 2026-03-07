@@ -3048,10 +3048,17 @@ Constants.TextAlignment.Center = "center"
 Constants.ItemPropertyType = {}
 Constants.ItemPropertyType.Item = WindowData.ItemProperties.TYPE_ITEM
 Constants.ItemPropertyType.WStringData = WindowData.ItemProperties.TYPE_WSTRINGDATA
+Constants.ItemPropertyType.Action = WindowData.ItemProperties.TYPE_ACTION
 
 Constants.ItemPropertyDetail = {}
 Constants.ItemPropertyDetail.Long = ItemProperties.DETAIL_LONG
 Constants.ItemPropertyDetail.Short = ItemProperties.DETAIL_SHORT
+
+Constants.UserAction = {}
+
+function Constants.UserAction.TypeInvokeVirtue()
+    return SystemData.UserAction.TYPE_INVOKE_VIRTUE
+end
 
 Constants.GumpIds = {}
 Constants.GumpIds.VendorSearch = 999112
@@ -4785,6 +4792,33 @@ function DefaultMapWindowComponent:getDefault()
 end
 
 function DefaultMapWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Actions Window
+-- ========================================================================== --
+
+---@class DefaultActionsWindowComponent : DefaultComponent
+local DefaultActionsWindowComponent = {}
+DefaultActionsWindowComponent.__index = DefaultActionsWindowComponent
+
+---@return DefaultActionsWindowComponent
+function DefaultActionsWindowComponent:new()
+    local instance = DefaultComponent.new(self, "ActionsWindow") --[[@as DefaultActionsWindowComponent]]
+    instance._proxy = instance:_createProxy(ActionsWindow)
+    instance._globalKey = "ActionsWindow"
+    _G.ActionsWindow = instance._proxy
+    return instance
+end
+
+---@return table
+function DefaultActionsWindowComponent:getDefault()
+    return self._proxy or ActionsWindow
+end
+
+---@return Window
+function DefaultActionsWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6751,9 +6785,11 @@ setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
+setmetatable(DefaultActionsWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
+Components.Defaults.ActionsWindow = DefaultActionsWindowComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
 Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
 Components.Defaults.WarShield = DefaultWarShieldComponent:new()
