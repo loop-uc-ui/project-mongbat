@@ -9,6 +9,7 @@
 
 local Api = Mongbat.Api
 local Data = Mongbat.Data
+local Constants = Mongbat.Constants
 local Components = Mongbat.Components
 local Utils = Mongbat.Utils
 
@@ -160,9 +161,7 @@ end
 --- Saves all items for one agent to Interface storage.
 ---@param desc AgentTypeDesc
 ---@param agentIndex integer
----@param Api table
----@param Utils table
-local function saveAgentItems(desc, agentIndex, Api, Utils)
+local function saveAgentItems(desc, agentIndex)
     local count = itemCount(desc, agentIndex)
     Api.Interface.SaveNumber("Organizer" .. desc.countKey .. "_Items" .. agentIndex, count)
     local list = Organizer[desc.listKey]
@@ -189,9 +188,7 @@ end
 
 --- Deletes all stored items for all agents of a given type (used before re-saving).
 ---@param desc AgentTypeDesc
----@param Api table
----@param Utils table
-local function deleteAllAgentItems(desc, Api, Utils)
+local function deleteAllAgentItems(desc)
     local count = agentCount(desc)
     Utils.Array.Range(count, function(i)
         local ic = itemCount(desc, i)
@@ -218,13 +215,11 @@ end
 
 --- Saves all agents of a type after a structural change (add/remove agent).
 ---@param desc AgentTypeDesc
----@param Api table
----@param Utils table
-local function saveAllAgents(desc, Api, Utils)
+local function saveAllAgents(desc)
     local count = agentCount(desc)
     Api.Interface.SaveNumber("Organizer" .. desc.countKey, count)
     Utils.Array.Range(count, function(i)
-        saveAgentItems(desc, i, Api, Utils)
+        saveAgentItems(desc, i)
         Api.Interface.SaveWString("Organizer" .. desc.countKey .. "_Desc" .. i, agentDesc(desc, i))
         if desc.contKey then
             local cont  = Organizer[desc.contKey]
@@ -242,11 +237,6 @@ end
 -- ============================================================
 
 local function OnInitialize()
-    local Api        = Api
-    local Utils      = Utils
-    local Components = Components
-    local Constants  = Constants
-
     -- Suppress the default OrganizerWindow UI
     local orgDefault = Components.Defaults.OrganizerWindow
     orgDefault:disable()
@@ -360,7 +350,7 @@ local function OnInitialize()
         end)
         Utils.Array.Remove(list[selectedIndex], capturedIndex)
         if items then items[selectedIndex] = math.max(0, (items[selectedIndex] or 1) - 1) end
-        saveAgentItems(desc, selectedIndex, Api, Utils)
+        saveAgentItems(desc, selectedIndex)
         refreshUI()
     end
 
@@ -736,7 +726,7 @@ local function OnInitialize()
                         local items = Organizer[d.itemsKey]
                         local descs = Organizer[d.descKey]
 
-                        deleteAllAgentItems(d, Api, Utils)
+                        deleteAllAgentItems(d)
 
                         Utils.Array.Remove(list,  capturedIndex)
                         Utils.Array.Remove(items, capturedIndex)
@@ -764,7 +754,7 @@ local function OnInitialize()
                             if #cc == 0 then cc[1] = false end
                         end
 
-                        saveAllAgents(d, Api, Utils)
+                        saveAllAgents(d)
 
                         selectedIndex = 1
                         scrollOffset  = 0
