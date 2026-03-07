@@ -2942,6 +2942,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdatePartyMember = DataEvent(WindowData.PartyMember, "OnUpdatePartyMember")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3325,6 +3326,30 @@ end
 
 function MobileStatus:getNotorietyColor()
     return Constants.Colors.Notoriety[self:getNotoriety() + 1]
+end
+
+function MobileStatus:getCurrentHealth()
+    return self:getData().CurrentHealth or 0
+end
+
+function MobileStatus:getMaxHealth()
+    return self:getData().MaxHealth or 0
+end
+
+function MobileStatus:getCurrentMana()
+    return self:getData().CurrentMana or 0
+end
+
+function MobileStatus:getMaxMana()
+    return self:getData().MaxMana or 0
+end
+
+function MobileStatus:getCurrentStamina()
+    return self:getData().CurrentStamina or 0
+end
+
+function MobileStatus:getMaxStamina()
+    return self:getData().MaxStamina or 0
 end
 
 function Data.MobileStatus(id)
@@ -3793,6 +3818,52 @@ end
 
 
 -- ========================================================================== --
+-- Data - Party Member
+-- ========================================================================== --
+
+---@class WindowData.PartyMember
+---@field NUM_PARTY_MEMBERS number
+---@field partyLeaderId number
+
+---@class PartyMemberWrapper
+local PartyMemberData = {}
+PartyMemberData.__index = PartyMemberData
+
+function PartyMemberData:new()
+    return setmetatable({}, self)
+end
+
+---@return integer
+function PartyMemberData:getNumMembers()
+    return (WindowData.PartyMember and WindowData.PartyMember.NUM_PARTY_MEMBERS) or 0
+end
+
+---@param index integer
+---@return integer
+function PartyMemberData:getMemberId(index)
+    if WindowData.PartyMember and WindowData.PartyMember[index] then
+        return WindowData.PartyMember[index].memberId or 0
+    end
+    return 0
+end
+
+---@return integer
+function PartyMemberData:getLeaderId()
+    return (WindowData.PartyMember and WindowData.PartyMember.partyLeaderId) or 0
+end
+
+---@param id integer
+---@return boolean
+function PartyMemberData:isLeader(id)
+    return id ~= 0 and id == self:getLeaderId()
+end
+
+---@return PartyMemberWrapper
+function Data.PartyMember()
+    return PartyMemberData:new()
+end
+
+-- ========================================================================== --
 -- Components
 -- ========================================================================== --
 
@@ -4064,6 +4135,14 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+---@class DefaultPartyHealthBar
+---@field CreateHealthBar fun(mobileId: integer, useDefaultPos: boolean?)
+---@field RefreshHealthBar fun(windowIndex: integer, mobileId: integer)
+
+---@class DefaultPartyHealthBarComponent : DefaultComponent
+local DefaultPartyHealthBarComponent = {}
+DefaultPartyHealthBarComponent.__index = DefaultPartyHealthBarComponent
+
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4146,6 +4225,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdatePartyMember fun(self: Window, partyMember: PartyMemberWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4223,6 +4303,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdatePartyMember fun(self: View, partyMember: PartyMemberWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4836,6 +4917,24 @@ end
 ---@return Window
 function DefaultObjectHandleComponent:asComponent()
     return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Party Health Bar
+-- ========================================================================== --
+
+---@return DefaultPartyHealthBarComponent
+function DefaultPartyHealthBarComponent:new()
+    local instance = DefaultComponent.new(self, "PartyHealthBar") --[[@as DefaultPartyHealthBarComponent]]
+    instance._proxy = instance:_createProxy(PartyHealthBar)
+    instance._globalKey = "PartyHealthBar"
+    _G.PartyHealthBar = instance._proxy
+    return instance
+end
+
+---@return DefaultPartyHealthBar
+function DefaultPartyHealthBarComponent:getDefault()
+    return self._proxy or PartyHealthBar --[[@as DefaultPartyHealthBar]]
 end
 
 -- ========================================================================== --
@@ -5471,6 +5570,12 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdatePartyMember()
+    withActiveView("OnUpdatePartyMember", function(window)
+        window:onUpdatePartyMember()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -5904,6 +6009,7 @@ function View:onInitialize()
         self:onUpdateMobileStatus()
         self:onUpdateHealthBarColor()
         self:onUpdatePaperdoll()
+        self:onUpdatePartyMember()
     end)
 end
 
@@ -6033,6 +6139,14 @@ function View:onUpdatePaperdoll()
     return false
 end
 
+function View:onUpdatePartyMember()
+    if self._model.OnUpdatePartyMember ~= nil then
+        self._model.OnUpdatePartyMember(self, Data.PartyMember())
+        return true
+    end
+    return false
+end
+
 function View:onLButtonDblClk(flags, x, y)
     if self._model.OnLButtonDblClk ~= nil then
         self._model.OnLButtonDblClk(self, flags, x, y)
@@ -6124,7 +6238,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdatePartyMember
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6139,7 +6254,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdatePartyMember
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -6746,6 +6862,7 @@ setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
+setmetatable(DefaultPartyHealthBarComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
@@ -6760,6 +6877,7 @@ Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
+Components.Defaults.PartyHealthBar = DefaultPartyHealthBarComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
@@ -6927,7 +7045,8 @@ local mod = Mod:new {
         local register = {
             Constants.DataEvents.OnUpdatePlayerStatus,
             Constants.DataEvents.OnUpdateRadar,
-            Constants.DataEvents.OnUpdatePlayerLocation
+            Constants.DataEvents.OnUpdatePlayerLocation,
+            Constants.DataEvents.OnUpdatePartyMember
         }
 
         Utils.Array.ForEach(
@@ -6948,6 +7067,7 @@ local mod = Mod:new {
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+        Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePartyMember.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
