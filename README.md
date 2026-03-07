@@ -53,10 +53,13 @@ Fonts/                   # Font definitions
    ```
 3. Write your Lua entry point:
    ```lua
+   local Api = Mongbat.Api
+   local Components = Mongbat.Components
+
    Mongbat.Mod {
        Name = "MongbatMyMod",
-       OnInitialize = function(ctx)
-           local window = ctx.Components.Window {
+       OnInitialize = function()
+           local window = Components.Window {
                Name = "MongbatMyModWindow",
                Title = L"My Mod",
                OnInitialize = function(self)
@@ -65,30 +68,38 @@ Fonts/                   # Font definitions
                end,
            }:create(true)
        end,
-       OnShutdown = function(ctx)
-           -- cleanup happens automatically for tracked views
+       OnShutdown = function()
+           Api.Window.Destroy("MongbatMyModWindow")
        end,
    }
    ```
 
-### Context Object
+### Namespaces
 
-Every mod receives a **context object** (`ctx`) with:
+The framework exposes its API surface on the `Mongbat` global. Mods destructure at file scope:
 
-| Field | Description |
+```lua
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Utils = Mongbat.Utils
+local Constants = Mongbat.Constants
+local Components = Mongbat.Components
+```
+
+| Namespace | Description |
 |---|---|
-| `ctx.Api` | Wrapped engine API functions (e.g., `ctx.Api.Window.SetShowing(name, bool)`) |
-| `ctx.Data` | Typed data wrappers (e.g., `ctx.Data.PlayerStatus.CurrentHealth`) |
-| `ctx.Utils` | Array/Table/String utility libraries |
-| `ctx.Constants` | Enumerations (events, anchor points, layers, colors, etc.) |
-| `ctx.Components` | Factory functions for UI elements (Window, Button, Label, etc.) |
+| `Api` | Wrapped engine API functions (e.g., `Api.Window.SetShowing(name, bool)`) |
+| `Data` | Typed data wrappers (e.g., `Data.PlayerStatus():getCurrentHealth()`) |
+| `Utils` | Array/Table/String utility libraries |
+| `Constants` | Enumerations (events, anchor points, layers, colors, etc.) |
+| `Components` | Factory functions for UI elements (Window, Button, Label, etc.) |
 
 ### Builder Pattern
 
 Components use a fluent builder pattern — methods return `self` for chaining:
 
 ```lua
-ctx.Components.StatusBar {
+Components.StatusBar {
     Name = "MyHealthBar",
 }:setDimensions(200, 20)
  :setForegroundTint(200, 50, 50)

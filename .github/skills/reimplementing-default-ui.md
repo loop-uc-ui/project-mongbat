@@ -93,9 +93,9 @@ For data types that are registered once globally (PlayerStatus, Radar, PlayerLoc
 ### Step 3.3 — Window Construction Pattern
 
 ```lua
-local function OnInitialize(context)
+local function OnInitialize()
     -- 1. Disable default
-    local default = context.Components.Defaults.<WindowName>
+    local default = Components.Defaults.<WindowName>
     default:disable()
 
     -- 2. Suppress periodic recreation
@@ -111,7 +111,7 @@ local function OnInitialize(context)
     -- ... create Components, children, layout ...
 
     -- 5. Create window with setId for data binding
-    context.Components.Window {
+    Components.Window {
         Name = NAME,
         OnInitialize = function(self)
             self:setId(entityId)  -- triggers RegisterWindowData for all DataEvents in model
@@ -123,15 +123,15 @@ local function OnInitialize(context)
     }:create(true)
 end
 
-local function OnShutdown(context)
+local function OnShutdown()
     -- 1. Destroy replacement
-    context.Api.Window.Destroy(NAME)
+    Api.Window.Destroy(NAME)
 
     -- 2. Restore periodic recreation flag
     Interface.<WindowName>Open = true  -- if applicable
 
     -- 3. Restore default
-    local default = context.Components.Defaults.<WindowName>
+    local default = Components.Defaults.<WindowName>
     default:restore()
 end
 ```
