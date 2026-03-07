@@ -61,22 +61,28 @@ Mongbat.Mod {
 
         local locked = Api.Interface.LoadBoolean("MongbatResizeWindowLocked", false)
 
-        local function LockButton(onInit)
-            return Components.Label {
-                OnInitialize = onInit,
-                OnLButtonUp = function(self)
-                    locked = not locked
-                    Api.Interface.SaveBoolean("MongbatResizeWindowLocked", locked)
-                    local parent = self:getParent()
-                    Api.Window.SetMovable(parent, not locked)
-                    if locked then
-                        self:setText(L"[locked]")
-                    else
-                        self:setText(L"[unlocked]")
-                    end
-                end,
-            }
-        end
+        local lockLabel = Components.Label {
+            OnInitialize = function(self)
+                self:setDimensions(60, 14)
+                self:setLayer():overlay()
+                if locked then
+                    self:setText(L"[locked]")
+                else
+                    self:setText(L"[unlocked]")
+                end
+            end,
+            OnLButtonUp = function(self)
+                locked = not locked
+                Api.Interface.SaveBoolean("MongbatResizeWindowLocked", locked)
+                local parent = self:getParent()
+                Api.Window.SetMovable(parent, not locked)
+                if locked then
+                    self:setText(L"[locked]")
+                else
+                    self:setText(L"[unlocked]")
+                end
+            end,
+        }
 
         local window = Components.Window {
             Name = NAME,
@@ -86,17 +92,6 @@ Mongbat.Mod {
             OnInitialize = function(self)
                 syncWindowFromViewport(self)
                 self:setMovable(not locked)
-
-                local lockLabel = LockButton(function(btn)
-                    btn:setDimensions(60, 14)
-                    btn:setLayer():overlay()
-                    if locked then
-                        btn:setText(L"[locked]")
-                    else
-                        btn:setText(L"[unlocked]")
-                    end
-                end)
-
                 self:setChildren { lockLabel }
             end,
             OnShown = function(self)
