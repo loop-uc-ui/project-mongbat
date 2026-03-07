@@ -14,7 +14,7 @@ This is a **checklist-driven procedure** for reviewing a Mongbat mod PR. Work th
 
 ## 1. No Raw Engine Globals (Section 3.1)
 
-Scan the **mod file(s) only** (not `Mongbat.lua`) for any direct reference to engine globals. Every engine reference must go through the Mongbat context (`Api`, `Data`, `Constants`, `Components`, `Utils`).
+Scan the **mod file(s) only** (not `Mongbat.lua`) for any direct reference to engine globals. Every engine reference must go through the Mongbat namespaces (`Api`, `Data`, `Constants`, `Components`, `Utils`), destructured from `Mongbat` at the top of the mod file.
 
 ### 1.1 Data Tables
 
@@ -63,7 +63,7 @@ Scan the **mod file(s) only** (not `Mongbat.lua`) for any direct reference to en
 
 If the mod replaces a default UI window:
 
-- [ ] Default is obtained via `ctx.Components.Defaults.<name>`.
+- [ ] Default is obtained via `Components.Defaults.<name>`.
 - [ ] `disable()` is called in `OnInitialize`.
 - [ ] `restore()` is called in `OnShutdown`.
 - [ ] If the default has periodic recreation checks (e.g., `Interface.*Open` flags), these are managed.
