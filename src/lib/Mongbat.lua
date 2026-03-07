@@ -108,6 +108,19 @@ function HotbarSystem.Update(elapsedTime)
 end
 
 -- ========================================================================== --
+-- Api - HotbarSystem
+-- ========================================================================== --
+
+Api.HotbarSystem = {}
+
+---
+--- Returns the weight warning level used by the HotbarSystem.
+---@return number The warning level (amount below max weight at which a warning triggers).
+function Api.HotbarSystem.GetWarningLevel()
+    return HotbarSystem.WARNINGLEVEL or 30
+end
+
+-- ========================================================================== --
 -- Api - Ability
 -- ========================================================================== --
 
@@ -415,6 +428,77 @@ function Api.ContextMenu.RequestMenu(id)
     RequestContextMenu(id)
 end
 
+---
+--- Creates a Lua-driven context menu item with a string label.
+---@param text wstring The display text.
+---@param flags integer Menu item flags (0 for default).
+---@param returnCode any The value returned to the callback when selected.
+---@param param any An arbitrary param forwarded to the callback.
+---@param pressed boolean Whether the item appears pressed/checked.
+function Api.ContextMenu.CreateItemWithString(text, flags, returnCode, param, pressed)
+    ContextMenu.CreateLuaContextMenuItemWithString(text, flags, returnCode, param, pressed)
+end
+
+---
+--- Activates a Lua-driven context menu with a callback function.
+---@param callback fun(returnCode: any, param: any)
+function Api.ContextMenu.Activate(callback)
+    ContextMenu.ActivateLuaContextMenu(callback)
+end
+
+-- ========================================================================== --
+-- Api - Color Picker
+-- ========================================================================== --
+
+Api.ColorPicker = {}
+
+---
+--- Opens the color picker with a predefined hue palette.
+---@param callback fun() Function called after a color is selected.
+function Api.ColorPicker.Open(callback)
+    local defaultColors = {
+        0, 34, 53, 63, 89, 119, 144, 368, 946,
+    }
+    local hueTable = {}
+    for idx, hue in pairs(defaultColors) do
+        for i = 0, 8 do
+            hueTable[(idx - 1) * 10 + i + 1] = hue + i
+        end
+    end
+    CreateWindowFromTemplate("ColorPicker", "ColorPickerWindowTemplate", "Root")
+    WindowSetLayer("ColorPicker", Window.Layers.SECONDARY)
+    ColorPickerWindow.SetNumColorsPerRow(9)
+    ColorPickerWindow.SetSwatchSize(30)
+    ColorPickerWindow.SetWindowPadding(4, 4)
+    ColorPickerWindow.SetFrameEnabled(true)
+    ColorPickerWindow.SetCloseButtonEnabled(true)
+    ColorPickerWindow.SetColorTable(hueTable, "ColorPicker")
+    ColorPickerWindow.DrawColorTable("ColorPicker")
+    ColorPickerWindow.SetAfterColorSelectionFunction(callback)
+    WindowAddAnchor("ColorPicker", "center", "Root", "center", 0, 0)
+    ColorPickerWindow.SetFrameEnabled(false)
+    WindowSetShowing("ColorPicker", true)
+    ColorPickerWindow.SelectColor("ColorPicker", 1)
+end
+
+---
+--- Returns the RGBA color selected in the color picker.
+---@return table color Table with r, g, b, a fields.
+function Api.ColorPicker.GetSelectedColor()
+    local hue = ColorPickerWindow.colorSelected["ColorPicker"]
+    local color = {}
+    color.r, color.g, color.b, color.a = HueRGBAValue(hue)
+    return color
+end
+
+---
+--- Destroys the color picker window.
+function Api.ColorPicker.Close()
+    if Api.Window.DoesExist("ColorPicker") then
+        Api.Window.Destroy("ColorPicker")
+    end
+end
+
 -- ========================================================================== --
 -- Api - CSV
 -- ========================================================================== --
@@ -435,6 +519,35 @@ end
 ---@param name string The name of the CSV data to unload.
 function Api.CSV.Unload(name)
     UOUnloadCSVTable(name)
+end
+
+-- ========================================================================== --
+-- Api - Dialog
+-- ========================================================================== --
+
+Api.Dialog = {}
+
+Api.Dialog.TID_OKAY = UO_StandardDialog.TID_OKAY
+Api.Dialog.TID_CANCEL = UO_StandardDialog.TID_CANCEL
+
+---
+--- Creates a standard Ok/Cancel dialog.
+---@param dialogData table Table with windowName, title, body, and buttons fields.
+function Api.Dialog.Create(dialogData)
+    UO_StandardDialog.CreateDialog(dialogData)
+end
+
+-- ========================================================================== --
+-- Api - RenameWindow
+-- ========================================================================== --
+
+Api.RenameWindow = {}
+
+---
+--- Opens the rename/input dialog.
+---@param renameData table Table with title, subtitle, callfunction, and id fields.
+function Api.RenameWindow.Create(renameData)
+    RenameWindow.Create(renameData)
 end
 
 -- ========================================================================== --
@@ -1454,6 +1567,15 @@ function Api.String.GetStringFromTid(tid)
 end
 
 ---
+--- Replaces tokens in a string with the given values.
+---@param text wstring The source string with token placeholders.
+---@param tokens table Array of wstring replacements.
+---@return wstring The string with tokens replaced.
+function Api.String.ReplaceTokens(text, tokens)
+    return ReplaceTokens(text, tokens)
+end
+
+---
 --- Converts a string to a wstring.
 ---@param string string The string to convert.
 ---@return wstring The wstring.
@@ -2375,6 +2497,37 @@ function Api.Interface.LoadBoolean(key, default)
 end
 
 ---
+--- Saves a color setting.
+---@param key string The setting key.
+---@param color table The color to save (table with r, g, b, a fields).
+function Api.Interface.SaveColor(key, color)
+    Interface.SaveColor(key, color)
+end
+
+---
+--- Loads a color setting.
+---@param key string The setting key.
+---@param default table The default value if the setting does not exist.
+---@return table The loaded color table.
+function Api.Interface.LoadColor(key, default)
+    return Interface.LoadColor(key, default)
+end
+
+---
+--- Deletes a saved setting.
+---@param key string The setting key to delete.
+function Api.Interface.DeleteSetting(key)
+    Interface.DeleteSetting(key)
+end
+
+---
+--- Returns the list of item IDs currently in the player's backpack.
+---@return integer[]|nil Array of object IDs in the backpack.
+function Api.Interface.GetBackPackItems()
+    return Interface.BackPackItems
+end
+
+---
 --- Sets whether the player's paperdoll is considered open by the engine.
 ---@param open boolean
 function Api.Interface.SetPaperdollOpen(open)
@@ -2414,6 +2567,34 @@ end
 --- Clears the current mouse-over item tooltip.
 function Api.ItemProperties.ClearMouseOverItem()
     ItemProperties.ClearMouseOverItem()
+end
+
+-- ========================================================================== --
+-- Api - Items Info
+-- ========================================================================== --
+
+Api.Items = {}
+
+---
+--- Gets the text ID for a reagent by its object type ID.
+---@param typeId integer The object type ID.
+---@return integer|nil The TID for the reagent name, or nil if not found.
+function Api.Items.GetReagentTid(typeId)
+    if ItemsInfo and ItemsInfo.Reagents then
+        return ItemsInfo.Reagents[typeId]
+    end
+    return nil
+end
+
+---
+--- Gets the ObjectInfo entry for a specific item in the world.
+---@param objectId integer The object ID.
+---@return table|nil The ObjectInfo table for the item.
+function Api.Items.GetObjectInfo(objectId)
+    if WindowData.ObjectInfo then
+        return WindowData.ObjectInfo[objectId]
+    end
+    return nil
 end
 
 -- ========================================================================== --
@@ -3004,6 +3185,9 @@ Constants.WindowLayers.Default = 1
 Constants.WindowLayers.Secondary = 2
 Constants.WindowLayers.Popup = 3
 Constants.WindowLayers.Overlay = 4
+
+Constants.AnimationType = {}
+Constants.AnimationType.Loop = Window.AnimationType.LOOP
 
 Constants.ButtonStates = {}
 Constants.ButtonStates.Normal = 0
@@ -3647,8 +3831,77 @@ function PlayerStatus:getType()
     return self:getData().Type
 end
 
+---
+--- Gets a field from the raw PlayerStatus data by key.
+--- Use this for stats not covered by a dedicated getter (e.g. Strength, Damage, Weight).
+---@param key string The field name in WindowData.PlayerStatus.
+---@return any The field value, or nil if not present.
+function PlayerStatus:getField(key)
+    local data = self:getData()
+    if data then return data[key] end
+    return nil
+end
+
 function Data.PlayerStatus()
     return PlayerStatus:new()
+end
+
+-- ========================================================================== --
+-- Data - Player Stats CSV
+-- ========================================================================== --
+
+---@class WindowData.PlayerStatsDataCSV
+---@field name string The internal stat name key
+---@field tid integer The text ID for the stat display name
+---@field iconId integer The icon ID for the stat
+
+---@class PlayerStatsDataCSVWrapper
+---@field _id integer
+local PlayerStatsDataCSV = {}
+PlayerStatsDataCSV.__index = PlayerStatsDataCSV
+
+function PlayerStatsDataCSV:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return WindowData.PlayerStatsDataCSV|nil
+function PlayerStatsDataCSV:getData()
+    if WindowData.PlayerStatsDataCSV then
+        return WindowData.PlayerStatsDataCSV[self._id]
+    end
+    return nil
+end
+
+---@return integer
+function PlayerStatsDataCSV:getId()
+    return self._id
+end
+
+---@return string
+function PlayerStatsDataCSV:getName()
+    local data = self:getData()
+    if data then return tostring(data.name) end
+    return ""
+end
+
+---@return integer
+function PlayerStatsDataCSV:getTid()
+    local data = self:getData()
+    if data then return data.tid or 0 end
+    return 0
+end
+
+---@return integer
+function PlayerStatsDataCSV:getIconId()
+    local data = self:getData()
+    if data then return data.iconId or 0 end
+    return 0
+end
+
+---@param id integer The stat attribute index
+---@return PlayerStatsDataCSVWrapper
+function Data.PlayerStatsDataCSV(id)
+    return PlayerStatsDataCSV:new(id)
 end
 
 -- ========================================================================== --
@@ -4063,6 +4316,21 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 ---@class DefaultObjectHandleComponent : DefaultComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
+--- @class DefaultQuickStats
+--- @field Settings table
+--- @field Initialized boolean
+--- @field Labels table
+--- @field Max integer
+--- @field Initialize fun()
+--- @field Shutdown fun()
+--- @field GetId fun(): integer
+--- @field DoesLabelExist fun(attributeId: integer, isObject: boolean): integer
+--- @field UpdateLabel fun(label: string)
+
+---@class DefaultQuickStatsComponent : DefaultComponent
+local DefaultQuickStatsComponent = {}
+DefaultQuickStatsComponent.__index = DefaultQuickStatsComponent
 
 
 ---@class CircleImageModel : ViewModel
@@ -4905,6 +5173,29 @@ end
 
 ---@return Window
 function DefaultPaperdollWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Quick Stats
+-- ========================================================================== --
+
+---@return DefaultQuickStatsComponent
+function DefaultQuickStatsComponent:new()
+    local instance = DefaultComponent.new(self, "QuickStats") --[[@as DefaultQuickStatsComponent]]
+    instance._proxy = instance:_createProxy(QuickStats)
+    instance._globalKey = "QuickStats"
+    _G.QuickStats = instance._proxy
+    return instance
+end
+
+---@return DefaultQuickStats
+function DefaultQuickStatsComponent:getDefault()
+    return self._proxy or QuickStats --[[@as DefaultQuickStats]]
+end
+
+---@return Window
+function DefaultQuickStatsComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6752,6 +7043,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultQuickStatsComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +7058,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.QuickStats = DefaultQuickStatsComponent:new()
 
 -- ========================================================================== --
 -- Mod
