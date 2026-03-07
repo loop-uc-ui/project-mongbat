@@ -49,11 +49,6 @@ local function PartyBarLayout(window, children, child, index)
 end
 
 local function OnInitialize()
-    local Api = Api
-    local Data = Data
-    local Constants = Constants
-    local Components = Components
-
     local partyHealthBar = Components.Defaults.PartyHealthBar
     partyHealthBar:disable()
 
