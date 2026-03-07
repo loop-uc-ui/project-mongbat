@@ -1,4 +1,7 @@
 local NAME = "MongbatMobilesOnScreenWindow"
+local Api = Mongbat.Api
+local Components = Mongbat.Components
+local Utils = Mongbat.Utils
 
 -- Saved original MobilesOnScreen lifecycle functions, restored in OnShutdown.
 -- File-scope because they must survive between OnInitialize and OnShutdown.
@@ -148,11 +151,10 @@ local function setDockspotEnabled(dockspot, enabled, mos, api)
     mos.isDirty = true
 end
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Components = context.Components
-    local Utils = context.Utils
+local function OnInitialize()
+    local Api = Api
+    local Components = Components
+    local Utils = Utils
 
     local mosDefault = Components.Defaults.MobilesOnScreen
     ---@type DefaultMobilesOnScreen
@@ -429,11 +431,10 @@ local function OnInitialize(context)
     }:create(true)
 end
 
----@param context Context
-local function OnShutdown(context)
-    local Api = context.Api
-    local Components = context.Components
-    local Utils = context.Utils
+local function OnShutdown()
+    local Api = Api
+    local Components = Components
+    local Utils = Utils
 
     local mosDefault = Components.Defaults.MobilesOnScreen
     local mos = mosDefault:getDefault()
