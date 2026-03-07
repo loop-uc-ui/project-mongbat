@@ -87,13 +87,10 @@ local savedSpellbookFunctions = nil
 -- Build tooltip body for a spell
 -- ========================================================================== --
 
----@param Api table
----@param Data table
----@param Constants table
 ---@param bookId integer
 ---@param abilityId integer
 ---@return wstring tooltipBody
-local function buildTooltip(Api, Data, Constants, bookId, abilityId)
+local function buildTooltip(bookId, abilityId)
     local bookData = books[bookId]
     if bookData == nil then return L"" end
     local firstSpellNum = bookData.firstSpellNum
@@ -176,10 +173,6 @@ end
 ---@param slotIndex integer 1-based index within current tab (1..8)
 ---@return DynamicImage
 local function SpellSlot(bookId, slotIndex)
-    local Api        = Api
-    local Data       = Data
-    local Constants  = Constants
-    local Components = Components
     local winName = WIN_PREFIX .. bookId .. "Slot" .. slotIndex
 
     return Components.DynamicImage {
@@ -236,7 +229,7 @@ local function SpellSlot(bookId, slotIndex)
             if tid == nil or tid == 0 then return end
 
             local winName2 = WIN_PREFIX .. bookId
-            local body = buildTooltip(Api, Data, Constants, bookId, abilityId)
+            local body = buildTooltip(bookId, abilityId)
             local itemData = {
                 windowName = winName2,
                 itemId     = abilityId,
@@ -260,12 +253,6 @@ end
 
 ---@param bookId integer DynamicWindowId assigned by the engine
 local function OpenBook(bookId)
-    local Api       = Api
-    local Data      = Data
-    local Utils     = Utils
-    local Constants = Constants
-    local Components = Components
-
     -- Collect spell slots and tab-button views for this instance.
     local slotViews = {}
     local tabViews  = {}
@@ -412,7 +399,7 @@ local function OpenBook(bookId)
             self:setDimensions(200, HEADER_H)
         end
     }
-    table.insert(children, titleLabel)
+    Utils.Array.Add(children, titleLabel)
 
     -- Tithing label (child 2)
     tithLabel = Components.Label {
@@ -421,7 +408,7 @@ local function OpenBook(bookId)
             self:setDimensions(200, HEADER_H)
         end
     }
-    table.insert(children, tithLabel)
+    Utils.Array.Add(children, tithLabel)
 
     -- Tab buttons (child 3..N) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ we create MAX_SPELLS_PER_TAB placeholders;
     -- some will be hidden if the book has fewer tabs.
@@ -436,14 +423,14 @@ local function OpenBook(bookId)
             end,
         }
         tabViews[i] = tabLabel
-        table.insert(children, tabLabel)
+        Utils.Array.Add(children, tabLabel)
     end
 
     -- Spell slots (child N+1 onwards)
     for i = 1, MAX_SPELLS_PER_TAB do
         local slot = SpellSlot(bookId, i)
         slotViews[i] = slot
-        table.insert(children, slot)
+        Utils.Array.Add(children, slot)
     end
 
     -- ------------------------------------------------------------------ --
@@ -547,10 +534,6 @@ Mongbat.Mod {
     Name = "MongbatSpellbook",
     Path = "/src/mods/mongbat-spellbook",
     OnInitialize = function()
-        local Api        = Api
-        local Data       = Data
-        local Components = Components
-
         -- Intercept the default Spellbook global by overriding its lifecycle
         -- functions. We do NOT call disable() because that would no-op our
         -- overrides when they are read back through the proxy.
@@ -607,10 +590,6 @@ Mongbat.Mod {
         savedSpellbookFunctions = savedFunctions
     end,
     OnShutdown = function()
-        local Api        = Api
-        local Utils      = Utils
-        local Components = Components
-
         -- Destroy any open spellbook windows.
         Utils.Table.ForEach(books, function(bookId, _)
             Api.Window.Destroy(WIN_PREFIX .. bookId)
