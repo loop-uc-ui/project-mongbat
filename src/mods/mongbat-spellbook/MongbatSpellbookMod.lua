@@ -10,6 +10,12 @@
 -- ========================================================================== --
 
 --- Spells per tab for all supported schools.
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
+
 local SPELLS_PER_TAB = {
     [1]   = 8, -- Magery
     [101] = 8, -- Necromancy
@@ -166,15 +172,14 @@ end
 -- Spell slot component
 -- ========================================================================== --
 
----@param context Context
 ---@param bookId integer
 ---@param slotIndex integer 1-based index within current tab (1..8)
 ---@return DynamicImage
-local function SpellSlot(context, bookId, slotIndex)
-    local Api        = context.Api
-    local Data       = context.Data
-    local Constants  = context.Constants
-    local Components = context.Components
+local function SpellSlot(bookId, slotIndex)
+    local Api        = Api
+    local Data       = Data
+    local Constants  = Constants
+    local Components = Components
     local winName = WIN_PREFIX .. bookId .. "Slot" .. slotIndex
 
     return Components.DynamicImage {
@@ -253,14 +258,13 @@ end
 -- Open a spellbook instance
 -- ========================================================================== --
 
----@param context Context
 ---@param bookId integer DynamicWindowId assigned by the engine
-local function OpenBook(context, bookId)
-    local Api       = context.Api
-    local Data      = context.Data
-    local Utils     = context.Utils
-    local Constants = context.Constants
-    local Components = context.Components
+local function OpenBook(bookId)
+    local Api       = Api
+    local Data      = Data
+    local Utils     = Utils
+    local Constants = Constants
+    local Components = Components
 
     -- Collect spell slots and tab-button views for this instance.
     local slotViews = {}
@@ -419,7 +423,7 @@ local function OpenBook(context, bookId)
     }
     table.insert(children, tithLabel)
 
-    -- Tab buttons (child 3..N) – we create MAX_SPELLS_PER_TAB placeholders;
+    -- Tab buttons (child 3..N) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ we create MAX_SPELLS_PER_TAB placeholders;
     -- some will be hidden if the book has fewer tabs.
     for i = 1, MAX_SPELLS_PER_TAB do
         local tabLabel = Components.Button {
@@ -437,7 +441,7 @@ local function OpenBook(context, bookId)
 
     -- Spell slots (child N+1 onwards)
     for i = 1, MAX_SPELLS_PER_TAB do
-        local slot = SpellSlot(context, bookId, i)
+        local slot = SpellSlot(bookId, i)
         slotViews[i] = slot
         table.insert(children, slot)
     end
@@ -542,10 +546,10 @@ end
 Mongbat.Mod {
     Name = "MongbatSpellbook",
     Path = "/src/mods/mongbat-spellbook",
-    OnInitialize = function(context)
-        local Api        = context.Api
-        local Data       = context.Data
-        local Components = context.Components
+    OnInitialize = function()
+        local Api        = Api
+        local Data       = Data
+        local Components = Components
 
         -- Intercept the default Spellbook global by overriding its lifecycle
         -- functions. We do NOT call disable() because that would no-op our
@@ -574,7 +578,7 @@ Mongbat.Mod {
             -- not linger as a hidden resource.
             Api.Window.Destroy(Data.ActiveWindowName())
             -- Open our Mongbat window.
-            OpenBook(context, bookId)
+            OpenBook(bookId)
         end
 
         -- Override Shutdown so our window is destroyed cleanly.
@@ -602,10 +606,10 @@ Mongbat.Mod {
         -- Store savedFunctions in mod-level variable for restoration.
         savedSpellbookFunctions = savedFunctions
     end,
-    OnShutdown = function(context)
-        local Api        = context.Api
-        local Utils      = context.Utils
-        local Components = context.Components
+    OnShutdown = function()
+        local Api        = Api
+        local Utils      = Utils
+        local Components = Components
 
         -- Destroy any open spellbook windows.
         Utils.Table.ForEach(books, function(bookId, _)
