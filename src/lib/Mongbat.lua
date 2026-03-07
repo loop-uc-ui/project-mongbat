@@ -13,15 +13,6 @@ local Data = {}
 ---@class Utils
 local Utils = {}
 
----@class Context
-local Context = {
-    Api = Api,
-    Data = Data,
-    Utils = Utils,
-    Constants = Constants,
-    Components = Components
-}
-
 -- ========================================================================== --
 -- Global Overrides
 -- ========================================================================== --
@@ -7056,9 +7047,9 @@ Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
 ---@field Name string Name of the mod
 ---@field Path string Path to the mod resources
 ---@field Files string[]? list of files to load
----@field _onInitialize fun(self: Context) Initializes the mod
----@field _onShutdown fun(self: Context) Shutdown the mod
----@field _onUpdate fun(self: Context, timePassed: number)? Updates the mod
+---@field _onInitialize fun() Initializes the mod
+---@field _onShutdown fun() Shutdown the mod
+---@field _onUpdate fun(timePassed: number)? Updates the mod
 local Mod = {}
 Mod.__index = Mod
 
@@ -7066,9 +7057,9 @@ Mod.__index = Mod
 ---@field Name string Name of the mod
 ---@field Path string Path to the mod resources
 ---@field Files string[]? list of files to load
----@field OnInitialize fun(self: Context) Initializes the mod
----@field OnShutdown fun(self: Context) Shutdown the mod
----@field OnUpdate fun(self: Context, timePassed: number)? Updates the mod
+---@field OnInitialize fun() Initializes the mod
+---@field OnShutdown fun() Shutdown the mod
+---@field OnUpdate fun(timePassed: number)? Updates the mod
 
 ---@param model ModModel
 function Mod:new(model)
@@ -7113,16 +7104,16 @@ function Mod:onInitialize()
     end
 
     self:loadResources()
-    self._onInitialize(Context)
+    self._onInitialize()
 end
 
 function Mod:onShutdown()
-    self._onShutdown(Context)
+    self._onShutdown()
 end
 
 function Mod:onUpdate(timePassed)
     if self._onUpdate ~= nil then
-        self._onUpdate(Context, timePassed)
+        self._onUpdate(timePassed)
     end
 end
 
@@ -7235,6 +7226,12 @@ local mod = Mod:new {
         Cache = {}
     end
 }
+
+Mongbat.Api = Api
+Mongbat.Data = Data
+Mongbat.Utils = Utils
+Mongbat.Constants = Constants
+Mongbat.Components = Components
 
 _Mongbat = {}
 

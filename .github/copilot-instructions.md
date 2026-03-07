@@ -94,7 +94,7 @@ The entire framework is in `src/lib/Mongbat.lua`. It contains class definitions,
 
 Mongbat uses a **model table → class instance → engine window** pattern:
 
-1. The mod passes a **model table** (plain Lua table) to a factory function (e.g., `ctx.Components.Window { Name = "...", ... }`).
+1. The mod passes a **model table** (plain Lua table) to a factory function (e.g., `Components.Window { Name = "...", ... }`).
 2. The factory creates a class instance that wraps the model and provides builder methods.
 3. Calling `:create(show)` calls `CreateWindowFromTemplate` to instantiate the engine window.
 
@@ -184,16 +184,16 @@ Mongbat can **replace** default UI windows by intercepting their global Lua tabl
 3. Provides `disable()` / `restore()` methods to toggle the replacement.
 4. The mod creates its own Window that takes over the visual role.
 
-Mods access default components via `ctx.Components.Defaults.<name>`. See existing mods for the pattern: disable the original in `OnInitialize`, restore it in `OnShutdown`.
+Mods access default components via `Components.Defaults.<name>`. See existing mods for the pattern: disable the original in `OnInitialize`, restore it in `OnShutdown`.
 
 ### Mod Lifecycle
 
 1. `.mod` XML declares the mod, its script, and dependency on `Mongbat`.
-2. The Lua script calls `Mongbat.Mod { Name = "...", OnInitialize = ..., OnShutdown = ..., ... }`.
-3. Mongbat provides a **context object** (`ctx`) with: `Api`, `Data`, `Utils`, `Constants`, `Components`.
-4. `OnInitialize(ctx)` -- create windows, register handlers, disable defaults.
-5. `OnShutdown(ctx)` -- destroy windows, restore defaults.
-6. `OnUpdate(ctx, deltaTime)` -- per-frame logic (optional).
+2. The Lua script destructures framework namespaces from the `Mongbat` global at file scope: `local Api = Mongbat.Api`, `local Components = Mongbat.Components`, etc.
+3. The script calls `Mongbat.Mod { Name = "...", OnInitialize = ..., OnShutdown = ..., ... }`.
+4. `OnInitialize()` -- create windows, register handlers, disable defaults.
+5. `OnShutdown()` -- destroy windows, restore defaults.
+6. `OnUpdate(deltaTime)` -- per-frame logic (optional).
 
 ---
 
@@ -236,7 +236,7 @@ Detailed procedural skills live in `.github/skills/`. **Read the relevant skill 
 
 ### 0. Consult the Project README
 
-**Before writing or debugging any Mongbat mod code, read the README.md in the repository root.** It contains the project overview, class hierarchy, and context object documentation.
+**Before writing or debugging any Mongbat mod code, read the README.md in the repository root.** It contains the project overview, class hierarchy, and namespace documentation.
 
 ### 0.1 Read the Engine Log When Debugging
 
@@ -274,9 +274,9 @@ The docs are outdated. If a doc example contradicts the repo code, the repo is c
 - **Builder pattern** -- show fluent chaining: `Components.Window{...}:setDimensions(w,h):create(true)`.
 - **Use Mongbat's event system** -- place event handler keys in model tables. Do not call raw engine registration functions in mods.
 
-#### 3.1 All Engine References Go Through Mongbat Context
+#### 3.1 All Engine References Go Through Mongbat Namespaces
 
-Mod code must **never** call raw engine globals directly. Every reference to a global that originates from the Default UI or the engine runtime must be accessed through one of the Mongbat context namespaces (`Api`, `Data`, `Utils`, `Constants`, `Components`). If the framework lacks a wrapper for a needed engine concept, **add it to `Mongbat.lua` first**, then use the wrapper in the mod.
+Mod code must **never** call raw engine globals directly. Every reference to a global that originates from the Default UI or the engine runtime must be accessed through one of the Mongbat namespaces (`Api`, `Data`, `Utils`, `Constants`, `Components`), destructured from `Mongbat` at the top of the mod file. If the framework lacks a wrapper for a needed engine concept, **add it to `Mongbat.lua` first**, then use the wrapper in the mod.
 
 The table below describes what belongs in each namespace. There is some nuance at the boundaries, but these rules hold for the vast majority of cases:
 
@@ -290,7 +290,7 @@ The table below describes what belongs in each namespace. There is some nuance a
 
 **Key principles:**
 - **`Data` owns all data.** If you're reading `SystemData.*` or `WindowData.*`, it must go through `Data`. No exceptions.
-- **`Components.Defaults` owns all default windows.** Every default UI window's global table (`StatusWindow`, `Shopkeeper`, etc.) is a DefaultComponent. Mods access them via `ctx.Components.Defaults.<name>` and use `disable()` / `restore()`.
+- **`Components.Defaults` owns all default windows.** Every default UI window's global table (`StatusWindow`, `Shopkeeper`, etc.) is a DefaultComponent. Mods access them via `Components.Defaults.<name>` and use `disable()` / `restore()`.
 - **`Api` owns all actions.** If you're calling a global function to make something happen (create, destroy, set, register, broadcast), it goes through `Api`.
 - **`Utils` owns generic operations.** Iterating a table, formatting a string for display, clamping a number -- these go through `Utils`. If the operation has no broader relevance beyond one mod's internal logic (e.g., a private helper that computes a mod-specific layout), it can remain local to the mod.
 - **`Constants` owns fixed values.** Event IDs, type enums, layer constants -- anything that is a static lookup value rather than a function or mutable state. This includes **data dictionaries** -- static lookup tables that multiple mods may reference (e.g., spell school definitions, skill info arrays, bug type enumerations). If a dataset is hardcoded, immutable, and useful across mods, it belongs in `Constants` as a structured table rather than being duplicated in each mod.
@@ -307,7 +307,7 @@ for i = 1, #someArray do doSomething(someArray[i]) end
 local name = GetStringFromTid(1079170)
 ```
 
-**Good** -- everything through Mongbat context:
+**Good** -- everything through Mongbat namespaces:
 ```lua
 if Api.Window.DoesExist(name) then Api.Window.Destroy(name) end
 local paperdoll = Data.Paperdoll(playerId)
@@ -324,24 +324,24 @@ local name = Api.String.GetStringFromTid(1079170)
 
 #### 3.2 Variable Scoping
 
-**Store variables outside the mod context sparingly.** File-scope mutable state creates hidden coupling and makes lifecycle management error-prone. Follow these rules:
+**Store file-scope mutable variables sparingly.** File-scope mutable state creates hidden coupling and makes lifecycle management error-prone. Follow these rules:
 
 1. **Declare variables as locally as possible.** Runtime state (view references, entity IDs, flags) should be `local` inside `OnInitialize`. Closures in model tables and nested functions capture them naturally.
 2. **Prefer passing values through function parameters** over sharing upvalues between distant functions.
 3. **File-scope constants are fine.** Immutable values like `local NAME = "MyMod"` or `local MAX_SLOTS = 10` defined above the mod registration are acceptable -- they never change and have no lifecycle concerns.
-4. **File-scope mutable state is a last resort.** Only use it when a value truly must survive across both `OnInitialize` and `OnShutdown` and cannot be plumbed through function parameters or the context object.
+4. **File-scope mutable state is a last resort.** Only use it when a value truly must survive across both `OnInitialize` and `OnShutdown` and cannot be plumbed through function parameters.
 
 **Bad** -- file-scope mutable state that only `OnInitialize` uses:
 ```lua
 local playerId = 0
 local slotViews = {}
 
-local function OnInitialize(context)
-    playerId = context.Data.PlayerStatus():getId()
+local function OnInitialize()
+    playerId = Data.PlayerStatus():getId()
     -- slotViews used in closures below...
 end
 
-local function OnShutdown(context)
+local function OnShutdown()
     slotViews = {}
     playerId = 0
 end
@@ -351,14 +351,14 @@ end
 ```lua
 local NAME = "MyModWindow"  -- file-scope constant is fine
 
-local function OnInitialize(context)
-    local playerId = context.Data.PlayerStatus():getId()
+local function OnInitialize()
+    local playerId = Data.PlayerStatus():getId()
     local slotViews = {}
     -- closures capture these locals; OnShutdown doesn't need them
 end
 
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
 end
 ```
 

@@ -7,13 +7,12 @@ local MARGIN = 16
 local LABEL_HEIGHT = 22
 local LABEL_GAP = 12
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Data = context.Data
-    local Constants = context.Constants
-    local Components = context.Components
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Constants = Mongbat.Constants
+local Components = Mongbat.Components
 
+local function OnInitialize()
     local slotViews = {}
     local showingGrid = true
     local paperdollFigure = nil
@@ -307,13 +306,12 @@ local function OnInitialize(context)
     Window():create(true)
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
 
     -- Restore default paperdoll
-    context.Api.Interface.SetPaperdollOpen(true)
-    local paperdollDefault = context.Components.Defaults.PaperdollWindow
+    Api.Interface.SetPaperdollOpen(true)
+    local paperdollDefault = Components.Defaults.PaperdollWindow
     paperdollDefault:restore()
 end
 
