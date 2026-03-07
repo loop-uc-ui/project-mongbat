@@ -1,14 +1,17 @@
 local NAME = "MongbatTargetWindow"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
 
----@param context Context
-local function OnInitialize(context)
-    local targetWindow = context.Components.Defaults.TargetWindow
+local function OnInitialize()
+    local targetWindow = Components.Defaults.TargetWindow
     targetWindow:asComponent():setShowing(false)
     targetWindow:disable()
 
     local targetId = 0
 
-    local nameLabel = context.Components.Label {
+    local nameLabel = Components.Label {
         OnInitialize = function(self)
             self:centerText()
         end,
@@ -18,12 +21,12 @@ local function OnInitialize(context)
         end
     }
 
-    local healthBar = context.Components.StatusBar {
+    local healthBar = Components.StatusBar {
         OnUpdateMobileStatus = function(self, mobileStatus)
             self:setCurrentValue(mobileStatus:getCurrentHealth())
             self:setMaxValue(mobileStatus:getMaxHealth())
             if not self._colorSet then
-                self:setColor(context.Constants.Colors.HealhBar[1])
+                self:setColor(Constants.Colors.HealhBar[1])
                 self._colorSet = true
             end
         end,
@@ -32,15 +35,15 @@ local function OnInitialize(context)
             self._colorSet = true
         end,
         OnLButtonUp = function()
-            if context.Data.Drag():isDraggingItem() then
-                context.Api.Drag.DragToObject(targetId)
+            if Data.Drag():isDraggingItem() then
+                Api.Drag.DragToObject(targetId)
             else
-                context.Api.Target.LeftClick(targetId)
+                Api.Target.LeftClick(targetId)
             end
         end
     }
 
-    context.Components.Window {
+    Components.Window {
         Name = NAME,
         OnInitialize = function(self)
             self:setDimensions(220, 70)
@@ -67,33 +70,32 @@ local function OnInitialize(context)
         end,
         OnLButtonDblClk = function()
             if targetId ~= 0 then
-                context.Api.UserAction.UseItem(targetId, false)
+                Api.UserAction.UseItem(targetId, false)
             end
         end,
         OnRButtonUp = function()
             if targetId ~= 0 then
-                context.Api.ContextMenu.RequestMenu(targetId)
+                Api.ContextMenu.RequestMenu(targetId)
             end
         end,
         OnMouseOver = function(self)
             if targetId ~= 0 then
-                context.Api.ItemProperties.SetActiveItem({
+                Api.ItemProperties.SetActiveItem({
                     windowName = self:getName(),
                     itemId = targetId,
-                    itemType = context.Constants.ItemPropertyType.Item
+                    itemType = Constants.ItemPropertyType.Item
                 })
             end
         end,
         OnMouseOverEnd = function()
-            context.Api.ItemProperties.ClearMouseOverItem()
+            Api.ItemProperties.ClearMouseOverItem()
         end
     }:create(false)
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
-    local targetWindow = context.Components.Defaults.TargetWindow
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    local targetWindow = Components.Defaults.TargetWindow
     targetWindow:restore()
     targetWindow:asComponent():setShowing(true)
 end
