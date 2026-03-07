@@ -1620,6 +1620,52 @@ function Api.UserAction.ToggleWarMode()
 end
 
 -- ========================================================================== --
+-- Api - Party
+-- ========================================================================== --
+
+Api.Party = {}
+
+---
+--- Accepts a party invitation.
+function Api.Party.AcceptInvite()
+    AcceptPartyInvite()
+end
+
+---
+--- Declines a party invitation.
+function Api.Party.DeclineInvite()
+    DeclinePartyInvite()
+end
+
+---
+--- Returns whether a party request is currently pending.
+---@return boolean
+function Api.Party.IsRequestPending()
+    return IsPartyRequestPending()
+end
+
+---
+--- Sets whether party invite popups are shown and applies the setting change.
+---@param enabled boolean Whether party invite popups should be shown.
+function Api.Party.SetShowInvitePopUp(enabled)
+    SystemData.Settings.Interface.partyInvitePopUp = enabled
+    Api.Settings.Apply()
+end
+
+-- ========================================================================== --
+-- Api - Settings
+-- ========================================================================== --
+
+Api.Settings = {}
+
+---
+--- Applies pending settings changes and notifies the engine.
+function Api.Settings.Apply()
+    SettingsWindow.UpdateSettings()
+    UserSettingsChanged()
+end
+
+-- ========================================================================== --
 -- Api - Viewport
 -- ========================================================================== --
 
@@ -2909,6 +2955,10 @@ function Constants.Broadcasts.BugReport()
     return SystemData.Events["BUG_REPORT_SCREEN"]
 end
 
+function Constants.Broadcasts.ClosePartyInvite()
+    return SystemData.Events["CLOSE_PARTY_INVITE"]
+end
+
 ---@class DataEvent
 ---@field getType fun(): integer
 ---@field getEvent fun(): integer
@@ -3780,6 +3830,17 @@ end
 ---@return PaperdollTextureWrapper
 function Data.PaperdollTexture(id)
     return PaperdollTexture:new(id)
+end
+
+-- ========================================================================== --
+-- Data - Party Invite Name
+-- ========================================================================== --
+
+---
+--- Returns the name of the player who sent the current party invitation.
+---@return wstring
+function Data.PartyInviteName()
+    return WindowData.PartyInviteName
 end
 
 -- ========================================================================== --
@@ -4812,6 +4873,43 @@ end
 
 ---@return Window
 function DefaultDebugWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Party Invite Window
+-- ========================================================================== --
+
+---@class DefaultPartyInviteWindow
+---@field TID table Table of TIDs for UI text (Title, Accept, Decline, Dialog, DoNotShow)
+---@field checkboxFlag boolean State of the 'Do Not Show Again' checkbox
+---@field Initialize fun() Initializes the party invite window
+---@field Shutdown fun() Shuts down the party invite window and handles pending invites
+---@field CloseWindow fun() Closes the party invite window
+---@field Accept_OnLButtonUp fun() Handles accepting a party invite
+---@field Decline_OnLButtonUp fun() Handles declining a party invite
+---@field Check_OnLButtonUp fun() Handles toggling the 'Do Not Show Again' checkbox
+
+---@class DefaultPartyInviteWindowComponent : DefaultComponent
+local DefaultPartyInviteWindowComponent = {}
+DefaultPartyInviteWindowComponent.__index = DefaultPartyInviteWindowComponent
+
+---@return DefaultPartyInviteWindowComponent
+function DefaultPartyInviteWindowComponent:new()
+    local instance = DefaultComponent.new(self, "PartyInviteWindow") --[[@as DefaultPartyInviteWindowComponent]]
+    instance._proxy = instance:_createProxy(PartyInviteWindow)
+    instance._globalKey = "PartyInviteWindow"
+    _G.PartyInviteWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultPartyInviteWindow
+function DefaultPartyInviteWindowComponent:getDefault()
+    return self._proxy or PartyInviteWindow --[[@as DefaultPartyInviteWindow]]
+end
+
+---@return Window
+function DefaultPartyInviteWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -6752,6 +6850,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultPartyInviteWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6865,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.PartyInviteWindow = DefaultPartyInviteWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
