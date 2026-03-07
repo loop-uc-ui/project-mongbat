@@ -165,20 +165,20 @@ local function OnInitialize()
                         text  = nameStr .. ": " .. formatSkillValue(value) .. "%"
                         color = COLOR_DEFAULT
                     end
-                    rows[#rows + 1] = { text = text, color = color }
+                    Utils.Array.Add(rows, { text = text, color = color })
                 end
             end
 
-            if #rows > 0 then
-                rows[#rows + 1] = {
+            if not Utils.Table.IsEmpty(rows) then
+                Utils.Array.Add(rows, {
                     text  = "--------------------------------",
                     color = COLOR_DEFAULT
-                }
+                })
                 local remaining = (720 * 10) - totalUsed
-                rows[#rows + 1] = {
+                Utils.Array.Add(rows, {
                     text  = "Remaining: " .. formatRemaining(remaining),
                     color = COLOR_DEFAULT
-                }
+                })
             end
         else
             local customSkills = Data.CustomSkills()
@@ -206,29 +206,30 @@ local function OnInitialize()
                     text  = nameStr .. ": " .. formatSkillValue(value) .. "%"
                     color = COLOR_DEFAULT
                 end
-                rows[#rows + 1] = { text = text, color = color }
+                Utils.Array.Add(rows, { text = text, color = color })
             end)
         end
 
         -- Hide all pool labels
-        for i = 1, MAX_ROWS do
-            if Api.Window.DoesExist(labelPool[i]:getName()) then
-                labelPool[i]:setShowing(false)
+        Utils.Array.ForEach(labelPool, function(label)
+            if Api.Window.DoesExist(label:getName()) then
+                label:setShowing(false)
             end
-        end
+        end)
 
         local windowName = window:getName()
         local prevName   = nil
-        local count      = math.min(#rows, MAX_ROWS)
 
-        for i = 1, count do
+        -- labelPool always has MAX_ROWS entries; rows always has at most SKILL_COUNT + 2
+        -- (≤ 60), so labelPool[i] is always valid for any i within rows.
+        Utils.Array.ForEach(rows, function(row, i)
             local label     = labelPool[i]
             local labelName = label:getName()
 
             if Api.Window.DoesExist(labelName) then
                 label:setShowing(true)
-                label:setText(rows[i].text)
-                label:setTextColor(rows[i].color)
+                label:setText(row.text)
+                label:setTextColor(row.color)
                 label:clearAnchors()
 
                 if prevName == nil then
@@ -240,10 +241,10 @@ local function OnInitialize()
                 label:setDimensions(WINDOW_WIDTH - 16, ROW_HEIGHT)
                 prevName = labelName
             end
-        end
+        end)
 
         -- Resize the window to fit the visible rows
-        local newHeight = ROWS_TOP + count * (ROW_HEIGHT + ROW_PADDING) + 8
+        local newHeight = ROWS_TOP + #rows * (ROW_HEIGHT + ROW_PADDING) + 8
         if newHeight < MIN_HEIGHT then newHeight = MIN_HEIGHT end
         window:setDimensions(WINDOW_WIDTH, newHeight)
     end
@@ -322,12 +323,11 @@ local function OnInitialize()
             -- normal component lifecycle does not apply.  We call create() +
             -- onInitialize() directly to register their event handlers, then
             -- reparent them to this window manually.
-            for i = 1, MAX_ROWS do
-                local lbl = labelPool[i]
+            Utils.Array.ForEach(labelPool, function(lbl)
                 lbl:create(false)
                 lbl:onInitialize()
                 lbl:setParent(windowName)
-            end
+            end)
 
             rebuild(self)
         end,
