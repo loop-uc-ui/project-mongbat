@@ -2942,6 +2942,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateCurrentTarget = DataEvent(WindowData.CurrentTarget, "OnUpdateCurrentTarget")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3277,6 +3278,14 @@ function MobileName:getName()
     return self:getData().MobName
 end
 
+function MobileName:getNotoriety()
+    return self:getData().Notoriety
+end
+
+function MobileName:getNotorietyColor()
+    return Constants.Colors.Notoriety[self:getNotoriety() + 1]
+end
+
 function Data.MobileName(id)
     return MobileName:new(id)
 end
@@ -3325,6 +3334,18 @@ end
 
 function MobileStatus:getNotorietyColor()
     return Constants.Colors.Notoriety[self:getNotoriety() + 1]
+end
+
+function MobileStatus:getCurrentHealth()
+    return self:getData().CurrentHealth
+end
+
+function MobileStatus:getMaxHealth()
+    return self:getData().MaxHealth
+end
+
+function MobileStatus:isDead()
+    return self:getData().IsDead
 end
 
 function Data.MobileStatus(id)
@@ -4064,6 +4085,14 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+---@class DefaultTargetWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+
+---@class DefaultTargetWindowComponent : DefaultComponent
+local DefaultTargetWindowComponent = {}
+DefaultTargetWindowComponent.__index = DefaultTargetWindowComponent
+
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4146,6 +4175,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdateCurrentTarget fun(self: Window, currentTarget: CurrentTargetWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4165,6 +4195,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
+---@field OnUpdateCurrentTarget fun(self: Label, currentTarget: CurrentTargetWrapper)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -4223,6 +4254,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdateCurrentTarget fun(self: View, currentTarget: CurrentTargetWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4812,6 +4844,29 @@ end
 
 ---@return Window
 function DefaultDebugWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - Target Window
+-- ========================================================================== --
+
+---@return DefaultTargetWindowComponent
+function DefaultTargetWindowComponent:new()
+    local instance = DefaultComponent.new(self, "TargetWindow") --[[@as DefaultTargetWindowComponent]]
+    instance._proxy = instance:_createProxy(TargetWindow)
+    instance._globalKey = "TargetWindow"
+    _G.TargetWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultTargetWindow
+function DefaultTargetWindowComponent:getDefault()
+    return self._proxy or TargetWindow --[[@as DefaultTargetWindow]]
+end
+
+---@return Window
+function DefaultTargetWindowComponent:asComponent()
     return Window:new { Name = self.name }
 end
 
@@ -5471,6 +5526,12 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdateCurrentTarget()
+    withActiveView("OnUpdateCurrentTarget", function(window)
+        window:onUpdateCurrentTarget()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -5904,6 +5965,7 @@ function View:onInitialize()
         self:onUpdateMobileStatus()
         self:onUpdateHealthBarColor()
         self:onUpdatePaperdoll()
+        self:onUpdateCurrentTarget()
     end)
 end
 
@@ -6033,6 +6095,14 @@ function View:onUpdatePaperdoll()
     return false
 end
 
+function View:onUpdateCurrentTarget()
+    if self._model.OnUpdateCurrentTarget ~= nil then
+        self._model.OnUpdateCurrentTarget(self, Data.CurrentTarget())
+        return true
+    end
+    return false
+end
+
 function View:onLButtonDblClk(flags, x, y)
     if self._model.OnLButtonDblClk ~= nil then
         self._model.OnLButtonDblClk(self, flags, x, y)
@@ -6124,7 +6194,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateCurrentTarget
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6139,7 +6210,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateCurrentTarget
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -6752,6 +6824,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultTargetWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6839,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.TargetWindow = DefaultTargetWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
@@ -6927,7 +7001,8 @@ local mod = Mod:new {
         local register = {
             Constants.DataEvents.OnUpdatePlayerStatus,
             Constants.DataEvents.OnUpdateRadar,
-            Constants.DataEvents.OnUpdatePlayerLocation
+            Constants.DataEvents.OnUpdatePlayerLocation,
+            Constants.DataEvents.OnUpdateCurrentTarget
         }
 
         Utils.Array.ForEach(
@@ -6948,6 +7023,7 @@ local mod = Mod:new {
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+        Api.Window.UnregisterData(Constants.DataEvents.OnUpdateCurrentTarget.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
