@@ -18,10 +18,6 @@ local function OnInitialize()
     originalShutdown = default:getDefault().Shutdown
     originalCloseWindow = default:getDefault().CloseWindow
 
-    local function destroyWindow()
-        Api.Window.Destroy(NAME)
-    end
-
     local function createWindow()
         doNotShowChecked = false
         local inviterName = Data.PartyInviteName()
@@ -99,7 +95,7 @@ local function OnInitialize()
         if doNotShowChecked then
             Api.Party.SetShowInvitePopUp(false)
         end
-        destroyWindow()
+        Api.Window.Destroy(NAME)
     end
 
     -- CloseWindow is called by the CLOSE_PARTY_INVITE engine signal (registered above in
@@ -122,7 +118,6 @@ local function OnShutdown()
     default:getDefault().Initialize = originalInitialize
     default:getDefault().Shutdown = originalShutdown
     default:getDefault().CloseWindow = originalCloseWindow
-    default:restore()
 end
 
 Mongbat.Mod {
