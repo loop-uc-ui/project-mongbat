@@ -120,14 +120,9 @@ local function roundScale(v)
 end
 
 --- Creates and shows the User Waypoint window.
----@param context Context The Mongbat context object.
 ---@param params table  Params table from the map context menu.
 ---@param isViewMode boolean True for view/edit mode, false for create mode.
 local function createWaypointWindow(params, isViewMode)
-    local Components = Components
-    local Api        = Api
-    local Utils      = Utils
-
     --- Finds the icon index in ICONS for a given icon ID.
     ---@param iconId number The icon ID to search for.
     ---@return number index 1-based index into ICONS, or 1 if not found.
@@ -914,10 +909,8 @@ local function OnInitialize()
         createWaypointWindow(params, true)
     end
 
-    -- Hide the original XML window if the engine created it at startup
-    if Api.Window.DoesExist("UserWaypointWindow") then
-        Api.Window.SetShowing("UserWaypointWindow", false)
-    end
+    -- Destroy the original XML window if the engine created it at startup
+    Api.Window.Destroy("UserWaypointWindow")
 end
 
 local function OnShutdown()
