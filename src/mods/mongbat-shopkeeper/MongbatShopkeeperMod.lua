@@ -4,6 +4,12 @@
 -- ========================================================================== --
 
 -- Window layout constants
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
+
 local WIN_W          = 720
 local WIN_H          = 520
 local PANEL_W        = 310
@@ -23,13 +29,12 @@ local ICON_SCALE_MAX  = 10
 local ICON_SCALE_MIN  = 0.1
 local ICON_SCALE_STEP = 0.1
 
----@param context Context
-local function OnInitialize(context)
-    local Api        = context.Api
-    local Data       = context.Data
-    local Utils      = context.Utils
-    local Constants  = context.Constants
-    local Components = context.Components
+local function OnInitialize()
+    local Api        = Api
+    local Data       = Data
+    local Utils      = Utils
+    local Constants  = Constants
+    local Components = Components
 
     local shopkeeperDefault = Components.Defaults.Shopkeeper
 
@@ -57,7 +62,7 @@ local function OnInitialize(context)
 
     -- -----------------------------------------------------------------------
     -- Helper: strip leading quantity from item name wstring
-    -- e.g. "5 gold coins" → "gold coins"
+    -- e.g. "5 gold coins" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ "gold coins"
     -- -----------------------------------------------------------------------
     local function stripFirstNumber(wStr)
         if not wStr then return L"" end
@@ -338,7 +343,7 @@ local function OnInitialize(context)
     end
 
     -- -----------------------------------------------------------------------
-    -- Move one unit from available → cart
+    -- Move one unit from available ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ cart
     -- -----------------------------------------------------------------------
     local function addToCart(itemIdx, amount)
         amount = amount or 1
@@ -352,7 +357,7 @@ local function OnInitialize(context)
     end
 
     -- -----------------------------------------------------------------------
-    -- Move one unit from cart → available
+    -- Move one unit from cart ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ available
     -- -----------------------------------------------------------------------
     local function removeFromCart(itemIdx, amount)
         amount = amount or 1
@@ -435,7 +440,7 @@ local function OnInitialize(context)
 
     -- -----------------------------------------------------------------------
     -- Build a single item row (shared between avail and cart panels)
-    -- isCartPanel: boolean — if true, the + button adds-all, - removes one
+    -- isCartPanel: boolean ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â if true, the + button adds-all, - removes one
     -- -----------------------------------------------------------------------
     local function ItemRow(isCartPanel)
         local iconView  = nil
@@ -1020,7 +1025,7 @@ local function OnInitialize(context)
         createShopWindow(mId, isSell)
     end
 
-    -- Override Shopkeeper.Shutdown — called when the default XML window is torn
+    -- Override Shopkeeper.Shutdown ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â called when the default XML window is torn
     -- down (e.g. server closes shop).  Broadcast cancel and destroy our window
     -- if it is still open; our window's OnShutdown handles data cleanup.
     shopkeeperDefault:getDefault().Shutdown = function()
@@ -1031,13 +1036,12 @@ local function OnInitialize(context)
     end
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy("MongbatShopkeeperWindow")
+local function OnShutdown()
+    Api.Window.Destroy("MongbatShopkeeperWindow")
 
     -- restore() clears all _overrides (Initialize/Shutdown hooks) and
     -- re-enables the original Shopkeeper functions.
-    local shopkeeperDefault = context.Components.Defaults.Shopkeeper
+    local shopkeeperDefault = Components.Defaults.Shopkeeper
     shopkeeperDefault:restore()
 
     -- Restore the original Shopkeeper global (removes the proxy wrapper).
