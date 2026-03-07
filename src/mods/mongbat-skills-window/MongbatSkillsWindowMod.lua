@@ -93,7 +93,7 @@ local function OnInitialize()
         filteredSkills = {}
         Utils.Array.ForEach(sortedSkills, function(csvId)
             if filterText == "" or string.find(skillNamesLower[csvId] or "", filterText, 1, true) then
-                filteredSkills[#filteredSkills + 1] = csvId
+                Utils.Array.Add(filteredSkills, csvId)
             end
         end)
         scrollOffset = 0
