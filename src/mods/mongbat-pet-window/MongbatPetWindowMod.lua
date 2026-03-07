@@ -5,6 +5,11 @@ local HEADER_HEIGHT = 24
 local TOGGLE_W = 22
 local CMD_HEIGHT = 20
 local CMD_BTN_W = 30
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 -- CMD_BTN_GAP is the vertical gap between the header row and the command button row.
 -- It is used both in the layout (to offset the command buttons below the header) and
 -- in the window height calculation to allocate that same gap space.
@@ -48,13 +53,12 @@ local function PetRowLayout(window, _, child, index)
     end
 end
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Data = context.Data
-    local Utils = context.Utils
-    local Constants = context.Constants
-    local Components = context.Components
+local function OnInitialize()
+    local Api = Api
+    local Data = Data
+    local Utils = Utils
+    local Constants = Constants
+    local Components = Components
 
     local petRowsByPetId = {}
     local isExpanded = true
@@ -263,10 +267,9 @@ local function OnInitialize(context)
     Window():create(true)
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
-    local petWindowDefault = context.Components.Defaults.PetWindow
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    local petWindowDefault = Components.Defaults.PetWindow
     petWindowDefault:restore()
     petWindowDefault:asComponent():setShowing(true)
 end
