@@ -1402,6 +1402,58 @@ function Api.Slider.GetCurrentPosition(id)
 end
 
 -- ========================================================================== --
+-- Api - Settings
+-- ========================================================================== --
+
+Api.Settings = {}
+
+---
+--- Pushes current Lua-side settings to the C++ engine.
+--- Must be called after modifying SystemData.Settings.* tables to persist changes.
+---@return boolean needsReload Whether the client needs to reload to apply the changes.
+function Api.Settings.UserSettingsChanged()
+    return UserSettingsChanged()
+end
+
+---
+--- Returns the current key binding string for the given action type.
+---@param actionType string The action type string (e.g. "FORWARD", "ZOOM_IN").
+---@return wstring The key binding wstring, or an empty wstring if unbound.
+function Api.Settings.GetKeybinding(actionType)
+    return SystemData.Settings.Keybindings[actionType] or L""
+end
+
+---
+--- Sets a key binding for the given action type.
+--- Call Api.Settings.UserSettingsChanged() afterwards to persist.
+---@param actionType string The action type string.
+---@param key wstring The key wstring to assign.
+function Api.Settings.SetKeybinding(actionType, key)
+    SystemData.Settings.Keybindings[actionType] = key
+end
+
+---
+--- Begins interactive key recording. Sets IsRecordingSettings and broadcasts the
+--- INTERFACE_RECORD_KEY event. The engine will fire INTERFACE_KEY_RECORDED when done.
+function Api.Settings.StartRecordKey()
+    SystemData.IsRecordingSettings = true
+    Api.Event.Broadcast(SystemData.Events.INTERFACE_RECORD_KEY)
+end
+
+---
+--- Returns the key wstring that was last recorded by the engine.
+---@return wstring The recorded key, or an empty wstring if none.
+function Api.Settings.GetRecordedKey()
+    return SystemData.RecordedKey or L""
+end
+
+---
+--- Cancels an in-progress key recording session.
+function Api.Settings.CancelRecordKey()
+    SystemData.IsRecordingSettings = false
+end
+
+-- ========================================================================== --
 -- Api - Status Bar
 -- ========================================================================== --
 
@@ -2562,6 +2614,18 @@ function Utils.Array.IndexOf(array, find)
     return -1
 end
 
+---Returns the 1-based index of the first element matching `find`, or `default` if not found.
+---@generic T
+---@param array T[]
+---@param find fun(item: T): boolean
+---@param default integer Fallback index when no match is found
+---@return integer
+function Utils.Array.IndexOfOrDefault(array, find, default)
+    local idx = Utils.Array.IndexOf(array, find)
+    if idx < 1 then return default end
+    return idx
+end
+
 ---@generic T
 ---@param array T[]
 ---@param find fun(item: T): boolean
@@ -2909,6 +2973,29 @@ function Constants.Broadcasts.BugReport()
     return SystemData.Events["BUG_REPORT_SCREEN"]
 end
 
+function Constants.Broadcasts.ResetMmoKeyBindings()
+    return SystemData.Events["RESET_MMO_KEY_BINDINGS"]
+end
+
+function Constants.Broadcasts.ResetLegacyKeyBindings()
+    return SystemData.Events["RESET_LEGACY_KEY_BINDINGS"]
+end
+
+Constants.Settings = {}
+Constants.Settings.ShowNames = {}
+
+function Constants.Settings.ShowNames.None()
+    return SystemData.Settings.GameOptions.SHOWNAMES_NONE
+end
+
+function Constants.Settings.ShowNames.Approaching()
+    return SystemData.Settings.GameOptions.SHOWNAMES_APPROACHING
+end
+
+function Constants.Settings.ShowNames.All()
+    return SystemData.Settings.GameOptions.SHOWNAMES_ALL
+end
+
 ---@class DataEvent
 ---@field getType fun(): integer
 ---@field getEvent fun(): integer
@@ -2976,6 +3063,34 @@ Constants.SystemEvents.OnUpdateProcessed = {
         return SystemData.Events["UPDATE_PROCESSED"]
     end,
     name = "OnUpdateProcessed"
+}
+
+Constants.SystemEvents.OnKeyRecorded = {
+    getEvent = function()
+        return SystemData.Events.INTERFACE_KEY_RECORDED
+    end,
+    name = "OnKeyRecorded"
+}
+
+Constants.SystemEvents.OnKeyCancelRecord = {
+    getEvent = function()
+        return SystemData.Events.INTERFACE_KEY_CANCEL_RECORD
+    end,
+    name = "OnKeyCancelRecord"
+}
+
+Constants.SystemEvents.OnUserSettingsUpdated = {
+    getEvent = function()
+        return SystemData.Events.USER_SETTINGS_UPDATED
+    end,
+    name = "OnUserSettingsUpdated"
+}
+
+Constants.SystemEvents.OnToggleUserPreference = {
+    getEvent = function()
+        return SystemData.Events.TOGGLE_USER_PREFERENCE
+    end,
+    name = "OnToggleUserPreference"
 }
 
 Constants.CoreEvents = {}
@@ -3783,6 +3898,201 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
+-- Data - Settings
+-- ========================================================================== --
+
+---@class SettingsWrapper
+local SettingsData = {}
+SettingsData.__index = SettingsData
+
+function SettingsData:new()
+    return setmetatable({}, self)
+end
+
+-- Resolution / Graphics
+---@return boolean
+function SettingsData:getUseFullScreen()    return SystemData.Settings.Resolution.useFullScreen end
+function SettingsData:setUseFullScreen(v)   SystemData.Settings.Resolution.useFullScreen = v end
+
+---@return number gamma value 0-1
+function SettingsData:getGamma()            return SystemData.Settings.Resolution.gamma end
+function SettingsData:setGamma(v)           SystemData.Settings.Resolution.gamma = v end
+
+---@return boolean
+function SettingsData:getShowShadows()      return SystemData.Settings.Resolution.showShadows end
+function SettingsData:setShowShadows(v)     SystemData.Settings.Resolution.showShadows = v end
+
+---@return boolean
+function SettingsData:getEnableVSync()      return SystemData.Settings.Resolution.enableVSync end
+function SettingsData:setEnableVSync(v)     SystemData.Settings.Resolution.enableVSync = v end
+
+---@return boolean
+function SettingsData:getShowWindowFrame()  return SystemData.Settings.Resolution.showWindowFrame end
+function SettingsData:setShowWindowFrame(v) SystemData.Settings.Resolution.showWindowFrame = v end
+
+---@return boolean
+function SettingsData:getDisplayFoliage()   return SystemData.Settings.Resolution.displayFoliage end
+function SettingsData:setDisplayFoliage(v)  SystemData.Settings.Resolution.displayFoliage = v end
+
+---@return integer max framerate
+function SettingsData:getFramerateMax()     return SystemData.Settings.Resolution.framerateMax end
+function SettingsData:setFramerateMax(v)    SystemData.Settings.Resolution.framerateMax = v end
+
+-- Sound
+---@return boolean
+function SettingsData:getMasterEnabled()    return SystemData.Settings.Sound.master.enabled end
+function SettingsData:setMasterEnabled(v)   SystemData.Settings.Sound.master.enabled = v end
+
+---@return integer 0-100
+function SettingsData:getMasterVolume()     return SystemData.Settings.Sound.master.volume end
+function SettingsData:setMasterVolume(v)    SystemData.Settings.Sound.master.volume = v end
+
+---@return boolean
+function SettingsData:getEffectsEnabled()   return SystemData.Settings.Sound.effects.enabled end
+function SettingsData:setEffectsEnabled(v)  SystemData.Settings.Sound.effects.enabled = v end
+
+---@return integer 0-100
+function SettingsData:getEffectsVolume()    return SystemData.Settings.Sound.effects.volume end
+function SettingsData:setEffectsVolume(v)   SystemData.Settings.Sound.effects.volume = v end
+
+---@return boolean
+function SettingsData:getMusicEnabled()     return SystemData.Settings.Sound.music.enabled end
+function SettingsData:setMusicEnabled(v)    SystemData.Settings.Sound.music.enabled = v end
+
+---@return integer 0-100
+function SettingsData:getMusicVolume()      return SystemData.Settings.Sound.music.volume end
+function SettingsData:setMusicVolume(v)     SystemData.Settings.Sound.music.volume = v end
+
+---@return boolean
+function SettingsData:getFootsteps()        return SystemData.Settings.Sound.footsteps.enabled end
+function SettingsData:setFootsteps(v)       SystemData.Settings.Sound.footsteps.enabled = v end
+
+-- GameOptions
+---@return boolean
+function SettingsData:getAlwaysRun()        return SystemData.Settings.GameOptions.alwaysRun end
+function SettingsData:setAlwaysRun(v)       SystemData.Settings.GameOptions.alwaysRun = v end
+
+---@return boolean
+function SettingsData:getEnableAutorun()    return SystemData.Settings.GameOptions.enableAutorun end
+function SettingsData:setEnableAutorun(v)   SystemData.Settings.GameOptions.enableAutorun = v end
+
+---@return boolean
+function SettingsData:getEnablePathfinding() return SystemData.Settings.GameOptions.enablePathfinding end
+function SettingsData:setEnablePathfinding(v) SystemData.Settings.GameOptions.enablePathfinding = v end
+
+---@return boolean
+function SettingsData:getQueryBeforeCriminal() return SystemData.Settings.GameOptions.queryBeforeCriminalAction end
+function SettingsData:setQueryBeforeCriminal(v) SystemData.Settings.GameOptions.queryBeforeCriminalAction = v end
+
+---@return boolean
+function SettingsData:getIgnoreMouseOnSelf() return SystemData.Settings.GameOptions.ignoreMouseActionsOnSelf end
+function SettingsData:setIgnoreMouseOnSelf(v) SystemData.Settings.GameOptions.ignoreMouseActionsOnSelf = v end
+
+---@return boolean
+function SettingsData:getHoldShiftToUnstack() return SystemData.Settings.GameOptions.holdShiftToUnstack end
+function SettingsData:setHoldShiftToUnstack(v) SystemData.Settings.GameOptions.holdShiftToUnstack = v end
+
+---@return boolean
+function SettingsData:getShiftRightClick()  return SystemData.Settings.GameOptions.shiftRightClickContextMenus end
+function SettingsData:setShiftRightClick(v) SystemData.Settings.GameOptions.shiftRightClickContextMenus = v end
+
+---@return boolean
+function SettingsData:getTargetQueueing()   return SystemData.Settings.GameOptions.targetQueueing end
+function SettingsData:setTargetQueueing(v)  SystemData.Settings.GameOptions.targetQueueing = v end
+
+---@return boolean
+function SettingsData:getAlwaysAttack()     return SystemData.Settings.GameOptions.alwaysAttack end
+function SettingsData:setAlwaysAttack(v)    SystemData.Settings.GameOptions.alwaysAttack = v end
+
+---@return boolean
+function SettingsData:getShowCorpseNames()  return SystemData.Settings.GameOptions.showCorpseNames end
+function SettingsData:setShowCorpseNames(v) SystemData.Settings.GameOptions.showCorpseNames = v end
+
+---@return boolean
+function SettingsData:getEnableChatLog()    return SystemData.Settings.GameOptions.enableChatLog end
+function SettingsData:setEnableChatLog(v)   SystemData.Settings.GameOptions.enableChatLog = v end
+
+---@return boolean
+function SettingsData:getNoWarOnPets()      return SystemData.Settings.GameOptions.noWarOnPets end
+function SettingsData:setNoWarOnPets(v)     SystemData.Settings.GameOptions.noWarOnPets = v end
+
+---@return boolean
+function SettingsData:getNoWarOnParty()     return SystemData.Settings.GameOptions.noWarOnParty end
+function SettingsData:setNoWarOnParty(v)    SystemData.Settings.GameOptions.noWarOnParty = v end
+
+---@return boolean
+function SettingsData:getCircleOfTrans()    return SystemData.Settings.GameOptions.circleOfTransEnabled end
+function SettingsData:setCircleOfTrans(v)   SystemData.Settings.GameOptions.circleOfTransEnabled = v end
+
+---@return boolean
+function SettingsData:getLegacyTargeting()  return SystemData.Settings.GameOptions.legacyTargeting end
+function SettingsData:setLegacyTargeting(v) SystemData.Settings.GameOptions.legacyTargeting = v end
+
+---@return boolean
+function SettingsData:getShowStrLabel()     return SystemData.Settings.GameOptions.showStrLabel end
+function SettingsData:setShowStrLabel(v)    SystemData.Settings.GameOptions.showStrLabel = v end
+
+---@return integer show-names engine constant
+function SettingsData:getShowNames()        return SystemData.Settings.GameOptions.showNames end
+function SettingsData:setShowNames(v)       SystemData.Settings.GameOptions.showNames = v end
+
+-- Interface
+---@return boolean
+function SettingsData:getShowTooltips()     return SystemData.Settings.Interface.showTooltips end
+function SettingsData:setShowTooltips(v)    SystemData.Settings.Interface.showTooltips = v end
+
+---@return boolean
+function SettingsData:getOverheadChat()     return SystemData.Settings.Interface.OverheadChat end
+function SettingsData:setOverheadChat(v)    SystemData.Settings.Interface.OverheadChat = v end
+
+---@return integer 1-5 seconds
+function SettingsData:getOverheadChatFadeDelay() return SystemData.Settings.Interface.OverheadChatFadeDelay end
+function SettingsData:setOverheadChatFadeDelay(v) SystemData.Settings.Interface.OverheadChatFadeDelay = v end
+
+---@return boolean
+function SettingsData:getPartyInvitePopUp() return SystemData.Settings.Interface.partyInvitePopUp end
+function SettingsData:setPartyInvitePopUp(v) SystemData.Settings.Interface.partyInvitePopUp = v end
+
+---@return boolean
+function SettingsData:getLegacyContainers() return SystemData.Settings.Interface.LegacyContainers end
+function SettingsData:setLegacyContainers(v) SystemData.Settings.Interface.LegacyContainers = v end
+
+---@return boolean
+function SettingsData:getLegacyPaperdolls() return SystemData.Settings.Interface.LegacyPaperdolls end
+function SettingsData:setLegacyPaperdolls(v) SystemData.Settings.Interface.LegacyPaperdolls = v end
+
+---@return boolean
+function SettingsData:getLegacyChat()       return SystemData.Settings.Interface.LegacyChat end
+function SettingsData:setLegacyChat(v)      SystemData.Settings.Interface.LegacyChat = v end
+
+---@return number scale 0.5-2.0
+function SettingsData:getCustomUiScale()    return SystemData.Settings.Interface.customUiScale end
+function SettingsData:setCustomUiScale(v)   SystemData.Settings.Interface.customUiScale = v end
+
+-- Profanity
+---@return boolean
+function SettingsData:getBadWordFilter()    return SystemData.Settings.Profanity.BadWordFilter end
+function SettingsData:setBadWordFilter(v)   SystemData.Settings.Profanity.BadWordFilter = v end
+
+---@return boolean
+function SettingsData:getIgnoreListFilter() return SystemData.Settings.Profanity.IgnoreListFilter end
+function SettingsData:setIgnoreListFilter(v) SystemData.Settings.Profanity.IgnoreListFilter = v end
+
+---@return boolean
+function SettingsData:getIgnoreConfFilter() return SystemData.Settings.Profanity.IgnoreConfListFilter end
+function SettingsData:setIgnoreConfFilter(v) SystemData.Settings.Profanity.IgnoreConfListFilter = v end
+
+-- Optimization
+---@return boolean
+function SettingsData:getIdleAnimation()    return SystemData.Settings.Optimization.idleAnimation end
+function SettingsData:setIdleAnimation(v)   SystemData.Settings.Optimization.idleAnimation = v end
+
+---@return SettingsWrapper
+function Data.Settings()
+    return SettingsData:new()
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 
@@ -4063,6 +4373,15 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 ---@class DefaultObjectHandleComponent : DefaultComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
+
+---@class DefaultSettingsWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field ToggleSettingsWindow fun()
+
+---@class DefaultSettingsWindowComponent : DefaultComponent
+local DefaultSettingsWindowComponent = {}
+DefaultSettingsWindowComponent.__index = DefaultSettingsWindowComponent
 
 
 ---@class CircleImageModel : ViewModel
@@ -4839,6 +5158,29 @@ function DefaultObjectHandleComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Settings Window
+-- ========================================================================== --
+
+---@return DefaultSettingsWindowComponent
+function DefaultSettingsWindowComponent:new()
+    local instance = DefaultComponent.new(self, "SettingsWindow") --[[@as DefaultSettingsWindowComponent]]
+    instance._proxy = instance:_createProxy(SettingsWindow)
+    instance._globalKey = "SettingsWindow"
+    _G.SettingsWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultSettingsWindow
+function DefaultSettingsWindowComponent:getDefault()
+    return self._proxy or SettingsWindow --[[@as DefaultSettingsWindow]]
+end
+
+---@return Window
+function DefaultSettingsWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Default - Status Window
 -- ========================================================================== --
 
@@ -5537,6 +5879,30 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnKeyRecorded()
+    withActiveView("OnKeyRecorded", function(window)
+        window:onKeyRecorded()
+    end)
+end
+
+function EventHandler.OnKeyCancelRecord()
+    withActiveView("OnKeyCancelRecord", function(window)
+        window:onKeyCancelRecord()
+    end)
+end
+
+function EventHandler.OnUserSettingsUpdated()
+    withActiveView("OnUserSettingsUpdated", function(window)
+        window:onUserSettingsUpdated()
+    end)
+end
+
+function EventHandler.OnToggleUserPreference()
+    withActiveView("OnToggleUserPreference", function(window)
+        window:onToggleUserPreference()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6104,6 +6470,32 @@ function View:onKeyEscape()
         return true
     end
     return false
+end
+
+function View:onKeyRecorded()
+    if self._model.OnKeyRecorded ~= nil then
+        self._model.OnKeyRecorded(self)
+        return true
+    end
+    return false
+end
+
+function View:onKeyCancelRecord()
+    if self._model.OnKeyCancelRecord ~= nil then
+        self._model.OnKeyCancelRecord(self)
+    end
+end
+
+function View:onUserSettingsUpdated()
+    if self._model.OnUserSettingsUpdated ~= nil then
+        self._model.OnUserSettingsUpdated(self)
+    end
+end
+
+function View:onToggleUserPreference()
+    if self._model.OnToggleUserPreference ~= nil then
+        self._model.OnToggleUserPreference(self)
+    end
 end
 
 function View:getId()
@@ -6746,6 +7138,7 @@ setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
+setmetatable(DefaultSettingsWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
 setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
 setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
@@ -6760,6 +7153,7 @@ Components.Defaults.WarShield = DefaultWarShieldComponent:new()
 Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
 Components.Defaults.Interface = DefaultInterfaceComponent:new()
 Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
+Components.Defaults.SettingsWindow = DefaultSettingsWindowComponent:new()
 Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
 Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
 Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
