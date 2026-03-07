@@ -200,5 +200,56 @@
       <Button name="MongbatCheckBox" inherits="UO_Default_Check_Button">
       </Button>
 
+      <HorizontalScrollWindow name="MongbatHorizontalScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" linewidth="50" autoHideScrollBar="true">
+        <Windows>
+          <Window name="$parentChild">
+            <Windows>
+              <Window name="$parentCont">
+                <Size>
+                  <AbsPoint x="0" y="0" />
+                </Size>
+              </Window>
+            </Windows>
+          </Window>
+          <HorizontalScrollbar name="$parentScrollbar" inherits="StandardHorizScroll" />
+        </Windows>
+      </HorizontalScrollWindow>
+
+      <AnimatedImage name="MongbatAnimatedImage" fps="10" movable="false" handleinput="false" layer="popup">
+          <Size>
+              <AbsPoint x="48" y="48" />
+          </Size>
+      </AnimatedImage>
+
+      <Button name="MongbatActionButton" inherits="ActionButtonDef" sticky="false">
+          <Size>
+              <AbsPoint x="50" y="50" />
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnLButtonDown" function="Mongbat.EventHandler.OnLButtonDown"/>
+              <EventHandler event="OnLButtonUp" function="Mongbat.EventHandler.OnLButtonUp"/>
+              <EventHandler event="OnRButtonUp" function="Mongbat.EventHandler.OnRButtonUp"/>
+              <EventHandler event="OnMouseOver" function="Mongbat.EventHandler.OnMouseOver"/>
+              <EventHandler event="OnMouseOverEnd" function="Mongbat.EventHandler.OnMouseOverEnd"/>
+          </EventHandlers>
+      </Button>
+
+      <AnimatedImage name="MongbatCooldownDisplay" inherits="CooldownEffect" handleinput="false" layer="popup">
+          <Size>
+              <AbsPoint x="48" y="48" />
+          </Size>
+          <Anchors>
+              <Anchor point="center" relativePoint="center">
+                  <AbsPoint x="0" y="0" />
+              </Anchor>
+          </Anchors>
+      </AnimatedImage>
+
+      <PageWindow name="MongbatPageWindow">
+          <Size>
+              <AbsPoint x="400" y="300" />
+          </Size>
+      </PageWindow>
+
     </Windows>
 </Interface>
