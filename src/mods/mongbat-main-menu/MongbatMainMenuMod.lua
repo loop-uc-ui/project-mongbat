@@ -1,11 +1,14 @@
+local Api = Mongbat.Api
+local Components = Mongbat.Components
+
 Mongbat.Mod {
     Name = "MongbatMainMenu",
     Path = "/src/mods/mongbat-main-menu",
-    OnInitialize = function (context)
-        local default = context.Components.Defaults.MainMenuWindow:asComponent()
+    OnInitialize = function ()
+        local default = Components.Defaults.MainMenuWindow:asComponent()
 
         local function Button(text, onLButtonUp)
-            return context.Components.Button {
+            return Components.Button {
                 OnInitialize = function (self)
                     self:setText(text)
                 end,
@@ -14,7 +17,7 @@ Mongbat.Mod {
         end
 
         local function Window ()
-            return context.Components.Window {
+            return Components.Window {
                 Name = default:getName(),
                 Resizable = false,
                 OnInitialize = function (self)
@@ -24,47 +27,47 @@ Mongbat.Mod {
                         Button(
                             3000128,
                             function ()
-                                context.Api.Event.Logout()
+                                Api.Event.Logout()
                             end
                         ),
                         Button(
                             1077859,
                             function ()
-                                context.Api.Event.ExitGame()
+                                Api.Event.ExitGame()
                             end
                         ),
                         Button(
                             L"Settings",
                             function ()
-                                context.Api.Window.ToggleWindow("SettingsWindow")
+                                Api.Window.ToggleWindow("SettingsWindow")
                                 self:setShowing(false)
                             end
                         ),
                         Button(
                             L"Store",
                             function ()
-                                context.Api.Event.OpenStore()
+                                Api.Event.OpenStore()
                                 self:setShowing(false)
                             end
                         ),
                         Button(
                             L"Agents",
                             function ()
-                                context.Api.Window.ToggleWindow("OrganizerWindow")
+                                Api.Window.ToggleWindow("OrganizerWindow")
                                 self:setShowing(false)
                             end
                         ),
                         Button(
                             3000172,
                             function ()
-                                context.Api.Window.ToggleWindow("MacroWindow")
+                                Api.Window.ToggleWindow("MacroWindow")
                                 self:setShowing(false)
                             end
                         ),
                         Button(
                             1079812,
                             function ()
-                                context.Api.Window.ToggleWindow("ActionsWindow")
+                                Api.Window.ToggleWindow("ActionsWindow")
                                 self:setShowing(false)
                             end
                         ),
@@ -77,7 +80,7 @@ Mongbat.Mod {
                         Button(
                             L"Debug",
                             function ()
-                                context.Api.Window.ToggleWindow("MongbatDebugWindow")
+                                Api.Window.ToggleWindow("MongbatDebugWindow")
                                 self:setShowing(false)
                             end
                         )
@@ -92,8 +95,8 @@ Mongbat.Mod {
         default:destroy()
         Window():create(false)
     end,
-    OnShutdown = function (context)
-        local default = context.Components.Defaults.MainMenuWindow:asComponent()
+    OnShutdown = function ()
+        local default = Components.Defaults.MainMenuWindow:asComponent()
         default:destroy()
     end
 }
