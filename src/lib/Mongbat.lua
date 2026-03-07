@@ -437,6 +437,16 @@ function Api.CSV.Unload(name)
     UOUnloadCSVTable(name)
 end
 
+---
+--- Gets the row ID with a specific column value from a loaded CSV data table.
+---@param dataTable table The loaded CSV data table (e.g. WindowData.BuffDataCSV).
+---@param columnName string The column name to search.
+---@param value any The value to match.
+---@return number|nil The row ID, or nil if not found.
+function Api.CSV.GetRowWithColumnValue(dataTable, columnName, value)
+    return CSVUtilities.getRowIdWithColumnValue(dataTable, columnName, value)
+end
+
 -- ========================================================================== --
 -- Api - Drag
 -- ========================================================================== --
@@ -1467,6 +1477,14 @@ end
 ---@return string The string.
 function Api.String.WStringToString(wString)
     return WStringToString(wString)
+end
+
+---
+--- Translates markup tags in a wstring to the engine's display format.
+---@param wStr wstring The wstring containing markup to translate.
+---@return wstring The translated wstring.
+function Api.String.TranslateMarkup(wStr)
+    return WindowUtils.translateMarkup(wStr)
 end
 
 -- ========================================================================== --
@@ -2942,6 +2960,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateBuffDebuff = DataEvent(WindowData.BuffDebuff, "OnUpdateBuffDebuff")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3783,6 +3802,119 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
+-- Data - BuffDebuff
+-- ========================================================================== --
+
+---@class BuffDebuffWrapper
+local BuffDebuffWrapper = {}
+BuffDebuffWrapper.__index = BuffDebuffWrapper
+
+function BuffDebuffWrapper:new()
+    return setmetatable({}, self)
+end
+
+---@return table|nil Raw WindowData.BuffDebuffSystem table
+function BuffDebuffWrapper:getSystemData()
+    return WindowData.BuffDebuffSystem
+end
+
+---@return table|nil Raw WindowData.BuffDebuff table
+function BuffDebuffWrapper:getBuffData()
+    return WindowData.BuffDebuff
+end
+
+---@return integer The current buff/debuff ability ID being processed
+function BuffDebuffWrapper:getCurrentBuffId()
+    local system = self:getSystemData()
+    if system then
+        return system.CurrentBuffId or 0
+    end
+    return 0
+end
+
+---@return boolean Whether this buff is being removed
+function BuffDebuffWrapper:isBeingRemoved()
+    local data = self:getBuffData()
+    if data then
+        return data.IsBeingRemoved or false
+    end
+    return false
+end
+
+---@return number Timer duration in seconds (0 if no timer)
+function BuffDebuffWrapper:getTimerSeconds()
+    local data = self:getBuffData()
+    if data then
+        return data.TimerSeconds or 0
+    end
+    return 0
+end
+
+---@return boolean Whether this buff has a timer
+function BuffDebuffWrapper:hasTimer()
+    local data = self:getBuffData()
+    if data then
+        return data.HasTimer or false
+    end
+    return false
+end
+
+---@return integer Number of name wstrings in the vector
+function BuffDebuffWrapper:getNameVectorSize()
+    local data = self:getBuffData()
+    if data then
+        return data.NameVectorSize or 0
+    end
+    return 0
+end
+
+---@return integer Number of tooltip wstrings in the vector
+function BuffDebuffWrapper:getTooltipVectorSize()
+    local data = self:getBuffData()
+    if data then
+        return data.ToolTipVectorSize or 0
+    end
+    return 0
+end
+
+---@return table Array of wstring name parts
+function BuffDebuffWrapper:getNameVector()
+    local data = self:getBuffData()
+    if data then
+        return data.NameWStringVector or {}
+    end
+    return {}
+end
+
+---@return table Array of wstring tooltip parts
+function BuffDebuffWrapper:getTooltipVector()
+    local data = self:getBuffData()
+    if data then
+        return data.ToolTipWStringVector or {}
+    end
+    return {}
+end
+
+---@param buffId integer The buff ability ID to look up
+---@return string|nil, integer, integer The texture name and UV coordinates (or nil, 0, 0 if not found)
+function BuffDebuffWrapper:getIconTexture(buffId)
+    if not self:getBuffData() then return nil, 0, 0 end
+    if not WindowData.BuffDataCSV then return nil, 0, 0 end
+    local rowNum = Api.CSV.GetRowWithColumnValue(WindowData.BuffDataCSV, "ServerId", buffId)
+    if not rowNum then return nil, 0, 0 end
+    local rowData = WindowData.BuffDataCSV[rowNum]
+    if not rowData or not rowData.IconId then return nil, 0, 0 end
+    local textureId = tonumber(rowData.IconId)
+    if not textureId or textureId == -1 then return nil, 0, 0 end
+    return Api.Icon.GetIconData(textureId)
+end
+
+---@return BuffDebuffWrapper
+function Data.BuffDebuff()
+    return BuffDebuffWrapper:new()
+end
+
+-- ========================================================================== --
 -- Data - Radar
 -- ========================================================================== --
 
@@ -4064,6 +4196,27 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
+---@class DefaultBuffDebuff
+---@field Good table<integer, boolean>
+---@field Neutral table<integer, boolean>
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field ShouldCreateNewBuff fun()
+
+---@class DefaultBuffDebuffComponent : DefaultComponent
+local DefaultBuffDebuffComponent = {}
+DefaultBuffDebuffComponent.__index = DefaultBuffDebuffComponent
+
+---@class DefaultAdvancedBuff
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field WindowNameGood string
+---@field WindowNameEvil string
+
+---@class DefaultAdvancedBuffComponent : DefaultComponent
+local DefaultAdvancedBuffComponent = {}
+DefaultAdvancedBuffComponent.__index = DefaultAdvancedBuffComponent
+
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4093,6 +4246,7 @@ Component.__index = Component
 ---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: DynamicImage, paperdoll: PaperdollWrapper)?
+---@field OnUpdateBuffDebuff fun(self: DynamicImage, buffDebuff: BuffDebuffWrapper)?
 
 ---@class DynamicImage: View
 local DynamicImage = {}
@@ -4146,6 +4300,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
+---@field OnUpdateBuffDebuff fun(self: Window, buffDebuff: BuffDebuffWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4165,6 +4320,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
+---@field OnUpdateBuffDebuff fun(self: Label, buffDebuff: BuffDebuffWrapper)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -4223,6 +4379,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
+---@field OnUpdateBuffDebuff fun(self: View, buffDebuff: BuffDebuffWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4816,8 +4973,50 @@ function DefaultDebugWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
--- Components - Default - Object Handle
+-- Components - Default - BuffDebuff
 -- ========================================================================== --
+
+---@return DefaultBuffDebuffComponent
+function DefaultBuffDebuffComponent:new()
+    local instance = DefaultComponent.new(self, "BuffDebuff") --[[@as DefaultBuffDebuffComponent]]
+    instance._proxy = instance:_createProxy(BuffDebuff)
+    instance._globalKey = "BuffDebuff"
+    _G.BuffDebuff = instance._proxy
+    return instance
+end
+
+---@return DefaultBuffDebuff
+function DefaultBuffDebuffComponent:getDefault()
+    return self._proxy or BuffDebuff --[[@as DefaultBuffDebuff]]
+end
+
+---@return Window
+function DefaultBuffDebuffComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
+-- Components - Default - AdvancedBuff
+-- ========================================================================== --
+
+---@return DefaultAdvancedBuffComponent
+function DefaultAdvancedBuffComponent:new()
+    local instance = DefaultComponent.new(self, "AdvancedBuff") --[[@as DefaultAdvancedBuffComponent]]
+    instance._proxy = instance:_createProxy(AdvancedBuff)
+    instance._globalKey = "AdvancedBuff"
+    _G.AdvancedBuff = instance._proxy
+    return instance
+end
+
+---@return DefaultAdvancedBuff
+function DefaultAdvancedBuffComponent:getDefault()
+    return self._proxy or AdvancedBuff --[[@as DefaultAdvancedBuff]]
+end
+
+---@return Window
+function DefaultAdvancedBuffComponent:asComponent()
+    return Window:new { Name = self.name }
+end
 
 ---@return DefaultObjectHandleComponent
 function DefaultObjectHandleComponent:new()
@@ -5471,6 +5670,12 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdateBuffDebuff()
+    withActiveView("OnUpdateBuffDebuff", function(window)
+        window:onUpdateBuffDebuff()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -6033,6 +6238,14 @@ function View:onUpdatePaperdoll()
     return false
 end
 
+function View:onUpdateBuffDebuff()
+    if self._model.OnUpdateBuffDebuff ~= nil then
+        self._model.OnUpdateBuffDebuff(self, Data.BuffDebuff())
+        return true
+    end
+    return false
+end
+
 function View:onLButtonDblClk(flags, x, y)
     if self._model.OnLButtonDblClk ~= nil then
         self._model.OnLButtonDblClk(self, flags, x, y)
@@ -6124,7 +6337,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateBuffDebuff
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -6139,7 +6353,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateBuffDebuff
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -6752,6 +6967,8 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultBuffDebuffComponent, { __index = DefaultComponent })
+setmetatable(DefaultAdvancedBuffComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6983,8 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.BuffDebuff = DefaultBuffDebuffComponent:new()
+Components.Defaults.AdvancedBuff = DefaultAdvancedBuffComponent:new()
 
 -- ========================================================================== --
 -- Mod
@@ -6927,7 +7146,8 @@ local mod = Mod:new {
         local register = {
             Constants.DataEvents.OnUpdatePlayerStatus,
             Constants.DataEvents.OnUpdateRadar,
-            Constants.DataEvents.OnUpdatePlayerLocation
+            Constants.DataEvents.OnUpdatePlayerLocation,
+            Constants.DataEvents.OnUpdateBuffDebuff
         }
 
         Utils.Array.ForEach(
@@ -6948,6 +7168,7 @@ local mod = Mod:new {
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+        Api.Window.UnregisterData(Constants.DataEvents.OnUpdateBuffDebuff.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
             "Mongbat.EventHandler.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
