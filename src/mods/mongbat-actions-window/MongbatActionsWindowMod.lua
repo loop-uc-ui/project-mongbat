@@ -40,9 +40,8 @@ end
 ---
 --- Gets the display name wstring for an action data entry.
 ---@param actionData table  Entry from ActionsWindow.ActionData
----@param Api table
 ---@return wstring
-local function getActionName(actionData, Api)
+local function getActionName(actionData)
     if actionData.nameTid then
         return Api.String.GetStringFromTid(actionData.nameTid)
     elseif actionData.nameString then
@@ -54,9 +53,8 @@ end
 ---
 --- Gets the display description wstring for an action data entry.
 ---@param actionData table  Entry from ActionsWindow.ActionData
----@param Api table
 ---@return wstring
-local function getActionDesc(actionData, Api)
+local function getActionDesc(actionData)
     if actionData.detailTid then
         return Api.String.GetStringFromTid(actionData.detailTid)
     elseif actionData.detailString then
@@ -66,11 +64,6 @@ local function getActionDesc(actionData, Api)
 end
 
 local function OnInitialize()
-    local Api        = Api
-    local Constants  = Constants
-    local Components = Components
-    local Utils      = Utils
-
     -- Suppress the default ActionsWindow
     local actionsWindowDefault = Components.Defaults.ActionsWindow
     actionsWindowDefault:disable()
@@ -92,11 +85,11 @@ local function OnInitialize()
             Utils.Table.ForEach(group.index, function(_, idx)
                 local ad = actionData[idx]
                 if ad and ad.inActionWindow == true then
-                    items[#items + 1] = {
+                    Utils.Array.Add(items, {
                         index = idx,
                         data  = ad,
-                        name  = getActionName(ad, Api),
-                    }
+                        name  = getActionName(ad),
+                    })
                 end
             end)
         end
@@ -255,8 +248,8 @@ local function OnInitialize()
                 local ad  = item.data
                 local idx = item.index
 
-                local name = getActionName(ad, Api)
-                local desc = getActionDesc(ad, Api)
+                local name = getActionName(ad)
+                local desc = getActionDesc(ad)
 
                 local itemId = idx
                 if ad.type == Constants.UserAction.TypeInvokeVirtue() then
@@ -491,8 +484,8 @@ local function OnInitialize()
         prevPageBtn, pageLabel, nextPageBtn,
     }
     for i = 1, ITEMS_PER_PAGE do
-        windowChildren[#windowChildren + 1] = iconSlots[i]
-        windowChildren[#windowChildren + 1] = labelSlots[i]
+        Utils.Array.Add(windowChildren, iconSlots[i])
+        Utils.Array.Add(windowChildren, labelSlots[i])
     end
 
     Components.Window {
