@@ -1,4 +1,9 @@
 local NAME = "MongbatActionsWindow"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- Layout constants
 local WINDOW_WIDTH    = 340
@@ -60,12 +65,11 @@ local function getActionDesc(actionData, Api)
     return L""
 end
 
----@param context Context
-local function OnInitialize(context)
-    local Api        = context.Api
-    local Constants  = context.Constants
-    local Components = context.Components
-    local Utils      = context.Utils
+local function OnInitialize()
+    local Api        = Api
+    local Constants  = Constants
+    local Components = Components
+    local Utils      = Utils
 
     -- Suppress the default ActionsWindow
     local actionsWindowDefault = Components.Defaults.ActionsWindow
@@ -416,37 +420,37 @@ local function OnInitialize(context)
         local pad   = PADDING
 
         if index == IDX_FILTER then
-            -- Search filter input – top, full width
+            -- Search filter input â€“ top, full width
             child:addAnchor("topleft", wName, "topleft", pad, pad)
             child:setDimensions(WINDOW_WIDTH - pad * 2, FILTER_H)
 
         elseif index == IDX_PREV_CAT then
-            -- Category prev button – below filter, left
+            -- Category prev button â€“ below filter, left
             child:addAnchor("topleft", children[IDX_FILTER]:getName(), "bottomleft", 0, BUTTON_SPACING)
             child:setDimensions(28, HEADER_H)
 
         elseif index == IDX_CAT_LABEL then
-            -- Category label – to the right of prev button
+            -- Category label â€“ to the right of prev button
             child:addAnchor("topleft", children[IDX_PREV_CAT]:getName(), "topright", BUTTON_SPACING, 0)
             child:setDimensions(WINDOW_WIDTH - 28 * 2 - pad * 2, HEADER_H)
 
         elseif index == IDX_NEXT_CAT then
-            -- Category next button – to the right of category label
+            -- Category next button â€“ to the right of category label
             child:addAnchor("topleft", children[IDX_CAT_LABEL]:getName(), "topright", BUTTON_SPACING, 0)
             child:setDimensions(28, HEADER_H)
 
         elseif index == IDX_PREV_PAGE then
-            -- Page prev button – bottom-left of window
+            -- Page prev button â€“ bottom-left of window
             child:addAnchor("bottomleft", wName, "bottomleft", pad, -pad)
             child:setDimensions(64, NAV_H)
 
         elseif index == IDX_PAGE_LABEL then
-            -- Page label – to the right of prev-page button
+            -- Page label â€“ to the right of prev-page button
             child:addAnchor("bottomleft", children[IDX_PREV_PAGE]:getName(), "bottomright", BUTTON_SPACING, 0)
             child:setDimensions(WINDOW_WIDTH - 64 * 2 - pad * 2, NAV_H)
 
         elseif index == IDX_NEXT_PAGE then
-            -- Page next button – to the right of page label
+            -- Page next button â€“ to the right of page label
             child:addAnchor("bottomleft", children[IDX_PAGE_LABEL]:getName(), "bottomright", BUTTON_SPACING, 0)
             child:setDimensions(64, NAV_H)
 
@@ -508,10 +512,9 @@ local function OnInitialize(context)
     refreshSlots()
 end
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
-    context.Components.Defaults.ActionsWindow:restore()
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    Components.Defaults.ActionsWindow:restore()
 end
 
 Mongbat.Mod {
