@@ -1,5 +1,10 @@
 local NAME_GOOD = "MongbatBuffBarGood"
 local NAME_EVIL = "MongbatBuffBarEvil"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- Persistence keys for direction settings
 local KEY_GOOD_DIRECTION = "MongbatBuffBarGoodDirection"
@@ -22,12 +27,11 @@ local MIN_SIZE = ICON_SIZE + PADDING * 2
 local ADVANCED_BUFF_GOOD = "AdvancedBuffGood"
 local ADVANCED_BUFF_EVIL = "AdvancedBuffEvil"
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Components = context.Components
-    local Constants = context.Constants
-    local Utils = context.Utils
+local function OnInitialize()
+    local Api = Api
+    local Components = Components
+    local Constants = Constants
+    local Utils = Utils
 
     -- Suppress default systems
     local buffDebuffDefault = Components.Defaults.BuffDebuff
@@ -67,7 +71,7 @@ local function OnInitialize(context)
 
     -- Get icon texture for a buff from the CSV via the framework wrapper
     local function getBuffTexture(buffId)
-        return context.Data.BuffDebuff():getIconTexture(buffId)
+        return Data.BuffDebuff():getIconTexture(buffId)
     end
 
     -- Format a time in seconds as a readable string
@@ -330,10 +334,9 @@ local function OnInitialize(context)
     evilWindow:create(true)
 end
 
----@param context Context
-local function OnShutdown(context)
-    local Api = context.Api
-    local Components = context.Components
+local function OnShutdown()
+    local Api = Api
+    local Components = Components
 
     Api.Window.Destroy(NAME_GOOD)
     Api.Window.Destroy(NAME_EVIL)
