@@ -152,10 +152,6 @@ local function setDockspotEnabled(dockspot, enabled, mos, api)
 end
 
 local function OnInitialize()
-    local Api = Api
-    local Components = Components
-    local Utils = Utils
-
     local mosDefault = Components.Defaults.MobilesOnScreen
     ---@type DefaultMobilesOnScreen
     local mos = mosDefault:getDefault()
@@ -432,10 +428,6 @@ local function OnInitialize()
 end
 
 local function OnShutdown()
-    local Api = Api
-    local Components = Components
-    local Utils = Utils
-
     local mosDefault = Components.Defaults.MobilesOnScreen
     local mos = mosDefault:getDefault()
 
