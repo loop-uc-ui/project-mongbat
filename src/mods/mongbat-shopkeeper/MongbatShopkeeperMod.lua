@@ -1,4 +1,4 @@
--- ========================================================================== --
+﻿-- ========================================================================== --
 -- MongbatShopkeeperMod
 -- Replaces the default Shopkeeper (buy/sell) window with a clean Mongbat UI.
 -- ========================================================================== --
@@ -65,30 +65,14 @@ local function OnInitialize()
     local sellContainerId   = 0
 
     -- -----------------------------------------------------------------------
-    -- Helper: strip leading quantity from item name wstring
-    -- e.g. "5 gold coins" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ "gold coins"
-    -- -----------------------------------------------------------------------
-    --- @param wStr wstring?
-    --- @return wstring
-    local function stripFirstNumber(wStr)
-        if not wStr then return L"" end
-        local s = Api.String.WStringToString(wStr)
-        if not s or s == "" then return wStr end
-        s = Utils.String.Gsub(s, "^%d+ ", "")
-        return Api.String.StringToWString(s)
-    end
-
-    -- -----------------------------------------------------------------------
     -- Helper: check if an item name matches all current filter patterns
     -- Patterns are plain ASCII lowercased strings.
     -- -----------------------------------------------------------------------
     --- @param name wstring?
     --- @return boolean
     local function matchesFilter(name)
-        if Utils.Table.IsEmpty(filterPatterns) then return true end
-        local lname = Utils.String.Lower(Api.String.WStringToString(name or L""))
         return Utils.Array.Every(filterPatterns, function(pattern)
-            return Utils.String.Find(lname, pattern, 1, true)
+            return Utils.String.Contains(name, pattern, true, true)
         end)
     end
 
@@ -97,29 +81,26 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     --- @return integer
     local function computeTotal()
-        local total = 0
-        Utils.Array.ForEach(items, function(item)
+        return Utils.Array.Reduce(items, function(total, item)
             if item.cartQty > 0 then
-                total = total + item.cartQty * item.price
+                return total + item.cartQty * item.price
             end
-        end)
-        return total
+            return total
+        end, 0)
     end
 
     -- -----------------------------------------------------------------------
     -- Build filtered view of items (indices into items[])
     -- -----------------------------------------------------------------------
     local function getFilteredAvail()
-        return Utils.Array.MapToArray(items, function(item, i)
-            if item.availQty > 0 and item.price > 0 and matchesFilter(item.name) then
-                return i
-            end
+        return Utils.Array.Indices(items, function(item)
+            return item.availQty > 0 and item.price > 0 and matchesFilter(item.name)
         end)
     end
 
     local function getFilteredCart()
-        return Utils.Array.MapToArray(items, function(item, i)
-            if item.cartQty > 0 then return i end
+        return Utils.Array.Indices(items, function(item)
+            return item.cartQty > 0
         end)
     end
 
@@ -190,12 +171,12 @@ local function OnInitialize()
 
         if priceView then
             priceView:setShowing(true)
-            priceView:setText(towstring(item.price) .. L"g")
+            priceView:setText(Utils.String.Concat(item.price, "g"))
         end
 
         if qtyView then
             qtyView:setShowing(true)
-            qtyView:setText(towstring(qty))
+            qtyView:setText(Utils.String.Concat(qty))
         end
 
         if addBtn then
@@ -260,7 +241,7 @@ local function OnInitialize()
         if totalLabel then
             local total = computeTotal()
             local gold  = Data.PlayerStatus():getGold()
-            totalLabel:setText(towstring(total) .. L"/" .. towstring(gold))
+            totalLabel:setText(Utils.String.Concat(total, "/", gold))
         end
     end
 
@@ -290,11 +271,11 @@ local function OnInitialize()
             local price    = objInfo:getShopValue()
             local qty      = objInfo:getShopQuantity()
             local objType  = objInfo:getObjectType()
-            local itemName = L""
+            local itemName = "" ---@type string|wstring
 
             local props = Data.ItemProperties(slot.objectId)
             if props and props.PropertiesList and props.PropertiesList[1] then
-                itemName = stripFirstNumber(props.PropertiesList[1])
+                itemName = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "")
             end
 
             -- Find existing entry to preserve cartQty
@@ -327,7 +308,7 @@ local function OnInitialize()
         Utils.Array.ForEach(shopData:getSellItems(), function(entry)
             Utils.Array.Add(items, {
                 id       = entry.id,
-                name     = stripFirstNumber(entry.name),
+                name     = Utils.String.Replace(entry.name, "^%d+ ", ""),
                 price    = entry.price,
                 totalQty = entry.quantity,
                 availQty = entry.quantity,
@@ -406,7 +387,7 @@ local function OnInitialize()
                 Utils.Array.Add(offerQtys, item.cartQty)
             end
         end)
-        if Utils.Table.IsEmpty(offerIds) then
+        if Utils.Array.IsEmpty(offerIds) then
             Api.Window.Destroy("MongbatShopkeeperWindow")
             return
         end
@@ -515,7 +496,7 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(22, 22)
-                self:setText(isCartPanel and L"All" or L"+")
+                self:setText(isCartPanel and "All" or "+")
                 self:setShowing(false)
             end,
             OnLButtonUp = function(self)
@@ -535,7 +516,7 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(22, 22)
-                self:setText(L"-")
+                self:setText("-")
                 self:setShowing(false)
             end,
             OnLButtonUp = function(self)
@@ -552,7 +533,7 @@ local function OnInitialize()
                 self:setDimensions(PANEL_W - MARGIN * 2, ROW_H)
                 self:setChildren { iconView, nameView, priceView, qtyView, addBtn, remBtn }
             end,
-            OnLayout = function(win, children, child, idx)
+            OnLayout = function(win, _, child, idx)
                 local winName = win:getName()
                 -- Absolute offsets: [icon(28)] [name(110)] [price(50)] [qty(28)] [+btn(22)] [-btn(22)]
                 if idx == 1 then
@@ -594,7 +575,7 @@ local function OnInitialize()
     -- isCartPanel controls button semantics
     -- Returns {panelWindow, rowViews, prevBtn, nextBtn}
     -- -----------------------------------------------------------------------
-    --- @param headerText wstring
+    --- @param headerText string
     --- @param isCartPanel boolean
     --- @return Window panelWindow
     --- @return table[] rowViews Array of ItemRow tables
@@ -627,7 +608,7 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(BTN_W / 2, 22)
-                self:setText(L"< Prev")
+                self:setText("< Prev")
                 self:setShowing(false)
             end,
             OnLButtonUp = function(self)
@@ -649,7 +630,7 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(BTN_W / 2, 22)
-                self:setText(L"Next >")
+                self:setText("Next >")
                 self:setShowing(false)
             end,
             OnLButtonUp = function(self)
@@ -671,7 +652,7 @@ local function OnInitialize()
                 self:setDimensions(PANEL_W, PANEL_H)
                 self:setChildren(children)
             end,
-            OnLayout = function(win, ch, child, idx)
+            OnLayout = function(win, _, child, idx)
                 local winName = win:getName()
                 if idx == 1 then
                     -- Header at top
@@ -718,21 +699,21 @@ local function OnInitialize()
         -- Title text
         local titleText
         if isSelling then
-            titleText = L"Sellable Items"
+            titleText = "Sellable Items"
         else
             -- Try to get the merchant's name
             local mobileName = Data.MobileName(mId)
             local mobData    = mobileName and mobileName:getData()
-            if mobData and mobData.MobName ~= nil and mobData.MobName ~= L"" then
+            if mobData and not Utils.String.IsEmpty(mobData.MobName) then
                 titleText = mobData.MobName
             else
-                titleText = L"NPC Store"
+                titleText = "NPC Store"
             end
         end
 
         -- Available panel
-        local availHdr  = isSelling and L"Sellable" or L"Available"
-        local cartHdr   = isSelling and L"Sell List" or L"Cart"
+        local availHdr  = isSelling and "Sellable" or "Available"
+        local cartHdr   = isSelling and "Sell List" or "Cart"
 
         local availPanel, aRows, aPrev, aNext = Panel(availHdr, false)
         local cartPanel,  cRows, cPrev, cNext = Panel(cartHdr, true)
@@ -758,14 +739,10 @@ local function OnInitialize()
             OnInitialize = function(self)
                 self:setDimensions(PANEL_W - 50, SEARCH_H)
             end,
-            OnKeyEnter = function(self)
-                local text = self:getText()
-                if text and text ~= L"" then
-                    local textStr = Utils.String.Lower(Api.String.WStringToString(text))
-                    local existing = Utils.Array.Find(filterPatterns, function(p) return p == textStr end)
-                    if not existing then
-                        Utils.Array.Add(filterPatterns, textStr)
-                    end
+            OnKeyEnter = function(_)
+                local text = searchBox:getText()
+                if not Utils.String.IsEmpty(text) then
+                    Utils.Array.AddUnique(filterPatterns, Utils.String.Lower(text))
                     availPage = 1
                     refreshAvailPanel()
                 end
@@ -777,12 +754,12 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(44, SEARCH_H)
-                self:setText(L"Clear")
+                self:setText("Clear")
             end,
-            OnLButtonUp = function(self)
+            OnLButtonUp = function(_)
                 filterPatterns = {}
                 if searchBox then
-                    searchBox:setText(L"")
+                    searchBox:setText("")
                 end
                 availPage = 1
                 refreshAvailPanel()
@@ -801,9 +778,9 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(BTN_W, BTN_H)
-                self:setText(isSelling and L"Sell" or L"Buy")
+                self:setText(isSelling and "Sell" or "Buy")
             end,
-            OnLButtonUp = function(self)
+            OnLButtonUp = function(_)
                 acceptOffer()
             end
         }
@@ -813,9 +790,9 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(BTN_W, BTN_H)
-                self:setText(L"Clear")
+                self:setText("Clear")
             end,
-            OnLButtonUp = function(self)
+            OnLButtonUp = function(_)
                 clearCart()
             end
         }
@@ -825,9 +802,9 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self:setDimensions(BTN_W, BTN_H)
-                self:setText(L"Close")
+                self:setText("Close")
             end,
-            OnLButtonUp = function(self)
+            OnLButtonUp = function(_)
                 cancelOffer()
             end
         }
@@ -865,14 +842,14 @@ local function OnInitialize()
                 self:setChildren(children)
                 self:setId(merchantId)
             end,
-            OnUpdatePlayerStatus = function(self, ps)
+            OnUpdatePlayerStatus = function(_, ps)
                 if totalLabel then
                     local total = computeTotal()
                     local gold  = ps:getGold()
-                    totalLabel:setText(towstring(total) .. L"/" .. towstring(gold))
+                    totalLabel:setText(Utils.String.Concat(total, "/", gold))
                 end
             end,
-            OnLayout = function(win, ch, child, idx)
+            OnLayout = function(win, _, child, idx)
                 local winName = win:getName()
                 if idx == IDX_TITLE then
                     child:clearAnchors()
@@ -914,7 +891,7 @@ local function OnInitialize()
                         -MARGIN, -MARGIN)
                 end
             end,
-            OnShutdown = function(self)
+            OnShutdown = function(_)
                 -- Unregister mode-specific data
                 if not isSelling then
                     -- Buy mode: unregister merchant ObjectInfo, container, MobileName, and items
@@ -963,14 +940,14 @@ local function OnInitialize()
         -- when ContainerWindow / ObjectInfo / ItemProperties events fire, so
         -- the framework dispatches them here via Cache["MongbatShopkeeperWindow"].
         if not isSelling then
-            windowModel.OnUpdateContainerWindow = function(self, instanceId, data)
+            windowModel.OnUpdateContainerWindow = function(_, instanceId)
                 if instanceId == sellContainerId then
                     loadBuyItems()
                     refreshAll()
                 end
             end
 
-            windowModel.OnUpdateObjectInfo = function(self, instanceId, objInfo)
+            windowModel.OnUpdateObjectInfo = function(_, instanceId, objInfo)
                 local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
                 if found then
                     local oldCart  = found.cartQty
@@ -985,9 +962,9 @@ local function OnInitialize()
                 refreshAll()
             end
 
-            windowModel.OnUpdateItemProperties = function(self, instanceId, props)
+            windowModel.OnUpdateItemProperties = function(_, instanceId, props)
                 if props and props.PropertiesList and props.PropertiesList[1] then
-                    local name  = stripFirstNumber(props.PropertiesList[1])
+                    local name  = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "")
                     local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
                     if found then
                         found.name = name

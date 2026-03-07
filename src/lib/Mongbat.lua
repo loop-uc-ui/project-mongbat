@@ -2520,6 +2520,36 @@ function Utils.Array.Filter(array, predicate)
     )
 end
 
+---@generic T
+---@param array T[]
+---@param predicate fun(item: T, index: integer): boolean
+---@return integer[]
+function Utils.Array.Indices(array, predicate)
+    return Utils.Array.MapToArray(
+        array,
+        function(item, index)
+            if predicate(item, index) then
+                return index
+            else
+                return nil
+            end
+        end
+    )
+end
+
+---@generic T, R
+---@param array T[]
+---@param reducer fun(accumulator: R, item: T, index: integer): R
+---@param initial R
+---@return R
+function Utils.Array.Reduce(array, reducer, initial)
+    local acc = initial
+    Utils.Array.ForEach(array, function(item, index)
+        acc = reducer(acc, item, index)
+    end)
+    return acc
+end
+
 ---@generic K
 ---@param arrays K[][]
 ---@return K[]
@@ -2647,6 +2677,29 @@ function Utils.Array.Add(array, item, pos)
     else
         table.insert(array, item)
     end
+end
+
+--- Returns true if the array is nil or has no elements.
+---@param array any[]?
+---@return boolean
+function Utils.Array.IsEmpty(array)
+    return not array or #array == 0
+end
+
+--- Adds item to the array only if it is not already present (by == equality).
+--- Returns true if the item was added, false if it was already in the array.
+---@generic T
+---@param array T[]
+---@param item T
+---@return boolean added
+function Utils.Array.AddUnique(array, item)
+    for i = 1, #array do
+        if array[i] == item then
+            return false
+        end
+    end
+    table.insert(array, item)
+    return true
 end
 
 -- ========================================================================== --
@@ -2867,6 +2920,16 @@ function Utils.String.FromWString(text)
     end
 end
 
+--- Returns true if text is nil, empty string "", or empty wstring L"".
+--- @param text string|wstring|nil
+--- @return boolean
+function Utils.String.IsEmpty(text)
+    if text == nil then return true end
+    if text == "" then return true end
+    if text == L"" then return true end
+    return false
+end
+
 function Utils.String.ToWString(text)
     if text == nil then return L"" end
     if type(text) == "number" then
@@ -2881,6 +2944,7 @@ function Utils.String.ToWString(text)
 end
 
 function Utils.String.Lower(text)
+    if text == nil then return "" end
     if type(text) == "string" then
         return string.lower(text)
     elseif type(text) == "wstring" then
@@ -2889,6 +2953,7 @@ function Utils.String.Lower(text)
 end
 
 function Utils.String.Upper(text)
+    if text == nil then return "" end
     if type(text) == "string" then
         return string.upper(text)
     elseif type(text) == "wstring" then
@@ -2896,22 +2961,90 @@ function Utils.String.Upper(text)
     end
 end
 
----@param text string
+--- Substitutes all occurrences of pattern in text.
+--- Accepts string or wstring; returns the same type as the input.
+--- Nil input returns L"".
+---@param text string|wstring|nil
 ---@param pattern string Lua pattern
 ---@param replacement string
----@return string
-function Utils.String.Gsub(text, pattern, replacement)
+---@return string|wstring
+function Utils.String.Replace(text, pattern, replacement)
+    if text == nil then return L"" end
+    if type(text) == "wstring" then
+        local s = Api.String.WStringToString(text)
+        return Api.String.StringToWString(string.gsub(s, pattern, replacement))
+    end
     return string.gsub(text, pattern, replacement)
 end
 
----@param text string
+--- Searches for the first occurrence of pattern in text.
+--- Accepts string or wstring. Returns start/end positions (always integers).
+---@param text string|wstring|nil
 ---@param pattern string Lua pattern or plain substring
 ---@param init integer? Start position (default 1)
 ---@param plain boolean? If true, pattern is a plain string
+---@param ignoreCase boolean? If true, lowercases both text and pattern before matching
 ---@return integer|nil startPos
 ---@return integer|nil endPos
-function Utils.String.Find(text, pattern, init, plain)
+function Utils.String.Find(text, pattern, init, plain, ignoreCase)
+    if text == nil then return nil end
+    if type(text) == "wstring" then
+        text = Api.String.WStringToString(text)
+    end
+    if ignoreCase then
+        text = string.lower(text)
+        pattern = string.lower(pattern)
+    end
     return string.find(text, pattern, init, plain)
+end
+
+--- Returns true if text contains the given pattern.
+--- Accepts string or wstring.
+---@param text string|wstring|nil
+---@param pattern string Lua pattern or plain substring
+---@param plain boolean? If true, pattern is a plain string
+---@param ignoreCase boolean? If true, lowercases both text and pattern before matching
+---@return boolean
+function Utils.String.Contains(text, pattern, plain, ignoreCase)
+    return Utils.String.Find(text, pattern, 1, plain, ignoreCase) ~= nil
+end
+
+--- Returns the first match of pattern in text, or nil if no match.
+--- When the pattern contains captures, returns the first capture.
+--- Accepts string or wstring; returns the same type as the input (or nil).
+---@param text string|wstring|nil
+---@param pattern string Lua pattern
+---@return string|wstring|nil
+function Utils.String.Match(text, pattern)
+    if text == nil then return nil end
+    local isW = type(text) == "wstring"
+    local s = isW and Api.String.WStringToString(text) or text
+    local result = string.match(s, pattern)
+    if result == nil then return nil end
+    if isW then return Api.String.StringToWString(result) end
+    return result
+end
+
+--- Returns an array of all matches of pattern in text.
+--- When the pattern contains captures, each element is the first capture.
+--- Accepts string or wstring; elements are the same type as the input.
+--- Returns an empty table if no matches or text is nil.
+---@param text string|wstring|nil
+---@param pattern string Lua pattern
+---@return (string|wstring)[]
+function Utils.String.MatchAll(text, pattern)
+    local results = {}
+    if text == nil then return results end
+    local isW = type(text) == "wstring"
+    local s = isW and Api.String.WStringToString(text) or text
+    for match in string.gmatch(s, pattern) do
+        if isW then
+            results[#results + 1] = Api.String.StringToWString(match)
+        else
+            results[#results + 1] = match
+        end
+    end
+    return results
 end
 
 ---@param fmt string
@@ -2919,6 +3052,31 @@ end
 ---@return string
 function Utils.String.Format(fmt, ...)
     return string.format(fmt, ...)
+end
+
+--- Concatenates any mix of string, wstring, number, or nil values into a single wstring.
+--- Numbers are converted to their display representation (e.g. 123 → L"123"), NOT treated as TIDs.
+--- Nil values are skipped.
+--- @param ... string|wstring|number|nil
+--- @return wstring
+function Utils.String.Concat(...)
+    local result = L""
+    for i = 1, arg.n do
+        local v = arg[i]
+        if v ~= nil then
+            local t = type(v)
+            if t == "wstring" then
+                result = result .. v
+            elseif t == "number" then
+                result = result .. towstring(v)
+            elseif t == "string" then
+                result = result .. Api.String.StringToWString(v)
+            else
+                result = result .. Api.String.StringToWString(tostring(v))
+            end
+        end
+    end
+    return result
 end
 
 -- ========================================================================== --
