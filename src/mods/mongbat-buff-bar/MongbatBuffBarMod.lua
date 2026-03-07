@@ -28,11 +28,6 @@ local ADVANCED_BUFF_GOOD = "AdvancedBuffGood"
 local ADVANCED_BUFF_EVIL = "AdvancedBuffEvil"
 
 local function OnInitialize()
-    local Api = Api
-    local Components = Components
-    local Constants = Constants
-    local Utils = Utils
-
     -- Suppress default systems
     local buffDebuffDefault = Components.Defaults.BuffDebuff
     local advancedBuffDefault = Components.Defaults.AdvancedBuff
@@ -335,9 +330,6 @@ local function OnInitialize()
 end
 
 local function OnShutdown()
-    local Api = Api
-    local Components = Components
-
     Api.Window.Destroy(NAME_GOOD)
     Api.Window.Destroy(NAME_EVIL)
 
