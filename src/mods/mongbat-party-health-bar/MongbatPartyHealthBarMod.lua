@@ -8,6 +8,10 @@ local BAR_HEIGHT = 6
 local BAR_GAP = 3
 local MARGIN = 8
 local CLOSE_SIZE = 14
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
 
 --- Custom layout: positions name label, three stat bars, and close button
 --- precisely within the compact party bar window.
@@ -44,12 +48,11 @@ local function PartyBarLayout(window, children, child, index)
     end
 end
 
----@param context Context
-local function OnInitialize(context)
-    local Api = context.Api
-    local Data = context.Data
-    local Constants = context.Constants
-    local Components = context.Components
+local function OnInitialize()
+    local Api = Api
+    local Data = Data
+    local Constants = Constants
+    local Components = Components
 
     local partyHealthBar = Components.Defaults.PartyHealthBar
     partyHealthBar:disable()
@@ -62,7 +65,7 @@ local function OnInitialize(context)
     end
 
     --- Creates a single party health bar window for the given slot and member.
-    ---@param slotIndex integer Party slot index (1–10)
+    ---@param slotIndex integer Party slot index (1â€“10)
     ---@param memberId integer Mobile ID of the party member
     local function createBar(slotIndex, memberId)
         local barName = "MongbatPartyHealthBar_" .. slotIndex
@@ -198,14 +201,13 @@ local function OnInitialize(context)
     }:create(false)
 end
 
----@param context Context
-local function OnShutdown(context)
+local function OnShutdown()
     for i = 1, MAX_MEMBERS do
-        context.Api.Window.Destroy("MongbatPartyHealthBar_" .. i)
+        Api.Window.Destroy("MongbatPartyHealthBar_" .. i)
     end
-    context.Api.Window.Destroy(MANAGER_NAME)
+    Api.Window.Destroy(MANAGER_NAME)
 
-    local partyHealthBar = context.Components.Defaults.PartyHealthBar
+    local partyHealthBar = Components.Defaults.PartyHealthBar
     partyHealthBar:restore()
 end
 
