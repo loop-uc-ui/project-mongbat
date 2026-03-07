@@ -2,6 +2,11 @@ local BAR_WIDTH = 180
 local BAR_HEIGHT = 72
 local NAME_PREFIX = "MongbatMobileHealthBar_"
 local PARTY_PREFIX = "MongbatPartyHealthBar_"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 ---@type table<integer, Window>
 local bars = {}
@@ -9,11 +14,10 @@ local bars = {}
 ---@type table<integer, { window: Window, mobileId: integer }>
 local partyBars = {}
 
----@param context Context
-local function OnInitialize(context)
-    local mhb = context.Components.Defaults.MobileHealthBar
-    local phb = context.Components.Defaults.PartyHealthBar
-    local hbm = context.Components.Defaults.HealthBarManager
+local function OnInitialize()
+    local mhb = Components.Defaults.MobileHealthBar
+    local phb = Components.Defaults.PartyHealthBar
+    local hbm = Components.Defaults.HealthBarManager
 
     -- Disable the default health bar systems so their original functions
     -- become no-ops; we rawset our own replacements on the proxy tables below.
@@ -25,7 +29,7 @@ local function OnInitialize(context)
     -- ------------------------------------------------------------------ --
 
     local function NameLabel(mobileId)
-        return context.Components.Label {
+        return Components.Label {
             Name = NAME_PREFIX .. "Name_" .. mobileId,
             Id = mobileId,
             OnInitialize = function(self)
@@ -39,12 +43,12 @@ local function OnInitialize(context)
     end
 
     local function HealthBar(mobileId)
-        return context.Components.StatusBar(
+        return Components.StatusBar(
             {
                 Name = NAME_PREFIX .. "Health_" .. mobileId,
                 Id = mobileId,
                 OnInitialize = function(self)
-                    self:setColor(context.Constants.Colors.HealhBar[1])
+                    self:setColor(Constants.Colors.HealhBar[1])
                 end,
                 OnUpdateMobileStatus = function(self, mobileStatus)
                     local data = mobileStatus:getData()
@@ -60,7 +64,7 @@ local function OnInitialize(context)
     end
 
     local function PartyNameLabel(partyIndex, mobileId)
-        return context.Components.Label {
+        return Components.Label {
             Name = PARTY_PREFIX .. "Name_" .. partyIndex,
             Id = mobileId,
             OnInitialize = function(self)
@@ -74,12 +78,12 @@ local function OnInitialize(context)
     end
 
     local function PartyHealthBar(partyIndex, mobileId)
-        return context.Components.StatusBar(
+        return Components.StatusBar(
             {
                 Name = PARTY_PREFIX .. "Health_" .. partyIndex,
                 Id = mobileId,
                 OnInitialize = function(self)
-                    self:setColor(context.Constants.Colors.HealhBar[1])
+                    self:setColor(Constants.Colors.HealhBar[1])
                 end,
                 OnUpdateMobileStatus = function(self, mobileStatus)
                     local data = mobileStatus:getData()
@@ -104,7 +108,7 @@ local function OnInitialize(context)
         if bars[mobileId] then
             -- Bar already exists: detach from world so it becomes free-floating
             -- (this is triggered by the HealthBarManager drag flow).
-            context.Api.Window.DetachFromWorldObject(mobileId, name)
+            Api.Window.DetachFromWorldObject(mobileId, name)
             return
         end
 
@@ -113,11 +117,11 @@ local function OnInitialize(context)
         local function detachFromWorld(self)
             if attachedToWorld then
                 attachedToWorld = false
-                context.Api.Window.DetachFromWorldObject(self:getId(), self:getName())
+                Api.Window.DetachFromWorldObject(self:getId(), self:getName())
             end
         end
 
-        local window = context.Components.Window {
+        local window = Components.Window {
             Name = name,
             Id = mobileId,
             Resizable = false,
@@ -134,10 +138,10 @@ local function OnInitialize(context)
                 bars[self:getId()] = nil
             end,
             OnRButtonUp = function(self)
-                context.Api.ContextMenu.RequestMenu(self:getId())
+                Api.ContextMenu.RequestMenu(self:getId())
             end,
             OnLButtonUp = function(self)
-                context.Api.Target.LeftClick(self:getId())
+                Api.Target.LeftClick(self:getId())
             end,
             OnUpdate = function(self)
                 -- Detach from world when the user starts dragging the window.
@@ -189,7 +193,7 @@ local function OnInitialize(context)
 
         local name = PARTY_PREFIX .. partyIndex
 
-        local window = context.Components.Window {
+        local window = Components.Window {
             Name = name,
             Id = mobileId,
             Resizable = false,
@@ -203,7 +207,7 @@ local function OnInitialize(context)
             end,
             OnShutdown = function(self)
                 local foundIdx = nil
-                context.Utils.Table.ForEach(partyBars, function(idx, entry)
+                Utils.Table.ForEach(partyBars, function(idx, entry)
                     if entry.window == self then
                         foundIdx = idx
                     end
@@ -213,10 +217,10 @@ local function OnInitialize(context)
                 end
             end,
             OnRButtonUp = function(self)
-                context.Api.ContextMenu.RequestMenu(self:getId())
+                Api.ContextMenu.RequestMenu(self:getId())
             end,
             OnLButtonUp = function(self)
-                context.Api.Target.LeftClick(self:getId())
+                Api.Target.LeftClick(self:getId())
             end,
             OnEnableHealthBar = function(self)
                 self:setShowing(true)
@@ -246,7 +250,7 @@ local function OnInitialize(context)
     end
 
     local function hasPartyBar(mobileId)
-        return context.Utils.Table.Find(partyBars, function(_, entry)
+        return Utils.Table.Find(partyBars, function(_, entry)
             return entry.mobileId == mobileId
         end) ~= nil
     end
@@ -290,10 +294,9 @@ local function OnInitialize(context)
     rawset(phbProxy, "RefreshHealthBar", refreshPartyBar)
 end
 
----@param context Context
-local function OnShutdown(context)
-    local mhb = context.Components.Defaults.MobileHealthBar
-    local phb = context.Components.Defaults.PartyHealthBar
+local function OnShutdown()
+    local mhb = Components.Defaults.MobileHealthBar
+    local phb = Components.Defaults.PartyHealthBar
 
     -- Remove our proxy overrides so the originals are visible again.
     local mhbProxy = mhb:getDefault()
@@ -315,13 +318,13 @@ local function OnShutdown(context)
     -- Destroy all active health bar windows.
     local barSnapshot = bars
     bars = {}
-    context.Utils.Table.ForEach(barSnapshot, function(_, window)
+    Utils.Table.ForEach(barSnapshot, function(_, window)
         window:destroy()
     end)
 
     local partyBarSnapshot = partyBars
     partyBars = {}
-    context.Utils.Table.ForEach(partyBarSnapshot, function(_, entry)
+    Utils.Table.ForEach(partyBarSnapshot, function(_, entry)
         entry.window:destroy()
     end)
 end
