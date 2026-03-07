@@ -41,12 +41,6 @@ local _savedInit, _savedShutdown, _savedClose
 local _activeWindows = {}
 
 local function OnInitialize()
-    local Api        = Api
-    local Data       = Data
-    local Constants  = Constants
-    local Components = Components
-    local Utils      = Utils
-
     local tradeDefault = Components.Defaults.TradeWindow
 
     -- Save originals before overriding so they can be restored in OnShutdown
@@ -598,8 +592,6 @@ end
 -- OnShutdown: restore the original TradeWindow functions and global
 -- ========================================================================== --
 local function OnShutdown()
-    local Api          = Api
-    local Utils        = Utils
     local tradeDefault = Components.Defaults.TradeWindow
 
     -- Destroy any Mongbat trade windows that are still open (e.g. during
