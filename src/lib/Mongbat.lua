@@ -2603,6 +2603,26 @@ function Utils.Array.Find(array, find)
     return nil
 end
 
+--- Returns true if every element in the array satisfies the predicate.
+--- Returns true for nil or empty arrays (vacuous truth).
+---@generic T
+---@param array T[]?
+---@param predicate fun(item: T, index: integer): boolean
+---@return boolean
+function Utils.Array.Every(array, predicate)
+    if not array or #array == 0 then
+        return true
+    end
+
+    for i = 1, #array do
+        if not predicate(array[i], i) then
+            return false
+        end
+    end
+
+    return true
+end
+
 ---@generic T
 ---@param array T[]
 ---@param forEach fun(item: T, index: integer)
@@ -2874,6 +2894,24 @@ function Utils.String.Upper(text)
     elseif type(text) == "wstring" then
         return string.upper(Utils.String.FromWString(text))
     end
+end
+
+---@param text string
+---@param pattern string Lua pattern
+---@param replacement string
+---@return string
+function Utils.String.Gsub(text, pattern, replacement)
+    return string.gsub(text, pattern, replacement)
+end
+
+---@param text string
+---@param pattern string Lua pattern or plain substring
+---@param init integer? Start position (default 1)
+---@param plain boolean? If true, pattern is a plain string
+---@return integer|nil startPos
+---@return integer|nil endPos
+function Utils.String.Find(text, pattern, init, plain)
+    return string.find(text, pattern, init, plain)
 end
 
 ---@param fmt string
@@ -3885,6 +3923,20 @@ function ShopData:getSellItem(index)
     }
 end
 
+--- Returns all sell items as an array, skipping entries with zero quantity.
+---@return ShopDataItem[]
+function ShopData:getSellItems()
+    local result = {}
+    local count = self:getSellCount()
+    for i = 1, count do
+        local entry = self:getSellItem(i)
+        if entry then
+            table.insert(result, entry)
+        end
+    end
+    return result
+end
+
 ---@param offerIds integer[]
 ---@param offerQuantities integer[]
 function ShopData:setOffer(offerIds, offerQuantities)
@@ -3904,12 +3956,109 @@ end
 -- Data - ObjectInfo
 -- ========================================================================== --
 
----
---- Returns raw ObjectInfo data for the given object ID.
----@param id integer The object ID.
+---@class WindowData.ObjectInfo
+---@field name wstring Display name of the object
+---@field objectType integer Numeric type ID of the object
+---@field shopValue integer Gold price per unit (shop context)
+---@field shopQuantity integer Available quantity in shop
+---@field sellContainerId integer Container ID for buy mode
+---@field quantity integer Quantity of the item
+---@field containerId integer Parent container's object ID
+---@field hueId integer Hue/color ID
+---@field Type integer
+---@field Event integer
+
+---@class ObjectInfoWrapper
+local ObjectInfoData = {}
+ObjectInfoData.__index = ObjectInfoData
+
+---@param id integer The object ID
+---@return ObjectInfoWrapper
+function ObjectInfoData:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
 ---@return WindowData.ObjectInfo|nil
+function ObjectInfoData:getData()
+    if WindowData.ObjectInfo then
+        return WindowData.ObjectInfo[self._id]
+    end
+    return nil
+end
+
+--- Returns true if the engine has ObjectInfo data for this ID.
+---@return boolean
+function ObjectInfoData:exists()
+    return self:getData() ~= nil
+end
+
+--- Returns the object ID this wrapper was created for.
+---@return integer
+function ObjectInfoData:getId()
+    return self._id
+end
+
+--- Returns the display name of the object.
+---@return wstring
+function ObjectInfoData:getName()
+    local data = self:getData()
+    return data and data.name or L""
+end
+
+--- Returns the numeric type ID of the object.
+---@return integer
+function ObjectInfoData:getObjectType()
+    local data = self:getData()
+    return data and data.objectType or 0
+end
+
+--- Returns the gold price per unit (shop context).
+---@return integer
+function ObjectInfoData:getShopValue()
+    local data = self:getData()
+    return data and data.shopValue or 0
+end
+
+--- Returns the available quantity in shop.
+---@return integer
+function ObjectInfoData:getShopQuantity()
+    local data = self:getData()
+    return data and data.shopQuantity or 0
+end
+
+--- Returns the container ID for buy mode.
+---@return integer
+function ObjectInfoData:getSellContainerId()
+    local data = self:getData()
+    return data and data.sellContainerId or 0
+end
+
+--- Returns the quantity of the item.
+---@return integer
+function ObjectInfoData:getQuantity()
+    local data = self:getData()
+    return data and data.quantity or 0
+end
+
+--- Returns the parent container's object ID.
+---@return integer
+function ObjectInfoData:getContainerId()
+    local data = self:getData()
+    return data and data.containerId or 0
+end
+
+--- Returns the hue/color ID.
+---@return integer
+function ObjectInfoData:getHueId()
+    local data = self:getData()
+    return data and data.hueId or 0
+end
+
+--- Returns ObjectInfo data wrapped for the given object ID.
+---@param id integer The object ID.
+---@return ObjectInfoWrapper
 function Data.ObjectInfo(id)
-    return WindowData.ObjectInfo and WindowData.ObjectInfo[id] or nil
+    return ObjectInfoData:new(id)
 end
 
 -- ========================================================================== --
@@ -4303,7 +4452,7 @@ FilterInput.__index = FilterInput
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
 ---@field OnUpdateShopData fun(self: Window, shopData: ShopDataWrapper)?
 ---@field OnUpdateContainerWindow fun(self: Window, instanceId: integer, data: WindowData.Container|nil)?
----@field OnUpdateObjectInfo fun(self: Window, instanceId: integer, data: WindowData.ObjectInfo|nil)?
+---@field OnUpdateObjectInfo fun(self: Window, instanceId: integer, data: ObjectInfoWrapper)?
 ---@field OnUpdateItemProperties fun(self: Window, instanceId: integer, data: table|nil)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
@@ -5147,6 +5296,14 @@ end
 
 function DynamicImage:hasTexture()
     return Api.DynamicImage.HasTexture(self:getName())
+end
+
+--- Updates this DynamicImage as an item icon from object/equipment data.
+--- Accepts either raw engine data or an ObjectInfoWrapper (auto-unwrapped via getData()).
+---@param slotData table|ObjectInfoWrapper The object/slot data (e.g., from Data.ObjectInfo).
+function DynamicImage:updateItemIcon(slotData)
+    local data = type(slotData.getData) == "function" and slotData:getData() or slotData
+    Api.Equipment.UpdateItemIcon(self:getName(), data)
 end
 
 ---@param model DynamicImageModel?

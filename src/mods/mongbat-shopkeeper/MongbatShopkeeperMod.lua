@@ -29,6 +29,10 @@ local ICON_SCALE_MAX  = 10
 local ICON_SCALE_MIN  = 0.1
 local ICON_SCALE_STEP = 0.1
 
+-- Mutable file-scope: must survive across OnInitialize/OnShutdown.
+-- Set when the default Shopkeeper XML window is hidden; cleared on destroy.
+local defaultWindowName = nil
+
 local function OnInitialize()
     local Api        = Api
     local Data       = Data
@@ -64,11 +68,13 @@ local function OnInitialize()
     -- Helper: strip leading quantity from item name wstring
     -- e.g. "5 gold coins" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ "gold coins"
     -- -----------------------------------------------------------------------
+    --- @param wStr wstring?
+    --- @return wstring
     local function stripFirstNumber(wStr)
         if not wStr then return L"" end
         local s = Api.String.WStringToString(wStr)
         if not s or s == "" then return wStr end
-        s = string.gsub(s, "^%d+ ", "")
+        s = Utils.String.Gsub(s, "^%d+ ", "")
         return Api.String.StringToWString(s)
     end
 
@@ -76,17 +82,20 @@ local function OnInitialize()
     -- Helper: check if an item name matches all current filter patterns
     -- Patterns are plain ASCII lowercased strings.
     -- -----------------------------------------------------------------------
+    --- @param name wstring?
+    --- @return boolean
     local function matchesFilter(name)
         if Utils.Table.IsEmpty(filterPatterns) then return true end
-        local lname = string.lower(Api.String.WStringToString(name or L""))
-        return not Utils.Array.Find(filterPatterns, function(pattern)
-            return not string.find(lname, pattern, 1, true)
+        local lname = Utils.String.Lower(Api.String.WStringToString(name or L""))
+        return Utils.Array.Every(filterPatterns, function(pattern)
+            return Utils.String.Find(lname, pattern, 1, true)
         end)
     end
 
     -- -----------------------------------------------------------------------
     -- Compute total purchase cost from cart quantities
     -- -----------------------------------------------------------------------
+    --- @return integer
     local function computeTotal()
         local total = 0
         Utils.Array.ForEach(items, function(item)
@@ -101,36 +110,33 @@ local function OnInitialize()
     -- Build filtered view of items (indices into items[])
     -- -----------------------------------------------------------------------
     local function getFilteredAvail()
-        local result = {}
-        Utils.Array.ForEach(items, function(item, i)
+        return Utils.Array.MapToArray(items, function(item, i)
             if item.availQty > 0 and item.price > 0 and matchesFilter(item.name) then
-                Utils.Array.Add(result, i)
+                return i
             end
         end)
-        return result
     end
 
     local function getFilteredCart()
-        local result = {}
-        Utils.Array.ForEach(items, function(item, i)
-            if item.cartQty > 0 then
-                Utils.Array.Add(result, i)
-            end
+        return Utils.Array.MapToArray(items, function(item, i)
+            if item.cartQty > 0 then return i end
         end)
-        return result
     end
 
     -- -----------------------------------------------------------------------
-    -- Update a single row view with item data (or clear it)
+    -- Update a single row with item data (or clear it)
     -- -----------------------------------------------------------------------
-    local function updateRowView(rowView, itemIdx, isCart)
-        if not rowView then return end
-        local iconView  = rowView._shopIconView
-        local nameView  = rowView._shopNameView
-        local priceView = rowView._shopPriceView
-        local qtyView   = rowView._shopQtyView
-        local addBtn    = rowView._shopAddBtn
-        local remBtn    = rowView._shopRemBtn
+    --- @param rowData table? { view, iconView, nameView, priceView, qtyView, addBtn, remBtn }
+    --- @param itemIdx integer?
+    --- @param isCart boolean
+    local function updateRowView(rowData, itemIdx, isCart)
+        if not rowData then return end
+        local iconView  = rowData.iconView
+        local nameView  = rowData.nameView
+        local priceView = rowData.priceView
+        local qtyView   = rowData.qtyView
+        local addBtn    = rowData.addBtn
+        local remBtn    = rowData.remBtn
 
         if itemIdx == nil then
             -- Clear the row
@@ -162,16 +168,16 @@ local function OnInitialize()
                             end
                         end
                     end
-                    Api.DynamicImage.SetTextureDimensions(iconView:getName(), nw * scale, nh * scale)
-                    Api.Window.SetDimensions(iconView:getName(), nw * scale, nh * scale)
-                    Api.DynamicImage.SetTexture(iconView:getName(), name, x, y)
-                    Api.DynamicImage.SetTextureScale(iconView:getName(), scale)
+                    iconView:setTextureDimensions(nw * scale, nh * scale)
+                    iconView:setDimensions(nw * scale, nh * scale)
+                    iconView:setTexture(name, x, y)
+                    iconView:setTextureScale(scale)
                 end
             else
                 -- Buy mode: use ObjectInfo (shop-registered items have ObjectInfo data)
                 local objInfo = Data.ObjectInfo(item.id)
-                if objInfo then
-                    Api.Equipment.UpdateItemIcon(iconView:getName(), objInfo)
+                if objInfo:exists() then
+                    iconView:updateItemIcon(objInfo)
                 end
             end
         end
@@ -214,11 +220,11 @@ local function OnInitialize()
 
         local startIdx = (availPage - 1) * ITEMS_PER_PAGE + 1
 
-        for row = 1, ITEMS_PER_PAGE do
+        Utils.Array.ForEach(availRowViews, function(rowData, row)
             local filtIdx = startIdx + row - 1
             local itemIdx = filtered[filtIdx]
-            updateRowView(availRowViews[row], itemIdx, false)
-        end
+            updateRowView(rowData, itemIdx, false)
+        end)
 
         if availPrevBtn then availPrevBtn:setShowing(availPage > 1) end
         if availNextBtn then availNextBtn:setShowing(availPage < maxPage) end
@@ -235,11 +241,11 @@ local function OnInitialize()
 
         local startIdx = (cartPage - 1) * ITEMS_PER_PAGE + 1
 
-        for row = 1, ITEMS_PER_PAGE do
+        Utils.Array.ForEach(cartRowViews, function(rowData, row)
             local filtIdx = startIdx + row - 1
             local itemIdx = filtered[filtIdx]
-            updateRowView(cartRowViews[row], itemIdx, true)
-        end
+            updateRowView(rowData, itemIdx, true)
+        end)
 
         if cartPrevBtn then cartPrevBtn:setShowing(cartPage > 1) end
         if cartNextBtn then cartNextBtn:setShowing(cartPage < maxPage) end
@@ -281,16 +287,10 @@ local function OnInitialize()
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), slot.objectId)
 
             local objInfo  = Data.ObjectInfo(slot.objectId)
+            local price    = objInfo:getShopValue()
+            local qty      = objInfo:getShopQuantity()
+            local objType  = objInfo:getObjectType()
             local itemName = L""
-            local price    = 0
-            local qty      = 0
-            local objType  = 0
-
-            if objInfo then
-                price   = objInfo.shopValue or 0
-                qty     = objInfo.shopQuantity or 0
-                objType = objInfo.objectType or 0
-            end
 
             local props = Data.ItemProperties(slot.objectId)
             if props and props.PropertiesList and props.PropertiesList[1] then
@@ -324,26 +324,24 @@ local function OnInitialize()
     local function loadSellItems()
         items = {}
         local shopData = Data.ShopData()
-        local count    = shopData:getSellCount()
-        for i = 1, count do
-            local entry = shopData:getSellItem(i)
-            if entry then
-                Utils.Array.Add(items, {
-                    id       = entry.id,
-                    name     = stripFirstNumber(entry.name),
-                    price    = entry.price,
-                    totalQty = entry.quantity,
-                    availQty = entry.quantity,
-                    cartQty  = 0,
-                    objType  = entry.objType
-                })
-            end
-        end
+        Utils.Array.ForEach(shopData:getSellItems(), function(entry)
+            Utils.Array.Add(items, {
+                id       = entry.id,
+                name     = stripFirstNumber(entry.name),
+                price    = entry.price,
+                totalQty = entry.quantity,
+                availQty = entry.quantity,
+                cartQty  = 0,
+                objType  = entry.objType
+            })
+        end)
     end
 
     -- -----------------------------------------------------------------------
     -- Move one unit from available ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ cart
     -- -----------------------------------------------------------------------
+    --- @param itemIdx integer
+    --- @param amount integer?
     local function addToCart(itemIdx, amount)
         amount = amount or 1
         local item = items[itemIdx]
@@ -358,6 +356,8 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Move one unit from cart ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ available
     -- -----------------------------------------------------------------------
+    --- @param itemIdx integer
+    --- @param amount integer?
     local function removeFromCart(itemIdx, amount)
         amount = amount or 1
         local item = items[itemIdx]
@@ -372,6 +372,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Add ALL available units of an item to cart
     -- -----------------------------------------------------------------------
+    --- @param itemIdx integer
     local function addAllToCart(itemIdx)
         local item = items[itemIdx]
         if not item or item.availQty == 0 then return end
@@ -425,6 +426,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Item tooltip helper
     -- -----------------------------------------------------------------------
+    --- @param itemIdx integer
     local function showItemTooltip(itemIdx)
         local item = items[itemIdx]
         if not item or item.id == 0 then return end
@@ -441,6 +443,8 @@ local function OnInitialize()
     -- Build a single item row (shared between avail and cart panels)
     -- isCartPanel: boolean ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â if true, the + button adds-all, - removes one
     -- -----------------------------------------------------------------------
+    --- @param isCartPanel boolean If true, + button adds-all, - removes one
+    --- @return table { view: Window, iconView: DynamicImage, nameView: Label, priceView: Label, qtyView: Label, addBtn: Button, remBtn: Button }
     local function ItemRow(isCartPanel)
         local iconView  = nil
         local nameView  = nil
@@ -573,15 +577,16 @@ local function OnInitialize()
             end
         }
 
-        -- Stash child refs on the row for later refresh
-        rowView._shopIconView  = iconView
-        rowView._shopNameView  = nameView
-        rowView._shopPriceView = priceView
-        rowView._shopQtyView   = qtyView
-        rowView._shopAddBtn    = addBtn
-        rowView._shopRemBtn    = remBtn
-
-        return rowView
+        -- Stash child refs alongside the row view for later refresh
+        return {
+            view      = rowView,
+            iconView  = iconView,
+            nameView  = nameView,
+            priceView = priceView,
+            qtyView   = qtyView,
+            addBtn    = addBtn,
+            remBtn    = remBtn
+        }
     end
 
     -- -----------------------------------------------------------------------
@@ -589,6 +594,12 @@ local function OnInitialize()
     -- isCartPanel controls button semantics
     -- Returns {panelWindow, rowViews, prevBtn, nextBtn}
     -- -----------------------------------------------------------------------
+    --- @param headerText wstring
+    --- @param isCartPanel boolean
+    --- @return Window panelWindow
+    --- @return table[] rowViews Array of ItemRow tables
+    --- @return Button prevBtn
+    --- @return Button nextBtn
     local function Panel(headerText, isCartPanel)
         local rowViews = {}
         local prevBtn  = nil
@@ -606,9 +617,9 @@ local function OnInitialize()
         -- Item rows
         local children = { hdrLabel }
         for row = 1, ITEMS_PER_PAGE do
-            local rowView = ItemRow(isCartPanel)
-            rowViews[row] = rowView
-            Utils.Array.Add(children, rowView)
+            local itemRow = ItemRow(isCartPanel)
+            rowViews[row] = itemRow
+            Utils.Array.Add(children, itemRow.view)
         end
 
         -- Pagination buttons
@@ -658,6 +669,7 @@ local function OnInitialize()
         local panelWindow = Components.Window {
             OnInitialize = function(self)
                 self:setDimensions(PANEL_W, PANEL_H)
+                self:setChildren(children)
             end,
             OnLayout = function(win, ch, child, idx)
                 local winName = win:getName()
@@ -690,6 +702,8 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Build the complete shopkeeper window
     -- -----------------------------------------------------------------------
+    --- @param mId integer Merchant entity ID
+    --- @param isSell boolean True for sell mode, false for buy mode
     local function createShopWindow(mId, isSell)
         merchantId = mId
         isSelling  = isSell
@@ -747,7 +761,7 @@ local function OnInitialize()
             OnKeyEnter = function(self)
                 local text = self:getText()
                 if text and text ~= L"" then
-                    local textStr = string.lower(Api.String.WStringToString(text))
+                    local textStr = Utils.String.Lower(Api.String.WStringToString(text))
                     local existing = Utils.Array.Find(filterPatterns, function(p) return p == textStr end)
                     if not existing then
                         Utils.Array.Add(filterPatterns, textStr)
@@ -869,7 +883,9 @@ local function OnInitialize()
                         MARGIN, MARGIN + TITLE_H + MARGIN)
                 elseif idx == IDX_CLRFILTER then
                     child:clearAnchors()
-                    child:addAnchor("topleft", searchBox:getName(), "topright", 4, 0)
+                    child:addAnchor("topleft", winName, "topleft",
+                        MARGIN + (PANEL_W - 50) + 4,
+                        MARGIN + TITLE_H + MARGIN)
                 elseif idx == IDX_AVAIL then
                     child:clearAnchors()
                     child:addAnchor("topleft", winName, "topleft",
@@ -877,7 +893,9 @@ local function OnInitialize()
                         MARGIN + TITLE_H + MARGIN + SEARCH_H + MARGIN)
                 elseif idx == IDX_CART then
                     child:clearAnchors()
-                    child:addAnchor("topleft", availPanel:getName(), "topright", MARGIN, 0)
+                    child:addAnchor("topleft", winName, "topleft",
+                        MARGIN + PANEL_W + MARGIN,
+                        MARGIN + TITLE_H + MARGIN + SEARCH_H + MARGIN)
                 elseif idx == IDX_TOTAL then
                     child:clearAnchors()
                     child:addAnchor("bottomleft", winName, "bottomleft",
@@ -928,6 +946,14 @@ local function OnInitialize()
                 totalLabel      = nil
                 searchBox       = nil
                 sellContainerId = 0
+                -- Destroy the hidden default window to fully end the
+                -- engine-side shop session.  If the Shutdown override
+                -- already cleared it (server-initiated close), this is
+                -- a no-op.
+                if defaultWindowName then
+                    Api.Window.Destroy(defaultWindowName)
+                    defaultWindowName = nil
+                end
             end
         }
 
@@ -945,18 +971,16 @@ local function OnInitialize()
             end
 
             windowModel.OnUpdateObjectInfo = function(self, instanceId, objInfo)
-                if objInfo then
-                    local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
-                    if found then
-                        local oldCart  = found.cartQty
-                        local newTotal = objInfo.shopQuantity or 0
-                        if oldCart > newTotal then oldCart = newTotal end
-                        found.totalQty = newTotal
-                        found.availQty = newTotal - oldCart
-                        found.cartQty  = oldCart
-                        found.price    = objInfo.shopValue or 0
-                        found.objType  = objInfo.objectType or 0
-                    end
+                local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                if found then
+                    local oldCart  = found.cartQty
+                    local newTotal = objInfo:getShopQuantity()
+                    if oldCart > newTotal then oldCart = newTotal end
+                    found.totalQty = newTotal
+                    found.availQty = newTotal - oldCart
+                    found.cartQty  = oldCart
+                    found.price    = objInfo:getShopValue()
+                    found.objType  = objInfo:getObjectType()
                 end
                 refreshAll()
             end
@@ -995,25 +1019,22 @@ local function OnInitialize()
         local defaultWin = Api.Window.GetActiveWindowName()
         local mId        = Api.Window.GetDynamicWindowId()
 
-        -- Destroy the default Shopkeeper XML window immediately
-        if Api.Window.DoesExist(defaultWin) then
-            Api.Window.Destroy(defaultWin)
-        end
+        -- Hide the default Shopkeeper XML window instead of destroying it.
+        -- The engine expects this window to exist for the shop session;
+        -- destroying it may trigger a deferred Shutdown callback or cause
+        -- the engine to close the shop session internally.
+        Api.Window.SetShowing(defaultWin, false)
+        defaultWindowName = defaultWin
 
         -- Destroy any leftover Mongbat shopkeeper window
-        if Api.Window.DoesExist("MongbatShopkeeperWindow") then
-            Api.Window.Destroy("MongbatShopkeeperWindow")
-        end
+        Api.Window.Destroy("MongbatShopkeeperWindow")
 
         local isSell = Data.ShopData():isSelling()
 
         -- For buy mode: register ObjectInfo to get sellContainerId
         if not isSell then
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), mId)
-            local objInfo = Data.ObjectInfo(mId)
-            if objInfo then
-                sellContainerId = objInfo.sellContainerId or 0
-            end
+            sellContainerId = Data.ObjectInfo(mId):getSellContainerId()
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateMobileName.getType(), mId)
         end
@@ -1028,6 +1049,10 @@ local function OnInitialize()
     -- down (e.g. server closes shop).  Broadcast cancel and destroy our window
     -- if it is still open; our window's OnShutdown handles data cleanup.
     shopkeeperDefault:getDefault().Shutdown = function()
+        -- Prevent MongbatShopkeeperWindow OnShutdown from trying to
+        -- destroy the default window again (it's already being destroyed
+        -- by the engine right now).
+        defaultWindowName = nil
         if windowView ~= nil then
             Api.Event.Broadcast(Constants.Broadcasts.ShopCancelOffer())
             Api.Window.Destroy("MongbatShopkeeperWindow")
@@ -1038,13 +1063,17 @@ end
 local function OnShutdown()
     Api.Window.Destroy("MongbatShopkeeperWindow")
 
+    -- Destroy the hidden default window if it's still alive (e.g. shop
+    -- was open when the mod was unloaded).
+    if defaultWindowName then
+        Api.Window.Destroy(defaultWindowName)
+        defaultWindowName = nil
+    end
+
     -- restore() clears all _overrides (Initialize/Shutdown hooks) and
     -- re-enables the original Shopkeeper functions.
     local shopkeeperDefault = Components.Defaults.Shopkeeper
     shopkeeperDefault:restore()
-
-    -- Restore the original Shopkeeper global (removes the proxy wrapper).
-    shopkeeperDefault:restoreGlobal()
 end
 
 Mongbat.Mod {

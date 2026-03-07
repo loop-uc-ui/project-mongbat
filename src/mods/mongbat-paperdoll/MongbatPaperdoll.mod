@@ -9,7 +9,7 @@
 			<Dependency name="Mongbat" />
 		</Dependencies>
 
-		<Files>
+		<!-- <Files>
 			<File name="MongbatPaperdollMod.lua" />
 		</Files>
 
@@ -19,6 +19,6 @@
 
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatPaperdoll.OnShutdown" />
-		</OnShutdown>
+		</OnShutdown> -->
 	</UiMod>
 </ModuleFile>
