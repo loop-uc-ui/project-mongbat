@@ -5891,131 +5891,8 @@ function Components.ScrollWindow(model)
 end
 
 -- ========================================================================== --
--- Components - Slider Bar
+-- Components - Status Bar
 -- ========================================================================== --
-
----@param model SliderBarModel?
----@return SliderBar
-function SliderBar:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatSliderBar"
-    local instance = View.new(self, model)
-    return instance --[[@as SliderBar]]
-end
-
----@param position number A value between 0 and 1 representing the slider position.
----@return SliderBar
-function SliderBar:setCurrentPosition(position)
-    Api.Slider.SetCurrentPosition(self:getName(), position)
-    return self
-end
-
----@return number A value between 0 and 1 representing the current slider position.
-function SliderBar:getCurrentPosition()
-    return Api.Slider.GetCurrentPosition(self:getName())
-end
-
----@param model SliderBarModel?
----@return SliderBar
-function Components.SliderBar(model)
-    local sliderBar = SliderBar:new(model)
-    Cache[sliderBar:getName()] = sliderBar
-    return sliderBar
-end
-
--- ========================================================================== --
--- Components - ComboBox
--- ========================================================================== --
-
----@param model ComboBoxModel?
----@return ComboBox
-function ComboBox:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatComboBox"
-    local instance = View.new(self, model)
-    return instance --[[@as ComboBox]]
-end
-
----@param item wstring The item to add.
----@return ComboBox
-function ComboBox:addItem(item)
-    Api.ComboBox.AddItem(self:getName(), item)
-    return self
-end
-
----@return ComboBox
-function ComboBox:clearItems()
-    Api.ComboBox.ClearItems(self:getName())
-    return self
-end
-
----@param item wstring The item to select.
----@return ComboBox
-function ComboBox:setSelectedItem(item)
-    Api.ComboBox.SetSelectedItem(self:getName(), item)
-    return self
-end
-
----@return wstring The currently selected item.
-function ComboBox:getSelectedItem()
-    return Api.ComboBox.GetSelectedItem(self:getName())
-end
-
----@param model ComboBoxModel?
----@return ComboBox
-function Components.ComboBox(model)
-    local comboBox = ComboBox:new(model)
-    Cache[comboBox:getName()] = comboBox
-    return comboBox
-end
-
--- ========================================================================== --
--- Components - List Box
--- ========================================================================== --
-
----@param model ListBoxModel?
----@return ListBox
-function ListBox:new(model)
-    model = model or {}
-    local instance = View.new(self, model)
-    return instance --[[@as ListBox]]
-end
-
----@param data table The data table to populate the list box from.
----@return ListBox
-function ListBox:setDataTable(data)
-    Api.ListBox.SetDataTable(self:getName(), data)
-    return self
-end
-
----@param rowIndex number The 1-based visual row index.
----@return number The data index for that row.
-function ListBox:getDataIndex(rowIndex)
-    return Api.ListBox.GetDataIndex(self:getName(), rowIndex)
-end
-
----@param orderArray table Array of data indices controlling display order.
----@return ListBox
-function ListBox:setDisplayOrder(orderArray)
-    Api.ListBox.SetDisplayOrder(self:getName(), orderArray)
-    return self
-end
-
----@param count number The number of visible rows.
----@return ListBox
-function ListBox:setVisibleRowCount(count)
-    Api.ListBox.SetVisibleRowCount(self:getName(), count)
-    return self
-end
-
----@param model ListBoxModel?
----@return ListBox
-function Components.ListBox(model)
-    local listBox = ListBox:new(model)
-    Cache[listBox:getName()] = listBox
-    return listBox
-end
-
 
 ---@param model StatusBarModel?
 ---@param label Label?
@@ -6157,6 +6034,132 @@ function Components.StatusBar(model, labelModel)
     local statusBar = StatusBar:new(model, label)
     Cache[statusBar:getName()] = statusBar
     return statusBar
+end
+
+-- ========================================================================== --
+-- Components - Slider Bar
+-- ========================================================================== --
+
+---@param model SliderBarModel?
+---@return SliderBar
+function SliderBar:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatSliderBar"
+    local instance = View.new(self, model)
+    return instance --[[@as SliderBar]]
+end
+
+---@param position number A value between 0 and 1 representing the slider position.
+---@return SliderBar
+function SliderBar:setCurrentPosition(position)
+    Api.Slider.SetCurrentPosition(self:getName(), position)
+    return self
+end
+
+---@return number A value between 0 and 1 representing the current slider position.
+function SliderBar:getCurrentPosition()
+    return Api.Slider.GetCurrentPosition(self:getName())
+end
+
+---@param model SliderBarModel?
+---@return SliderBar
+function Components.SliderBar(model)
+    local sliderBar = SliderBar:new(model)
+    Cache[sliderBar:getName()] = sliderBar
+    return sliderBar
+end
+
+-- ========================================================================== --
+-- Components - ComboBox
+-- ========================================================================== --
+
+---@param model ComboBoxModel?
+---@return ComboBox
+function ComboBox:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatComboBox"
+    local instance = View.new(self, model)
+    return instance --[[@as ComboBox]]
+end
+
+---@param item wstring The item to add.
+---@return ComboBox
+function ComboBox:addItem(item)
+    Api.ComboBox.AddItem(self:getName(), item)
+    return self
+end
+
+---@return ComboBox
+function ComboBox:clearItems()
+    Api.ComboBox.ClearItems(self:getName())
+    return self
+end
+
+---@param item wstring The item to select.
+---@return ComboBox
+function ComboBox:setSelectedItem(item)
+    Api.ComboBox.SetSelectedItem(self:getName(), item)
+    return self
+end
+
+---@return wstring The currently selected item.
+function ComboBox:getSelectedItem()
+    return Api.ComboBox.GetSelectedItem(self:getName())
+end
+
+---@param model ComboBoxModel?
+---@return ComboBox
+function Components.ComboBox(model)
+    local comboBox = ComboBox:new(model)
+    Cache[comboBox:getName()] = comboBox
+    return comboBox
+end
+
+-- ========================================================================== --
+-- Components - List Box
+-- ========================================================================== --
+
+---@param model ListBoxModel?
+---@return ListBox
+function ListBox:new(model)
+    model = model or {}
+    local instance = View.new(self, model)
+    return instance --[[@as ListBox]]
+end
+
+---@param data table The data table to populate the list box from.
+---@return ListBox
+function ListBox:setDataTable(data)
+    Api.ListBox.SetDataTable(self:getName(), data)
+    return self
+end
+
+---@param rowIndex number The 1-based visual row index.
+---@return number The data index for that row.
+function ListBox:getDataIndex(rowIndex)
+    return Api.ListBox.GetDataIndex(self:getName(), rowIndex)
+end
+
+---@param orderArray table Array of data indices controlling display order.
+---@return ListBox
+function ListBox:setDisplayOrder(orderArray)
+    Api.ListBox.SetDisplayOrder(self:getName(), orderArray)
+    return self
+end
+
+---@param count number The number of visible rows.
+---@return ListBox
+function ListBox:setVisibleRowCount(count)
+    Api.ListBox.SetVisibleRowCount(self:getName(), count)
+    return self
+end
+
+---@param model ListBoxModel?
+---@return ListBox
+function Components.ListBox(model)
+    local listBox = ListBox:new(model)
+    Cache[listBox:getName()] = listBox
+    return listBox
 end
 
 -- ========================================================================== --
