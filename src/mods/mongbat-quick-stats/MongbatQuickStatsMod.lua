@@ -146,17 +146,17 @@ local function OnInitialize()
                     qty = qty + (info.quantity or 0)
                 end
             end)
-            return tostring(qty), "", ""
+            return towstring(qty), L"", L""
         end
 
         if not lab.attribute then
-            return "?", "", ""
+            return L"?", L"", L""
         end
 
         local csvWrapper = Data.PlayerStatsDataCSV(lab.attribute)
         local csvData = csvWrapper:getData()
         if not csvData then
-            return "?", "", ""
+            return L"?", L"", L""
         end
 
         local k = csvWrapper:getName()
@@ -167,15 +167,15 @@ local function OnInitialize()
 
         local playerStatus = Data.PlayerStatus()
         local cur = playerStatus:getField(curKey)
-        local value = tostring(cur or 0)
+        local value = towstring(cur or 0)
 
-        local cap = ""
-        local sep = ""
+        local cap = L""
+        local sep = L""
         if lab.showCap then
             local maxVal = playerStatus:getField("Max" .. k)
             if maxVal then
-                cap = tostring(maxVal)
-                sep = "/"
+                cap = towstring(maxVal)
+                sep = L"/"
             end
         end
 
@@ -382,9 +382,7 @@ local function OnInitialize()
                     {
                         textTid = Api.Dialog.TID_OKAY,
                         callback = function()
-                            if Api.Window.DoesExist(winName) then
-                                Api.Window.Destroy(winName)
-                            end
+                            Api.Window.Destroy(winName)
                             deleteLabel(wid)
                         end
                     },
@@ -557,9 +555,7 @@ local function OnInitialize()
             if labels[i] then
                 saveLabel(i)
             end
-            if Api.Window.DoesExist(name) then
-                Api.Window.Destroy(name)
-            end
+            Api.Window.Destroy(name)
         end
     end
 
