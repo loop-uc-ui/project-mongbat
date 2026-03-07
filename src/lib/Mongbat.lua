@@ -2389,6 +2389,30 @@ function Api.Interface.GetPaperdollOpen()
 end
 
 ---
+--- Sets whether the player's backpack is considered open by the engine.
+---@param open boolean
+function Api.Interface.SetBackpackOpen(open)
+    Interface.BackpackOpen = open
+end
+
+---
+--- Gets whether the player's backpack is considered open by the engine.
+---@return boolean
+function Api.Interface.GetBackpackOpen()
+    return Interface.BackpackOpen
+end
+
+---
+--- Marks a window for automatic destruction when the player closes it
+--- (via Escape or a close button). The engine checks this table when
+--- processing close events.
+---@param windowName string The name of the window.
+---@param value boolean True to enable auto-destroy on close.
+function Api.Interface.SetDestroyWindowOnClose(windowName, value)
+    Interface.DestroyWindowOnClose[windowName] = value
+end
+
+---
 --- Gets mobile data for a given ID from the engine.
 ---@param id number The mobile ID.
 ---@param includeEquipment boolean Whether to include equipment data.
@@ -2942,6 +2966,8 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWindow, "OnUpdateContainerWindow")
+Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3780,6 +3806,127 @@ end
 ---@return PaperdollTextureWrapper
 function Data.PaperdollTexture(id)
     return PaperdollTexture:new(id)
+end
+
+-- ========================================================================== --
+-- Data - ContainerWindow
+-- ========================================================================== --
+
+---@class ContainerWindowItem
+---@field objectId number Item object ID
+---@field gridIndex number Grid slot index (1-based)
+
+---@class ContainerWindowDataWrapper
+---@field _id number
+local ContainerWindowData = {}
+ContainerWindowData.__index = ContainerWindowData
+
+function ContainerWindowData:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return table|nil Raw WindowData.ContainerWindow entry
+function ContainerWindowData:getData()
+    return WindowData.ContainerWindow and WindowData.ContainerWindow[self._id]
+end
+
+---@return number
+function ContainerWindowData:getNumItems()
+    local d = self:getData()
+    return (d and d.numItems) or 0
+end
+
+---@return wstring
+function ContainerWindowData:getContainerName()
+    local d = self:getData()
+    return (d and d.containerName) or L""
+end
+
+---@return number
+function ContainerWindowData:getMaxSlots()
+    local d = self:getData()
+    return (d and d.maxSlots) or 0
+end
+
+---@param index number 1-based index into ContainedItems array
+---@return ContainerWindowItem|nil
+function ContainerWindowData:getItem(index)
+    local d = self:getData()
+    if not d or not d.ContainedItems then return nil end
+    return d.ContainedItems[index]
+end
+
+---@return ContainerWindowItem[]
+function ContainerWindowData:getItems()
+    local d = self:getData()
+    if not d or not d.ContainedItems then return {} end
+    local result = {}
+    for i = 1, (d.numItems or 0) do
+        result[i] = d.ContainedItems[i]
+    end
+    return result
+end
+
+---@param id number Container object ID
+---@return ContainerWindowDataWrapper
+function Data.ContainerWindow(id)
+    return ContainerWindowData:new(id)
+end
+
+-- ========================================================================== --
+-- Data - ObjectInfo
+-- ========================================================================== --
+
+---
+--- Returns the raw ObjectInfo table for a given object ID, or nil if not yet registered.
+---@param objectId number The object ID
+---@return WindowData.ObjectInfo|nil
+function Data.ObjectInfo(objectId)
+    return WindowData.ObjectInfo and WindowData.ObjectInfo[objectId]
+end
+
+-- ========================================================================== --
+-- Data - UpdateInstanceId
+-- ========================================================================== --
+
+---
+--- Returns the engine's current UpdateInstanceId, which identifies the entity
+--- whose data was updated during a data-event callback.
+---@return number
+function Data.UpdateInstanceId()
+    return WindowData.UpdateInstanceId
+end
+
+-- ========================================================================== --
+-- Data - ActiveWindow / DynamicWindow / ActiveContainer
+-- ========================================================================== --
+
+---
+--- Returns the name of the engine's currently active window, as set by the
+--- engine before invoking any event callback (CoreEvent, SystemEvent, or
+--- DataEvent).  Equivalent to `SystemData.ActiveWindow.name`.
+---@return string
+function Data.ActiveWindowName()
+    return SystemData.ActiveWindow.name
+end
+
+---
+--- Returns the engine-assigned dynamic window ID that is current when a new
+--- dynamic window is being created.  Equivalent to `SystemData.DynamicWindowId`.
+--- Read this value only inside lifecycle callbacks such as
+--- `ContainerWindow.Initialize`.
+---@return number
+function Data.DynamicWindowId()
+    return SystemData.DynamicWindowId
+end
+
+---
+--- Returns the number of slots in the container that is currently being
+--- initialised by the engine.  Equivalent to `SystemData.ActiveContainer.NumSlots`.
+--- Read this value only inside `ContainerWindow.Initialize`.
+---@return number
+function Data.ActiveContainerNumSlots()
+    return SystemData.ActiveContainer.NumSlots
 end
 
 -- ========================================================================== --
@@ -4909,8 +5056,41 @@ function DefaultPaperdollWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
--- Components - Dynamic Image
+-- Components - Default - Container Window
 -- ========================================================================== --
+
+---@class DefaultContainerWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field MiniModelUpdate fun()
+---@field HandleUpdateObjectEvent fun()
+---@field OpenContainers table
+---@field PlayerBackpack number
+---@field PlayerBank number
+---@field ViewModes table
+
+---@class DefaultContainerWindowComponent : DefaultComponent
+local DefaultContainerWindowComponent = {}
+DefaultContainerWindowComponent.__index = DefaultContainerWindowComponent
+
+---@return DefaultContainerWindowComponent
+function DefaultContainerWindowComponent:new()
+    local instance = DefaultComponent.new(self, "ContainerWindow") --[[@as DefaultContainerWindowComponent]]
+    instance._proxy = instance:_createProxy(ContainerWindow)
+    instance._globalKey = "ContainerWindow"
+    _G.ContainerWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultContainerWindow
+function DefaultContainerWindowComponent:getDefault()
+    return self._proxy or ContainerWindow --[[@as DefaultContainerWindow]]
+end
+
+---@return Window
+function DefaultContainerWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
 
 ---@param model DynamicImageModel?
 ---@return DynamicImage
@@ -5471,6 +5651,18 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
+function EventHandler.OnUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(window)
+        window:onUpdateContainerWindow()
+    end)
+end
+
+function EventHandler.OnUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(window)
+        window:onUpdateObjectInfo()
+    end)
+end
+
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -5904,6 +6096,8 @@ function View:onInitialize()
         self:onUpdateMobileStatus()
         self:onUpdateHealthBarColor()
         self:onUpdatePaperdoll()
+        self:onUpdateContainerWindow()
+        self:onUpdateObjectInfo()
     end)
 end
 
@@ -6028,6 +6222,22 @@ end
 function View:onUpdatePaperdoll()
     if self._model.OnUpdatePaperdoll ~= nil then
         self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    if self._model.OnUpdateContainerWindow ~= nil then
+        self._model.OnUpdateContainerWindow(self, Data.ContainerWindow(self:getId()))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    if self._model.OnUpdateObjectInfo ~= nil then
+        self._model.OnUpdateObjectInfo(self, Data.ObjectInfo(self:getId()))
         return true
     end
     return false
@@ -6752,6 +6962,7 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultContainerWindowComponent, { __index = DefaultComponent })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
@@ -6766,6 +6977,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.ContainerWindow = DefaultContainerWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
