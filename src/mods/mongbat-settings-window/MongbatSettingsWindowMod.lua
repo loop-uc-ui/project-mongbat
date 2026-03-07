@@ -1,4 +1,9 @@
 local NAME = "SettingsWindow"
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Components = Mongbat.Components
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- ========================================================================== --
 -- Layout constants
@@ -77,12 +82,11 @@ local FADE_LABELS = { L"1s", L"2s", L"3s", L"4s", L"5s" }
 -- OnInitialize
 -- ========================================================================== --
 
----@param context Context
-local function OnInitialize(context)
-    local Api        = context.Api
-    local Components = context.Components
-    local Constants  = context.Constants
-    local Utils      = context.Utils
+local function OnInitialize()
+    local Api        = Api
+    local Components = Components
+    local Constants  = Constants
+    local Utils      = Utils
 
     -- SHOWNAMES engine integer values: populated once from engine constants.
     local SHOWNAMES_IDS = {}
@@ -99,7 +103,7 @@ local function OnInitialize(context)
 
     -- ======================================================================
     -- Pending settings
-    --   Sliders with float system values are stored as integer × 100 to avoid
+    --   Sliders with float system values are stored as integer Ã— 100 to avoid
     --   floating-point drift during increment/decrement.
     --   Combo values use 1-based index keys (e.g. showNamesIdx, framerateIdx).
     -- ======================================================================
@@ -121,8 +125,8 @@ local function OnInitialize(context)
     -- loadSettings(): snapshot Data.Settings() -> pending, then refresh
     -- -----------------------------------------------------------------------
     local function loadSettings()
-        local s = context.Data.Settings()
-        -- Graphics (gamma stored as integer 0-200 = float×100)
+        local s = Data.Settings()
+        -- Graphics (gamma stored as integer 0-200 = floatÃ—100)
         pending.useFullScreen   = s:getUseFullScreen()
         pending.gamma           = math.floor(s:getGamma() * 100 + 0.5)
         pending.showShadows     = s:getShowShadows()
@@ -182,7 +186,7 @@ local function OnInitialize(context)
         -- Containers
         pending.showStrLabel = s:getShowStrLabel()
 
-        -- Healthbars (UI scale stored as integer 50-150 = float×100)
+        -- Healthbars (UI scale stored as integer 50-150 = floatÃ—100)
         local rawScale = s:getCustomUiScale() or 1.0
         pending.uiScale = math.floor(rawScale * 100 + 0.5)
 
@@ -198,7 +202,7 @@ local function OnInitialize(context)
     -- applySettings(): write pending -> Data.Settings(), call engine
     -- -----------------------------------------------------------------------
     local function applySettings()
-        local s = context.Data.Settings()
+        local s = Data.Settings()
         -- Graphics
         s:setUseFullScreen(pending.useFullScreen)
         s:setGamma(pending.gamma / 100)
@@ -562,7 +566,7 @@ local function OnInitialize(context)
         Checkbox(L"Circle of Transparency",   "circleOfTrans"),
         Checkbox(L"Idle Animations",          "idleAnimation"),
         SectionLabel(L"-- Brightness --"),
-        -- gamma stored as integer 0-200 (= float×100); display as X.XX
+        -- gamma stored as integer 0-200 (= floatÃ—100); display as X.XX
         SliderRow(L"Gamma", "gamma", 0, 200, 5, fmtDecimal),
     })
 
@@ -802,7 +806,7 @@ local function OnInitialize(context)
     -- ======================================================================
     local healthbarsPanel = TabPanel({
         SectionLabel(L"-- UI Scale --"),
-        -- uiScale stored as integer 50-150 (= float×100); display as X.XX
+        -- uiScale stored as integer 50-150 (= floatÃ—100); display as X.XX
         SliderRow(L"UI Scale", "uiScale", 50, 150, 5, fmtDecimal),
     })
 
@@ -1004,10 +1008,9 @@ end
 -- OnShutdown
 -- ========================================================================== --
 
----@param context Context
-local function OnShutdown(context)
-    context.Api.Window.Destroy(NAME)
-    context.Components.Defaults.SettingsWindow:restore()
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    Components.Defaults.SettingsWindow:restore()
 end
 
 -- ========================================================================== --
