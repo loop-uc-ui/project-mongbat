@@ -3220,6 +3220,8 @@ Constants.CoreEvents.OnLButtonDblClk = "OnLButtonDblClk"
 Constants.CoreEvents.OnMouseOver = "OnMouseOver"
 Constants.CoreEvents.OnMouseOverEnd = "OnMouseOverEnd"
 Constants.CoreEvents.OnMouseWheel = "OnMouseWheel"
+Constants.CoreEvents.OnSlide = "OnSlide"
+Constants.CoreEvents.OnSelChanged = "OnSelChanged"
 
 Constants.AnchorPoints = {}
 Constants.AnchorPoints.BottomLeft = "bottomleft"
@@ -4289,6 +4291,45 @@ local SNAP_THRESHOLD = 20
 ---@class Button: Window
 local Button = {}
 Button.__index = Button
+
+---@class CheckBoxModel : ViewModel
+---@field OnInitialize fun(self: CheckBox)?
+---@field OnShutdown fun(self: CheckBox)?
+---@field OnLButtonUp fun(self: CheckBox, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: CheckBox)?
+---@field OnMouseOverEnd fun(self: CheckBox)?
+
+---@class CheckBox: View
+---@field label Label?
+local CheckBox = {}
+CheckBox.__index = CheckBox
+
+---@class ComboBoxModel : ViewModel
+---@field OnInitialize fun(self: ComboBox)?
+---@field OnShutdown fun(self: ComboBox)?
+---@field OnSelChanged fun(self: ComboBox)?
+
+---@class ComboBox: View
+local ComboBox = {}
+ComboBox.__index = ComboBox
+
+---@class ListBoxModel : ViewModel
+---@field OnInitialize fun(self: ListBox)?
+---@field OnShutdown fun(self: ListBox)?
+---@field OnMouseWheel fun(self: ListBox, x: number, y: number, delta: number)?
+
+---@class ListBox: View
+local ListBox = {}
+ListBox.__index = ListBox
+
+---@class SliderBarModel : ViewModel
+---@field OnInitialize fun(self: SliderBar)?
+---@field OnShutdown fun(self: SliderBar)?
+---@field OnSlide fun(self: SliderBar, position: number)?
+
+---@class SliderBar: View
+local SliderBar = {}
+SliderBar.__index = SliderBar
 
 ---@class DefaultComponentProxy
 ---@field _disabled boolean Whether the proxy is disabled (function calls become no-ops)
@@ -6086,6 +6127,18 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnSlide()
+    withActiveView("OnSlide", function(view)
+        view:onSlide()
+    end)
+end
+
+function EventHandler.OnSelChanged()
+    withActiveView("OnSelChanged", function(view)
+        view:onSelChanged()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -6523,8 +6576,222 @@ function Components.StatusBar(model, labelModel)
 end
 
 -- ========================================================================== --
--- Components - View
+-- Components - Slider Bar
 -- ========================================================================== --
+
+---@param model SliderBarModel?
+---@return SliderBar
+function SliderBar:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatSliderBar"
+    local instance = View.new(self, model)
+    return instance --[[@as SliderBar]]
+end
+
+---@param position number A value between 0 and 1 representing the slider position.
+---@return SliderBar
+function SliderBar:setCurrentPosition(position)
+    Api.Slider.SetCurrentPosition(self:getName(), position)
+    return self
+end
+
+---@return number A value between 0 and 1 representing the current slider position.
+function SliderBar:getCurrentPosition()
+    return Api.Slider.GetCurrentPosition(self:getName())
+end
+
+---@param model SliderBarModel?
+---@return SliderBar
+function Components.SliderBar(model)
+    local sliderBar = SliderBar:new(model)
+    Cache[sliderBar:getName()] = sliderBar
+    return sliderBar
+end
+
+-- ========================================================================== --
+-- Components - ComboBox
+-- ========================================================================== --
+
+---@param model ComboBoxModel?
+---@return ComboBox
+function ComboBox:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatComboBox"
+    local instance = View.new(self, model)
+    return instance --[[@as ComboBox]]
+end
+
+---@param item wstring The item to add.
+---@return ComboBox
+function ComboBox:addItem(item)
+    Api.ComboBox.AddItem(self:getName(), item)
+    return self
+end
+
+---@return ComboBox
+function ComboBox:clearItems()
+    Api.ComboBox.ClearItems(self:getName())
+    return self
+end
+
+---@param item wstring The item to select.
+---@return ComboBox
+function ComboBox:setSelectedItem(item)
+    Api.ComboBox.SetSelectedItem(self:getName(), item)
+    return self
+end
+
+---@return wstring The currently selected item.
+function ComboBox:getSelectedItem()
+    return Api.ComboBox.GetSelectedItem(self:getName())
+end
+
+---@param model ComboBoxModel?
+---@return ComboBox
+function Components.ComboBox(model)
+    local comboBox = ComboBox:new(model)
+    Cache[comboBox:getName()] = comboBox
+    return comboBox
+end
+
+-- ========================================================================== --
+-- Components - List Box
+-- ========================================================================== --
+
+---@param model ListBoxModel?
+---@return ListBox
+function ListBox:new(model)
+    model = model or {}
+    local instance = View.new(self, model)
+    return instance --[[@as ListBox]]
+end
+
+---@param data table The data table to populate the list box from.
+---@return ListBox
+function ListBox:setDataTable(data)
+    Api.ListBox.SetDataTable(self:getName(), data)
+    return self
+end
+
+---@param rowIndex number The 1-based visual row index.
+---@return number The data index for that row.
+function ListBox:getDataIndex(rowIndex)
+    return Api.ListBox.GetDataIndex(self:getName(), rowIndex)
+end
+
+---@param orderArray table Array of data indices controlling display order.
+---@return ListBox
+function ListBox:setDisplayOrder(orderArray)
+    Api.ListBox.SetDisplayOrder(self:getName(), orderArray)
+    return self
+end
+
+---@param count number The number of visible rows.
+---@return ListBox
+function ListBox:setVisibleRowCount(count)
+    Api.ListBox.SetVisibleRowCount(self:getName(), count)
+    return self
+end
+
+---@param model ListBoxModel?
+---@return ListBox
+function Components.ListBox(model)
+    local listBox = ListBox:new(model)
+    Cache[listBox:getName()] = listBox
+    return listBox
+end
+
+-- ========================================================================== --
+-- Components - CheckBox
+-- ========================================================================== --
+
+---@param model CheckBoxModel?
+---@param label Label?
+---@return CheckBox
+function CheckBox:new(model, label)
+    model = model or {}
+    model.Template = model.Template or "MongbatCheckBox"
+    local instance = View.new(self, model) --[[@as CheckBox]]
+    instance.label = label
+    return instance
+end
+
+function CheckBox:onInitialize()
+    View.onInitialize(self)
+
+    Api.Button.SetEnabled(self:getName(), true)
+    Api.Button.SetStayDown(self:getName(), true)
+
+    local label = self.label
+    if label ~= nil then
+        local checkBox = self
+        -- Always wrap OnLButtonDown so label clicks always toggle the checkbox
+        -- even when the labelModel already defined its own OnLButtonDown.
+        local existingLDown = label._model.OnLButtonDown
+        label._model.OnLButtonDown = function(labelSelf, flags, x, y)
+            checkBox:setChecked(not checkBox:isChecked())
+            if existingLDown ~= nil then
+                existingLDown(labelSelf, flags, x, y)
+            end
+        end
+        -- Always wrap OnLButtonUp so label releases propagate to the checkbox
+        -- OnLButtonUp handler, chaining any handler the labelModel provided.
+        local existingLUp = label._model.OnLButtonUp
+        label._model.OnLButtonUp = function(labelSelf, flags, x, y)
+            if checkBox._model.OnLButtonUp ~= nil then
+                checkBox._model.OnLButtonUp(checkBox, flags, x, y)
+            end
+            if existingLUp ~= nil then
+                existingLUp(labelSelf, flags, x, y)
+            end
+        end
+
+        label:create(true)
+        label:onInitialize()
+        label:setParent(self:getParent())
+
+        local dims = self:getDimensions()
+        label:clearAnchors()
+        label:addAnchor("left", self:getName(), "right", 4, 0)
+        label:setDimensions(label:getDimensions().x, dims.y)
+        label:centerText()
+    end
+end
+
+function CheckBox:onShutdown()
+    if self.label ~= nil then
+        self.label:destroy()
+    end
+    View.onShutdown(self)
+end
+
+---@param isChecked boolean
+---@return CheckBox
+function CheckBox:setChecked(isChecked)
+    Api.Button.SetChecked(self:getName(), isChecked)
+    return self
+end
+
+---@return boolean
+function CheckBox:isChecked()
+    return Api.Button.IsChecked(self:getName())
+end
+
+---@param model CheckBoxModel?
+---@param labelModel LabelModel?
+---@return CheckBox
+function Components.CheckBox(model, labelModel)
+    local label
+
+    if labelModel ~= nil then
+        label = Components.Label(labelModel)
+    end
+
+    local checkBox = CheckBox:new(model, label)
+    Cache[checkBox:getName()] = checkBox
+    return checkBox
+end
+
 
 ---@param model ViewModel
 ---@return View
@@ -6806,6 +7073,22 @@ end
 function View:onKeyEscape()
     if self._model.OnKeyEscape ~= nil then
         self._model.OnKeyEscape(self)
+        return true
+    end
+    return false
+end
+
+function View:onSlide()
+    if self._model.OnSlide ~= nil then
+        self._model.OnSlide(self, Api.Slider.GetCurrentPosition(self:getName()))
+        return true
+    end
+    return false
+end
+
+function View:onSelChanged()
+    if self._model.OnSelChanged ~= nil then
+        self._model.OnSelChanged(self)
         return true
     end
     return false
@@ -7467,6 +7750,10 @@ setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
+setmetatable(SliderBar, { __index = View })
+setmetatable(ComboBox, { __index = View })
+setmetatable(ListBox, { __index = View })
+setmetatable(CheckBox, { __index = View })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
