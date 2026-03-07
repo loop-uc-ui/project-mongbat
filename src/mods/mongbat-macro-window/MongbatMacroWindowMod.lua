@@ -25,10 +25,6 @@ local TID_ASSIGN_HOTKEY = 1078019   -- "Assign Hotkey"
 local TID_DESTROY       = 1078351   -- "Destroy Macro"
 
 local function OnInitialize()
-    local Api        = Api
-    local Constants  = Constants
-    local Components = Components
-
     -- Suppress the default MacroWindow
     local macroDefault = Components.Defaults.MacroWindow
     macroDefault:disable()
