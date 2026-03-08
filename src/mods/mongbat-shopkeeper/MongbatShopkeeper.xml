@@ -11,12 +11,12 @@
              are defaults only. -->
         <Window name="ShopkeeperItemRow">
             <Size>
-                <AbsPoint x="288" y="24"/>
+                <AbsPoint x="310" y="24"/>
             </Size>
             <Windows>
                 <Label name="$parentName" font="inter_medium_18" maxchars="128">
                     <Size>
-                        <AbsPoint x="130" y="24"/>
+                        <AbsPoint x="140" y="24"/>
                     </Size>
                     <Color r="206" g="217" b="242" a="255"/>
                 </Label>
@@ -34,6 +34,12 @@
                 </Label>
             </Windows>
         </Window>
+      <VerticalScrollbar name="ListVertScroll" up="StandardVertScrollUpBtn" down="StandardVertScrollDownBtn" thumb="StandardVertScrollThumb" gutter="StandardVertScrollGutter" >
+        <Size>
+            <AbsPoint x="0" y="0" />
+          </Size>
+          <ThumbOffset x="1" y="1" />
+      </VerticalScrollbar>
 
         <!-- ListBox template for shopkeeper item display.
              visiblerows and rowcount are set to 0; configured programmatically
@@ -42,12 +48,9 @@
              the framework EventHandler for OnPopulateRow support. -->
         <ListBox name="ShopkeeperItemList"
               rowdef="ShopkeeperItemRow"
-              scrollbar="$parentScrollbar"
-              rowcount="0"
-              visiblerows="0"
-              rowspacing="2">
+              scrollbar="ListVertScroll">
             <Size>
-                <AbsPoint x="290" y="300"/>
+                <AbsPoint x="310" y="300"/>
             </Size>
             <ListData populationfunction="Mongbat.EventHandler.OnPopulateRow">
                 <ListColumns>

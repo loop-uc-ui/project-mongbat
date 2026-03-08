@@ -23,9 +23,7 @@ local SEARCH_H     = 24
 local BTN_W        = 90
 local BTN_H        = 28
 local TITLE_H      = 24
--- Width of the engine-managed list scrollbar (pixels)
-local SCROLLBAR_W  = 22
--- ListBox row column x-offsets (left edges within row content area = PANEL_W - SCROLLBAR_W)
+-- ListBox row column x-offsets (left edges within row content area)
 local COL_NAME_X   = 2
 local COL_PRICE_X  = 140
 local COL_QTY_X    = 204
@@ -302,17 +300,13 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Set column anchors for all visible rows of a list box.
     -- Called after setVisibleRowCount() so the row windows exist.
-    -- Columns: Name | Price | Qty, with SCROLLBAR_W clear on the right.
-    -- Row width is explicitly constrained so content does not extend
-    -- under the engine-managed scrollbar.
+    -- Columns: Name | Price | Qty.
     -- -----------------------------------------------------------------------
     --- @param listName string  The engine window name of the ListBox
     local function applyRowColumnAnchors(listName)
-        local rowContentWidth = PANEL_W - SCROLLBAR_W
         for rowIdx = 1, VISIBLE_ROWS do
             local rowName = listName .. "Row" .. rowIdx
-            -- Constrain row width so it stops before the scrollbar
-            Api.Window.SetDimensions(rowName, rowContentWidth, ROW_H)
+            Api.Window.SetDimensions(rowName, PANEL_W, ROW_H)
             local nameWin  = rowName .. "Name"
             local priceWin = rowName .. "Price"
             local qtyWin   = rowName .. "Qty"

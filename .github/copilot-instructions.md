@@ -14,7 +14,7 @@ When answering questions about Mongbat, **always cross-reference** the two prima
 
 > **Repository**: https://github.com/loop-uc-ui/enhanced-client-default
 >
-> This is the **authoritative reference** for how the UO EC UI works. It is 100% Lua + XML. All files live under the `Source/` directory.
+> This is the **authoritative reference** for how the UO EC UI works. It is 100% Lua + XML.
 
 **When to consult it:**
 - To understand the vanilla implementation of any window that Mongbat wraps or replaces.

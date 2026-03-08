@@ -6811,7 +6811,7 @@ function ListBox:getClickedDataIndex()
     return self:getDataIndex(rowIndex)
 end
 
---- Alias for getClickedDataIndex() for use in OnMouseOver handlers.
+--- Alias for getClickedDataIndex() for use in OnMouseOver handlers.f
 --- Both rely on SystemData.MouseOverWindow to identify the row under the cursor,
 --- but this name better communicates the hover-without-click context.
 ---@return number? dataIndex The data-table index of the hovered row, or nil.
