@@ -13,9 +13,9 @@ local Utils = Mongbat.Utils
 
 -- Window layout constants
 local WIN_W        = 720
-local WIN_H        = 520
+local WIN_H        = 490
 local PANEL_W      = 310
-local PANEL_H      = 340
+local PANEL_H      = 310
 local VISIBLE_ROWS = 12
 local ROW_H        = 24
 local MARGIN       = 10
@@ -27,8 +27,8 @@ local TITLE_H      = 24
 local SCROLLBAR_W  = 22
 -- ListBox row column x-offsets (left edges within row content area = PANEL_W - SCROLLBAR_W)
 local COL_NAME_X   = 2
-local COL_PRICE_X  = 148
-local COL_QTY_X    = 215
+local COL_PRICE_X  = 140
+local COL_QTY_X    = 204
 
 -- Mutable file-scope: must survive across OnInitialize/OnShutdown.
 -- Set when the default Shopkeeper XML window is hidden; cleared on destroy.

@@ -16,7 +16,7 @@
             <Windows>
                 <Label name="$parentName" font="inter_medium_18" maxchars="128">
                     <Size>
-                        <AbsPoint x="140" y="24"/>
+                        <AbsPoint x="130" y="24"/>
                     </Size>
                     <Color r="206" g="217" b="242" a="255"/>
                 </Label>
