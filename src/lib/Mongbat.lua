@@ -877,10 +877,16 @@ Api.ListBox = {}
 
 ---
 --- Sets the data table for a list box.
+--- The engine expects ListBoxSetDataTable(windowName, globalVarName) where
+--- globalVarName is the string name of a global Lua variable holding the data.
+--- This wrapper stores the table in _G under a deterministic key and passes
+--- that key string to the engine.
 ---@param name string The name of the list box.
 ---@param data table The data table to set.
 function Api.ListBox.SetDataTable(name, data)
-    ListBoxSetDataTable(name, data)
+    local globalName = name .. "_DataTable"
+    _G[globalName] = data
+    ListBoxSetDataTable(name, globalName)
 end
 
 ---
@@ -906,6 +912,32 @@ end
 ---@param count number The visible row count to set.
 function Api.ListBox.SetVisibleRowCount(name, count)
     ListBoxSetVisibleRowCount(name, count)
+end
+
+---
+--- Gets the engine-managed PopulatorIndices for a list box.
+--- This table maps visible row indices to data indices and is populated by the engine
+--- after the list box display is updated.
+---@param name string The name of the list box.
+---@return table? The PopulatorIndices array, or nil if not populated.
+function Api.ListBox.GetPopulatorIndices(name)
+    local tbl = _G[name]
+    if tbl then
+        return tbl.PopulatorIndices
+    end
+    return nil
+end
+
+---
+--- Gets the engine-managed number of visible rows for a list box.
+---@param name string The name of the list box.
+---@return number The number of visible rows.
+function Api.ListBox.GetNumVisibleRows(name)
+    local tbl = _G[name]
+    if tbl then
+        return tbl.numVisibleRows or 0
+    end
+    return 0
 end
 
 -- ========================================================================== --
@@ -1717,6 +1749,7 @@ end
 function Api.Window.Destroy(windowName)
     if Api.Window.DoesExist(windowName) then
         DestroyWindow(windowName)
+        _G[windowName .. "_DataTable"] = nil
         return true
     end
 
@@ -3061,8 +3094,9 @@ end
 --- @return wstring
 function Utils.String.Concat(...)
     local result = L""
-    for i = 1, arg.n do
-        local v = arg[i]
+    local numArgs = select("#", ...)
+    for i = 1, numArgs do
+        local v = select(i, ...)
         if v ~= nil then
             local t = type(v)
             if t == "wstring" then
@@ -4317,6 +4351,11 @@ ComboBox.__index = ComboBox
 ---@field OnInitialize fun(self: ListBox)?
 ---@field OnShutdown fun(self: ListBox)?
 ---@field OnMouseWheel fun(self: ListBox, x: number, y: number, delta: number)?
+---@field OnMouseOver fun(self: ListBox)?
+---@field OnMouseOverEnd fun(self: ListBox)?
+---@field OnLButtonDown fun(self: ListBox, flags: integer, x: integer, y: integer)?
+---@field OnLButtonUp fun(self: ListBox, flags: integer, x: integer, y: integer)?
+---@field OnPopulateRow fun(self: ListBox)?
 
 ---@class ListBox: View
 local ListBox = {}
@@ -5840,6 +5879,10 @@ local function withActiveView(eventName, callback)
 end
 
 --- Safely dispatches an event to the mouse-over window.
+--- If the direct cache lookup fails, walks up the parent chain
+--- to find the nearest ancestor that is a cached View. This allows
+--- auto-created children (e.g. ListBox rows) to propagate events to
+--- their parent View.
 ---@param eventName string The name of the event (for error logging)
 ---@param callback fun(window: View)
 local function withMouseOverView(eventName, callback)
@@ -5851,7 +5894,19 @@ local function withMouseOverView(eventName, callback)
         if name == nil or name == "" then return end
 
         local window = Cache[name]
-        if window == nil then return end
+        if window == nil then
+            -- Walk up the parent chain to find a cached ancestor View
+            local parentName = name
+            while parentName do
+                parentName = WindowGetParent(parentName)
+                if parentName == nil or parentName == "" or parentName == "Root" then
+                    break
+                end
+                window = Cache[parentName]
+                if window then break end
+            end
+            if window == nil then return end
+        end
 
         callback(window)
     end)
@@ -6136,6 +6191,12 @@ end
 function EventHandler.OnSelChanged()
     withActiveView("OnSelChanged", function(view)
         view:onSelChanged()
+    end)
+end
+
+function EventHandler.OnPopulateRow()
+    withActiveView("OnPopulateRow", function(view)
+        view:onPopulateRow()
     end)
 end
 
@@ -6662,6 +6723,7 @@ end
 ---@return ListBox
 function ListBox:new(model)
     model = model or {}
+    model.Template = model.Template or "MongbatListBox"
     local instance = View.new(self, model)
     return instance --[[@as ListBox]]
 end
@@ -6691,6 +6753,70 @@ end
 function ListBox:setVisibleRowCount(count)
     Api.ListBox.SetVisibleRowCount(self:getName(), count)
     return self
+end
+
+--- Gets the engine-managed PopulatorIndices table that maps visible row indices to data indices.
+--- Populated by the engine after each display update (scroll, display order change, etc.).
+---@return table? The PopulatorIndices array, or nil if not populated.
+function ListBox:getPopulatorIndices()
+    return Api.ListBox.GetPopulatorIndices(self:getName())
+end
+
+--- Gets the engine-managed number of visible rows.
+---@return number The number of visible rows.
+function ListBox:getNumVisibleRows()
+    return Api.ListBox.GetNumVisibleRows(self:getName())
+end
+
+--- Constructs the window name for a row element in this list box.
+--- Rows are named "{ListBoxName}Row{index}" with optional child suffixes.
+---@param rowIndex number The 1-based row index.
+---@param childName string? Optional child window suffix (e.g., "Text", "CheckBox").
+---@return string The full window name for the row or child within the row.
+function ListBox:getRowName(rowIndex, childName)
+    local name = self:getName() .. "Row" .. tostring(rowIndex)
+    if childName then
+        name = name .. childName
+    end
+    return name
+end
+
+--- Determines which row was clicked by inspecting the mouse-over window name.
+--- Call this inside an OnLButtonDown/OnLButtonUp handler to find the clicked row.
+--- Returns the 1-based visual row index, or nil if the click was not on a row.
+---@return number? rowIndex The 1-based visual row index, or nil.
+function ListBox:getClickedRowIndex()
+    local mouseOverWindow = SystemData.MouseOverWindow
+    if mouseOverWindow == nil then return nil end
+    local mouseName = mouseOverWindow.name
+    if mouseName == nil or mouseName == "" then return nil end
+    -- Row windows are named "{ListBoxName}Row{index}" or "{ListBoxName}Row{index}{ChildName}"
+    local prefix = self:getName() .. "Row"
+    local prefixLen = string.len(prefix)
+    if string.sub(mouseName, 1, prefixLen) ~= prefix then return nil end
+    local rest = string.sub(mouseName, prefixLen + 1)
+    -- Extract the leading digits from rest
+    local digits = string.match(rest, "^(%d+)")
+    if digits == nil then return nil end
+    return tonumber(digits)
+end
+
+--- Determines which data index was clicked by inspecting the mouse-over window.
+--- Combines getClickedRowIndex() with getDataIndex() for convenience.
+--- Returns the data-table index, or nil if the click was not on a row.
+---@return number? dataIndex The data-table index, or nil.
+function ListBox:getClickedDataIndex()
+    local rowIndex = self:getClickedRowIndex()
+    if rowIndex == nil then return nil end
+    return self:getDataIndex(rowIndex)
+end
+
+--- Alias for getClickedDataIndex() for use in OnMouseOver handlers.
+--- Both rely on SystemData.MouseOverWindow to identify the row under the cursor,
+--- but this name better communicates the hover-without-click context.
+---@return number? dataIndex The data-table index of the hovered row, or nil.
+function ListBox:getHoveredDataIndex()
+    return self:getClickedDataIndex()
 end
 
 ---@param model ListBoxModel?
@@ -7094,6 +7220,14 @@ function View:onSelChanged()
     return false
 end
 
+function View:onPopulateRow()
+    if self._model.OnPopulateRow ~= nil then
+        self._model.OnPopulateRow(self)
+        return true
+    end
+    return false
+end
+
 function View:getId()
     return Api.Window.GetId(self.name)
 end
@@ -7357,12 +7491,15 @@ function View:destroy()
     return Api.Window.Destroy(self.name)
 end
 
-function View:create(doShow)
+---@param doShow boolean? Whether to show the window after creation (default true).
+---@param parent string? The parent window name (default "Root").
+function View:create(doShow, parent)
     doShow = doShow == nil or doShow
+    parent = parent or "Root"
     if self._model.Template == nil then
         return Api.Window.Create(self.name, doShow)
     else
-        return Api.Window.CreateFromTemplate(self.name, self._model.Template, "Root", doShow)
+        return Api.Window.CreateFromTemplate(self.name, self._model.Template, parent, doShow)
     end
 end
 
@@ -7458,17 +7595,19 @@ function Window:onInitialize()
         function(item, index)
             -- Guard against double-wrapping if onInitialize is called more than once
             if item._parentWrapped then
-                item:create()
+                item:create(nil, self:getName())
                 item:onInitialize()
                 return
             end
             item._parentWrapped = true
 
-            --- For each child, override its onInitialize to set its parent and anchors
+            --- For each child, override its onInitialize to clear anchors and layout.
+            --- Children are created directly at the parent window (see item:create
+            --- below), so no reparent step is needed. This preserves anchor
+            --- relationships inside XML templates (e.g. ListBox scrollbars).
             local onChildInitialize = item._model.OnInitialize
 
             item._model.OnInitialize = function(child)
-                child:setParent(self:getName())
                 child:clearAnchors()
                 self._model.OnLayout(self, self._children, child, index)
                 if onChildInitialize ~= nil then
@@ -7537,7 +7676,7 @@ function Window:onInitialize()
                 end
             end
 
-            item:create()
+            item:create(nil, self:getName())
             item:onInitialize()
         end
     )

@@ -1,33 +1,33 @@
-﻿-- ========================================================================== --
+-- ========================================================================== --
 -- MongbatShopkeeperMod
 -- Replaces the default Shopkeeper (buy/sell) window with a clean Mongbat UI.
+-- Uses ListBox components for scrollable item display with auto-population.
 -- ========================================================================== --
 
--- Window layout constants
+-- Framework namespaces
 local Api = Mongbat.Api
 local Data = Mongbat.Data
 local Components = Mongbat.Components
 local Constants = Mongbat.Constants
 local Utils = Mongbat.Utils
 
-local WIN_W          = 720
-local WIN_H          = 520
-local PANEL_W        = 310
-local PANEL_H        = 340
-local ROW_H          = 36
-local ICON_SIZE      = 28
-local ITEMS_PER_PAGE = 9
-local MARGIN         = 10
-local SEARCH_H       = 24
-local BTN_W          = 90
-local BTN_H          = 28
-local TITLE_H        = 24
-local HDR_H          = 20
-
--- Icon scaling constants for RequestTileArt
-local ICON_SCALE_MAX  = 10
-local ICON_SCALE_MIN  = 0.1
-local ICON_SCALE_STEP = 0.1
+-- Window layout constants
+local WIN_W        = 720
+local WIN_H        = 520
+local PANEL_W      = 310
+local PANEL_H      = 340
+local VISIBLE_ROWS = 12
+local MARGIN       = 10
+local SEARCH_H     = 24
+local BTN_W        = 90
+local BTN_H        = 28
+local TITLE_H      = 24
+-- Width of the engine-managed list scrollbar (pixels)
+local SCROLLBAR_W  = 22
+-- ListBox row column x-offsets (left edges within row content area = PANEL_W - SCROLLBAR_W)
+local COL_NAME_X   = 2
+local COL_PRICE_X  = 148
+local COL_QTY_X    = 215
 
 -- Mutable file-scope: must survive across OnInitialize/OnShutdown.
 -- Set when the default Shopkeeper XML window is hidden; cleared on destroy.
@@ -47,22 +47,16 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- items: array of {id, name, price, totalQty, availQty, cartQty, objType}
     -- Each entry mirrors both the "available" and "cart" quantity for that item.
-    local merchantId        = 0
-    local isSelling         = false
-    local items             = {}
-    local filterPatterns    = {}
-    local availPage         = 1
-    local cartPage          = 1
-    local windowView        = nil   -- the main Window view
-    local availRowViews     = {}    -- Views for available-items rows
-    local cartRowViews      = {}    -- Views for cart-items rows
-    local availPrevBtn      = nil
-    local availNextBtn      = nil
-    local cartPrevBtn       = nil
-    local cartNextBtn       = nil
-    local totalLabel        = nil
-    local searchBox         = nil
-    local sellContainerId   = 0
+    local merchantId      = 0
+    local isSelling       = false
+    local items           = {}
+    local filterPatterns  = {}
+    local windowView      = nil   -- the main Window view
+    local availList       = nil   -- ListBox view for available items
+    local cartList        = nil   -- ListBox view for cart items
+    local totalLabel      = nil
+    local searchBox       = nil
+    local sellContainerId = 0
 
     -- -----------------------------------------------------------------------
     -- Helper: check if an item name matches all current filter patterns
@@ -105,139 +99,35 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
-    -- Update a single row with item data (or clear it)
+    -- Build a ListBox data table mirroring items[] (same indices).
+    -- Each entry has { name, price, qty } as wstrings for ListColumn binding.
     -- -----------------------------------------------------------------------
-    --- @param rowData table? { view, iconView, nameView, priceView, qtyView, addBtn, remBtn }
-    --- @param itemIdx integer?
-    --- @param isCart boolean
-    local function updateRowView(rowData, itemIdx, isCart)
-        if not rowData then return end
-        local iconView  = rowData.iconView
-        local nameView  = rowData.nameView
-        local priceView = rowData.priceView
-        local qtyView   = rowData.qtyView
-        local addBtn    = rowData.addBtn
-        local remBtn    = rowData.remBtn
-
-        if itemIdx == nil then
-            -- Clear the row
-            if iconView  then iconView:setShowing(false) end
-            if nameView  then nameView:setShowing(false) end
-            if priceView then priceView:setShowing(false) end
-            if qtyView   then qtyView:setShowing(false) end
-            if addBtn    then addBtn:setShowing(false) end
-            if remBtn    then remBtn:setShowing(false) end
-            return
-        end
-
-        local item = items[itemIdx]
-        local qty  = isCart and item.cartQty or item.availQty
-
-        if iconView then
-            iconView:setShowing(true)
-            iconView:setId(itemIdx)
-            if isSelling then
-                -- Sell mode: items are in player backpack; use TileArt for icon display
-                local name, x, y, scale, nw, nh = Api.Icon.RequestTileArt(item.objType, 300, 300)
-                if name and nw and nh then
-                    scale = ICON_SCALE_MAX
-                    if nw * scale > ICON_SIZE or nh * scale > ICON_SIZE then
-                        for j = scale, ICON_SCALE_MIN, -ICON_SCALE_STEP do
-                            if nw * j <= ICON_SIZE and nh * j <= ICON_SIZE then
-                                scale = j
-                                break
-                            end
-                        end
-                    end
-                    iconView:setTextureDimensions(nw * scale, nh * scale)
-                    iconView:setDimensions(nw * scale, nh * scale)
-                    iconView:setTexture(name, x, y)
-                    iconView:setTextureScale(scale)
-                end
-            else
-                -- Buy mode: use ObjectInfo (shop-registered items have ObjectInfo data)
-                local objInfo = Data.ObjectInfo(item.id)
-                if objInfo:exists() then
-                    iconView:updateItemIcon(objInfo)
-                end
-            end
-        end
-
-        if nameView then
-            nameView:setShowing(true)
-            nameView:setId(itemIdx)
-            nameView:setText(item.name)
-        end
-
-        if priceView then
-            priceView:setShowing(true)
-            priceView:setText(Utils.String.Concat(item.price, "g"))
-        end
-
-        if qtyView then
-            qtyView:setShowing(true)
-            qtyView:setText(Utils.String.Concat(qty))
-        end
-
-        if addBtn then
-            addBtn:setShowing(true)
-            addBtn:setId(itemIdx)
-        end
-
-        if remBtn then
-            remBtn:setShowing(true)
-            remBtn:setId(itemIdx)
-        end
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Refresh the available-items panel
-    -- -----------------------------------------------------------------------
-    local function refreshAvailPanel()
-        local filtered = getFilteredAvail()
-        local total    = #filtered
-        local maxPage  = math.max(1, math.ceil(total / ITEMS_PER_PAGE))
-        if availPage > maxPage then availPage = maxPage end
-
-        local startIdx = (availPage - 1) * ITEMS_PER_PAGE + 1
-
-        Utils.Array.ForEach(availRowViews, function(rowData, row)
-            local filtIdx = startIdx + row - 1
-            local itemIdx = filtered[filtIdx]
-            updateRowView(rowData, itemIdx, false)
+    --- @param isCart boolean  If true, use cartQty; otherwise use availQty
+    --- @return table[] dataTable  Indexed 1..#items, fields match ListColumn vars
+    local function buildDataTable(isCart)
+        local data = {}
+        Utils.Array.ForEach(items, function(item, i)
+            data[i] = {
+                name  = item.name or L"",
+                price = Utils.String.Concat(item.price, "g"),
+                qty   = Utils.String.Concat(isCart and item.cartQty or item.availQty)
+            }
         end)
-
-        if availPrevBtn then availPrevBtn:setShowing(availPage > 1) end
-        if availNextBtn then availNextBtn:setShowing(availPage < maxPage) end
+        return data
     end
 
     -- -----------------------------------------------------------------------
-    -- Refresh the cart panel
-    -- -----------------------------------------------------------------------
-    local function refreshCartPanel()
-        local filtered = getFilteredCart()
-        local total    = #filtered
-        local maxPage  = math.max(1, math.ceil(total / ITEMS_PER_PAGE))
-        if cartPage > maxPage then cartPage = maxPage end
-
-        local startIdx = (cartPage - 1) * ITEMS_PER_PAGE + 1
-
-        Utils.Array.ForEach(cartRowViews, function(rowData, row)
-            local filtIdx = startIdx + row - 1
-            local itemIdx = filtered[filtIdx]
-            updateRowView(rowData, itemIdx, true)
-        end)
-
-        if cartPrevBtn then cartPrevBtn:setShowing(cartPage > 1) end
-        if cartNextBtn then cartNextBtn:setShowing(cartPage < maxPage) end
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Refresh both panels and the total label
+    -- Refresh both ListBoxes and the total label
     -- -----------------------------------------------------------------------
     local function refreshAll()
-        refreshAvailPanel()
-        refreshCartPanel()
+        if availList then
+            availList:setDataTable(buildDataTable(false))
+            availList:setDisplayOrder(getFilteredAvail())
+        end
+        if cartList then
+            cartList:setDataTable(buildDataTable(true))
+            cartList:setDisplayOrder(getFilteredCart())
+        end
         if totalLabel then
             local total = computeTotal()
             local gold  = Data.PlayerStatus():getGold()
@@ -319,7 +209,7 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
-    -- Move one unit from available ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ cart
+    -- Move units from available -> cart
     -- -----------------------------------------------------------------------
     --- @param itemIdx integer
     --- @param amount integer?
@@ -335,7 +225,7 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
-    -- Move one unit from cart ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ available
+    -- Move units from cart -> available
     -- -----------------------------------------------------------------------
     --- @param itemIdx integer
     --- @param amount integer?
@@ -351,18 +241,6 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
-    -- Add ALL available units of an item to cart
-    -- -----------------------------------------------------------------------
-    --- @param itemIdx integer
-    local function addAllToCart(itemIdx)
-        local item = items[itemIdx]
-        if not item or item.availQty == 0 then return end
-        item.cartQty  = item.cartQty  + item.availQty
-        item.availQty = 0
-        refreshAll()
-    end
-
-    -- -----------------------------------------------------------------------
     -- Clear all cart selections (reset to available)
     -- -----------------------------------------------------------------------
     local function clearCart()
@@ -370,8 +248,6 @@ local function OnInitialize()
             item.availQty = item.totalQty
             item.cartQty  = 0
         end)
-        availPage = 1
-        cartPage  = 1
         refreshAll()
     end
 
@@ -421,263 +297,24 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
-    -- Build a single item row (shared between avail and cart panels)
-    -- isCartPanel: boolean ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â if true, the + button adds-all, - removes one
+    -- Set column anchors for all visible rows of a list box.
+    -- Called after setVisibleRowCount() so the row windows exist.
+    -- Columns: Name | Price | Qty, with SCROLLBAR_W clear on the right.
     -- -----------------------------------------------------------------------
-    --- @param isCartPanel boolean If true, + button adds-all, - removes one
-    --- @return table { view: Window, iconView: DynamicImage, nameView: Label, priceView: Label, qtyView: Label, addBtn: Button, remBtn: Button }
-    local function ItemRow(isCartPanel)
-        local iconView  = nil
-        local nameView  = nil
-        local priceView = nil
-        local qtyView   = nil
-        local addBtn    = nil
-        local remBtn    = nil
-
-        -- Item icon
-        iconView = Components.DynamicImage {
-            OnInitialize = function(self)
-                self:setDimensions(ICON_SIZE, ICON_SIZE)
-                self:setShowing(false)
-            end,
-            OnMouseOver = function(self)
-                local idx = self:getId()
-                if idx and idx > 0 then showItemTooltip(idx) end
-            end,
-            OnMouseOverEnd = function(self)
-                Api.ItemProperties.ClearMouseOverItem()
-            end,
-            OnLButtonDown = function(self)
-                local idx = self:getId()
-                if idx and idx > 0 then
-                    if isCartPanel then
-                        removeFromCart(idx, 1)
-                    else
-                        addToCart(idx, 1)
-                    end
-                end
-            end
-        }
-
-        -- Item name label
-        nameView = Components.Label {
-            OnInitialize = function(self)
-                self:setDimensions(110, ROW_H)
-                self:setShowing(false)
-            end,
-            OnMouseOver = function(self)
-                local idx = self:getId()
-                if idx and idx > 0 then showItemTooltip(idx) end
-            end,
-            OnMouseOverEnd = function(self)
-                Api.ItemProperties.ClearMouseOverItem()
-            end
-        }
-
-        -- Price label
-        priceView = Components.Label {
-            OnInitialize = function(self)
-                self:setDimensions(55, ROW_H)
-                self:setShowing(false)
-            end
-        }
-
-        -- Quantity label
-        qtyView = Components.Label {
-            OnInitialize = function(self)
-                self:setDimensions(28, ROW_H)
-                self:centerText()
-                self:setShowing(false)
-            end
-        }
-
-        -- Add / All button
-        addBtn = Components.Button {
-            Template = "MongbatButton18",
-            OnInitialize = function(self)
-                self:setDimensions(22, 22)
-                self:setText(isCartPanel and "All" or "+")
-                self:setShowing(false)
-            end,
-            OnLButtonUp = function(self)
-                local idx = self:getId()
-                if idx and idx > 0 then
-                    if isCartPanel then
-                        addAllToCart(idx)
-                    else
-                        addToCart(idx, 1)
-                    end
-                end
-            end
-        }
-
-        -- Remove / - button
-        remBtn = Components.Button {
-            Template = "MongbatButton18",
-            OnInitialize = function(self)
-                self:setDimensions(22, 22)
-                self:setText("-")
-                self:setShowing(false)
-            end,
-            OnLButtonUp = function(self)
-                local idx = self:getId()
-                if idx and idx > 0 then
-                    removeFromCart(idx, 1)
-                end
-            end
-        }
-
-        -- Row container window
-        local rowView = Components.Window {
-            OnInitialize = function(self)
-                self:setDimensions(PANEL_W - MARGIN * 2, ROW_H)
-                self:setChildren { iconView, nameView, priceView, qtyView, addBtn, remBtn }
-            end,
-            OnLayout = function(win, _, child, idx)
-                local winName = win:getName()
-                -- Absolute offsets: [icon(28)] [name(110)] [price(50)] [qty(28)] [+btn(22)] [-btn(22)]
-                if idx == 1 then
-                    child:clearAnchors()
-                    child:addAnchor("left", winName, "left", 2, 0)
-                elseif idx == 2 then
-                    child:clearAnchors()
-                    child:addAnchor("left", winName, "left", ICON_SIZE + 4, 0)
-                elseif idx == 3 then
-                    child:clearAnchors()
-                    child:addAnchor("left", winName, "left", ICON_SIZE + 4 + 112, 0)
-                elseif idx == 4 then
-                    child:clearAnchors()
-                    child:addAnchor("left", winName, "left", ICON_SIZE + 4 + 112 + 52, 0)
-                elseif idx == 5 then
-                    child:clearAnchors()
-                    child:addAnchor("right", winName, "right", -26, 0)
-                elseif idx == 6 then
-                    child:clearAnchors()
-                    child:addAnchor("right", winName, "right", -2, 0)
-                end
-            end
-        }
-
-        -- Stash child refs alongside the row view for later refresh
-        return {
-            view      = rowView,
-            iconView  = iconView,
-            nameView  = nameView,
-            priceView = priceView,
-            qtyView   = qtyView,
-            addBtn    = addBtn,
-            remBtn    = remBtn
-        }
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Build a panel (available or cart)
-    -- isCartPanel controls button semantics
-    -- Returns {panelWindow, rowViews, prevBtn, nextBtn}
-    -- -----------------------------------------------------------------------
-    --- @param headerText string
-    --- @param isCartPanel boolean
-    --- @return Window panelWindow
-    --- @return table[] rowViews Array of ItemRow tables
-    --- @return Button prevBtn
-    --- @return Button nextBtn
-    local function Panel(headerText, isCartPanel)
-        local rowViews = {}
-        local prevBtn  = nil
-        local nextBtn  = nil
-
-        -- Header label
-        local hdrLabel = Components.Label {
-            OnInitialize = function(self)
-                self:setDimensions(PANEL_W - MARGIN * 2, HDR_H)
-                self:setText(headerText)
-                self:centerText()
-            end
-        }
-
-        -- Item rows
-        local children = { hdrLabel }
-        for row = 1, ITEMS_PER_PAGE do
-            local itemRow = ItemRow(isCartPanel)
-            rowViews[row] = itemRow
-            Utils.Array.Add(children, itemRow.view)
+    --- @param listName string  The engine window name of the ListBox
+    local function applyRowColumnAnchors(listName)
+        for rowIdx = 1, VISIBLE_ROWS do
+            local rowName = listName .. "Row" .. rowIdx
+            local nameWin  = rowName .. "Name"
+            local priceWin = rowName .. "Price"
+            local qtyWin   = rowName .. "Qty"
+            Api.Window.ClearAnchors(nameWin)
+            Api.Window.AddAnchor(nameWin,  "left", rowName, "left", COL_NAME_X,  0)
+            Api.Window.ClearAnchors(priceWin)
+            Api.Window.AddAnchor(priceWin, "left", rowName, "left", COL_PRICE_X, 0)
+            Api.Window.ClearAnchors(qtyWin)
+            Api.Window.AddAnchor(qtyWin,   "left", rowName, "left", COL_QTY_X,   0)
         end
-
-        -- Pagination buttons
-        prevBtn = Components.Button {
-            Template = "MongbatButton18",
-            OnInitialize = function(self)
-                self:setDimensions(BTN_W / 2, 22)
-                self:setText("< Prev")
-                self:setShowing(false)
-            end,
-            OnLButtonUp = function(self)
-                if isCartPanel then
-                    if cartPage > 1 then
-                        cartPage = cartPage - 1
-                        refreshCartPanel()
-                    end
-                else
-                    if availPage > 1 then
-                        availPage = availPage - 1
-                        refreshAvailPanel()
-                    end
-                end
-            end
-        }
-
-        nextBtn = Components.Button {
-            Template = "MongbatButton18",
-            OnInitialize = function(self)
-                self:setDimensions(BTN_W / 2, 22)
-                self:setText("Next >")
-                self:setShowing(false)
-            end,
-            OnLButtonUp = function(self)
-                if isCartPanel then
-                    cartPage = cartPage + 1
-                    refreshCartPanel()
-                else
-                    availPage = availPage + 1
-                    refreshAvailPanel()
-                end
-            end
-        }
-
-        Utils.Array.Add(children, prevBtn)
-        Utils.Array.Add(children, nextBtn)
-
-        local panelWindow = Components.Window {
-            OnInitialize = function(self)
-                self:setDimensions(PANEL_W, PANEL_H)
-                self:setChildren(children)
-            end,
-            OnLayout = function(win, _, child, idx)
-                local winName = win:getName()
-                if idx == 1 then
-                    -- Header at top
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft", MARGIN, MARGIN)
-                elseif idx >= 2 and idx <= ITEMS_PER_PAGE + 1 then
-                    -- Item rows stacked
-                    local row = idx - 1
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft",
-                        MARGIN,
-                        MARGIN + HDR_H + MARGIN + (row - 1) * (ROW_H + 2))
-                elseif idx == ITEMS_PER_PAGE + 2 then
-                    -- Prev button
-                    child:clearAnchors()
-                    child:addAnchor("bottomleft", winName, "bottomleft", MARGIN, -MARGIN)
-                elseif idx == ITEMS_PER_PAGE + 3 then
-                    -- Next button
-                    child:clearAnchors()
-                    child:addAnchor("bottomright", winName, "bottomright", -MARGIN, -MARGIN)
-                end
-            end
-        }
-
-        return panelWindow, rowViews, prevBtn, nextBtn
     end
 
     -- -----------------------------------------------------------------------
@@ -711,19 +348,9 @@ local function OnInitialize()
             end
         end
 
-        -- Available panel
-        local availHdr  = isSelling and "Sellable" or "Available"
-        local cartHdr   = isSelling and "Sell List" or "Cart"
-
-        local availPanel, aRows, aPrev, aNext = Panel(availHdr, false)
-        local cartPanel,  cRows, cPrev, cNext = Panel(cartHdr, true)
-
-        availRowViews = aRows
-        cartRowViews  = cRows
-        availPrevBtn  = aPrev
-        availNextBtn  = aNext
-        cartPrevBtn   = cPrev
-        cartNextBtn   = cNext
+        -- Panel headers
+        local availHdr = isSelling and "Sellable" or "Available"
+        local cartHdr  = isSelling and "Sell List" or "Cart"
 
         -- Title label
         local titleLabel = Components.Label {
@@ -743,8 +370,7 @@ local function OnInitialize()
                 local text = searchBox:getText()
                 if not Utils.String.IsEmpty(text) then
                     Utils.Array.AddUnique(filterPatterns, Utils.String.Lower(text))
-                    availPage = 1
-                    refreshAvailPanel()
+                    refreshAll()
                 end
             end
         }
@@ -761,8 +387,81 @@ local function OnInitialize()
                 if searchBox then
                     searchBox:setText("")
                 end
-                availPage = 1
-                refreshAvailPanel()
+                refreshAll()
+            end
+        }
+
+        -- Available panel header
+        local availHeader = Components.Label {
+            OnInitialize = function(self)
+                self:setDimensions(PANEL_W, 20)
+                self:setText(availHdr)
+                self:centerText()
+            end
+        }
+
+        -- Cart panel header
+        local cartHeader = Components.Label {
+            OnInitialize = function(self)
+                self:setDimensions(PANEL_W, 20)
+                self:setText(cartHdr)
+                self:centerText()
+            end
+        }
+
+        -- Available items ListBox
+        -- Left-click on a row adds one unit of that item to the cart.
+        availList = Components.ListBox {
+            Template = "ShopkeeperItemList",
+            OnInitialize = function(self)
+                self:setDimensions(PANEL_W, PANEL_H)
+                self:setVisibleRowCount(VISIBLE_ROWS)
+                applyRowColumnAnchors(self:getName())
+                self:setDataTable(buildDataTable(false))
+                self:setDisplayOrder(getFilteredAvail())
+            end,
+            OnLButtonDown = function(self)
+                local dataIdx = self:getClickedDataIndex()
+                if dataIdx and dataIdx > 0 then
+                    addToCart(dataIdx, 1)
+                end
+            end,
+            OnMouseOver = function(self)
+                local dataIdx = self:getHoveredDataIndex()
+                if dataIdx and dataIdx > 0 then
+                    showItemTooltip(dataIdx)
+                end
+            end,
+            OnMouseOverEnd = function(_)
+                Api.ItemProperties.ClearMouseOverItem()
+            end
+        }
+
+        -- Cart items ListBox
+        -- Left-click on a row removes one unit of that item from the cart.
+        cartList = Components.ListBox {
+            Template = "ShopkeeperItemList",
+            OnInitialize = function(self)
+                self:setDimensions(PANEL_W, PANEL_H)
+                self:setVisibleRowCount(VISIBLE_ROWS)
+                applyRowColumnAnchors(self:getName())
+                self:setDataTable(buildDataTable(true))
+                self:setDisplayOrder(getFilteredCart())
+            end,
+            OnLButtonDown = function(self)
+                local dataIdx = self:getClickedDataIndex()
+                if dataIdx and dataIdx > 0 then
+                    removeFromCart(dataIdx, 1)
+                end
+            end,
+            OnMouseOver = function(self)
+                local dataIdx = self:getHoveredDataIndex()
+                if dataIdx and dataIdx > 0 then
+                    showItemTooltip(dataIdx)
+                end
+            end,
+            OnMouseOverEnd = function(_)
+                Api.ItemProperties.ClearMouseOverItem()
             end
         }
 
@@ -811,31 +510,37 @@ local function OnInitialize()
 
         -- Children in layout order
         local children = {
-            titleLabel,    -- 1
-            searchBox,     -- 2
-            clearFilterBtn,-- 3
-            availPanel,    -- 4
-            cartPanel,     -- 5
-            totalLabel,    -- 6
-            acceptBtn,     -- 7
-            cancelBtn,     -- 8
-            closeBtn       -- 9
+            titleLabel,     -- 1
+            searchBox,      -- 2
+            clearFilterBtn, -- 3
+            availHeader,    -- 4
+            cartHeader,     -- 5
+            availList,      -- 6
+            cartList,       -- 7
+            totalLabel,     -- 8
+            acceptBtn,      -- 9
+            cancelBtn,      -- 10
+            closeBtn        -- 11
         }
 
-        local IDX_TITLE      = 1
-        local IDX_SEARCH     = 2
-        local IDX_CLRFILTER  = 3
-        local IDX_AVAIL      = 4
-        local IDX_CART       = 5
-        local IDX_TOTAL      = 6
-        local IDX_ACCEPT     = 7
-        local IDX_CANCEL     = 8
-        local IDX_CLOSE      = 9
+        local IDX_TITLE     = 1
+        local IDX_SEARCH    = 2
+        local IDX_CLRFILTER = 3
+        local IDX_AVAILHDR  = 4
+        local IDX_CARTHDR   = 5
+        local IDX_AVAIL     = 6
+        local IDX_CART      = 7
+        local IDX_TOTAL     = 8
+        local IDX_ACCEPT    = 9
+        local IDX_CANCEL    = 10
+        local IDX_CLOSE     = 11
+
+        local panelTop = MARGIN + TITLE_H + MARGIN + SEARCH_H + MARGIN
 
         -- Build the Window model.  Buy-mode update handlers are added
         -- conditionally so the framework only registers those events in buy mode.
         local windowModel = {
-            Name     = "MongbatShopkeeperWindow",
+            Name      = "MongbatShopkeeperWindow",
             Resizable = false,
             OnInitialize = function(self)
                 self:setDimensions(WIN_W, WIN_H)
@@ -863,16 +568,22 @@ local function OnInitialize()
                     child:addAnchor("topleft", winName, "topleft",
                         MARGIN + (PANEL_W - 50) + 4,
                         MARGIN + TITLE_H + MARGIN)
+                elseif idx == IDX_AVAILHDR then
+                    child:clearAnchors()
+                    child:addAnchor("topleft", winName, "topleft",
+                        MARGIN, panelTop)
+                elseif idx == IDX_CARTHDR then
+                    child:clearAnchors()
+                    child:addAnchor("topleft", winName, "topleft",
+                        MARGIN + PANEL_W + MARGIN, panelTop)
                 elseif idx == IDX_AVAIL then
                     child:clearAnchors()
                     child:addAnchor("topleft", winName, "topleft",
-                        MARGIN,
-                        MARGIN + TITLE_H + MARGIN + SEARCH_H + MARGIN)
+                        MARGIN, panelTop + 22)
                 elseif idx == IDX_CART then
                     child:clearAnchors()
                     child:addAnchor("topleft", winName, "topleft",
-                        MARGIN + PANEL_W + MARGIN,
-                        MARGIN + TITLE_H + MARGIN + SEARCH_H + MARGIN)
+                        MARGIN + PANEL_W + MARGIN, panelTop + 22)
                 elseif idx == IDX_TOTAL then
                     child:clearAnchors()
                     child:addAnchor("bottomleft", winName, "bottomleft",
@@ -908,18 +619,20 @@ local function OnInitialize()
                 end
                 -- PlayerStatus was registered in Initialize; unregister it here
                 Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
+                -- Explicitly destroy child ListBoxes to clean up their _G DataTable globals
+                -- before the parent window teardown clears the parent's own DataTable.
+                if availList then
+                    Api.Window.Destroy(availList:getName())
+                end
+                if cartList then
+                    Api.Window.Destroy(cartList:getName())
+                end
                 -- Reset per-session state
                 items           = {}
                 filterPatterns  = {}
-                availPage       = 1
-                cartPage        = 1
                 windowView      = nil
-                availRowViews   = {}
-                cartRowViews    = {}
-                availPrevBtn    = nil
-                availNextBtn    = nil
-                cartPrevBtn     = nil
-                cartNextBtn     = nil
+                availList       = nil
+                cartList        = nil
                 totalLabel      = nil
                 searchBox       = nil
                 sellContainerId = 0
@@ -1022,7 +735,7 @@ local function OnInitialize()
         createShopWindow(mId, isSell)
     end
 
-    -- Override Shopkeeper.Shutdown ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â called when the default XML window is torn
+    -- Override Shopkeeper.Shutdown -- called when the default XML window is torn
     -- down (e.g. server closes shop).  Broadcast cancel and destroy our window
     -- if it is still open; our window's OnShutdown handles data cleanup.
     shopkeeperDefault:getDefault().Shutdown = function()
@@ -1056,6 +769,7 @@ end
 Mongbat.Mod {
     Name = "MongbatShopkeeper",
     Path = "/src/mods/mongbat-shopkeeper",
+    Files = { "MongbatShopkeeper.xml" },
     OnInitialize = OnInitialize,
     OnShutdown   = OnShutdown
 }

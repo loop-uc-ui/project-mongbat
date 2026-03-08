@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="../../../docs/Interface.xsd">
+    <Windows>
+
+        <!-- Row template for shopkeeper item lists.
+             Child names (Name, Price, Qty) match the ListColumn windowname attributes
+             so the engine auto-populates them from the data table. -->
+        <!-- Row template. Column positions are applied programmatically via
+             applyRowColumnAnchors() in MongbatShopkeeperMod.lua; XML sizes
+             are defaults only. -->
+        <Window name="ShopkeeperItemRow">
+            <Size>
+                <AbsPoint x="290" y="24"/>
+            </Size>
+            <Windows>
+                <Label name="$parentName" font="inter_medium_18" maxchars="128">
+                    <Size>
+                        <AbsPoint x="140" y="24"/>
+                    </Size>
+                    <Color r="206" g="217" b="242" a="255"/>
+                </Label>
+                <Label name="$parentPrice" font="inter_medium_18" maxchars="32">
+                    <Size>
+                        <AbsPoint x="56" y="24"/>
+                    </Size>
+                    <Color r="206" g="217" b="242" a="255"/>
+                </Label>
+                <Label name="$parentQty" font="inter_medium_18" maxchars="16">
+                    <Size>
+                        <AbsPoint x="40" y="24"/>
+                    </Size>
+                    <Color r="206" g="217" b="242" a="255"/>
+                </Label>
+            </Windows>
+        </Window>
+
+        <!-- ListBox template for shopkeeper item display.
+             visiblerows and rowcount are set to 0; configured programmatically
+             via ListBox:setVisibleRowCount(). Data table is set via
+             ListBox:setDataTable(). populationfunction routes through
+             the framework EventHandler for OnPopulateRow support. -->
+        <ListBox name="ShopkeeperItemList"
+              rowdef="ShopkeeperItemRow"
+              scrollbar="$parentScrollbar"
+              rowcount="0"
+              visiblerows="0"
+              rowspacing="2">
+            <Size>
+                <AbsPoint x="290" y="300"/>
+            </Size>
+            <ListData populationfunction="Mongbat.EventHandler.OnPopulateRow">
+                <ListColumns>
+                    <ListColumn windowname="Name" variable="name" format="wstring"/>
+                    <ListColumn windowname="Price" variable="price" format="wstring"/>
+                    <ListColumn windowname="Qty" variable="qty" format="wstring"/>
+                </ListColumns>
+            </ListData>
+        </ListBox>
+
+    </Windows>
+</Interface>

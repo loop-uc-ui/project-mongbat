@@ -200,5 +200,33 @@
       <Button name="MongbatCheckBox" inherits="UO_Default_Check_Button">
       </Button>
 
+      <!-- Default row template for MongbatListBox -->
+      <Window name="MongbatListBoxRow">
+          <Size>
+              <AbsPoint x="100" y="20"/>
+          </Size>
+          <Windows>
+              <Label name="$parentText" font="inter_medium_18" maxchars="256">
+                  <Anchors>
+                      <Anchor point="topleft" relativePoint="topleft" relativeTo=""/>
+                      <Anchor point="bottomright" relativePoint="bottomright" relativeTo=""/>
+                  </Anchors>
+                  <Color r="206" g="217" b="242" a="255" />
+              </Label>
+          </Windows>
+      </Window>
+
+      <!-- ListBox template with population function routed through EventHandler -->
+      <ListBox name="MongbatListBox" rowdef="MongbatListBoxRow" scrollbar="$parentScrollbar" rowcount="0" visiblerows="0" rowspacing="0">
+          <Size>
+              <AbsPoint x="100" y="100" />
+          </Size>
+          <ListData populationfunction="Mongbat.EventHandler.OnPopulateRow">
+              <ListColumns>
+                  <ListColumn windowname="Text" variable="text" format="wstring"/>
+              </ListColumns>
+          </ListData>
+      </ListBox>
+
     </Windows>
 </Interface>
