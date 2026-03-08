@@ -17,6 +17,7 @@ local WIN_H        = 520
 local PANEL_W      = 310
 local PANEL_H      = 340
 local VISIBLE_ROWS = 12
+local ROW_H        = 24
 local MARGIN       = 10
 local SEARCH_H     = 24
 local BTN_W        = 90
@@ -34,12 +35,6 @@ local COL_QTY_X    = 215
 local defaultWindowName = nil
 
 local function OnInitialize()
-    local Api        = Api
-    local Data       = Data
-    local Utils      = Utils
-    local Constants  = Constants
-    local Components = Components
-
     local shopkeeperDefault = Components.Defaults.Shopkeeper
 
     -- -----------------------------------------------------------------------
@@ -300,11 +295,16 @@ local function OnInitialize()
     -- Set column anchors for all visible rows of a list box.
     -- Called after setVisibleRowCount() so the row windows exist.
     -- Columns: Name | Price | Qty, with SCROLLBAR_W clear on the right.
+    -- Row width is explicitly constrained so content does not extend
+    -- under the engine-managed scrollbar.
     -- -----------------------------------------------------------------------
     --- @param listName string  The engine window name of the ListBox
     local function applyRowColumnAnchors(listName)
+        local rowContentWidth = PANEL_W - SCROLLBAR_W
         for rowIdx = 1, VISIBLE_ROWS do
             local rowName = listName .. "Row" .. rowIdx
+            -- Constrain row width so it stops before the scrollbar
+            Api.Window.SetDimensions(rowName, rowContentWidth, ROW_H)
             local nameWin  = rowName .. "Name"
             local priceWin = rowName .. "Price"
             local qtyWin   = rowName .. "Qty"
@@ -364,7 +364,7 @@ local function OnInitialize()
         -- Search box
         searchBox = Components.EditTextBox {
             OnInitialize = function(self)
-                self:setDimensions(PANEL_W - 50, SEARCH_H)
+                self:setDimensions(PANEL_W - 58, SEARCH_H)
             end,
             OnKeyEnter = function(_)
                 local text = searchBox:getText()
@@ -379,7 +379,7 @@ local function OnInitialize()
         local clearFilterBtn = Components.Button {
             Template = "MongbatButton18",
             OnInitialize = function(self)
-                self:setDimensions(44, SEARCH_H)
+                self:setDimensions(52, SEARCH_H)
                 self:setText("Clear")
             end,
             OnLButtonUp = function(_)
@@ -566,7 +566,7 @@ local function OnInitialize()
                 elseif idx == IDX_CLRFILTER then
                     child:clearAnchors()
                     child:addAnchor("topleft", winName, "topleft",
-                        MARGIN + (PANEL_W - 50) + 4,
+                        MARGIN + (PANEL_W - 58) + 4,
                         MARGIN + TITLE_H + MARGIN)
                 elseif idx == IDX_AVAILHDR then
                     child:clearAnchors()
