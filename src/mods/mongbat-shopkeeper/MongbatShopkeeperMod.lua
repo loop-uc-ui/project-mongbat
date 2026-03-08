@@ -81,12 +81,14 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Build filtered view of items (indices into items[])
     -- -----------------------------------------------------------------------
+    --- @return integer[]
     local function getFilteredAvail()
         return Utils.Array.Indices(items, function(item)
             return item.availQty > 0 and item.price > 0 and matchesFilter(item.name)
         end)
     end
 
+    --- @return integer[]
     local function getFilteredCart()
         return Utils.Array.Indices(items, function(item)
             return item.cartQty > 0
@@ -114,6 +116,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Refresh both ListBoxes and the total label
     -- -----------------------------------------------------------------------
+    --- Updates data tables, display order, and total cost in the UI.
     local function refreshAll()
         if availList then
             availList:setDataTable(buildDataTable(false))
@@ -133,6 +136,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Populate buy items from WindowData.ContainerWindow
     -- -----------------------------------------------------------------------
+    --- Rebuilds items[] from the sell container's contents, preserving cart quantities.
     local function loadBuyItems()
         local data = Data.ContainerWindow(sellContainerId)
         if not data then return end
@@ -187,6 +191,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Populate sell items from WindowData.ShopData.Sell
     -- -----------------------------------------------------------------------
+    --- Rebuilds items[] from ShopData sell entries.
     local function loadSellItems()
         items = {}
         local shopData = Data.ShopData()
@@ -238,6 +243,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Clear all cart selections (reset to available)
     -- -----------------------------------------------------------------------
+    --- Resets all items' cartQty to 0 and restores availQty.
     local function clearCart()
         Utils.Array.ForEach(items, function(item)
             item.availQty = item.totalQty
@@ -249,6 +255,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Execute the transaction: populate OfferIds/OfferQuantities and broadcast
     -- -----------------------------------------------------------------------
+    --- Submits the cart contents as a buy/sell offer and destroys the window.
     local function acceptOffer()
         local offerIds  = {}
         local offerQtys = {}
@@ -270,6 +277,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     -- Cancel: broadcast cancel and destroy window
     -- -----------------------------------------------------------------------
+    --- Cancels the current shop offer and destroys the window.
     local function cancelOffer()
         Api.Event.Broadcast(Constants.Broadcasts.ShopCancelOffer())
         Api.Window.Destroy("MongbatShopkeeperWindow")
