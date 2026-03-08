@@ -8,6 +8,12 @@ local SEARCH_H = 28
 local TOTAL_H = 18
 local ITEM_H = 22
 
+local Api = Mongbat.Api
+local Data = Mongbat.Data
+local Constants = Mongbat.Constants
+local Components = Mongbat.Components
+local Utils = Mongbat.Utils
+
 --- Returns the display name for a facet index.
 ---@param map number Facet index (0=Felucca, 1=Trammel, etc.)
 ---@return string
@@ -23,9 +29,8 @@ local function getFacetName(map)
     return names[map] or "Unknown"
 end
 
----@param ctx Context
-local function OnInitialize(ctx)
-    local mapFind = ctx.Components.Defaults.MapFind
+local function OnInitialize()
+    local mapFind = Components.Defaults.MapFind
     mapFind:disable()
 
     --- Currently stored search results.
@@ -38,8 +43,8 @@ local function OnInitialize(ctx)
 
     --- Destroys all current result row views and resets state.
     local function clearItemList()
-        ctx.Utils.Array.ForEach(items, function(_, i)
-            ctx.Api.Window.Destroy(ITEM_PREFIX .. i)
+        Utils.Array.ForEach(items, function(_, i)
+            Api.Window.Destroy(ITEM_PREFIX .. i)
         end)
         items = {}
         itemViews = {}
@@ -54,7 +59,7 @@ local function OnInitialize(ctx)
         local mapName = getFacetName(itemData.Map)
         local displayText = L"[" .. towstring(mapName) .. L"] " .. towstring(tostring(itemData.Name))
 
-        local row = ctx.Components.Label {
+        local row = Components.Label {
             Name = ITEM_PREFIX .. i,
             OnInitialize = function(self)
                 self:setText(displayText)
@@ -64,9 +69,9 @@ local function OnInitialize(ctx)
                 local x = tonumber(itemData.x)
                 local y = tonumber(itemData.y)
                 if x and y then
-                    ctx.Api.Map.CenterOnLocation(x, y, itemData.Map)
-                    ctx.Components.Defaults.MapWindow:getDefault().CenterOnPlayer = false
-                    ctx.Api.Radar.SetCenterOnPlayer(false)
+                    Api.Map.CenterOnLocation(x, y, itemData.Map)
+                    Components.Defaults.MapWindow:getDefault().CenterOnPlayer = false
+                    Api.Radar.SetCenterOnPlayer(false)
                 end
             end,
             OnMouseOver = function(self)
@@ -74,16 +79,16 @@ local function OnInitialize(ctx)
                     .. " x: " .. tostring(itemData.x)
                     .. " y: " .. tostring(itemData.y)
                     .. " z: " .. tostring(itemData.z)
-                ctx.Api.ItemProperties.SetActiveItem({
+                Api.ItemProperties.SetActiveItem({
                     windowName = self:getName(),
                     itemId     = i,
-                    itemType   = ctx.Constants.ItemPropertyType.WStringData,
+                    itemType   = Constants.ItemPropertyType.WStringData,
                     title      = towstring(tostring(itemData.Name)),
                     body       = towstring(desc),
                 })
             end,
             OnMouseOverEnd = function(self)
-                ctx.Api.ItemProperties.ClearMouseOverItem()
+                Api.ItemProperties.ClearMouseOverItem()
             end,
         }
 
@@ -125,22 +130,22 @@ local function OnInitialize(ctx)
             if totalLabel then
                 totalLabel:setText(L"")
             end
-            ctx.Api.ScrollWindow.UpdateScrollRect(SCROLL_NAME)
+            Api.ScrollWindow.UpdateScrollRect(SCROLL_NAME)
             return
         end
 
-        local textStr = string.lower(tostring(text))
+        local textStr = Utils.String.Lower(text)
 
         -- Search built-in waypoints across all facets.
-        local waypointsData = ctx.Data.Waypoints()
+        local waypointsData = Data.Waypoints()
         if waypointsData and waypointsData.Facet then
-            ctx.Utils.Table.ForEach(waypointsData.Facet, function(map, array)
-                ctx.Utils.Array.ForEach(array, function(waypoint, idx)
-                    if string.find(string.lower(tostring(waypoint.Name)), textStr) then
-                        if ctx.Api.Waypoint.GetInfoAt(idx, map) ~= nil then
-                            local wp = ctx.Utils.Table.Copy(waypoint)
+            Utils.Table.ForEach(waypointsData.Facet, function(map, array)
+                Utils.Array.ForEach(array, function(waypoint, idx)
+                    if Utils.String.Find(Utils.String.Lower(tostring(waypoint.Name)), textStr) then
+                        if Api.Waypoint.GetInfoAt(idx, map) ~= nil then
+                            local wp = Utils.Table.Copy(waypoint)
                             wp.Map = map
-                            ctx.Utils.Array.Add(items, wp)
+                            Utils.Array.Add(items, wp)
                         end
                     end
                 end)
@@ -148,13 +153,13 @@ local function OnInitialize(ctx)
         end
 
         -- Search user-created waypoints (type 15 = custom).
-        local waypointList = ctx.Data.WaypointList()
+        local waypointList = Data.WaypointList()
         local wpCount = waypointList:getCount()
-        local lowerText = wstring.lower(text)
+        local lowerText = Utils.String.Lower(text)
         for waypointId = 1, wpCount do
-            local wtype, _, wname, wfacet, wx, wy, wz = ctx.Api.Waypoint.GetInfo(waypointId)
+            local wtype, _, wname, wfacet, wx, wy, wz = Api.Waypoint.GetInfo(waypointId)
             if wtype == 15 then
-                local mapCommon = ctx.Components.Defaults.MapCommon:getDefault()
+                local mapCommon = Components.Defaults.MapCommon:getDefault()
                 local data = mapCommon.GetWPDataFromString(wname, wtype, wfacet)
                 if data then
                     local wp = {
@@ -165,8 +170,8 @@ local function OnInitialize(ctx)
                         Name = tostring(data.name),
                         Map  = data.facet,
                     }
-                    if wstring.find(wstring.lower(wname), lowerText) then
-                        ctx.Utils.Array.Add(items, wp)
+                    if Utils.String.Find(Utils.String.Lower(wname), lowerText) then
+                        Utils.Array.Add(items, wp)
                     end
                 end
             end
@@ -174,7 +179,7 @@ local function OnInitialize(ctx)
 
         -- Build result rows.
         totalItems = #items
-        ctx.Utils.Array.ForEach(items, function(itemData, i)
+        Utils.Array.ForEach(items, function(itemData, i)
             itemViews[i] = createItemRow(i, itemData)
         end)
 
@@ -182,7 +187,7 @@ local function OnInitialize(ctx)
         if totalLabel then
             totalLabel:setText(makeTotalText(totalItems))
         end
-        ctx.Api.ScrollWindow.UpdateScrollRect(SCROLL_NAME)
+        Api.ScrollWindow.UpdateScrollRect(SCROLL_NAME)
     end
 
     --- Clears results and resets the search box text.
@@ -196,11 +201,11 @@ local function OnInitialize(ctx)
         if filterInput then
             filterInput:clear()
         end
-        ctx.Api.ScrollWindow.UpdateScrollRect(SCROLL_NAME)
+        Api.ScrollWindow.UpdateScrollRect(SCROLL_NAME)
     end
 
     -- Build the total-count label.
-    totalLabel = ctx.Components.Label {
+    totalLabel = Components.Label {
         Name = NAME .. "TotalLabel",
         OnInitialize = function(self)
             self:setDimensions(200, TOTAL_H)
@@ -208,7 +213,7 @@ local function OnInitialize(ctx)
     }
 
     -- Build the search FilterInput.
-    filterInput = ctx.Components.FilterInput {
+    filterInput = Components.FilterInput {
         Name = NAME .. "SearchBox",
         OnInitialize = function(self)
             self:setDimensions(200, SEARCH_H)
@@ -222,7 +227,7 @@ local function OnInitialize(ctx)
     }
 
     -- Main window.
-    ctx.Components.Window({
+    Components.Window({
         Name = NAME,
         OnInitialize = function(self)
             self:setDimensions(320, 400)
@@ -256,17 +261,16 @@ local function OnInitialize(ctx)
             )
 
             -- Create scroll window below total label.
-            ctx.Api.Window.CreateFromTemplate(SCROLL_NAME, "MongbatScrollWindow", NAME, true)
-            ctx.Api.Window.AddAnchor(SCROLL_NAME, "topleft", NAME .. "TotalLabel", "bottomleft", 0, 4)
-            ctx.Api.Window.AddAnchor(SCROLL_NAME, "bottomright", NAME, "bottomright", -PADDING, -PADDING)
+            Api.Window.CreateFromTemplate(SCROLL_NAME, "MongbatScrollWindow", NAME, true)
+            Api.Window.AddAnchor(SCROLL_NAME, "topleft", NAME .. "TotalLabel", "bottomleft", 0, 4)
+            Api.Window.AddAnchor(SCROLL_NAME, "bottomright", NAME, "bottomright", -PADDING, -PADDING)
         end,
     }):create(true)
 end
 
----@param ctx Context
-local function OnShutdown(ctx)
-    ctx.Api.Window.Destroy(NAME)
-    local mapFind = ctx.Components.Defaults.MapFind
+local function OnShutdown()
+    Api.Window.Destroy(NAME)
+    local mapFind = Components.Defaults.MapFind
     mapFind:restore()
 end
 

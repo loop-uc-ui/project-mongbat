@@ -2892,6 +2892,18 @@ function Utils.String.Format(fmt, ...)
     return string.format(fmt, ...)
 end
 
+--- Searches for a pattern within a string. Handles both string and wstring inputs
+--- by converting to string before searching.
+---@param text string|wstring The text to search in.
+---@param pattern string|wstring The pattern to search for.
+---@return number|nil startIndex The start index of the match, or nil if not found.
+function Utils.String.Find(text, pattern)
+    if text == nil or pattern == nil then return nil end
+    local s = Utils.String.FromWString(text)
+    local p = Utils.String.FromWString(pattern)
+    return string.find(s, p)
+end
+
 -- ========================================================================== --
 -- Constants
 -- ========================================================================== --
