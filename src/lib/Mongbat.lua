@@ -829,9 +829,9 @@ function Api.Label.SetText(name, text)
     if text == nil then
         return
     elseif type(text) == "number" then
-        text = StringFormatter.fromTid(text)
+        text = Api.String.GetStringFromTid(text)
     elseif type(text) == "string" then
-        text = StringFormatter.toWString(text)
+        text = Api.String.StringToWString(text)
     end
     LabelSetText(name, text)
 end
@@ -926,6 +926,15 @@ function Api.ListBox.GetPopulatorIndices(name)
         return tbl.PopulatorIndices
     end
     return nil
+end
+
+---
+--- Clears the global data table entry for a list box.
+--- Call this when the list box is destroyed to free the global reference.
+---@param name string The name of the list box.
+function Api.ListBox.ClearDataTable(name)
+    local globalName = name .. "_DataTable"
+    _G[globalName] = nil
 end
 
 ---
@@ -4347,7 +4356,7 @@ CheckBox.__index = CheckBox
 local ComboBox = {}
 ComboBox.__index = ComboBox
 
----@class ListBoxModel : ViewModel
+---@class ListBoxModel : ViewModel]
 ---@field OnInitialize fun(self: ListBox)?
 ---@field OnShutdown fun(self: ListBox)?
 ---@field OnMouseWheel fun(self: ListBox, x: number, y: number, delta: number)?
@@ -6194,10 +6203,13 @@ function EventHandler.OnSelChanged()
     end)
 end
 
-function EventHandler.OnPopulateRow()
-    withActiveView("OnPopulateRow", function(view)
-        view:onPopulateRow()
-    end)
+function EventHandler.OnPopulateRow(arg)
+    local window = Active.window()
+    Debug.Print(arg)
+    Debug.Print(window)
+    -- withActiveView("OnPopulateRow", function(view)
+    --     view:onPopulateRow()
+    -- end)
 end
 
 
@@ -6385,7 +6397,7 @@ end
 
 ---@return string
 function ScrollWindow:_getContainerName()
-    return self.name .. "Cont"
+    return self.name .. "ChildCont"
 end
 
 function ScrollWindow:onInitialize()
@@ -6430,6 +6442,7 @@ end
 function ScrollWindow:removeItem(view)
     local idx = Utils.Array.IndexOf(self._items, function(v) return v == view end)
     if idx == -1 then return end
+    Cache[view:getName()] = nil
     view:destroy()
     Utils.Array.Remove(self._items, idx)
     self:_updateLayout()
@@ -6438,11 +6451,24 @@ end
 --- Destroys all rows and resets the scroll offset to the top.
 function ScrollWindow:clearItems()
     Utils.Array.ForEach(self._items, function(item)
+        Cache[item:getName()] = nil
         item:destroy()
     end)
     self._items = {}
     self:_updateLayout()
     self:setOffset(0)
+end
+
+--- Returns the number of items currently in the scroll area.
+---@return number
+function ScrollWindow:getItemCount()
+    return #self._items
+end
+
+--- Iterates all items in the scroll area.
+---@param fn fun(view: View, index: number)
+function ScrollWindow:forEachItem(fn)
+    Utils.Array.ForEach(self._items, fn)
 end
 
 --- Re-anchors all remaining rows so they are stacked contiguously, then
@@ -6817,6 +6843,26 @@ end
 ---@return number? dataIndex The data-table index of the hovered row, or nil.
 function ListBox:getHoveredDataIndex()
     return self:getClickedDataIndex()
+end
+
+--- Iterates over all visible rows, calling the callback with the visual
+--- row index and the corresponding data index for each row.
+--- Empty rows (no backing data) receive a data index of 0.
+--- If the visible row count is not yet known, this is a no-op.
+---@param callback fun(rowIndex: number, dataIndex: number)
+function ListBox:forEachRow(callback)
+    local numRows = self:getNumVisibleRows()
+    if not numRows then return end
+    for rowIndex = 1, numRows do
+        callback(rowIndex, self:getDataIndex(rowIndex) or 0)
+    end
+end
+
+--- Override View:onShutdown to clean up the global data table entry
+--- that the engine requires for list box data binding.
+function ListBox:onShutdown()
+    Api.ListBox.ClearDataTable(self:getName())
+    View.onShutdown(self)
 end
 
 ---@param model ListBoxModel?
@@ -7515,6 +7561,19 @@ end
 
 function View:isParentRoot()
     return self:getParent() == "Root"
+end
+
+--- Creates a generic View from a model table. Use this for lightweight
+--- template-based elements that need event handling but do not require
+--- the frame/background chrome of a Window or the specialised API of
+--- Label, Button, etc.
+---@param model ViewModel?
+---@return View
+function Components.View(model)
+    model = model or {}
+    local view = View:new(model) --[[@as View]]
+    Cache[view:getName()] = view
+    return view
 end
 
 -- ========================================================================== --

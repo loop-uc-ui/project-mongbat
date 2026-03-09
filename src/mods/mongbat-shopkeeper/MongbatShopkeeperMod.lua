@@ -1,7 +1,7 @@
 -- ========================================================================== --
 -- MongbatShopkeeperMod
 -- Replaces the default Shopkeeper (buy/sell) window with a clean Mongbat UI.
--- Uses ListBox components for scrollable item display with auto-population.
+-- Uses ScrollWindow components for scrollable item display.
 -- ========================================================================== --
 
 -- Framework namespaces
@@ -16,17 +16,13 @@ local WIN_W        = 720
 local WIN_H        = 490
 local PANEL_W      = 310
 local PANEL_H      = 310
-local VISIBLE_ROWS = 12
-local ROW_H        = 24
+local ROW_H        = 34
 local MARGIN       = 10
 local SEARCH_H     = 24
 local BTN_W        = 90
 local BTN_H        = 28
 local TITLE_H      = 24
--- ListBox row column x-offsets (left edges within row content area)
-local COL_NAME_X   = 2
-local COL_PRICE_X  = 140
-local COL_QTY_X    = 204
+local ICON_SIZE    = 30
 
 -- Mutable file-scope: must survive across OnInitialize/OnShutdown.
 -- Set when the default Shopkeeper XML window is hidden; cleared on destroy.
@@ -45,8 +41,8 @@ local function OnInitialize()
     local items           = {}
     local filterPatterns  = {}
     local windowView      = nil   -- the main Window view
-    local availList       = nil   -- ListBox view for available items
-    local cartList        = nil   -- ListBox view for cart items
+    local availList       = nil   -- ScrollWindow view for available items
+    local cartList        = nil   -- ScrollWindow view for cart items
     local totalLabel      = nil
     local searchBox       = nil
     local sellContainerId = 0
@@ -94,42 +90,87 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
-    -- Build a ListBox data table mirroring items[] (same indices).
-    -- Each entry has { name, price, qty } as wstrings for ListColumn binding.
+    -- Update a row's tile-art icon from item data
     -- -----------------------------------------------------------------------
-    --- @param isCart boolean  If true, use cartQty; otherwise use availQty
-    --- @return table[] dataTable  Indexed 1..#items, fields match ListColumn vars
-    local function buildDataTable(isCart)
-        local data = {}
-        Utils.Array.ForEach(items, function(item, i)
-            data[i] = {
-                name  = item.name or L"",
-                price = Utils.String.Concat(item.price, "g"),
-                qty   = Utils.String.Concat(isCart and item.cartQty or item.availQty)
-            }
-        end)
-        return data
+    --- @param rowName string  The engine window name of the row
+    --- @param item table      The items[] entry for this row
+    local function updateRowIcon(rowName, item)
+        local iconWin = rowName .. "Icon"
+        local objType = item.objType
+        if objType and objType > 0 then
+            local texName, x, y, _, newW, newH =
+                Api.Icon.RequestTileArt(objType, 300, 300)
+            local s = 10
+            if newW * s > ICON_SIZE or newH * s > ICON_SIZE then
+                for j = s * 10, 1, -1 do
+                    local t = j * 0.1
+                    if newW * t <= ICON_SIZE and newH * t <= ICON_SIZE then
+                        s = t
+                        break
+                    end
+                end
+            end
+            Api.DynamicImage.SetTextureDimensions(iconWin, newW * s, newH * s)
+            Api.Window.SetDimensions(iconWin, newW * s, newH * s)
+            Api.DynamicImage.SetTexture(iconWin, texName, x, y)
+            Api.DynamicImage.SetTextureScale(iconWin, s)
+            Api.DynamicImage.SetCustomShader(iconWin, "UOSpriteUIShader", { 0, objType })
+            Api.Window.SetShowing(iconWin, true)
+            return
+        end
+        Api.Window.SetShowing(iconWin, false)
     end
 
     -- -----------------------------------------------------------------------
-    -- Refresh both ListBoxes and the total label
+    -- Item tooltip helper
     -- -----------------------------------------------------------------------
-    --- Updates data tables, display order, and total cost in the UI.
-    local function refreshAll()
-        if availList then
-            availList:setDataTable(buildDataTable(false))
-            availList:setDisplayOrder(getFilteredAvail())
-        end
-        if cartList then
-            cartList:setDataTable(buildDataTable(true))
-            cartList:setDisplayOrder(getFilteredCart())
-        end
-        if totalLabel then
-            local total = computeTotal()
-            local gold  = Data.PlayerStatus():getGold()
-            totalLabel:setText(Utils.String.Concat(total, "/", gold))
-        end
+    --- @param itemIdx integer
+    local function showItemTooltip(itemIdx)
+        local item = items[itemIdx]
+        if not item or item.id == 0 then return end
+        local itemData = {
+            windowName = "MongbatShopkeeperWindow",
+            itemId     = item.id,
+            itemType   = Constants.ItemPropertyType.Item,
+            detail     = Constants.ItemPropertyDetail.Long
+        }
+        Api.ItemProperties.SetActiveItem(itemData)
     end
+
+    -- -----------------------------------------------------------------------
+    -- Create a single scroll row view for an item
+    -- -----------------------------------------------------------------------
+    --- @param item table      The items[] entry
+    --- @param itemIdx integer Index into items[]
+    --- @param qty integer     Quantity to display (availQty or cartQty)
+    --- @param onClick fun(idx: integer, amount: integer) Click handler
+    --- @return View
+    local function createRow(item, itemIdx, qty, onClick)
+        return Components.View {
+            Template = "ShopkeeperItemRow",
+            OnInitialize = function(self)
+                local rowName = self:getName()
+                Api.Label.SetText(rowName .. "Name", item.name or L"")
+                Api.Label.SetText(rowName .. "Price", Utils.String.Concat(item.price, "g"))
+                Api.Label.SetText(rowName .. "Qty", Utils.String.Concat(qty))
+                updateRowIcon(rowName, item)
+            end,
+            OnLButtonDown = function(_)
+                onClick(itemIdx, 1)
+            end,
+            OnMouseOver = function(_)
+                showItemTooltip(itemIdx)
+            end,
+            OnMouseOverEnd = function(_)
+                Api.ItemProperties.ClearMouseOverItem()
+            end
+        }
+    end
+
+    -- Forward declaration: refreshAll is defined after addToCart/removeFromCart
+    -- to resolve the circular dependency (refreshAll passes them to createRow,
+    -- and they call refreshAll after mutating state).
+    local refreshAll
 
     -- -----------------------------------------------------------------------
     -- Populate buy items from WindowData.ContainerWindow
@@ -251,6 +292,32 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
+    -- Refresh both ScrollWindows and the total label
+    -- -----------------------------------------------------------------------
+    --- Rebuilds scroll rows and updates total cost in the UI.
+    refreshAll = function()
+        if availList then
+            availList:clearItems()
+            Utils.Array.ForEach(getFilteredAvail(), function(_, itemIdx)
+                local item = items[itemIdx]
+                availList:addItem(createRow(item, itemIdx, item.availQty, addToCart))
+            end)
+        end
+        if cartList then
+            cartList:clearItems()
+            Utils.Array.ForEach(getFilteredCart(), function(_, itemIdx)
+                local item = items[itemIdx]
+                cartList:addItem(createRow(item, itemIdx, item.cartQty, removeFromCart))
+            end)
+        end
+        if totalLabel then
+            local total = computeTotal()
+            local gold  = Data.PlayerStatus():getGold()
+            totalLabel:setText(Utils.String.Concat(total, "/", gold))
+        end
+    end
+
+    -- -----------------------------------------------------------------------
     -- Execute the transaction: populate OfferIds/OfferQuantities and broadcast
     -- -----------------------------------------------------------------------
     --- Submits the cart contents as a buy/sell offer and destroys the window.
@@ -279,44 +346,6 @@ local function OnInitialize()
     local function cancelOffer()
         Api.Event.Broadcast(Constants.Broadcasts.ShopCancelOffer())
         Api.Window.Destroy("MongbatShopkeeperWindow")
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Item tooltip helper
-    -- -----------------------------------------------------------------------
-    --- @param itemIdx integer
-    local function showItemTooltip(itemIdx)
-        local item = items[itemIdx]
-        if not item or item.id == 0 then return end
-        local itemData = {
-            windowName = "MongbatShopkeeperWindow",
-            itemId     = item.id,
-            itemType   = Constants.ItemPropertyType.Item,
-            detail     = Constants.ItemPropertyDetail.Long
-        }
-        Api.ItemProperties.SetActiveItem(itemData)
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Set column anchors for all visible rows of a list box.
-    -- Called after setVisibleRowCount() so the row windows exist.
-    -- Columns: Name | Price | Qty.
-    -- -----------------------------------------------------------------------
-    --- @param listName string  The engine window name of the ListBox
-    local function applyRowColumnAnchors(listName)
-        for rowIdx = 1, VISIBLE_ROWS do
-            local rowName = listName .. "Row" .. rowIdx
-            Api.Window.SetDimensions(rowName, PANEL_W, ROW_H)
-            local nameWin  = rowName .. "Name"
-            local priceWin = rowName .. "Price"
-            local qtyWin   = rowName .. "Qty"
-            Api.Window.ClearAnchors(nameWin)
-            Api.Window.AddAnchor(nameWin,  "left", rowName, "left", COL_NAME_X,  0)
-            Api.Window.ClearAnchors(priceWin)
-            Api.Window.AddAnchor(priceWin, "left", rowName, "left", COL_PRICE_X, 0)
-            Api.Window.ClearAnchors(qtyWin)
-            Api.Window.AddAnchor(qtyWin,   "left", rowName, "left", COL_QTY_X,   0)
-        end
     end
 
     -- -----------------------------------------------------------------------
@@ -411,59 +440,19 @@ local function OnInitialize()
             end
         }
 
-        -- Available items ListBox
-        -- Left-click on a row adds one unit of that item to the cart.
-        availList = Components.ListBox {
-            Template = "ShopkeeperItemList",
+        -- Available items ScrollWindow
+        availList = Components.ScrollWindow {
+            ItemHeight = ROW_H,
             OnInitialize = function(self)
                 self:setDimensions(PANEL_W, PANEL_H)
-                self:setVisibleRowCount(VISIBLE_ROWS)
-                applyRowColumnAnchors(self:getName())
-                self:setDataTable(buildDataTable(false))
-                self:setDisplayOrder(getFilteredAvail())
-            end,
-            OnLButtonDown = function(self)
-                local dataIdx = self:getClickedDataIndex()
-                if dataIdx and dataIdx > 0 then
-                    addToCart(dataIdx, 1)
-                end
-            end,
-            OnMouseOver = function(self)
-                local dataIdx = self:getHoveredDataIndex()
-                if dataIdx and dataIdx > 0 then
-                    showItemTooltip(dataIdx)
-                end
-            end,
-            OnMouseOverEnd = function(_)
-                Api.ItemProperties.ClearMouseOverItem()
             end
         }
 
-        -- Cart items ListBox
-        -- Left-click on a row removes one unit of that item from the cart.
-        cartList = Components.ListBox {
-            Template = "ShopkeeperItemList",
+        -- Cart items ScrollWindow
+        cartList = Components.ScrollWindow {
+            ItemHeight = ROW_H,
             OnInitialize = function(self)
                 self:setDimensions(PANEL_W, PANEL_H)
-                self:setVisibleRowCount(VISIBLE_ROWS)
-                applyRowColumnAnchors(self:getName())
-                self:setDataTable(buildDataTable(true))
-                self:setDisplayOrder(getFilteredCart())
-            end,
-            OnLButtonDown = function(self)
-                local dataIdx = self:getClickedDataIndex()
-                if dataIdx and dataIdx > 0 then
-                    removeFromCart(dataIdx, 1)
-                end
-            end,
-            OnMouseOver = function(self)
-                local dataIdx = self:getHoveredDataIndex()
-                if dataIdx and dataIdx > 0 then
-                    showItemTooltip(dataIdx)
-                end
-            end,
-            OnMouseOverEnd = function(_)
-                Api.ItemProperties.ClearMouseOverItem()
             end
         }
 
@@ -621,14 +610,6 @@ local function OnInitialize()
                 end
                 -- PlayerStatus was registered in Initialize; unregister it here
                 Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
-                -- Explicitly destroy child ListBoxes to clean up their _G DataTable globals
-                -- before the parent window teardown clears the parent's own DataTable.
-                if availList then
-                    Api.Window.Destroy(availList:getName())
-                end
-                if cartList then
-                    Api.Window.Destroy(cartList:getName())
-                end
                 -- Reset per-session state
                 items           = {}
                 filterPatterns  = {}
