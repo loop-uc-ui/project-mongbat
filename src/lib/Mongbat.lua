@@ -7727,10 +7727,7 @@ function Window:onLButtonUp(flags, x, y)
 end
 
 function Window:onUpdate(timePassed)
-    -- Chain to model OnUpdate if present
-    if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed)
-    end
+    View.onUpdate(self, timePassed)
 end
 
 function Window:onShutdown()
@@ -7924,10 +7921,8 @@ function Scaffold:onUpdate(timePassed)
         self._wasMoving = isMoving
     end
 
-    -- Chain to model OnUpdate if present
-    if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed)
-    end
+    -- Chain to model OnUpdate via View
+    View.onUpdate(self, timePassed)
 end
 
 function Scaffold:onShutdown()
