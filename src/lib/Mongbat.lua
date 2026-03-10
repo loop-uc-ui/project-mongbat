@@ -4606,10 +4606,6 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateObjectInfo fun(self: Window, instanceId: integer, data: ObjectInfoWrapper)?
 ---@field OnUpdateItemProperties fun(self: Window, instanceId: integer, data: table|nil)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
----@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
----@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
----@field MinWidth number? Minimum width when resizing. Defaults to 100.
----@field MinHeight number? Minimum height when resizing. Defaults to 100.
 
 ---@class LabelModel : ViewModel
 ---@field OnInitialize fun(self: Label)?
@@ -4630,7 +4626,7 @@ FilterInput.__index = FilterInput
 ---@field windowName string
 ---@field id integer
 
----@class GumpWModel : WindowModel
+---@class GumpWModel : ScaffoldModel
 ---@field windowName string
 ---@field TextEntry string[]?
 ---@field Labels GumpItem[]?
@@ -4639,7 +4635,7 @@ FilterInput.__index = FilterInput
 ---@field OnInitialize fun(self: Gump)?
 ---@field OnShutdown fun(self: Gump)?
 
----@class Gump : Window
+---@class Gump : Scaffold
 ---@field buttons Button[]
 ---@field textEntries EditTextBox[]
 ---@field _id integer The unique ID of the gump window.
@@ -4697,12 +4693,12 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
 
----@class ScrollWindowModel : ViewModel
+---@class ScrollWindowModel : WindowModel
 ---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
 ---@field OnInitialize fun(self: ScrollWindow)?
 ---@field OnShutdown fun(self: ScrollWindow)?
 
----@class ScrollWindow : View
+---@class ScrollWindow : Window
 ---@field _items View[] Views added as rows into the scroll content area.
 local ScrollWindow = {}
 ScrollWindow.__index = ScrollWindow
@@ -4726,6 +4722,17 @@ View.__index = View
 ---@field _endDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
 local Window = {}
 Window.__index = Window
+
+---@class ScaffoldModel : WindowModel
+---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true.
+---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true.
+---@field MinWidth number? Minimum width when resizing. Defaults to 100.
+---@field MinHeight number? Minimum height when resizing. Defaults to 100.
+
+---@class Scaffold : Window
+---@field _model ScaffoldModel?
+local Scaffold = {}
+Scaffold.__index = Scaffold
 
 -- ========================================================================== --
 -- Components - Internal Builders
@@ -6126,7 +6133,7 @@ end
 ---@param id integer
 ---@return Gump
 function Gump:new(gump, id)
-    local instance = Window.new(self, { Name = gump.windowName }) --[[@as Gump]]
+    local instance = Scaffold.new(self, { Name = gump.windowName }) --[[@as Gump]]
 
     instance.buttons = Utils.Array.MapToArray(
         gump.Buttons,
@@ -6294,7 +6301,7 @@ end
 function ScrollWindow:new(model)
     model = model or {}
     model.Template = model.Template or "MongbatScrollWindow"
-    local instance = View.new(self, model) --[[@as ScrollWindow]]
+    local instance = Window.new(self, model) --[[@as ScrollWindow]]
     instance._items = {}
     return instance
 end
@@ -6305,19 +6312,19 @@ function ScrollWindow:_getContainerName()
 end
 
 function ScrollWindow:onInitialize()
-    View.onInitialize(self)
+    Window.onInitialize(self)
 end
 
 function ScrollWindow:onShutdown()
     self:clearItems()
-    View.onShutdown(self)
+    Window.onShutdown(self)
 end
 
 function ScrollWindow:onDimensionsChanged(width, height)
     local childName = self.name .. "Child"
     Api.Window.SetDimensions(childName, width - 20, height)
     self:_updateLayout()
-    View.onDimensionsChanged(self, width, height)
+    Window.onDimensionsChanged(self, width, height)
 end
 
 --- Adds a view as the next row in the scroll area. The view is created,
@@ -7367,64 +7374,22 @@ function Window:new(model)
     instance._background = instance.name .. "Background"
     instance._startDrag = { x = -1, y = -1 }
 
-    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
-        if window:isParentRoot() then
-            window:destroy()
-        end
-    end
-
     instance._model.OnLayout = model.OnLayout or Layouts.StackAndFill
 
     return instance
 end
 
 function Window:onInitialize()
-    local isParentRoot = self:isParentRoot()
-    self:toggleBackground(isParentRoot)
-    self:toggleFrame(isParentRoot)
+    self:toggleBackground(false)
+    self:toggleFrame(false)
     View.onInitialize(self)
+    self:_initializeChildren()
+end
 
-    -- Re-check parent after View.onInitialize, which may reparent this window
-    isParentRoot = self:isParentRoot()
-
-    if isParentRoot then
-        Api.Window.RestorePosition(self.name)
-    end
-
-    -- Create resize grip for root windows unless explicitly disabled
-    if isParentRoot and self._model.Resizable ~= false then
-        local parentWindow = self
-        local grip = Components.Button {
-            Template = "MongbatResizeGrip",
-            Resizable = false,
-            OnLButtonDown = function()
-                startResize(parentWindow)
-            end,
-        }
-        grip:create()
-        grip:onInitialize()
-        grip:setParent(self.name)
-        grip:clearAnchors()
-        grip:addAnchor("bottomright", self.name, "bottomright", 0, 0)
-        grip:setLayer():overlay()
-        self._resizeGrip = grip
-    end
-
-    -- Register snappable root windows for edge snapping
-    if isParentRoot and self._model.Snappable ~= false then
-        SnappableWindows[self.name] = true
-        self._wasMoving = false
-        self._isSnapped = false
-        -- Ensure OnUpdate CoreEvent is registered even if the model has no OnUpdate
-        if self._model.OnUpdate == nil then
-            self._snapRegisteredOnUpdate = true
-            self:registerCoreEventHandler(
-                Constants.CoreEvents.OnUpdate,
-                "Mongbat.EventHandler.OnUpdate"
-            )
-        end
-    end
-
+--- Wraps each child's event handlers to propagate to this parent, then
+--- creates and initialises every child window. Called by both Window and
+--- Scaffold during their onInitialize.
+function Window:_initializeChildren()
     Utils.Array.ForEach(
         self._children,
         function(item, index)
@@ -7517,19 +7482,7 @@ function Window:onInitialize()
     )
 end
 
-local DETACH_NUDGE = 5
-
 function Window:onLButtonDown(flags, x, y)
-    -- Ctrl + left-click: detach this window from its snap group
-    if self._isSnapped and flags == Constants.ButtonFlags.Control then
-        local ox, oy = WindowGetOffsetFromParent(self.name)
-        WindowClearAnchors(self.name)
-        WindowAddAnchor(self.name, "topleft", "Root", "topleft",
-            ox + DETACH_NUDGE, oy + DETACH_NUDGE)
-        self._isSnapped = false
-        return
-    end
-
     View.onLButtonDown(self, flags, x, y)
     self._startDrag = { x = x, y = y }
 end
@@ -7546,6 +7499,129 @@ function Window:onLButtonUp(flags, x, y)
 end
 
 function Window:onUpdate(timePassed)
+    View.onUpdate(self, timePassed)
+end
+
+function Window:onShutdown()
+    Utils.Array.ForEach(self._children, function(item)
+        item:destroy()
+    end)
+    View.onShutdown(self)
+end
+
+---@return Window
+function Window:getFrame()
+    if self._frameWindow == nil then
+        self._frameWindow = Window:new { Name = self._frame }
+    end
+    return self._frameWindow
+end
+
+---@return Window
+function Window:getBackground()
+    if self._backgroundWindow == nil then
+        self._backgroundWindow = Window:new { Name = self._background }
+    end
+    return self._backgroundWindow
+end
+
+function Window:toggleFrame(doShow)
+    if Api.Window.DoesExist(self._frame) then
+        Api.Window.SetShowing(self._frame, doShow)
+    end
+end
+
+function Window:toggleBackground(doShow)
+    if Api.Window.DoesExist(self._background) then
+        Api.Window.SetShowing(self._background, doShow)
+    end
+end
+
+function Window:attachToObject()
+    Api.Window.AttachToWorldObject(self:getId(), self:getName())
+    return self
+end
+
+function Window:setChildren(children)
+    self._children = children
+end
+
+-- ========================================================================== --
+-- Components - Scaffold (top-level root window with resize, snap, close)
+-- ========================================================================== --
+
+function Scaffold:new(model)
+    model = model or {}
+    local instance = Window.new(self, model) --[[@as Scaffold]]
+
+    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
+        window:destroy()
+    end
+
+    return instance
+end
+
+local DETACH_NUDGE = 5
+
+function Scaffold:onInitialize()
+    self:toggleBackground(true)
+    self:toggleFrame(true)
+    View.onInitialize(self)
+
+    Api.Window.RestorePosition(self.name)
+
+    -- Create resize grip unless explicitly disabled
+    if self._model.Resizable ~= false then
+        local parentWindow = self
+        local grip = Components.Button {
+            Template = "MongbatResizeGrip",
+            Resizable = false,
+            OnLButtonDown = function()
+                startResize(parentWindow)
+            end,
+        }
+        grip:create()
+        grip:onInitialize()
+        grip:setParent(self.name)
+        grip:clearAnchors()
+        grip:addAnchor("bottomright", self.name, "bottomright", 0, 0)
+        grip:setLayer():overlay()
+        self._resizeGrip = grip
+    end
+
+    -- Register snappable windows for edge snapping
+    if self._model.Snappable ~= false then
+        SnappableWindows[self.name] = true
+        self._wasMoving = false
+        self._isSnapped = false
+        -- Ensure OnUpdate CoreEvent is registered even if the model has no OnUpdate
+        if self._model.OnUpdate == nil then
+            self._snapRegisteredOnUpdate = true
+            self:registerCoreEventHandler(
+                Constants.CoreEvents.OnUpdate,
+                "Mongbat.EventHandler.OnUpdate"
+            )
+        end
+    end
+
+    self:_initializeChildren()
+end
+
+function Scaffold:onLButtonDown(flags, x, y)
+    -- Ctrl + left-click: detach this window from its snap group
+    if self._isSnapped and flags == Constants.ButtonFlags.Control then
+        local ox, oy = WindowGetOffsetFromParent(self.name)
+        WindowClearAnchors(self.name)
+        WindowAddAnchor(self.name, "topleft", "Root", "topleft",
+            ox + DETACH_NUDGE, oy + DETACH_NUDGE)
+        self._isSnapped = false
+        return
+    end
+
+    Window.onLButtonDown(self, flags, x, y)
+end
+
+function Scaffold:onUpdate(timePassed)
     -- Snap + group drag logic for snappable windows
     if self._wasMoving ~= nil then
         local isMoving = self:isMoving()
@@ -7617,13 +7693,11 @@ function Window:onUpdate(timePassed)
         self._wasMoving = isMoving
     end
 
-    -- Chain to model OnUpdate if present
-    if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed)
-    end
+    -- Chain to model OnUpdate via View
+    View.onUpdate(self, timePassed)
 end
 
-function Window:onShutdown()
+function Scaffold:onShutdown()
     -- Cancel active resize if this window is being resized
     if resizingWindow == self then
         stopResize()
@@ -7643,51 +7717,9 @@ function Window:onShutdown()
     end
     self._wasMoving = nil
 
-    if self:isParentRoot() then
-        Api.Window.SavePosition(self.name)
-    end
+    Api.Window.SavePosition(self.name)
 
-    Utils.Array.ForEach(self._children, function(item)
-        item:destroy()
-    end)
-    View.onShutdown(self)
-end
-
----@return Window
-function Window:getFrame()
-    if self._frameWindow == nil then
-        self._frameWindow = Window:new { Name = self._frame }
-    end
-    return self._frameWindow
-end
-
----@return Window
-function Window:getBackground()
-    if self._backgroundWindow == nil then
-        self._backgroundWindow = Window:new { Name = self._background }
-    end
-    return self._backgroundWindow
-end
-
-function Window:toggleFrame(doShow)
-    if Api.Window.DoesExist(self._frame) then
-        Api.Window.SetShowing(self._frame, doShow)
-    end
-end
-
-function Window:toggleBackground(doShow)
-    if Api.Window.DoesExist(self._background) then
-        Api.Window.SetShowing(self._background, doShow)
-    end
-end
-
-function Window:attachToObject()
-    Api.Window.AttachToWorldObject(self:getId(), self:getName())
-    return self
-end
-
-function Window:setChildren(children)
-    self._children = children
+    Window.onShutdown(self)
 end
 
 ---@param model WindowModel?
@@ -7698,15 +7730,24 @@ function Components.Window(model)
     return window
 end
 
+---@param model ScaffoldModel?
+---@return Scaffold
+function Components.Scaffold(model)
+    local scaffold = Scaffold:new(model)
+    Cache[scaffold:getName()] = scaffold
+    return scaffold
+end
+
 setmetatable(View, { __index = Component })
 setmetatable(Window, { __index = View })
+setmetatable(Scaffold, { __index = Window })
 setmetatable(Button, { __index = Window })
 setmetatable(EditTextBox, { __index = View })
 setmetatable(Label, { __index = View })
 setmetatable(LogDisplay, { __index = View })
-setmetatable(ScrollWindow, { __index = View })
+setmetatable(ScrollWindow, { __index = Window })
 setmetatable(StatusBar, { __index = View })
-setmetatable(Gump, { __index = Window })
+setmetatable(Gump, { __index = Scaffold })
 setmetatable(CircleImage, { __index = View })
 setmetatable(DynamicImage, { __index = View })
 setmetatable(DefaultComponent, { __index = Component })
@@ -7838,7 +7879,7 @@ Mongbat.ModManager = {}
 Mongbat.ModManager.Mods = {}
 
 function Mongbat.ModManager.Window()
-    return Components.Window {
+    return Components.Scaffold {
         Name = "MongbatModManagerWindow",
         OnInitialize = function(self)
             self:setDimensions(400, 300)
