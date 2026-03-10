@@ -4324,9 +4324,6 @@ end
 function Data.ItemProperties(id)
     return ItemPropertiesData:new(id)
 end
----@field TexCoordX integer
----@field TexCoordY integer
----@field TexScale number
 
 
 -- ========================================================================== --
