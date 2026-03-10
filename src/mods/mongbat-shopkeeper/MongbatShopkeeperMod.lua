@@ -180,21 +180,9 @@ local function OnInitialize()
         local data = Data.ContainerWindow(sellContainerId)
         if not data then return end
 
-        -- Unregister old items
-        Utils.Array.ForEach(items, function(item)
-            if item.registered then
-                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
-                Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
-                item.registered = false
-            end
-        end)
-
         -- Rebuild items list from container
         local newItems = {}
         Utils.Array.ForEach(data.ContainedItems, function(slot)
-            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), slot.objectId)
-            Api.Window.RegisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), slot.objectId)
-
             local objInfo  = Data.ObjectInfo(slot.objectId)
             local price    = objInfo:getShopValue()
             local qty      = objInfo:getShopQuantity()
@@ -214,14 +202,13 @@ local function OnInitialize()
             if existingCartQty > qty then existingCartQty = qty end
 
             Utils.Array.Add(newItems, {
-                id         = slot.objectId,
-                name       = itemName,
-                price      = price,
-                totalQty   = qty,
-                availQty   = qty - existingCartQty,
-                cartQty    = existingCartQty,
-                objType    = objType,
-                registered = true
+                id       = slot.objectId,
+                name     = itemName,
+                price    = price,
+                totalQty = qty,
+                availQty = qty - existingCartQty,
+                cartQty  = existingCartQty,
+                objType  = objType
             })
         end)
         items = newItems
@@ -441,12 +428,49 @@ local function OnInitialize()
         }
 
         -- Available items ScrollWindow
-        availList = Components.ScrollWindow {
+        -- Buy-mode data event handlers belong here: this child displays the
+        -- item list and is the innermost concern for container/item updates.
+        local availModel = {
             ItemHeight = ROW_H,
             OnInitialize = function(self)
                 self:setDimensions(PANEL_W, PANEL_H)
             end
         }
+        if not isSelling then
+            availModel.OnUpdateContainerWindow = function(_, instanceId)
+                if instanceId == sellContainerId then
+                    loadBuyItems()
+                    refreshAll()
+                end
+            end
+
+            availModel.OnUpdateObjectInfo = function(_, instanceId, objInfo)
+                local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                if found then
+                    local oldCart  = found.cartQty
+                    local newTotal = objInfo:getShopQuantity()
+                    if oldCart > newTotal then oldCart = newTotal end
+                    found.totalQty = newTotal
+                    found.availQty = newTotal - oldCart
+                    found.cartQty  = oldCart
+                    found.price    = objInfo:getShopValue()
+                    found.objType  = objInfo:getObjectType()
+                end
+                refreshAll()
+            end
+
+            availModel.OnUpdateItemProperties = function(_, instanceId, props)
+                if props and props.PropertiesList and props.PropertiesList[1] then
+                    local name  = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "")
+                    local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                    if found then
+                        found.name = name
+                    end
+                end
+                refreshAll()
+            end
+        end
+        availList = Components.ScrollWindow(availModel)
 
         -- Cart items ScrollWindow
         cartList = Components.ScrollWindow {
@@ -457,9 +481,15 @@ local function OnInitialize()
         }
 
         -- Total gold label (shows cost/gold)
+        -- OnUpdatePlayerStatus belongs here: this child displays the gold total.
         totalLabel = Components.Label {
             OnInitialize = function(self)
                 self:setDimensions(200, 22)
+            end,
+            OnUpdatePlayerStatus = function(_, ps)
+                local total = computeTotal()
+                local gold  = ps:getGold()
+                totalLabel:setText(Utils.String.Concat(total, "/", gold))
             end
         }
 
@@ -528,8 +558,9 @@ local function OnInitialize()
 
         local panelTop = MARGIN + TITLE_H + MARGIN + SEARCH_H + MARGIN
 
-        -- Build the Window model.  Buy-mode update handlers are added
-        -- conditionally so the framework only registers those events in buy mode.
+        -- Build the Window model.  The parent is a container/layout manager,
+        -- not an event hub.  Data event handlers live on the innermost child
+        -- of concern (totalLabel for PlayerStatus, availList for buy-mode data).
         local windowModel = {
             Name      = "MongbatShopkeeperWindow",
             Resizable = false,
@@ -537,13 +568,6 @@ local function OnInitialize()
                 self:setDimensions(WIN_W, WIN_H)
                 self:setChildren(children)
                 self:setId(merchantId)
-            end,
-            OnUpdatePlayerStatus = function(_, ps)
-                if totalLabel then
-                    local total = computeTotal()
-                    local gold  = ps:getGold()
-                    totalLabel:setText(Utils.String.Concat(total, "/", gold))
-                end
             end,
             OnLayout = function(win, _, child, idx)
                 local winName = win:getName()
@@ -594,22 +618,6 @@ local function OnInitialize()
                 end
             end,
             OnShutdown = function(_)
-                -- Unregister mode-specific data
-                if not isSelling then
-                    -- Buy mode: unregister merchant ObjectInfo, container, MobileName, and items
-                    Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), merchantId)
-                    Api.Window.UnregisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
-                    Api.Window.UnregisterData(Constants.DataEvents.OnUpdateMobileName.getType(), merchantId)
-                    Utils.Array.ForEach(items, function(item)
-                        if item.registered then
-                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
-                            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
-                            item.registered = false
-                        end
-                    end)
-                end
-                -- PlayerStatus was registered in Initialize; unregister it here
-                Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
                 -- Reset per-session state
                 items           = {}
                 filterPatterns  = {}
@@ -629,46 +637,6 @@ local function OnInitialize()
                 end
             end
         }
-
-        -- Declarative buy-mode event handlers.  The framework registers these
-        -- automatically via View:onInitialize() when they appear as model keys.
-        -- SystemData.ActiveWindow.name resolves to "MongbatShopkeeperWindow"
-        -- when ContainerWindow / ObjectInfo / ItemProperties events fire, so
-        -- the framework dispatches them here via Cache["MongbatShopkeeperWindow"].
-        if not isSelling then
-            windowModel.OnUpdateContainerWindow = function(_, instanceId)
-                if instanceId == sellContainerId then
-                    loadBuyItems()
-                    refreshAll()
-                end
-            end
-
-            windowModel.OnUpdateObjectInfo = function(_, instanceId, objInfo)
-                local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
-                if found then
-                    local oldCart  = found.cartQty
-                    local newTotal = objInfo:getShopQuantity()
-                    if oldCart > newTotal then oldCart = newTotal end
-                    found.totalQty = newTotal
-                    found.availQty = newTotal - oldCart
-                    found.cartQty  = oldCart
-                    found.price    = objInfo:getShopValue()
-                    found.objType  = objInfo:getObjectType()
-                end
-                refreshAll()
-            end
-
-            windowModel.OnUpdateItemProperties = function(_, instanceId, props)
-                if props and props.PropertiesList and props.PropertiesList[1] then
-                    local name  = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "")
-                    local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
-                    if found then
-                        found.name = name
-                    end
-                end
-                refreshAll()
-            end
-        end
 
         windowView = Components.Window(windowModel)
         windowView:create(true)
@@ -704,16 +672,10 @@ local function OnInitialize()
 
         local isSell = Data.ShopData():isSelling()
 
-        -- For buy mode: register ObjectInfo to get sellContainerId
+        -- For buy mode: read sellContainerId from ObjectInfo
         if not isSell then
-            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), mId)
             sellContainerId = Data.ObjectInfo(mId):getSellContainerId()
-            Api.Window.RegisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
-            Api.Window.RegisterData(Constants.DataEvents.OnUpdateMobileName.getType(), mId)
         end
-
-        -- Register PlayerStatus for gold display
-        Api.Window.RegisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
 
         createShopWindow(mId, isSell)
     end
