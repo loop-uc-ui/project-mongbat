@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="../../../docs/Interface.xsd">
+    <Windows>
+
+        <!-- Row template for shopkeeper scroll window items.
+             Children have handleinput="false" so mouse events (click, hover)
+             pass through to the parent row window, allowing the framework
+             to dispatch OnLButtonDown / OnMouseOver on the row View. -->
+        <Window name="ShopkeeperItemRow">
+            <Size>
+                <AbsPoint x="310" y="34"/>
+            </Size>
+            <Windows>
+                <DynamicImage name="$parentIcon" handleinput="false">
+                    <Anchors>
+                        <Anchor point="left" relativePoint="left">
+                            <AbsPoint x="2" y="0"/>
+                        </Anchor>
+                    </Anchors>
+                    <Size>
+                        <AbsPoint x="30" y="30"/>
+                    </Size>
+                </DynamicImage>
+                <Label name="$parentName" font="inter_medium_18" maxchars="128" handleinput="false">
+                    <Anchors>
+                        <Anchor point="left" relativePoint="left">
+                            <AbsPoint x="34" y="0"/>
+                        </Anchor>
+                    </Anchors>
+                    <Size>
+                        <AbsPoint x="116" y="34"/>
+                    </Size>
+                    <Color r="206" g="217" b="242" a="255"/>
+                </Label>
+                <Label name="$parentPrice" font="inter_medium_18" maxchars="32" handleinput="false">
+                    <Anchors>
+                        <Anchor point="left" relativePoint="left">
+                            <AbsPoint x="152" y="0"/>
+                        </Anchor>
+                    </Anchors>
+                    <Size>
+                        <AbsPoint x="62" y="34"/>
+                    </Size>
+                    <Color r="206" g="217" b="242" a="255"/>
+                </Label>
+                <Label name="$parentQty" font="inter_medium_18" maxchars="16" handleinput="false">
+                    <Anchors>
+                        <Anchor point="left" relativePoint="left">
+                            <AbsPoint x="216" y="0"/>
+                        </Anchor>
+                    </Anchors>
+                    <Size>
+                        <AbsPoint x="50" y="34"/>
+                    </Size>
+                    <Color r="206" g="217" b="242" a="255"/>
+                </Label>
+            </Windows>
+        </Window>
+
+    </Windows>
+</Interface>
