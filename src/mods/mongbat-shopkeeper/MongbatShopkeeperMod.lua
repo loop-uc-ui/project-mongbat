@@ -461,7 +461,7 @@ local function OnInitialize()
 
             availModel.OnUpdateItemProperties = function(_, instanceId, props)
                 if props and props.PropertiesList and props.PropertiesList[1] then
-                    local name  = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "")
+                    local name  = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "") ---@type wstring
                     local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
                     if found then
                         found.name = name
@@ -486,10 +486,10 @@ local function OnInitialize()
             OnInitialize = function(self)
                 self:setDimensions(200, 22)
             end,
-            OnUpdatePlayerStatus = function(_, ps)
+            OnUpdatePlayerStatus = function(self, ps)
                 local total = computeTotal()
                 local gold  = ps:getGold()
-                totalLabel:setText(Utils.String.Concat(total, "/", gold))
+                self:setText(Utils.String.Concat(total, "/", gold))
             end
         }
 
