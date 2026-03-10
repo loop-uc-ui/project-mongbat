@@ -6022,12 +6022,9 @@ local function withActiveView(eventName, callback)
 end
 
 --- Safely dispatches an event to the mouse-over window.
----@param eventName string The name of the event (for error logging)
----@param callback fun(window: View)
---- Safely dispatches an event to the mouse-over window.
 --- If the direct cache lookup fails, walks up the parent chain
 --- to find the nearest ancestor that is a cached View. This allows
---- auto-created children (e.g. ListBox rows) to propagate events to
+--- auto-created children (e.g. scroll window rows) to propagate events to
 --- their parent View.
 ---@param eventName string The name of the event (for error logging)
 ---@param callback fun(window: View)
