@@ -5,11 +5,11 @@
 -- ========================================================================== --
 
 -- Framework namespaces
-local Api        = Mongbat.Api
-local Data       = Mongbat.Data
+local Api = Mongbat.Api
+local Data = Mongbat.Data
 local Components = Mongbat.Components
-local Constants  = Mongbat.Constants
-local Utils      = Mongbat.Utils
+local Constants = Mongbat.Constants
+local Utils = Mongbat.Utils
 
 -- Window layout constants
 local WIN_W        = 720
@@ -169,34 +169,14 @@ local function OnInitialize()
     --- @param itemIdx integer Index into items[]
     --- @param qty integer     Quantity to display (availQty or cartQty)
     --- @param onClick fun(idx: integer, amount: integer) Click handler
+    --- @param isAvail boolean True if this is an available-items row (live updates)
     --- @return View
-    local function createRow(item, itemIdx, qty, onClick)
-        return Components.View {
+    local function createRow(item, itemIdx, qty, onClick, isAvail)
+        local model = {
             Template = "ShopkeeperItemRow",
             OnInitialize = function(self)
                 local rowName = self:getName()
                 updateRowDisplay(rowName, item, qty)
-            end,
-            OnUpdateObjectInfo = function(self, instanceId, objInfo)
-                if instanceId ~= item.id then return end
-                local oldCart  = item.cartQty
-                local newTotal = objInfo:getShopQuantity()
-                if oldCart > newTotal then oldCart = newTotal end
-                item.totalQty = newTotal
-                item.availQty = newTotal - oldCart
-                item.cartQty  = oldCart
-                item.price    = objInfo:getShopValue()
-                item.objType  = objInfo:getObjectType()
-                updateRowDisplay(self:getName(), item, item.availQty)
-                updateTotalLabel()
-            end,
-            OnUpdateItemProperties = function(self, instanceId, props)
-                if instanceId ~= item.id then return end
-                local name = props:getName()
-                if not Utils.String.IsEmpty(name) then
-                    item.name = name
-                end
-                updateRowDisplay(self:getName(), item, item.availQty)
             end,
             OnLButtonDown = function(_)
                 onClick(itemIdx, 1)
@@ -208,6 +188,35 @@ local function OnInitialize()
                 Api.ItemProperties.ClearMouseOverItem()
             end
         }
+
+        -- In buy mode (available rows only), subscribe to live item updates.
+        -- Each row knows its item via closure, so instanceId check is O(1).
+        if isAvail then
+            model.OnUpdateObjectInfo = function(self, instanceId, objInfo)
+                if instanceId ~= item.id then return end
+                local oldCart  = item.cartQty
+                local newTotal = objInfo:getShopQuantity()
+                if oldCart > newTotal then oldCart = newTotal end
+                item.totalQty = newTotal
+                item.availQty = newTotal - oldCart
+                item.cartQty  = oldCart
+                item.price    = objInfo:getShopValue()
+                item.objType  = objInfo:getObjectType()
+                updateRowDisplay(self:getName(), item, item.availQty)
+                updateTotalLabel()
+            end
+
+            model.OnUpdateItemProperties = function(self, instanceId, props)
+                if instanceId ~= item.id then return end
+                local name = props:getName()
+                if not Utils.String.IsEmpty(name) then
+                    item.name = name
+                end
+                updateRowDisplay(self:getName(), item, item.availQty)
+            end
+        end
+
+        return Components.View(model)
     end
 
     -- Forward declaration: refreshAll is defined after addToCart/removeFromCart
@@ -325,14 +334,14 @@ local function OnInitialize()
             availList:clearItems()
             Utils.Array.ForEach(getFilteredAvail(), function(_, itemIdx)
                 local item = items[itemIdx]
-                availList:addItem(createRow(item, itemIdx, item.availQty, addToCart))
+                availList:addItem(createRow(item, itemIdx, item.availQty, addToCart, not isSelling))
             end)
         end
         if cartList then
             cartList:clearItems()
             Utils.Array.ForEach(getFilteredCart(), function(_, itemIdx)
                 local item = items[itemIdx]
-                cartList:addItem(createRow(item, itemIdx, item.cartQty, removeFromCart))
+                cartList:addItem(createRow(item, itemIdx, item.cartQty, removeFromCart, false))
             end)
         end
         updateTotalLabel()
@@ -625,7 +634,10 @@ local function OnInitialize()
                 end
             end,
             OnShutdown = function(_)
-                -- Reset per-session state
+                -- Reset per-session state.
+                -- Data registrations (PlayerStatus, ContainerWindow, ObjectInfo,
+                -- ItemProperties) are managed globally by the framework — no manual
+                -- UnregisterData calls are needed here.
                 items           = {}
                 filterPatterns  = {}
                 windowView      = nil
