@@ -17,7 +17,7 @@ Mongbat.Mod {
         end
 
         local function Window ()
-            return Components.Window {
+            return Components.Scaffold {
                 Name = default:getName(),
                 Resizable = false,
                 OnInitialize = function (self)

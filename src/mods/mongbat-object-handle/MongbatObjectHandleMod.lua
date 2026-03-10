@@ -30,7 +30,7 @@ Mongbat.Mod {
 
         ---@param handle ObjectHandle
         local function Window(handle)
-            return Components.Window {
+            return Components.Scaffold {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
