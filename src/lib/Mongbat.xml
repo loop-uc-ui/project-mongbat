@@ -94,6 +94,9 @@
       <ScrollWindow name="MongbatScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" lineheight="55" autoHideScrollBar="true">
         <Windows>
           <Window name="$parentChild">
+            <Size>
+              <AbsPoint x="0" y="0" />
+            </Size>
             <Windows>
               <Window name="$parentCont">
                 <Size>
@@ -102,12 +105,7 @@
               </Window>
             </Windows>
           </Window>
-          <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll">
-            <Anchors>
-              <Anchor point="topright" relativePoint="topright" />
-              <Anchor point="bottomright" relativePoint="bottomright" />
-            </Anchors>
-          </VerticalScrollbar>
+          <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll" />
         </Windows>
       </ScrollWindow>
 

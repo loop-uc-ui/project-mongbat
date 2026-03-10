@@ -6410,6 +6410,8 @@ function ScrollWindow:onShutdown()
 end
 
 function ScrollWindow:onDimensionsChanged(width, height)
+    local childName = self.name .. "Child"
+    Api.Window.SetDimensions(childName, width - 20, height)
     self:_updateLayout()
     View.onDimensionsChanged(self, width, height)
 end
@@ -6479,11 +6481,13 @@ function ScrollWindow:_updateLayout()
     local itemHeight = self:_getItemHeight()
     Utils.Array.ForEach(self._items, function(item, index)
         item:clearAnchors()
-        item:addAnchor("topleft", contName, "topleft", 0, (index - 1) * itemHeight)
+        local yOffset = (index - 1) * itemHeight
+        item:addAnchor("topleft", contName, "topleft", 0, yOffset)
+        item:addAnchor("topright", contName, "topright", 0, yOffset)
     end)
-    local dims = self:getDimensions()
+    local childDims = Api.Window.GetDimensions(self.name .. "Child")
     local totalHeight = #self._items * itemHeight
-    Api.Window.SetDimensions(contName, dims.x, totalHeight)
+    Api.Window.SetDimensions(contName, childDims.x, totalHeight)
     Api.ScrollWindow.UpdateScrollRect(self.name)
 end
 
