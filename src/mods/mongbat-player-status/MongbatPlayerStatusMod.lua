@@ -15,9 +15,9 @@ local function OnInitialize()
 
     local function PlayerName()
         return Components.Label {
-            OnUpdatePlayer = function(self, player)
-                self:setId(player:getPlayerId())
-                local name = player:getName()
+            OnUpdateMobile = function(self, mobile)
+                self:setId(mobile:getPlayerId())
+                local name = mobile:getName()
                 if name then
                     self:setText(name)
                 end
@@ -25,12 +25,12 @@ local function OnInitialize()
         }
     end
 
-    ---@param onUpdatePlayer fun(self: StatusBar, player: PlayerDataComposite)
+    ---@param onUpdateMobile fun(self: StatusBar, mobile: MobileDataComposite)
     ---@param label LabelModel
-    local function StatusBar(onUpdatePlayer, label)
+    local function StatusBar(onUpdateMobile, label)
         return Components.StatusBar(
             {
-                OnUpdatePlayer = onUpdatePlayer
+                OnUpdateMobile = onUpdateMobile
             },
             label
         )
@@ -38,11 +38,11 @@ local function OnInitialize()
 
     local function HealthStatusBar()
         return StatusBar(
-            function(self, player)
-                self:setId(player:getPlayerId())
-                self:setCurrentValue(player:getCurrentHealth())
-                self:setMaxValue(player:getMaxHealth())
-                local hbColor = player:getVisualStateColor()
+            function(self, mobile)
+                self:setId(mobile:getPlayerId())
+                self:setCurrentValue(mobile:getCurrentHealth())
+                self:setMaxValue(mobile:getMaxHealth())
+                local hbColor = mobile:getVisualStateColor()
                 if hbColor then
                     self:setColor(hbColor)
                     self._colorSet = true
@@ -52,12 +52,12 @@ local function OnInitialize()
                 end
             end,
             {
-                OnUpdatePlayer = function(self, player)
+                OnUpdateMobile = function(self, mobile)
                     self:setText(
                         string.format(
                             "%d / %d",
-                            player:getCurrentHealth(),
-                            player:getMaxHealth()
+                            mobile:getCurrentHealth(),
+                            mobile:getMaxHealth()
                         )
                     )
                 end
@@ -67,18 +67,18 @@ local function OnInitialize()
 
     local function ManaStatusBar()
         return StatusBar(
-            function(self, player)
+            function(self, mobile)
                 self:setColor(Constants.Colors.Blue)
-                self:setCurrentValue(player:getCurrentMana())
-                self:setMaxValue(player:getMaxMana())
+                self:setCurrentValue(mobile:getCurrentMana())
+                self:setMaxValue(mobile:getMaxMana())
             end,
             {
-                OnUpdatePlayer = function(self, player)
+                OnUpdateMobile = function(self, mobile)
                     self:setText(
                         string.format(
                             "%d / %d",
-                            player:getCurrentMana(),
-                            player:getMaxMana()
+                            mobile:getCurrentMana(),
+                            mobile:getMaxMana()
                         )
                     )
                 end
@@ -88,18 +88,18 @@ local function OnInitialize()
 
     local function StaminaStatusBar()
         return StatusBar(
-            function(self, player)
+            function(self, mobile)
                 self:setColor(Constants.Colors.YellowDark)
-                self:setCurrentValue(player:getCurrentStamina())
-                self:setMaxValue(player:getMaxStamina())
+                self:setCurrentValue(mobile:getCurrentStamina())
+                self:setMaxValue(mobile:getMaxStamina())
             end,
             {
-                OnUpdatePlayer = function(self, player)
+                OnUpdateMobile = function(self, mobile)
                     self:setText(
                         string.format(
                             "%d / %d",
-                            player:getCurrentStamina(),
-                            player:getMaxStamina()
+                            mobile:getCurrentStamina(),
+                            mobile:getMaxStamina()
                         )
                     )
                 end
@@ -120,10 +120,10 @@ local function OnInitialize()
                 }
             end,
             OnRButtonUp = function() end,
-            OnUpdatePlayer = function(self, player)
+            OnUpdateMobile = function(self, mobile)
                 local frame = self:getFrame()
-                self:setId(player:getPlayerId())
-                if player:isInWarMode() then
+                self:setId(mobile:getPlayerId())
+                if mobile:isInWarMode() then
                     frame:setColor(Constants.Colors.Notoriety[6])
                 else
                     frame:setColor(Constants.Colors.Notoriety[1])
