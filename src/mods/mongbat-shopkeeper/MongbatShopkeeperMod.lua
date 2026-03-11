@@ -707,8 +707,10 @@ local function OnInitialize()
         if not isSell then
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), mId)
             sellContainerId = Data.ObjectInfo(mId):getSellContainerId()
-            Api.Window.RegisterData(
-                Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
+            if sellContainerId ~= 0 then
+                Api.Window.RegisterData(
+                    Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
+            end
         end
 
         createShopWindow(mId, isSell)
