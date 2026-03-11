@@ -4895,7 +4895,6 @@ Component.__index = Component
 ---@field OnMouseWheel fun(self: DynamicImage, x: number, y: number, delta: number)?
 ---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
----@field OnUpdatePaperdoll fun(self: DynamicImage, paperdoll: PaperdollWrapper)?
 
 ---@class DynamicImage: View
 local DynamicImage = {}
@@ -4942,13 +4941,8 @@ FilterInput.__index = FilterInput
 ---@field OnMouseOverEnd fun(self: Window)?
 ---@field OnMouseWheel fun(self: Window, x: number, y: number, delta: number)?
 ---@field OnEndHealthBarDrag fun(self: Window)?
----@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileName fun(self: Window, mobileName: MobileNameWrapper)?
----@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
----@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
----@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4962,10 +4956,6 @@ FilterInput.__index = FilterInput
 ---@field OnLButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Label)?
 ---@field OnMouseOverEnd fun(self: Label)?
----@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileName fun(self: Label, mobileName: MobileNameWrapper)?
----@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
----@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
 
@@ -5019,13 +5009,8 @@ LogDisplay.__index = LogDisplay
 ---@field OnMouseOver fun(self: View)?
 ---@field OnMouseOverEnd fun(self: View)?
 ---@field OnEndHealthBarDrag fun(self: View)?
----@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileName fun(self: View, mobileName: MobileNameWrapper)?
----@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
----@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
----@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -5036,9 +5021,6 @@ LogDisplay.__index = LogDisplay
 ---@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: StatusBar)?
 ---@field OnMouseOverEnd fun(self: StatusBar)?
----@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
 
 ---@class ScrollWindowModel : ViewModel
 ---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
@@ -7609,20 +7591,12 @@ function View:onUpdateMobileName()
         self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
-    if self._model.OnUpdateMobileName ~= nil then
-        self._model.OnUpdateMobileName(self, Data.MobileName(self:getId()))
-        return true
-    end
     return false
 end
 
 function View:onUpdatePlayerStatus()
     if self._state.mobile and self._model.OnUpdateMobile then
         self._model.OnUpdateMobile(self, self._state.mobile)
-        return true
-    end
-    if self._model.OnUpdatePlayerStatus ~= nil then
-        self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
         return true
     end
     return false
@@ -7633,10 +7607,6 @@ function View:onUpdateHealthBarColor()
         self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
-    if self._model.OnUpdateHealthBarColor ~= nil then
-        self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
-        return true
-    end
     return false
 end
 
@@ -7645,20 +7615,12 @@ function View:onUpdateMobileStatus()
         self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
-    if self._model.OnUpdateMobileStatus ~= nil then
-        self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
-        return true
-    end
     return false
 end
 
 function View:onUpdatePaperdoll()
     if self._state.mobile and self._model.OnUpdateMobile then
         self._model.OnUpdateMobile(self, self._state.mobile)
-        return true
-    end
-    if self._model.OnUpdatePaperdoll ~= nil then
-        self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
         return true
     end
     return false
@@ -7727,11 +7689,6 @@ function View:onUpdateContainerWindow()
         self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
         return true
     end
-    if self._model.OnUpdateContainerWindow ~= nil then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateContainerWindow(self, instanceId, Data.ContainerWindow(instanceId))
-        return true
-    end
     return false
 end
 
@@ -7741,11 +7698,6 @@ function View:onUpdateObjectInfo()
         self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
         return true
     end
-    if self._model.OnUpdateObjectInfo ~= nil then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateObjectInfo(self, instanceId, Data.ObjectInfo(instanceId))
-        return true
-    end
     return false
 end
 
@@ -7753,11 +7705,6 @@ function View:onUpdateItemProperties()
     if self._state.item and self._model.OnUpdateItem then
         local instanceId = Api.Window.GetUpdateInstanceId()
         self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
-        return true
-    end
-    if self._model.OnUpdateItemProperties ~= nil then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateItemProperties(self, instanceId, Data.ItemProperties(instanceId))
         return true
     end
     return false
