@@ -21,6 +21,42 @@ local COLOR_DEFAULT = { r = 255, g = 255, b = 255 }
 local COLOR_GAIN    = { r = 64,  g = 192, b = 64  }
 local COLOR_LOSS    = { r = 192, g = 64,  b = 64  }
 
+--- Formats a skill value stored in tenths as "XX.X".
+--- Uses arithmetic instead of string slicing to avoid raw string.* calls.
+---@param value number Integer tenths value (e.g. 995 => "99.5")
+---@return string
+local function formatSkillValue(value)
+    local whole = math.floor(value / 10)
+    local tenths = value - whole * 10
+    return tostring(whole) .. "." .. tostring(tenths)
+end
+
+--- Formats remaining skill points (in tenths) as "XX.X%".
+---@param remaining number Integer tenths value
+---@return string
+local function formatRemaining(remaining)
+    if remaining <= 0 then return "0.0%" end
+    return formatSkillValue(remaining) .. "%"
+end
+
+--- Builds display text and color for a single skill row.
+---@param nameStr string Plain-string skill name
+---@param value number Skill value in tenths
+---@param delta number|nil Session delta in tenths; nil when no session is active
+---@return string text
+---@return table color
+local function formatSkillRow(nameStr, value, delta)
+    local valueStr = formatSkillValue(value) .. "%"
+    if delta == nil then
+        return nameStr .. ": " .. valueStr, COLOR_DEFAULT
+    elseif delta > 0 then
+        return nameStr .. ": " .. valueStr .. " (+" .. formatSkillValue(math.abs(delta)) .. ")", COLOR_GAIN
+    elseif delta < 0 then
+        return nameStr .. ": " .. valueStr .. " (-" .. formatSkillValue(math.abs(delta)) .. ")", COLOR_LOSS
+    end
+    return nameStr .. ": " .. valueStr, COLOR_DEFAULT
+end
+
 local function OnInitialize()
     local showAllMySkills = Api.Interface.LoadBoolean(SAVE_KEY, true)
 
@@ -34,14 +70,33 @@ local function OnInitialize()
     skillsTracker:disable()
 
     -- Pre-create a fixed pool of Label views for the skill rows.
-    -- They are created hidden; rebuild() shows and re-anchors the visible ones.
+    -- They are created hidden; rebuild() shows, anchors, and binds the visible ones.
     local labelPool = {}
+    local rebuild   -- forward declaration: assigned below after getDelta and makeLabelForPool
     local windowRef = nil   -- set once Window:OnInitialize fires
     local startBtnRef = nil
     local stopBtnRef  = nil
     local resetBtnRef = nil
 
-    local function makeLabelForPool()
+    --- Returns the session delta for a serverId, or nil if no session data exists.
+    ---@param serverId number
+    ---@return number|nil
+    local function getDelta(serverId)
+        if not sessionStartValues[serverId] then return nil end
+        if sessionActive then
+            return Data.SkillDynamicData(serverId):getRealValue() - sessionStartValues[serverId]
+        else
+            return frozenDeltas[serverId]
+        end
+    end
+
+    --- Creates one label for pool slot i.
+    --- OnUpdateSkillDynamicData is placed on the label (child-centric dispatch).
+    --- rebuild() binds each visible label to its skill via setId(serverId), so only
+    --- the label tracking the changed skill fires -- triggering exactly one rebuild.
+    ---@param i number 1-based pool slot index
+    ---@return Label
+    local function makeLabelForPool(i)
         return Components.Label {
             OnLButtonDown = function(self, flags, x, y)
                 if windowRef ~= nil then
@@ -57,47 +112,22 @@ local function OnInitialize()
                 if windowRef ~= nil then
                     windowRef:onRButtonUp(flags, x, y)
                 end
-            end
+            end,
+            OnUpdateSkillDynamicData = function(self)
+                -- This fires only for the skill bound to this label via setId().
+                -- Triggering a full rebuild keeps the remaining total accurate.
+                if windowRef ~= nil then
+                    rebuild(windowRef)
+                end
+            end,
         }
     end
 
     for i = 1, MAX_ROWS do
-        labelPool[i] = makeLabelForPool()
+        labelPool[i] = makeLabelForPool(i)
     end
 
-    -- Format a skill value (stored in tenths) as "XX.X"
-    local function formatSkillValue(value)
-        local whole = tostring(value)
-        local lastDigit = string.sub(whole, -1, -1)
-        local intPart = string.sub(whole, 1, string.len(whole) - 1)
-        if intPart == "" then intPart = "0" end
-        return intPart .. "." .. lastDigit
-    end
-
-    -- Format the remaining skill points (in tenths) as "XX.X%"
-    local function formatRemaining(remaining)
-        if remaining <= 0 then
-            return "0.0%"
-        end
-        local whole = tostring(remaining)
-        local lastDigit = string.sub(whole, -1, -1)
-        local intPart = string.sub(whole, 1, string.len(whole) - 1)
-        if intPart == "" then intPart = "0" end
-        return intPart .. "." .. lastDigit .. "%"
-    end
-
-    -- Returns the session delta for a serverId, or nil if no session data.
-    -- When active, computes live delta; when stopped, returns frozen delta.
-    local function getDelta(serverId)
-        if not sessionStartValues[serverId] then return nil end
-        if sessionActive then
-            return Data.SkillDynamicData(serverId):getRealValue() - sessionStartValues[serverId]
-        else
-            return frozenDeltas[serverId]
-        end
-    end
-
-    -- Snapshot all current skill values as the session start baseline.
+    --- Snapshots all current skill values as the session start baseline.
     local function snapshotCurrentValues()
         sessionStartValues = {}
         frozenDeltas = {}
@@ -109,7 +139,7 @@ local function OnInitialize()
         end
     end
 
-    -- Freeze the current live deltas (called when Stop is pressed).
+    --- Freezes the current live deltas (called when Stop is pressed).
     local function freezeDeltas()
         frozenDeltas = {}
         Utils.Table.ForEach(sessionStartValues, function(serverId, startVal)
@@ -118,7 +148,7 @@ local function OnInitialize()
         end)
     end
 
-    -- Update enabled/disabled state of session control buttons.
+    --- Updates enabled/disabled state of session control buttons.
     local function updateButtonStates()
         if startBtnRef and startBtnRef:doesExist() then
             Api.Button.SetDisabled(startBtnRef:getName(), sessionActive)
@@ -132,9 +162,11 @@ local function OnInitialize()
         end
     end
 
-    -- Rebuild the visible skill list and resize the window.
-    local function rebuild(window)
-        -- Collect the rows to display as {text, color} pairs
+    --- Rebuilds the visible skill list and resizes the window.
+    --- Also called by each pool label's OnUpdateSkillDynamicData handler.
+    ---@param window Window
+    rebuild = function(window)
+        -- Collect the rows to display as {text, color, serverId?} entries
         local rows = {}
 
         if showAllMySkills then
@@ -142,30 +174,12 @@ local function OnInitialize()
             for i = 1, SKILL_COUNT do
                 local csv = Data.SkillsCSV(i)
                 local serverId = csv:getServerId()
-                local dynamic = Data.SkillDynamicData(serverId)
-                local value = dynamic:getRealValue()
+                local value = Data.SkillDynamicData(serverId):getRealValue()
                 totalUsed = totalUsed + value
                 if value > 0 then
                     local nameStr = Utils.String.FromWString(csv:getName())
-                    local delta = getDelta(serverId)
-                    local text, color
-                    if delta ~= nil then
-                        local deltaStr = formatSkillValue(math.abs(delta))
-                        if delta > 0 then
-                            text  = nameStr .. ": " .. formatSkillValue(value) .. "% (+" .. deltaStr .. ")"
-                            color = COLOR_GAIN
-                        elseif delta < 0 then
-                            text  = nameStr .. ": " .. formatSkillValue(value) .. "% (-" .. deltaStr .. ")"
-                            color = COLOR_LOSS
-                        else
-                            text  = nameStr .. ": " .. formatSkillValue(value) .. "%"
-                            color = COLOR_DEFAULT
-                        end
-                    else
-                        text  = nameStr .. ": " .. formatSkillValue(value) .. "%"
-                        color = COLOR_DEFAULT
-                    end
-                    Utils.Array.Add(rows, { text = text, color = color })
+                    local text, color = formatSkillRow(nameStr, value, getDelta(serverId))
+                    Utils.Array.Add(rows, { text = text, color = color, serverId = serverId })
                 end
             end
 
@@ -185,43 +199,28 @@ local function OnInitialize()
             Utils.Array.ForEach(customSkills, function(skillId)
                 local csv = Data.SkillsCSV(skillId)
                 local serverId = csv:getServerId()
-                local dynamic = Data.SkillDynamicData(serverId)
-                local value = dynamic:getRealValue()
+                local value = Data.SkillDynamicData(serverId):getRealValue()
                 local nameStr = Utils.String.FromWString(csv:getName())
-                local delta = getDelta(serverId)
-                local text, color
-                if delta ~= nil then
-                    local deltaStr = formatSkillValue(math.abs(delta))
-                    if delta > 0 then
-                        text  = nameStr .. ": " .. formatSkillValue(value) .. "% (+" .. deltaStr .. ")"
-                        color = COLOR_GAIN
-                    elseif delta < 0 then
-                        text  = nameStr .. ": " .. formatSkillValue(value) .. "% (-" .. deltaStr .. ")"
-                        color = COLOR_LOSS
-                    else
-                        text  = nameStr .. ": " .. formatSkillValue(value) .. "%"
-                        color = COLOR_DEFAULT
-                    end
-                else
-                    text  = nameStr .. ": " .. formatSkillValue(value) .. "%"
-                    color = COLOR_DEFAULT
-                end
-                Utils.Array.Add(rows, { text = text, color = color })
+                local text, color = formatSkillRow(nameStr, value, getDelta(serverId))
+                Utils.Array.Add(rows, { text = text, color = color, serverId = serverId })
             end)
         end
 
-        -- Hide all pool labels
+        -- Deregister all pool labels from their current skills before reassignment.
+        -- setId(0) unregisters the old skill data binding so that labels not
+        -- reassigned below will not fire OnUpdateSkillDynamicData.
         Utils.Array.ForEach(labelPool, function(label)
             if Api.Window.DoesExist(label:getName()) then
                 label:setShowing(false)
+                label:setId(0)
             end
         end)
 
         local windowName = window:getName()
         local prevName   = nil
 
-        -- labelPool always has MAX_ROWS entries; rows always has at most SKILL_COUNT + 2
-        -- (≤ 60), so labelPool[i] is always valid for any i within rows.
+        -- labelPool always has MAX_ROWS entries; rows has at most SKILL_COUNT + 2
+        -- (<= 60), so labelPool[i] is always valid for any i within rows.
         Utils.Array.ForEach(rows, function(row, i)
             local label     = labelPool[i]
             local labelName = label:getName()
@@ -239,6 +238,14 @@ local function OnInitialize()
                 end
 
                 label:setDimensions(WINDOW_WIDTH - 16, ROW_HEIGHT)
+
+                -- Bind this label to its specific skill so OnUpdateSkillDynamicData
+                -- fires only for this label when that skill changes.
+                -- Divider and remaining rows have no serverId and stay at id=0.
+                if row.serverId ~= nil then
+                    label:setId(row.serverId)
+                end
+
                 prevName = labelName
             end
         end)
@@ -263,9 +270,12 @@ local function OnInitialize()
         end
     end
 
-    -- Helper: create a session control button, manually parented to the window.
-    -- Because these are not in Window:setChildren, the Window lifecycle does not
-    -- wrap them.  We call create() + onInitialize() directly, then reparent.
+    --- Creates a session control button, manually parented to the window.
+    --- Because these are not in Window:setChildren, the Window lifecycle does not
+    --- wrap them. We call create() + onInitialize() directly, then reparent.
+    ---@param label wstring Button label text
+    ---@param onLButtonUp fun() Callback invoked when the button is clicked
+    ---@return Button
     local function makeControlButton(label, onLButtonUp)
         return Components.Button {
             OnInitialize = function(self)
@@ -283,7 +293,7 @@ local function OnInitialize()
             windowRef = self
             self:setDimensions(WINDOW_WIDTH, MIN_HEIGHT)
 
-            -- â”€â”€ Session control buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            -- Session control buttons
             startBtnRef = makeControlButton(L"Start", function()
                 snapshotCurrentValues()
                 sessionActive = true
@@ -318,9 +328,9 @@ local function OnInitialize()
             )
             updateButtonStates()
 
-            -- â”€â”€ Label pool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            -- Label pool
             -- Because these labels are not passed to Window:setChildren, the
-            -- normal component lifecycle does not apply.  We call create() +
+            -- normal component lifecycle does not apply. We call create() +
             -- onInitialize() directly to register their event handlers, then
             -- reparent them to this window manually.
             Utils.Array.ForEach(labelPool, function(lbl)
@@ -329,9 +339,6 @@ local function OnInitialize()
                 lbl:setParent(windowName)
             end)
 
-            rebuild(self)
-        end,
-        OnUpdateSkillDynamicData = function(self)
             rebuild(self)
         end,
         OnRButtonUp = function(self, flags, x, y)
@@ -363,4 +370,3 @@ Mongbat.Mod {
     OnInitialize = OnInitialize,
     OnShutdown = OnShutdown
 }
-
