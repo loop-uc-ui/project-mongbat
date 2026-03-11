@@ -153,7 +153,7 @@ The `.env` file in the repository root defines environment variables for develop
 
 | Resource | URL | Description |
 |---|---|---|
-| Default UI Source | https://github.com/loop-uc-ui/enhanced-client-default | Authoritative Lua + XML source for every vanilla UI window. Files in `Source/`. |
+| Default UI Source | https://github.com/loop-uc-ui/enhanced-client-default | Authoritative Lua + XML source for every vanilla UI window. |
 | Default UI Docs | https://loop-uc-ui.github.io/enhanced-client-default-docs/ | EA Mythic's official API reference (outdated but still useful for engine functions). |
 | Ultima Online | https://uo.com/ | Official game site — lore, aesthetics, community. |
 
