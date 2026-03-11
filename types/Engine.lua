@@ -1,4 +1,6 @@
-﻿---@class Event:number
+﻿---@class wstring:string
+
+---@class Event:number
 ---@class Type:number
 
 ---@class Object
@@ -139,7 +141,7 @@
 ---@field numItems number
 ---@field ContainedItems WindowData.Container.Item[]
 ---@field gumpNumb number
----@field isCorpse false
+---@field isCorpse boolean
 
 ---@class WindowData.Container.Item
 ---@field objectId number
