@@ -157,16 +157,14 @@ local MARGIN   = 12
 local GAP      = 8
 
 -- Original Toggle saved for shutdown restoration.
--- Must survive across OnInitialize and OnShutdown, so file-scope state is used.
+-- Must survive across OnInitialize and OnShutdown, so file-scope state is required.
 local originalCrystalPortalToggle = nil
 
 local function OnInitialize()
     -- Intercept CrystalPortal.Toggle via the DefaultComponent proxy.
-    -- We do NOT call disable() because that would also suppress our own Toggle
-    -- replacement (the proxy no-ops all functions when disabled, including
-    -- those we write to the underlying _original table).
-    local crystalPortalDefault = Components.Defaults.CrystalPortal
-    local cpProxy = crystalPortalDefault:getDefault()
+    -- We do NOT call disable() — that no-ops ALL proxy functions including our replacement.
+    -- Instead we save the original Toggle and write our own through the proxy.
+    local cpProxy = Components.Defaults.CrystalPortal:getDefault()
 
     -- Per-session state (scoped to OnInitialize; captured by closures)
     local facet         = Api.Interface.LoadNumber(KEY_MAP,       1)
@@ -225,7 +223,7 @@ local function OnInitialize()
 
     --- Clamps selectedIndex into [1, #currentList].
     local function clampSelection()
-        if #currentList == 0 then
+        if Utils.Array.IsEmpty(currentList) then
             selectedIndex = 1
             return
         end
@@ -240,7 +238,7 @@ local function OnInitialize()
     --- Safe to call only after the window is fully initialized.
     local function refreshDestDisplay()
         if destLabel == nil then return end
-        if #currentList == 0 then
+        if Utils.Array.IsEmpty(currentList) then
             destLabel:setText(L"--")
         else
             destLabel:setText(currentList[selectedIndex].name)
@@ -444,7 +442,7 @@ local function OnInitialize()
                 self:setText(L"<")
             end,
             OnLButtonUp = function()
-                if #currentList == 0 then return end
+                if Utils.Array.IsEmpty(currentList) then return end
                 selectedIndex = selectedIndex - 1
                 if selectedIndex < 1 then selectedIndex = #currentList end
                 refreshDestDisplay()
@@ -454,7 +452,7 @@ local function OnInitialize()
         destLabel = Components.Label {
             OnInitialize = function(self)
                 self:centerText()
-                if #currentList > 0 then
+                if not Utils.Array.IsEmpty(currentList) then
                     self:setText(currentList[selectedIndex].name)
                 else
                     self:setText(L"--")
@@ -467,7 +465,7 @@ local function OnInitialize()
                 self:setText(L">")
             end,
             OnLButtonUp = function()
-                if #currentList == 0 then return end
+                if Utils.Array.IsEmpty(currentList) then return end
                 selectedIndex = selectedIndex + 1
                 if selectedIndex > #currentList then selectedIndex = 1 end
                 refreshDestDisplay()
@@ -485,7 +483,7 @@ local function OnInitialize()
                 self:setText(L"GO!")
             end,
             OnLButtonUp = function()
-                if #currentList == 0 or selectedIndex < 1 or selectedIndex > #currentList then
+                if Utils.Array.IsEmpty(currentList) or selectedIndex < 1 or selectedIndex > #currentList then
                     return
                 end
 
@@ -550,10 +548,10 @@ local function OnInitialize()
     -- when TID 1113945 is detected (gump ID 9083, label TID 1113945).
     -- ====================================================================== --
 
-    -- Save the original Toggle for clean restoration on shutdown.
-    -- getOriginalTable() exposes the raw table the proxy wraps.
-    local originalTable = crystalPortalDefault:getOriginalTable()
-    originalCrystalPortalToggle = originalTable and originalTable.Toggle or nil
+    -- Save the original Toggle then replace via the proxy.
+    -- Proxy __index reads from _original when not disabled, so reading before
+    -- writing gives us the original function for later restoration.
+    originalCrystalPortalToggle = cpProxy.Toggle
 
     cpProxy.Toggle = function()
         if Api.Window.DoesExist(NAME) then
