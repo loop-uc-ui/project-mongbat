@@ -115,13 +115,24 @@ Component                  -- Base: name, type, xml-template support
   └─ EventReceiver         -- Adds event handler registration/dispatch
        └─ View             -- Dimensions, anchors, alpha, tint, input handling
             ├─ Window      -- Top-level container (layer, movable, popable, resizable)
+            │    ├─ DockableWindow    -- Window with automatic position save/restore
+            │    └─ ActionButtonGroup -- Row of ActionButton slots with event delegation
             ├─ Button      -- Pressable button with text and textures
+            │    └─ ActionButton      -- Button bound to a game action (spell, ability, macro)
             ├─ Label       -- Text display (font, color, alignment)
             ├─ StatusBar   -- Progress bar (current/max values, tints)
             ├─ CircleImage -- Circular texture
-            ├─ DynamicImage-- Runtime-assigned texture with coordinates
+            ├─ DynamicImage -- Runtime-assigned texture with coordinates
+            ├─ AnimatedImage -- Spritesheet animation (texture, fps, start/stop)
+            │    └─ CooldownDisplay   -- Cooldown animation overlay (inherits CooldownEffect)
             ├─ EditTextBox -- Text input field
             ├─ LogDisplay  -- Multi-line scrolling text area
+            ├─ ScrollWindow-- Scrollable container (vertical or horizontal item layout)
+            ├─ SliderBar   -- Horizontal slider with OnSlide event
+            ├─ ComboBox    -- Dropdown selector with OnSelChanged event
+            ├─ ListBox     -- Data-driven list with row templates
+            ├─ CheckBox    -- Toggle button with optional label
+            ├─ PageWindow  -- Multi-page container with page navigation
             └─ Gump        -- Server-sent generic gump wrapper
 ```
 

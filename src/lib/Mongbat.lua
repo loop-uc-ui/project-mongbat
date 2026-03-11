@@ -256,6 +256,37 @@ function Api.AnimatedImage.SetPlaySpeed(imageName, fps)
 end
 
 -- ========================================================================== --
+-- Api - Action Button
+-- ========================================================================== --
+
+Api.ActionButton = {}
+
+---
+--- Sets the game action on an ActionButton window.
+---@param windowName string The name of the action button.
+---@param actionType number The action type.
+---@param actionId number The action ID.
+function Api.ActionButton.SetAction(windowName, actionType, actionId)
+    WindowSetGameActionData(windowName, actionType, actionId, L"")
+end
+
+---
+--- Gets the action data from an ActionButton window.
+---@param windowName string The name of the action button.
+---@return any The game action button data.
+function Api.ActionButton.GetAction(windowName)
+    return WindowGetGameActionButton(windowName)
+end
+
+---
+--- Sets the game action trigger for an ActionButton window.
+---@param windowName string The name of the action button.
+---@param action any The action trigger value.
+function Api.ActionButton.SetGameActionTrigger(windowName, action)
+    WindowSetGameActionTrigger(windowName, action)
+end
+
+-- ========================================================================== --
 -- Api - Button
 -- ========================================================================== --
 
@@ -1447,6 +1478,57 @@ end
 ---@param id string The ID of the scroll window.
 function Api.ScrollWindow.UpdateScrollRect(id)
     ScrollWindowUpdateScrollRect(id)
+end
+
+-- ========================================================================== --
+-- Api - Horizontal Scroll Window
+-- ========================================================================== --
+
+Api.HorizontalScrollWindow = {}
+
+---
+--- Sets the offset for a horizontal scroll window.
+---@param id string The ID of the horizontal scroll window.
+---@param offset number The horizontal offset to set.
+function Api.HorizontalScrollWindow.SetOffset(id, offset)
+    HorizontalScrollWindowSetOffset(id, offset)
+end
+
+---
+--- Updates the scroll rect for a horizontal scroll window.
+---@param id string The ID of the horizontal scroll window.
+function Api.HorizontalScrollWindow.UpdateScrollRect(id)
+    HorizontalScrollWindowUpdateScrollRect(id)
+end
+
+-- ========================================================================== --
+-- Api - Page Window
+-- ========================================================================== --
+
+Api.PageWindow = {}
+
+---
+--- Sets the active page on a page window.
+---@param id string The name of the page window.
+---@param pageNumber number The 1-based page number to show.
+function Api.PageWindow.SetActivePage(id, pageNumber)
+    PageWindowSetActivePage(id, pageNumber)
+end
+
+---
+--- Gets the currently active page number.
+---@param id string The name of the page window.
+---@return number The active page number.
+function Api.PageWindow.GetActivePage(id)
+    return PageWindowGetActivePage(id)
+end
+
+---
+--- Gets the total number of pages.
+---@param id string The name of the page window.
+---@return number The page count.
+function Api.PageWindow.GetNumPages(id)
+    return PageWindowGetNumPages(id)
 end
 
 -- ========================================================================== --
@@ -3070,6 +3152,8 @@ Constants.CoreEvents.OnLButtonDblClk = "OnLButtonDblClk"
 Constants.CoreEvents.OnMouseOver = "OnMouseOver"
 Constants.CoreEvents.OnMouseOverEnd = "OnMouseOverEnd"
 Constants.CoreEvents.OnMouseWheel = "OnMouseWheel"
+Constants.CoreEvents.OnSlide = "OnSlide"
+Constants.CoreEvents.OnSelChanged = "OnSelChanged"
 
 Constants.AnchorPoints = {}
 Constants.AnchorPoints.BottomLeft = "bottomleft"
@@ -4010,6 +4094,107 @@ local SNAP_THRESHOLD = 20
 local Button = {}
 Button.__index = Button
 
+---@class CheckBoxModel : ViewModel
+---@field OnInitialize fun(self: CheckBox)?
+---@field OnShutdown fun(self: CheckBox)?
+---@field OnLButtonUp fun(self: CheckBox, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: CheckBox)?
+---@field OnMouseOverEnd fun(self: CheckBox)?
+
+---@class CheckBox: View
+---@field label Label?
+local CheckBox = {}
+CheckBox.__index = CheckBox
+
+---@class ComboBoxModel : ViewModel
+---@field OnInitialize fun(self: ComboBox)?
+---@field OnShutdown fun(self: ComboBox)?
+---@field OnSelChanged fun(self: ComboBox)?
+
+---@class ComboBox: View
+local ComboBox = {}
+ComboBox.__index = ComboBox
+
+---@class ListBoxModel : ViewModel
+---@field OnInitialize fun(self: ListBox)?
+---@field OnShutdown fun(self: ListBox)?
+---@field OnMouseWheel fun(self: ListBox, x: number, y: number, delta: number)?
+
+---@class ListBox: View
+local ListBox = {}
+ListBox.__index = ListBox
+
+---@class SliderBarModel : ViewModel
+---@field OnInitialize fun(self: SliderBar)?
+---@field OnShutdown fun(self: SliderBar)?
+---@field OnSlide fun(self: SliderBar, position: number)?
+
+---@class SliderBar: View
+local SliderBar = {}
+SliderBar.__index = SliderBar
+
+---@class AnimatedImageModel : ViewModel
+---@field OnInitialize fun(self: AnimatedImage)?
+---@field OnShutdown fun(self: AnimatedImage)?
+
+---@class AnimatedImage: View
+local AnimatedImage = {}
+AnimatedImage.__index = AnimatedImage
+
+---@class ActionButtonModel : ViewModel
+---@field OnInitialize fun(self: ActionButton)?
+---@field OnShutdown fun(self: ActionButton)?
+---@field OnLButtonDown fun(self: ActionButton, flags: integer, x: integer, y: integer)?
+---@field OnLButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
+---@field OnRButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
+---@field OnMouseOver fun(self: ActionButton)?
+---@field OnMouseOverEnd fun(self: ActionButton)?
+
+---@class ActionButton: Button
+local ActionButton = {}
+ActionButton.__index = ActionButton
+
+---@class ActionButtonGroupModel : WindowModel
+---@field Count number? The number of action button slots (default 12).
+---@field ButtonSize number? The pixel size of each button (default 50).
+---@field Spacing number? The pixel gap between buttons (default 0).
+---@field OnInitialize fun(self: ActionButtonGroup)?
+---@field OnShutdown fun(self: ActionButtonGroup)?
+---@field OnButtonLButtonDown fun(self: ActionButtonGroup, button: ActionButton, index: number, flags: integer, x: integer, y: integer)?
+---@field OnButtonLButtonUp fun(self: ActionButtonGroup, button: ActionButton, index: number, flags: integer, x: integer, y: integer)?
+---@field OnButtonRButtonUp fun(self: ActionButtonGroup, button: ActionButton, index: number, flags: integer, x: integer, y: integer)?
+---@field OnButtonMouseOver fun(self: ActionButtonGroup, button: ActionButton, index: number)?
+---@field OnButtonMouseOverEnd fun(self: ActionButtonGroup, button: ActionButton, index: number)?
+
+---@class ActionButtonGroup: Window
+---@field _buttons ActionButton[] The group's action button slots.
+local ActionButtonGroup = {}
+ActionButtonGroup.__index = ActionButtonGroup
+
+---@class CooldownDisplayModel : ViewModel
+---@field OnInitialize fun(self: CooldownDisplay)?
+---@field OnShutdown fun(self: CooldownDisplay)?
+
+---@class CooldownDisplay: AnimatedImage
+local CooldownDisplay = {}
+CooldownDisplay.__index = CooldownDisplay
+
+---@class DockableWindowModel : WindowModel
+---@field OnInitialize fun(self: DockableWindow)?
+---@field OnShutdown fun(self: DockableWindow)?
+
+---@class DockableWindow: Window
+local DockableWindow = {}
+DockableWindow.__index = DockableWindow
+
+---@class PageWindowModel : ViewModel
+---@field OnInitialize fun(self: PageWindow)?
+---@field OnShutdown fun(self: PageWindow)?
+
+---@class PageWindow: View
+local PageWindow = {}
+PageWindow.__index = PageWindow
+
 ---@class DefaultComponentProxy
 ---@field _disabled boolean Whether the proxy is disabled (function calls become no-ops)
 ---@field _original table The original global table being proxied
@@ -4411,6 +4596,18 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
 ---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
+
+---@class ScrollWindowModel : ViewModel
+---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
+---@field ItemWidth number? Width per item column used for horizontal stacking (only when Horizontal is true). Defaults to 50.
+---@field Horizontal boolean? When true, the scroll window scrolls horizontally instead of vertically. Defaults to false.
+---@field OnInitialize fun(self: ScrollWindow)?
+---@field OnShutdown fun(self: ScrollWindow)?
+
+---@class ScrollWindow : View
+---@field _items View[] Views added as rows into the scroll content area.
+local ScrollWindow = {}
+ScrollWindow.__index = ScrollWindow
 
 ---@class StatusBar: View
 ---@field label Label?
@@ -5760,6 +5957,18 @@ function EventHandler.OnKeyEscape()
     end)
 end
 
+function EventHandler.OnSlide()
+    withActiveView("OnSlide", function(view)
+        view:onSlide()
+    end)
+end
+
+function EventHandler.OnSelChanged()
+    withActiveView("OnSelChanged", function(view)
+        view:onSelChanged()
+    end)
+end
+
 
 
 -- ========================================================================== --
@@ -5930,6 +6139,171 @@ function Components.LogDisplay(model)
 end
 
 -- ========================================================================== --
+-- Components - Scroll Window
+-- ========================================================================== --
+
+---@param model ScrollWindowModel?
+---@return ScrollWindow
+function ScrollWindow:new(model)
+    model = model or {}
+    if model.Horizontal then
+        model.Template = model.Template or "MongbatHorizontalScrollWindow"
+    else
+        model.Template = model.Template or "MongbatScrollWindow"
+    end
+    local instance = View.new(self, model) --[[@as ScrollWindow]]
+    instance._items = {}
+    return instance
+end
+
+---@return string
+function ScrollWindow:_getContainerName()
+    return self.name .. "Cont"
+end
+
+---@return boolean
+function ScrollWindow:isHorizontal()
+    return self._model.Horizontal == true
+end
+
+function ScrollWindow:onInitialize()
+    View.onInitialize(self)
+end
+
+function ScrollWindow:onShutdown()
+    self:clearItems()
+    View.onShutdown(self)
+end
+
+function ScrollWindow:onDimensionsChanged(width, height)
+    self:_updateLayout()
+    View.onDimensionsChanged(self, width, height)
+end
+
+--- Adds a view as the next item in the scroll area. The view is created,
+--- initialised, re-parented into the content container, and the scroll rect
+--- is updated automatically.
+---
+--- In vertical mode (default), items are stacked top-to-bottom.
+--- In horizontal mode (Horizontal = true), items are stacked left-to-right.
+---
+--- The view must be a freshly-constructed, not-yet-created component
+--- (e.g. returned directly from a Components.* factory call).
+---@param view View
+---@return View
+function ScrollWindow:addItem(view)
+    local contName = self:_getContainerName()
+    view:create(true)
+    view:onInitialize()
+    view:setParent(contName)
+    if self:isHorizontal() then
+        local itemWidth = self:_getItemWidth()
+        local xOffset = #self._items * itemWidth
+        view:clearAnchors()
+        view:addAnchor("topleft", contName, "topleft", xOffset, 0)
+    else
+        local itemHeight = self:_getItemHeight()
+        local yOffset = #self._items * itemHeight
+        view:clearAnchors()
+        view:addAnchor("topleft", contName, "topleft", 0, yOffset)
+    end
+    Utils.Array.Add(self._items, view)
+    self:_updateLayout()
+    return view
+end
+
+--- Removes a previously added view from the scroll area. The view is
+--- destroyed and the remaining items are re-laid-out.
+---@param view View
+function ScrollWindow:removeItem(view)
+    local idx = Utils.Array.IndexOf(self._items, function(v) return v == view end)
+    if idx == -1 then return end
+    view:destroy()
+    Utils.Array.Remove(self._items, idx)
+    self:_updateLayout()
+end
+
+--- Destroys all items and resets the scroll offset.
+function ScrollWindow:clearItems()
+    Utils.Array.ForEach(self._items, function(item)
+        item:destroy()
+    end)
+    self._items = {}
+    self:_updateLayout()
+    self:setOffset(0)
+end
+
+--- Re-anchors all remaining items so they are stacked contiguously, then
+--- resizes the content container and updates the engine scroll rect.
+function ScrollWindow:_updateLayout()
+    local contName = self:_getContainerName()
+    if not Api.Window.DoesExist(contName) then return end
+    if self:isHorizontal() then
+        local itemWidth = self:_getItemWidth()
+        Utils.Array.ForEach(self._items, function(item, index)
+            item:clearAnchors()
+            item:addAnchor("topleft", contName, "topleft", (index - 1) * itemWidth, 0)
+        end)
+        local dims = self:getDimensions()
+        local totalWidth = #self._items * itemWidth
+        Api.Window.SetDimensions(contName, totalWidth, dims.y)
+        Api.HorizontalScrollWindow.UpdateScrollRect(self.name)
+    else
+        local itemHeight = self:_getItemHeight()
+        Utils.Array.ForEach(self._items, function(item, index)
+            item:clearAnchors()
+            item:addAnchor("topleft", contName, "topleft", 0, (index - 1) * itemHeight)
+        end)
+        local dims = self:getDimensions()
+        local totalHeight = #self._items * itemHeight
+        Api.Window.SetDimensions(contName, dims.x, totalHeight)
+        Api.ScrollWindow.UpdateScrollRect(self.name)
+    end
+end
+
+---@return number
+function ScrollWindow:_getItemHeight()
+    return self._model.ItemHeight or 50
+end
+
+---@return number
+function ScrollWindow:_getItemWidth()
+    return self._model.ItemWidth or 50
+end
+
+--- Sets the scroll offset (in pixels from the start of the content area).
+---@param offset number
+---@return ScrollWindow
+function ScrollWindow:setOffset(offset)
+    if self:isHorizontal() then
+        Api.HorizontalScrollWindow.SetOffset(self.name, offset)
+    else
+        Api.ScrollWindow.SetOffset(self.name, offset)
+    end
+    return self
+end
+
+--- Manually triggers a scroll rect update. Call this if the items in the
+--- scroll area are resized externally.
+---@return ScrollWindow
+function ScrollWindow:updateScrollRect()
+    if self:isHorizontal() then
+        Api.HorizontalScrollWindow.UpdateScrollRect(self.name)
+    else
+        Api.ScrollWindow.UpdateScrollRect(self.name)
+    end
+    return self
+end
+
+---@param model ScrollWindowModel?
+---@return ScrollWindow
+function Components.ScrollWindow(model)
+    local scrollWindow = ScrollWindow:new(model)
+    Cache[scrollWindow:getName()] = scrollWindow
+    return scrollWindow
+end
+
+-- ========================================================================== --
 -- Components - Status Bar
 -- ========================================================================== --
 
@@ -6076,8 +6450,572 @@ function Components.StatusBar(model, labelModel)
 end
 
 -- ========================================================================== --
--- Components - View
+-- Components - Slider Bar
 -- ========================================================================== --
+
+---@param model SliderBarModel?
+---@return SliderBar
+function SliderBar:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatSliderBar"
+    local instance = View.new(self, model)
+    return instance --[[@as SliderBar]]
+end
+
+---@param position number A value between 0 and 1 representing the slider position.
+---@return SliderBar
+function SliderBar:setCurrentPosition(position)
+    Api.Slider.SetCurrentPosition(self:getName(), position)
+    return self
+end
+
+---@return number A value between 0 and 1 representing the current slider position.
+function SliderBar:getCurrentPosition()
+    return Api.Slider.GetCurrentPosition(self:getName())
+end
+
+---@param model SliderBarModel?
+---@return SliderBar
+function Components.SliderBar(model)
+    local sliderBar = SliderBar:new(model)
+    Cache[sliderBar:getName()] = sliderBar
+    return sliderBar
+end
+
+-- ========================================================================== --
+-- Components - ComboBox
+-- ========================================================================== --
+
+---@param model ComboBoxModel?
+---@return ComboBox
+function ComboBox:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatComboBox"
+    local instance = View.new(self, model)
+    return instance --[[@as ComboBox]]
+end
+
+---@param item wstring The item to add.
+---@return ComboBox
+function ComboBox:addItem(item)
+    Api.ComboBox.AddItem(self:getName(), item)
+    return self
+end
+
+---@return ComboBox
+function ComboBox:clearItems()
+    Api.ComboBox.ClearItems(self:getName())
+    return self
+end
+
+---@param item wstring The item to select.
+---@return ComboBox
+function ComboBox:setSelectedItem(item)
+    Api.ComboBox.SetSelectedItem(self:getName(), item)
+    return self
+end
+
+---@return wstring The currently selected item.
+function ComboBox:getSelectedItem()
+    return Api.ComboBox.GetSelectedItem(self:getName())
+end
+
+---@param model ComboBoxModel?
+---@return ComboBox
+function Components.ComboBox(model)
+    local comboBox = ComboBox:new(model)
+    Cache[comboBox:getName()] = comboBox
+    return comboBox
+end
+
+-- ========================================================================== --
+-- Components - List Box
+-- ========================================================================== --
+
+---@param model ListBoxModel?
+---@return ListBox
+function ListBox:new(model)
+    model = model or {}
+    local instance = View.new(self, model)
+    return instance --[[@as ListBox]]
+end
+
+---@param data table The data table to populate the list box from.
+---@return ListBox
+function ListBox:setDataTable(data)
+    Api.ListBox.SetDataTable(self:getName(), data)
+    return self
+end
+
+---@param rowIndex number The 1-based visual row index.
+---@return number The data index for that row.
+function ListBox:getDataIndex(rowIndex)
+    return Api.ListBox.GetDataIndex(self:getName(), rowIndex)
+end
+
+---@param orderArray table Array of data indices controlling display order.
+---@return ListBox
+function ListBox:setDisplayOrder(orderArray)
+    Api.ListBox.SetDisplayOrder(self:getName(), orderArray)
+    return self
+end
+
+---@param count number The number of visible rows.
+---@return ListBox
+function ListBox:setVisibleRowCount(count)
+    Api.ListBox.SetVisibleRowCount(self:getName(), count)
+    return self
+end
+
+---@param model ListBoxModel?
+---@return ListBox
+function Components.ListBox(model)
+    local listBox = ListBox:new(model)
+    Cache[listBox:getName()] = listBox
+    return listBox
+end
+
+-- ========================================================================== --
+-- Components - CheckBox
+-- ========================================================================== --
+
+---@param model CheckBoxModel?
+---@param label Label?
+---@return CheckBox
+function CheckBox:new(model, label)
+    model = model or {}
+    model.Template = model.Template or "MongbatCheckBox"
+    local instance = View.new(self, model) --[[@as CheckBox]]
+    instance.label = label
+    return instance
+end
+
+function CheckBox:onInitialize()
+    View.onInitialize(self)
+
+    Api.Button.SetEnabled(self:getName(), true)
+    Api.Button.SetStayDown(self:getName(), true)
+
+    local label = self.label
+    if label ~= nil then
+        local checkBox = self
+        -- Always wrap OnLButtonDown so label clicks always toggle the checkbox
+        -- even when the labelModel already defined its own OnLButtonDown.
+        local existingLDown = label._model.OnLButtonDown
+        label._model.OnLButtonDown = function(labelSelf, flags, x, y)
+            checkBox:setChecked(not checkBox:isChecked())
+            if existingLDown ~= nil then
+                existingLDown(labelSelf, flags, x, y)
+            end
+        end
+        -- Always wrap OnLButtonUp so label releases propagate to the checkbox
+        -- OnLButtonUp handler, chaining any handler the labelModel provided.
+        local existingLUp = label._model.OnLButtonUp
+        label._model.OnLButtonUp = function(labelSelf, flags, x, y)
+            if checkBox._model.OnLButtonUp ~= nil then
+                checkBox._model.OnLButtonUp(checkBox, flags, x, y)
+            end
+            if existingLUp ~= nil then
+                existingLUp(labelSelf, flags, x, y)
+            end
+        end
+
+        label:create(true)
+        label:onInitialize()
+        label:setParent(self:getParent())
+
+        local dims = self:getDimensions()
+        label:clearAnchors()
+        label:addAnchor("left", self:getName(), "right", 4, 0)
+        label:setDimensions(label:getDimensions().x, dims.y)
+        label:centerText()
+    end
+end
+
+function CheckBox:onShutdown()
+    if self.label ~= nil then
+        self.label:destroy()
+    end
+    View.onShutdown(self)
+end
+
+---@param isChecked boolean
+---@return CheckBox
+function CheckBox:setChecked(isChecked)
+    Api.Button.SetChecked(self:getName(), isChecked)
+    return self
+end
+
+---@return boolean
+function CheckBox:isChecked()
+    return Api.Button.IsChecked(self:getName())
+end
+
+--- Toggles the checked state.
+---@return CheckBox
+function CheckBox:toggle()
+    self:setChecked(not self:isChecked())
+    return self
+end
+
+---@param model CheckBoxModel?
+---@param labelModel LabelModel?
+---@return CheckBox
+function Components.CheckBox(model, labelModel)
+    local label
+
+    if labelModel ~= nil then
+        label = Components.Label(labelModel)
+    end
+
+    local checkBox = CheckBox:new(model, label)
+    Cache[checkBox:getName()] = checkBox
+    return checkBox
+end
+
+-- ========================================================================== --
+-- Components - Animated Image
+-- ========================================================================== --
+
+---@param model AnimatedImageModel?
+---@return AnimatedImage
+function AnimatedImage:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatAnimatedImage"
+    local instance = View.new(self, model) --[[@as AnimatedImage]]
+    return instance
+end
+
+--- Sets the texture for this animated image.
+---@param texture string The texture name.
+---@return AnimatedImage
+function AnimatedImage:setTexture(texture)
+    Api.AnimatedImage.SetTexture(self:getName(), texture)
+    return self
+end
+
+--- Starts the animation.
+---@param startFrame number? The frame to start from (default 1).
+---@param loop boolean? Whether to loop (default false).
+---@param hideWhenDone boolean? Whether to hide when finished (default false).
+---@param delay number? Delay before starting (default 0).
+---@return AnimatedImage
+function AnimatedImage:startAnimation(startFrame, loop, hideWhenDone, delay)
+    Api.AnimatedImage.StartAnimation(
+        self:getName(),
+        startFrame or 1,
+        loop or false,
+        hideWhenDone or false,
+        delay or 0
+    )
+    return self
+end
+
+--- Stops the animation.
+---@return AnimatedImage
+function AnimatedImage:stopAnimation()
+    Api.AnimatedImage.StopAnimation(self:getName())
+    return self
+end
+
+--- Sets the animation playback speed.
+---@param fps number The frames per second.
+---@return AnimatedImage
+function AnimatedImage:setPlaySpeed(fps)
+    Api.AnimatedImage.SetPlaySpeed(self:getName(), fps)
+    return self
+end
+
+---@param model AnimatedImageModel?
+---@return AnimatedImage
+function Components.AnimatedImage(model)
+    local animatedImage = AnimatedImage:new(model)
+    Cache[animatedImage:getName()] = animatedImage
+    return animatedImage
+end
+
+-- ========================================================================== --
+-- Components - Action Button
+-- ========================================================================== --
+
+---@param model ActionButtonModel?
+---@return ActionButton
+function ActionButton:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatActionButton"
+    local instance = Button.new(self, model) --[[@as ActionButton]]
+    return instance
+end
+
+--- Sets the game action on this button.
+---@param actionType number The action type.
+---@param actionId number The action ID.
+---@return ActionButton
+function ActionButton:setAction(actionType, actionId)
+    Api.ActionButton.SetAction(self:getName(), actionType, actionId)
+    return self
+end
+
+--- Gets the action data from this button.
+---@return any The game action button data.
+function ActionButton:getAction()
+    return Api.ActionButton.GetAction(self:getName())
+end
+
+--- Sets the game action trigger for this button.
+---@param action any The action trigger value.
+---@return ActionButton
+function ActionButton:setGameActionTrigger(action)
+    Api.ActionButton.SetGameActionTrigger(self:getName(), action)
+    return self
+end
+
+---@param model ActionButtonModel?
+---@return ActionButton
+function Components.ActionButton(model)
+    local actionButton = ActionButton:new(model)
+    Cache[actionButton:getName()] = actionButton
+    return actionButton
+end
+
+-- ========================================================================== --
+-- Components - Action Button Group
+-- ========================================================================== --
+
+---@param model ActionButtonGroupModel?
+---@return ActionButtonGroup
+function ActionButtonGroup:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatWindow"
+    local instance = Window.new(self, model) --[[@as ActionButtonGroup]]
+    instance._buttons = {}
+    return instance
+end
+
+function ActionButtonGroup:onInitialize()
+    Window.onInitialize(self)
+
+    local count = self._model.Count or 12
+    local buttonSize = self._model.ButtonSize or 50
+    local spacing = self._model.Spacing or 0
+    local group = self
+
+    for i = 1, count do
+        local button = Components.ActionButton {
+            Name = self:getName() .. "Button" .. i,
+            Id = i,
+            OnLButtonDown = function(btn, flags, x, y)
+                if group._model.OnButtonLButtonDown then
+                    group._model.OnButtonLButtonDown(group, btn, i, flags, x, y)
+                end
+            end,
+            OnLButtonUp = function(btn, flags, x, y)
+                if group._model.OnButtonLButtonUp then
+                    group._model.OnButtonLButtonUp(group, btn, i, flags, x, y)
+                end
+            end,
+            OnRButtonUp = function(btn, flags, x, y)
+                if group._model.OnButtonRButtonUp then
+                    group._model.OnButtonRButtonUp(group, btn, i, flags, x, y)
+                end
+            end,
+            OnMouseOver = function(btn)
+                if group._model.OnButtonMouseOver then
+                    group._model.OnButtonMouseOver(group, btn, i)
+                end
+            end,
+            OnMouseOverEnd = function(btn)
+                if group._model.OnButtonMouseOverEnd then
+                    group._model.OnButtonMouseOverEnd(group, btn, i)
+                end
+            end,
+        }
+        button:create(true)
+        button:onInitialize()
+        button:setParent(self:getName())
+        button:setDimensions(buttonSize, buttonSize)
+        button:clearAnchors()
+        if i == 1 then
+            button:addAnchor("topleft", self:getName(), "topleft", 0, 0)
+        else
+            button:addAnchor("topleft", self._buttons[i - 1]:getName(), "topright", spacing, 0)
+        end
+        self._buttons[i] = button
+    end
+end
+
+function ActionButtonGroup:onShutdown()
+    Utils.Array.ForEach(self._buttons, function(button)
+        button:destroy()
+    end)
+    self._buttons = {}
+    Window.onShutdown(self)
+end
+
+--- Gets the action button at the given 1-based index.
+---@param index number The 1-based button index.
+---@return ActionButton?
+function ActionButtonGroup:getButton(index)
+    return self._buttons[index]
+end
+
+--- Gets the total number of buttons in the group.
+---@return number
+function ActionButtonGroup:getButtonCount()
+    return #self._buttons
+end
+
+---@param model ActionButtonGroupModel?
+---@return ActionButtonGroup
+function Components.ActionButtonGroup(model)
+    local group = ActionButtonGroup:new(model)
+    Cache[group:getName()] = group
+    return group
+end
+
+-- ========================================================================== --
+-- Components - Cooldown Display
+-- ========================================================================== --
+
+---@param model CooldownDisplayModel?
+---@return CooldownDisplay
+function CooldownDisplay:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatCooldownDisplay"
+    local instance = AnimatedImage.new(self, model) --[[@as CooldownDisplay]]
+    return instance
+end
+
+--- Plays the cooldown animation overlay.
+---@param loop boolean? Whether to loop (default false).
+---@param hideWhenDone boolean? Whether to hide when finished (default false).
+---@return CooldownDisplay
+function CooldownDisplay:play(loop, hideWhenDone)
+    self:startAnimation(1, loop or false, hideWhenDone or false, 0)
+    return self
+end
+
+--- Stops the cooldown animation.
+---@return CooldownDisplay
+function CooldownDisplay:stop()
+    self:stopAnimation()
+    return self
+end
+
+---@param model CooldownDisplayModel?
+---@return CooldownDisplay
+function Components.CooldownDisplay(model)
+    local cooldownDisplay = CooldownDisplay:new(model)
+    Cache[cooldownDisplay:getName()] = cooldownDisplay
+    return cooldownDisplay
+end
+
+-- ========================================================================== --
+-- Components - Dockable Window
+-- ========================================================================== --
+
+---@param model DockableWindowModel?
+---@return DockableWindow
+function DockableWindow:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatWindow"
+    local instance = Window.new(self, model) --[[@as DockableWindow]]
+    return instance
+end
+
+function DockableWindow:onInitialize()
+    Window.onInitialize(self)
+    self:restorePosition(false)
+end
+
+function DockableWindow:onShutdown()
+    Api.Window.SavePosition(self:getName(), true, self:getName())
+    Window.onShutdown(self)
+end
+
+--- Restores a previously saved position.
+---@param trackSize boolean? Whether to also restore size (default false).
+---@return DockableWindow
+function DockableWindow:restorePosition(trackSize)
+    Api.Window.RestorePosition(self:getName(), trackSize or false, self:getName())
+    return self
+end
+
+---@param model DockableWindowModel?
+---@return DockableWindow
+function Components.DockableWindow(model)
+    local dockableWindow = DockableWindow:new(model)
+    Cache[dockableWindow:getName()] = dockableWindow
+    return dockableWindow
+end
+
+-- ========================================================================== --
+-- Components - Page Window
+-- ========================================================================== --
+
+---@param model PageWindowModel?
+---@return PageWindow
+function PageWindow:new(model)
+    model = model or {}
+    model.Template = model.Template or "MongbatPageWindow"
+    local instance = View.new(self, model) --[[@as PageWindow]]
+    return instance
+end
+
+--- Sets the currently visible page.
+---@param pageNumber number The 1-based page number.
+---@return PageWindow
+function PageWindow:setActivePage(pageNumber)
+    Api.PageWindow.SetActivePage(self:getName(), pageNumber)
+    return self
+end
+
+--- Gets the currently visible page number.
+---@return number
+function PageWindow:getActivePage()
+    return Api.PageWindow.GetActivePage(self:getName())
+end
+
+--- Gets the total number of pages.
+---@return number
+function PageWindow:getNumPages()
+    return Api.PageWindow.GetNumPages(self:getName())
+end
+
+--- Advances to the next page. Wraps around to the first page when at the end.
+---@return PageWindow
+function PageWindow:nextPage()
+    local current = self:getActivePage()
+    local total = self:getNumPages()
+    if current < total then
+        self:setActivePage(current + 1)
+    else
+        self:setActivePage(1)
+    end
+    return self
+end
+
+--- Goes to the previous page. Wraps around to the last page when at the start.
+---@return PageWindow
+function PageWindow:previousPage()
+    local current = self:getActivePage()
+    local total = self:getNumPages()
+    if current > 1 then
+        self:setActivePage(current - 1)
+    else
+        self:setActivePage(total)
+    end
+    return self
+end
+
+---@param model PageWindowModel?
+---@return PageWindow
+function Components.PageWindow(model)
+    local pageWindow = PageWindow:new(model)
+    Cache[pageWindow:getName()] = pageWindow
+    return pageWindow
+end
+
 
 ---@param model ViewModel
 ---@return View
@@ -6333,6 +7271,22 @@ end
 function View:onKeyEscape()
     if self._model.OnKeyEscape ~= nil then
         self._model.OnKeyEscape(self)
+        return true
+    end
+    return false
+end
+
+function View:onSlide()
+    if self._model.OnSlide ~= nil then
+        self._model.OnSlide(self, Api.Slider.GetCurrentPosition(self:getName()))
+        return true
+    end
+    return false
+end
+
+function View:onSelChanged()
+    if self._model.OnSelChanged ~= nil then
+        self._model.OnSelChanged(self)
         return true
     end
     return false
@@ -6966,6 +7920,7 @@ setmetatable(Button, { __index = Window })
 setmetatable(EditTextBox, { __index = View })
 setmetatable(Label, { __index = View })
 setmetatable(LogDisplay, { __index = View })
+setmetatable(ScrollWindow, { __index = View })
 setmetatable(StatusBar, { __index = View })
 setmetatable(Gump, { __index = Window })
 setmetatable(CircleImage, { __index = View })
@@ -6985,6 +7940,16 @@ setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
 setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultSpellbookComponent, { __index = DefaultComponent })
+setmetatable(SliderBar, { __index = View })
+setmetatable(ComboBox, { __index = View })
+setmetatable(ListBox, { __index = View })
+setmetatable(CheckBox, { __index = View })
+setmetatable(AnimatedImage, { __index = View })
+setmetatable(ActionButton, { __index = Button })
+setmetatable(ActionButtonGroup, { __index = Window })
+setmetatable(CooldownDisplay, { __index = AnimatedImage })
+setmetatable(DockableWindow, { __index = Window })
+setmetatable(PageWindow, { __index = View })
 
 Components.Defaults.Actions = DefaultActionsComponent:new()
 Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
