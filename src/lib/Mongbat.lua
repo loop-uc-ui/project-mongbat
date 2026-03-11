@@ -2983,6 +2983,8 @@ function Utils.String.IsEmpty(text)
 end
 
 function Utils.String.Lower(text)
+    if type(text) == "string" then
+        return string.lower(text)
     elseif type(text) == "wstring" then
         return string.lower(Utils.String.FromWString(text))
     end
@@ -3115,11 +3117,11 @@ function Constants.Broadcasts.BugReport()
 end
 
 function Constants.Broadcasts.ShopCancelOffer()
-    return SystemData.Events["CYCLOPEAN_CANCEL_OFFER"]
+    return SystemData.Events["SHOP_CANCEL_OFFER"]
 end
 
 function Constants.Broadcasts.ShopOfferAccept()
-    return SystemData.Events["CYCLOPEAN_OFFER_ACCEPT"]
+    return SystemData.Events["SHOP_OFFER_ACCEPT"]
 end
 
 ---@class DataEvent
@@ -4176,9 +4178,9 @@ function ObjectInfoData:getObjectType()
 end
 
 ---@return integer
-function ObjectInfoData:getHue()
+function ObjectInfoData:getHueId()
     local d = self:getData()
-    return d and d.hue or 0
+    return d and d.hueId or 0
 end
 
 ---@return ObjectInfoWrapper
@@ -6303,6 +6305,7 @@ end
 
 ---@return string
 function ScrollWindow:_getContainerName()
+    -- Must be "Cont" to match XML template's $parentCont variable expansion
     return self.name .. "Cont"
 end
 
