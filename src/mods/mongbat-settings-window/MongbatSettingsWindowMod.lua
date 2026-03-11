@@ -98,7 +98,7 @@ local function OnInitialize()
 
     -- ======================================================================
     -- Pending settings
-    --   Sliders with float system values are stored as integer Ã— 100 to avoid
+    --   Sliders with float system values are stored as integer x 100 to avoid
     --   floating-point drift during increment/decrement.
     --   Combo values use 1-based index keys (e.g. showNamesIdx, framerateIdx).
     -- ======================================================================
@@ -121,7 +121,7 @@ local function OnInitialize()
     -- -----------------------------------------------------------------------
     local function loadSettings()
         local s = Data.Settings()
-        -- Graphics (gamma stored as integer 0-200 = floatÃ—100)
+        -- Graphics (gamma stored as integer 0-200 = floatx100)
         pending.useFullScreen   = s:getUseFullScreen()
         pending.gamma           = math.floor(s:getGamma() * 100 + 0.5)
         pending.showShadows     = s:getShowShadows()
@@ -181,7 +181,7 @@ local function OnInitialize()
         -- Containers
         pending.showStrLabel = s:getShowStrLabel()
 
-        -- Healthbars (UI scale stored as integer 50-150 = floatÃ—100)
+        -- Healthbars (UI scale stored as integer 50-150 = floatx100)
         local rawScale = s:getCustomUiScale() or 1.0
         pending.uiScale = math.floor(rawScale * 100 + 0.5)
 
@@ -293,10 +293,14 @@ local function OnInitialize()
     -- Display formatters
     -- ======================================================================
 
+    --- @param v number integer percentage value 0-100
+    --- @return wstring
     local function fmtPercent(v)
         return towstring(v) .. L"%"
     end
 
+    --- @param v number integer x100 representation of a decimal (e.g. 100 = 1.00)
+    --- @return wstring
     local function fmtDecimal(v)
         -- Format integer/100 as "X.XX"
         local whole = math.floor(v / 100)
@@ -314,7 +318,11 @@ local function OnInitialize()
 
     local function NoOpLayout() end
 
-    -- Stack rows vertically with a fixed per-row height.
+    --- Stacks rows vertically with a fixed per-row height.
+    --- @param window Window
+    --- @param children table
+    --- @param child Window
+    --- @param index number
     local function StackRows(window, children, child, index)
         local y = (index - 1) * (ROW_H + ROW_GAP)
         child:clearAnchors()
@@ -326,10 +334,13 @@ local function OnInitialize()
     -- ======================================================================
 
     -- Checkbox row: [label text ................... [X]]
+    --- @param labelText wstring
+    --- @param key string
+    --- @return Window
     local function Checkbox(labelText, key)
         local btn
         local ctrl = { key = key }
-        checkboxRefs[#checkboxRefs + 1] = ctrl
+        Utils.Array.Add(checkboxRefs, ctrl)
 
         return Components.Window {
             Resizable = false,
@@ -367,10 +378,17 @@ local function OnInitialize()
 
     -- Slider row: [label .....] [-] [value] [+]
     -- pending[key] is always an integer matching the display units.
+    --- @param labelText wstring
+    --- @param key string
+    --- @param minVal number
+    --- @param maxVal number
+    --- @param step number
+    --- @param fmtFn fun(v: number): wstring
+    --- @return Window
     local function SliderRow(labelText, key, minVal, maxVal, step, fmtFn)
         local valLabel
         local ctrl = { key = key, fmt = fmtFn }
-        sliderRefs[#sliderRefs + 1] = ctrl
+        Utils.Array.Add(sliderRefs, ctrl)
 
         return Components.Window {
             Resizable = false,
@@ -441,11 +459,16 @@ local function OnInitialize()
 
     -- Combo row: [label ........] [<] [current] [>]
     -- pending[key] is a 1-based index into options.
+    --- @param labelText wstring
+    --- @param key string
+    --- @param options wstring[]
+    --- @param getLabelFn fun(idx: number): wstring
+    --- @return Window
     local function ComboRow(labelText, key, options, getLabelFn)
         local valLabel
         local n    = #options
         local ctrl = { key = key, getLabel = getLabelFn }
-        comboRefs[#comboRefs + 1] = ctrl
+        Utils.Array.Add(comboRefs, ctrl)
 
         return Components.Window {
             Resizable = false,
@@ -511,6 +534,8 @@ local function OnInitialize()
     end
 
     -- Section header label row (cosmetic separator)
+    --- @param text wstring
+    --- @return Window
     local function SectionLabel(text)
         return Components.Window {
             Resizable = false,
@@ -533,6 +558,8 @@ local function OnInitialize()
     end
 
     -- Tab panel wrapper: positions rows with StackRows layout, hidden by default.
+    --- @param rows Window[]
+    --- @return Window
     local function TabPanel(rows)
         return Components.Window {
             Resizable = false,
@@ -561,7 +588,7 @@ local function OnInitialize()
         Checkbox(L"Circle of Transparency",   "circleOfTrans"),
         Checkbox(L"Idle Animations",          "idleAnimation"),
         SectionLabel(L"-- Brightness --"),
-        -- gamma stored as integer 0-200 (= floatÃ—100); display as X.XX
+        -- gamma stored as integer 0-200 (= floatx100); display as X.XX
         SliderRow(L"Gamma", "gamma", 0, 200, 5, fmtDecimal),
     })
 
@@ -801,7 +828,7 @@ local function OnInitialize()
     -- ======================================================================
     local healthbarsPanel = TabPanel({
         SectionLabel(L"-- UI Scale --"),
-        -- uiScale stored as integer 50-150 (= floatÃ—100); display as X.XX
+        -- uiScale stored as integer 50-150 (= floatx100); display as X.XX
         SliderRow(L"UI Scale", "uiScale", 50, 150, 5, fmtDecimal),
     })
 
@@ -837,6 +864,8 @@ local function OnInitialize()
     local activeTab    = 1
     local tabBtnRefs   = {}
 
+    --- Shows the tab at the given 1-based index, hides all others.
+    --- @param index number
     local function ShowTab(index)
         for i = 1, NUM_TABS do
             if tabPanels[i] then
@@ -855,6 +884,10 @@ local function OnInitialize()
     -- Children [1..NUM_TABS]            = tab buttons (horizontal row at top)
     -- Children [NUM_TABS+1..NUM_TABS*2] = content panels (overlapping, toggled)
     -- Children [NUM_TABS*2+1..+3]       = OK, Apply, Cancel action buttons
+    --- @param window Window
+    --- @param children table
+    --- @param child Window
+    --- @param index number
     local function SettingsLayout(window, children, child, index)
         local wName = window:getName()
         if index <= NUM_TABS then
@@ -943,6 +976,7 @@ local function OnInitialize()
     -- ======================================================================
     -- Main window
     -- ======================================================================
+    --- @return Window
     local function MainWindow()
         return Components.Window {
             Name      = NAME,
