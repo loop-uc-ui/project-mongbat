@@ -6458,6 +6458,7 @@ end
 
 ---@return string
 function ScrollWindow:_getContainerName()
+    -- Must be "Cont" to match XML template's $parentCont variable expansion
     return self.name .. "Cont"
 end
 
