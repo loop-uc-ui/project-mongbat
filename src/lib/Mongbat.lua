@@ -3162,60 +3162,29 @@ Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWin
 Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
 Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemProperties, "OnUpdateItemProperties")
 
---- Composite event definitions. When a model key matches a composite event,
---- the framework auto-registers handlers for all sub-events and delegates
---- each to the composite handler with a unified data wrapper stored on _state.
----@class CompositeEventDef
----@field allSubEvents DataEvent[] All sub-DataEvents to register handlers for
----@field entitySubEvents DataEvent[] Per-entity sub-DataEvents for setId registration
----@field stateKey string Key in View._state that holds the composite data wrapper
----@field createState fun(id: number): table Factory that creates the composite wrapper
-
---- Mobile sub-events: per-entity types that need RegisterData in setId.
---- PlayerStatus is global (registered by framework at startup, not here).
-local MOBILE_ENTITY_SUB_EVENTS = {
-    Constants.DataEvents.OnUpdateMobileName,
-    Constants.DataEvents.OnUpdateMobileStatus,
-    Constants.DataEvents.OnUpdateHealthBarColor,
-    Constants.DataEvents.OnUpdatePaperdoll,
-}
-
---- All mobile sub-events including PlayerStatus (for handler registration).
-local MOBILE_ALL_SUB_EVENTS = {
+--- All data sub-events that OnRenderData registers handlers for.
+--- When a model contains OnRenderData, the framework registers handlers
+--- for every sub-event so ALL data updates route to a single callback.
+local RENDER_DATA_ALL_SUB_EVENTS = {
     Constants.DataEvents.OnUpdatePlayerStatus,
     Constants.DataEvents.OnUpdateMobileName,
     Constants.DataEvents.OnUpdateMobileStatus,
     Constants.DataEvents.OnUpdateHealthBarColor,
     Constants.DataEvents.OnUpdatePaperdoll,
-}
-
---- Item sub-events: per-entity types that need RegisterData in setId.
-local ITEM_ENTITY_SUB_EVENTS = {
-    Constants.DataEvents.OnUpdateObjectInfo,
-    Constants.DataEvents.OnUpdateItemProperties,
-}
-
---- All item sub-events (for handler registration).
-local ITEM_ALL_SUB_EVENTS = {
     Constants.DataEvents.OnUpdateObjectInfo,
     Constants.DataEvents.OnUpdateItemProperties,
     Constants.DataEvents.OnUpdateContainerWindow,
 }
 
----@type table<string, CompositeEventDef>
-Constants.CompositeEvents = {
-    OnUpdateMobile = {
-        allSubEvents = MOBILE_ALL_SUB_EVENTS,
-        entitySubEvents = MOBILE_ENTITY_SUB_EVENTS,
-        stateKey = "mobile",
-        createState = function(id) return Data.Mobile(id) end,
-    },
-    OnUpdateItem = {
-        allSubEvents = ITEM_ALL_SUB_EVENTS,
-        entitySubEvents = ITEM_ENTITY_SUB_EVENTS,
-        stateKey = "item",
-        createState = function(id) return Data.Item(id) end,
-    },
+--- Entity-specific sub-events registered per-ID in setId().
+--- PlayerStatus and ContainerWindow are global/broadcast-style and not here.
+local RENDER_DATA_ENTITY_SUB_EVENTS = {
+    Constants.DataEvents.OnUpdateMobileName,
+    Constants.DataEvents.OnUpdateMobileStatus,
+    Constants.DataEvents.OnUpdateHealthBarColor,
+    Constants.DataEvents.OnUpdatePaperdoll,
+    Constants.DataEvents.OnUpdateObjectInfo,
+    Constants.DataEvents.OnUpdateItemProperties,
 }
 
 ---@class SystemEvent
@@ -5012,6 +4981,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
+---@field OnRenderData fun(self: View, state: ViewState)?
 
 ---@class StatusBarModel : ViewModel
 ---@field OnInitialize fun(self: StatusBar)?
@@ -7414,6 +7384,11 @@ function Components.PageWindow(model)
 end
 
 
+---@class ViewState
+---@field mobile MobileDataComposite|nil Composite mobile data for the view's entity ID
+---@field item ItemDataComposite|nil Composite item data for the view's entity ID
+---@field instanceId number|nil Instance ID from the most recent item data event (nil for mobile events)
+
 ---@param model ViewModel
 ---@return View
 function View:new(model)
@@ -7424,26 +7399,22 @@ function View:new(model)
     return instance
 end
 
---- Creates or updates the composite state object for the given state key
---- using the factory defined in the composite event definition.
----@param stateKey string The key in _state (e.g., "mobile" or "item")
+--- Creates or updates all composite state objects for the given entity ID.
+--- Populates _state.mobile and _state.item in one call.
 ---@param id number The entity ID
----@param createState fun(id: number): table Factory that creates the composite wrapper
-function View:_reduceState(stateKey, id, createState)
-    self._state[stateKey] = createState(id)
+function View:_reduceState(id)
+    self._state.mobile = Data.Mobile(id)
+    self._state.item = Data.Item(id)
 end
 
---- Calls composite handlers with the current _state for initial rendering.
+--- Calls OnRenderData with the current _state for initial rendering.
 --- Wrapped in pcall so missing data doesn't break initialization.
-function View:_notifyComposites()
-    pcall(function()
-        for k, _ in pairs(self._model) do
-            local compositeEvent = Constants.CompositeEvents[k]
-            if compositeEvent and self._state[compositeEvent.stateKey] then
-                self._model[k](self, self._state[compositeEvent.stateKey])
-            end
-        end
-    end)
+function View:_notifyRenderData()
+    if self._model.OnRenderData then
+        pcall(function()
+            self._model.OnRenderData(self, self._state)
+        end)
+    end
 end
 
 function View:onInitialize()
@@ -7456,7 +7427,6 @@ function View:onInitialize()
         local systemEvent = Constants.SystemEvents[k]
         local isCore = Constants.CoreEvents[k] ~= nil
         local dataEvent = Constants.DataEvents[k]
-        local compositeEvent = Constants.CompositeEvents[k]
         local skip = k == Constants.CoreEvents.OnInitialize or
             k == Constants.CoreEvents.OnShutdown
 
@@ -7468,16 +7438,16 @@ function View:onInitialize()
             self:registerEventHandler(systemEvent.getEvent(), functionName)
         elseif dataEvent ~= nil then
             self:registerEventHandler(dataEvent.getEvent(), functionName)
-        elseif compositeEvent ~= nil then
-            -- Register handlers for all sub-events of the composite
-            Utils.Table.ForEach(compositeEvent.allSubEvents, function(_, subEvent)
+        elseif k == "OnRenderData" then
+            -- Register handlers for ALL data sub-events
+            Utils.Table.ForEach(RENDER_DATA_ALL_SUB_EVENTS, function(_, subEvent)
                 self:registerEventHandler(
                     subEvent.getEvent(),
                     prefix .. subEvent.name
                 )
             end)
-            -- Initialize state for this composite
-            self:_reduceState(compositeEvent.stateKey, id, compositeEvent.createState)
+            -- Initialize state with both mobile and item composites
+            self:_reduceState(id)
         end
     end
 
@@ -7490,8 +7460,8 @@ function View:onInitialize()
         self._model.OnInitialize(self)
     end
 
-    -- Fire initial composite handler calls so views render with current data
-    self:_notifyComposites()
+    -- Fire initial OnRenderData so views render with current data
+    self:_notifyRenderData()
 end
 
 function View:onShutdown()
@@ -7505,7 +7475,6 @@ function View:onShutdown()
     for k, _ in pairs(self._model) do
         local systemEvent = Constants.SystemEvents[k]
         local dataEvent = Constants.DataEvents[k]
-        local compositeEvent = Constants.CompositeEvents[k]
         local isCore = k == Constants.CoreEvents.OnInitialize or
             k == Constants.CoreEvents.OnShutdown
 
@@ -7515,8 +7484,8 @@ function View:onShutdown()
             self:unregisterEventHandler(systemEvent.getEvent())
         elseif dataEvent ~= nil then
             self:unregisterEventHandler(dataEvent.getEvent())
-        elseif compositeEvent ~= nil then
-            Utils.Table.ForEach(compositeEvent.allSubEvents, function(_, subEvent)
+        elseif k == "OnRenderData" then
+            Utils.Table.ForEach(RENDER_DATA_ALL_SUB_EVENTS, function(_, subEvent)
                 self:unregisterEventHandler(subEvent.getEvent())
             end)
         end
@@ -7587,40 +7556,40 @@ function View:onUpdate(timePassed, windowData)
 end
 
 function View:onUpdateMobileName()
-    if self._state.mobile and self._model.OnUpdateMobile then
-        self._model.OnUpdateMobile(self, self._state.mobile)
+    if self._model.OnRenderData then
+        self._model.OnRenderData(self, self._state)
         return true
     end
     return false
 end
 
 function View:onUpdatePlayerStatus()
-    if self._state.mobile and self._model.OnUpdateMobile then
-        self._model.OnUpdateMobile(self, self._state.mobile)
+    if self._model.OnRenderData then
+        self._model.OnRenderData(self, self._state)
         return true
     end
     return false
 end
 
 function View:onUpdateHealthBarColor()
-    if self._state.mobile and self._model.OnUpdateMobile then
-        self._model.OnUpdateMobile(self, self._state.mobile)
+    if self._model.OnRenderData then
+        self._model.OnRenderData(self, self._state)
         return true
     end
     return false
 end
 
 function View:onUpdateMobileStatus()
-    if self._state.mobile and self._model.OnUpdateMobile then
-        self._model.OnUpdateMobile(self, self._state.mobile)
+    if self._model.OnRenderData then
+        self._model.OnRenderData(self, self._state)
         return true
     end
     return false
 end
 
 function View:onUpdatePaperdoll()
-    if self._state.mobile and self._model.OnUpdateMobile then
-        self._model.OnUpdateMobile(self, self._state.mobile)
+    if self._model.OnRenderData then
+        self._model.OnRenderData(self, self._state)
         return true
     end
     return false
@@ -7684,27 +7653,30 @@ function View:onUpdateShopData()
 end
 
 function View:onUpdateContainerWindow()
-    if self._state.item and self._model.OnUpdateItem then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
+    if self._model.OnRenderData then
+        self._state.instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnRenderData(self, self._state)
+        self._state.instanceId = nil
         return true
     end
     return false
 end
 
 function View:onUpdateObjectInfo()
-    if self._state.item and self._model.OnUpdateItem then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
+    if self._model.OnRenderData then
+        self._state.instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnRenderData(self, self._state)
+        self._state.instanceId = nil
         return true
     end
     return false
 end
 
 function View:onUpdateItemProperties()
-    if self._state.item and self._model.OnUpdateItem then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
+    if self._model.OnRenderData then
+        self._state.instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnRenderData(self, self._state)
+        self._state.instanceId = nil
         return true
     end
     return false
@@ -7771,14 +7743,11 @@ function View:setId(id)
     end
 
     if oldId ~= 0 then
-        -- Unregister composite sub-events for old ID
-        for k, _ in pairs(self._model) do
-            local compositeEvent = Constants.CompositeEvents[k]
-            if compositeEvent ~= nil then
-                Utils.Table.ForEach(compositeEvent.entitySubEvents, function(_, subEvent)
-                    Api.Window.UnregisterData(subEvent.getType(), oldId)
-                end)
-            end
+        -- Unregister OnRenderData entity sub-events for old ID
+        if self._model.OnRenderData then
+            Utils.Table.ForEach(RENDER_DATA_ENTITY_SUB_EVENTS, function(_, subEvent)
+                Api.Window.UnregisterData(subEvent.getType(), oldId)
+            end)
         end
 
         -- Unregister individual DataEvents for old ID
@@ -7801,16 +7770,13 @@ function View:setId(id)
     end
 
     if id ~= 0 then
-        -- Register composite sub-events for new ID
-        for k, _ in pairs(self._model) do
-            local compositeEvent = Constants.CompositeEvents[k]
-            if compositeEvent ~= nil then
-                Utils.Table.ForEach(compositeEvent.entitySubEvents, function(_, subEvent)
-                    Api.Window.RegisterData(subEvent.getType(), id)
-                end)
-                -- Update state with new ID
-                self:_reduceState(compositeEvent.stateKey, id, compositeEvent.createState)
-            end
+        -- Register OnRenderData entity sub-events for new ID
+        if self._model.OnRenderData then
+            Utils.Table.ForEach(RENDER_DATA_ENTITY_SUB_EVENTS, function(_, subEvent)
+                Api.Window.RegisterData(subEvent.getType(), id)
+            end)
+            -- Update state with new ID
+            self:_reduceState(id)
         end
 
         -- Register individual DataEvents for new ID
@@ -7832,11 +7798,8 @@ function View:setId(id)
         end
     else
         -- Clear state when id is set to 0
-        for k, _ in pairs(self._model) do
-            local compositeEvent = Constants.CompositeEvents[k]
-            if compositeEvent ~= nil then
-                self._state[compositeEvent.stateKey] = nil
-            end
+        if self._model.OnRenderData then
+            self._state = {}
         end
     end
 

@@ -448,7 +448,10 @@ local function OnInitialize()
             end
         }
         if not isSelling then
-            availModel.OnUpdateItem = function(_, instanceId, itemData)
+            availModel.OnRenderData = function(_, state)
+                local instanceId = state.instanceId
+                if not instanceId then return end
+
                 -- Container update: reload all buy items when the sell container changes
                 if instanceId == sellContainerId then
                     loadBuyItems()
@@ -457,6 +460,7 @@ local function OnInitialize()
                 end
 
                 -- Per-item update: refresh individual item data
+                local itemData = Data.Item(instanceId)
                 local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
                 if found then
                     -- ObjectInfo fields
@@ -491,14 +495,14 @@ local function OnInitialize()
         }
 
         -- Total gold label (shows cost/gold)
-        -- OnUpdateMobile belongs here: this child displays the gold total.
+        -- OnRenderData belongs here: this child displays the gold total.
         totalLabel = Components.Label {
             OnInitialize = function(self)
                 self:setDimensions(200, 22)
             end,
-            OnUpdateMobile = function(self, mobile)
+            OnRenderData = function(self, state)
                 local total = computeTotal()
-                local gold  = mobile:getGold()
+                local gold  = state.mobile:getGold()
                 self:setText(Utils.String.Concat(total, "/", gold))
             end
         }
