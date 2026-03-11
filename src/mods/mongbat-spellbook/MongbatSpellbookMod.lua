@@ -131,9 +131,9 @@ local function buildTooltip(bookId, abilityId)
             local skillDef   = Data.SkillsCSV(skillIdx)
             local skillDyn   = Data.SkillDynamicData(skillDef.ServerId)
             local skillLevel = skillDyn.TempSkillValue / 10
-            local playerData = Data.PlayerStatus():getData()
+            local status     = Data.PlayerStatus()
 
-            if playerData.Race == 1 and skillLevel < 20 then
+            if status:getRace() == 1 and skillLevel < 20 then
                 skillLevel = 20
             end
 
@@ -146,7 +146,7 @@ local function buildTooltip(bookId, abilityId)
             else
                 success = ((skillLevel - minskill) * 100) / variation
             end
-            success = string.format("%1.1f", success)
+            success = Utils.String.Format("%1.1f", success)
             minskillStr = minskillStr ..
                 L"<BR><BR>" .. L"Success Chance: " ..
                 Api.String.StringToWString(tostring(success)) .. L"%"
@@ -154,9 +154,9 @@ local function buildTooltip(bookId, abilityId)
     end
 
     if manacost ~= nil then
-        local playerData = Data.PlayerStatus():getData()
+        local status  = Data.PlayerStatus()
         local lmcMana = math.floor(manacost -
-            (manacost * (tonumber(playerData.LowerManaCost) / 100)))
+            (manacost * (tonumber(status:getLowerManaCost()) / 100)))
         manacostStr = L"<BR>" .. Api.String.GetStringFromTid(1062100) .. L" " ..
             Api.String.StringToWString(tostring(lmcMana)) ..
             L" (" .. Api.String.StringToWString(tostring(manacost)) .. L")"
@@ -281,6 +281,7 @@ local function OpenBook(bookId)
     -- ------------------------------------------------------------------ --
     -- ShowTab: populate slot icons/labels for the given tab number.
     -- ------------------------------------------------------------------ --
+    ---@param tabNum integer 1-based tab number to activate
     local function ShowTab(tabNum)
         bookState.activeTab = tabNum
         activeTab = tabNum
@@ -300,12 +301,12 @@ local function OpenBook(bookId)
         -- Show tithing points for Chivalry.
         if tithLabel then
             if firstSpellNum == 201 then
-                local status = Data.PlayerStatus():getData()
-                local tithPoints = status and (status.TithingPoints or 0) or 0
+                local status     = Data.PlayerStatus()
+                local tithPoints = status:getTithingPoints()
                 Api.Label.SetText(
                     tithLabel:getName(),
                     Api.String.GetStringFromTid(1062099) .. L" " ..
-                    Api.String.StringToWString(tostring(tithPoints)))
+                    towstring(tithPoints))
                 tithLabel:setShowing(true)
             else
                 tithLabel:setShowing(false)
@@ -340,6 +341,10 @@ local function OpenBook(bookId)
     local TAB_BASE  = 3
     local SLOT_BASE = 3 + MAX_SPELLS_PER_TAB  -- = 11
 
+    ---@param window Window The parent window instance
+    ---@param children View[] The full ordered children array
+    ---@param child View The child being laid out
+    ---@param idx integer 1-based child index
     local function BookLayout(window, children, child, idx)
         local winName2  = WIN_PREFIX .. bookId
         local tabRowY   = MARGIN + 2 * HEADER_H
@@ -380,6 +385,7 @@ local function OpenBook(bookId)
 
     -- Compute window dimensions.
     -- Two header rows (title + tithing placeholder) + tab row + spell grid.
+    ---@return integer width, integer height
     local function bookWindowDimensions()
         local rows = math.ceil(MAX_SPELLS_PER_TAB / COLS)
         local w = MARGIN * 2 + COLS * ICON_SIZE + (COLS - 1) * ICON_PAD
@@ -406,7 +412,18 @@ local function OpenBook(bookId)
         Name = WIN_PREFIX .. bookId .. "Tith",
         OnInitialize = function(self)
             self:setDimensions(200, HEADER_H)
-        end
+        end,
+        OnUpdatePlayerStatus = function(self, status)
+            -- Refresh tithing points for Chivalry books only.
+            if bookState.firstSpellNum == 201 then
+                self:setText(
+                    Api.String.GetStringFromTid(1062099) .. L" " ..
+                    towstring(status:getTithingPoints()))
+                self:setShowing(true)
+            else
+                self:setShowing(false)
+            end
+        end,
     }
     Utils.Array.Add(children, tithLabel)
 
@@ -511,18 +528,6 @@ local function OpenBook(bookId)
 
             ShowTab(activeTab)
         end,
-        OnUpdatePlayerStatus = function(self, status)
-            -- Refresh tithing points display for Chivalry.
-            if bookState.firstSpellNum == 201 and tithLabel then
-                local playerData = status:getData()
-                local tithPoints = playerData and (playerData.TithingPoints or 0) or 0
-                Api.Label.SetText(
-                    tithLabel:getName(),
-                    Api.String.GetStringFromTid(1062099) .. L" " ..
-                    Api.String.StringToWString(tostring(tithPoints)))
-                tithLabel:setShowing(true)
-            end
-        end,
     }:create(true)
 end
 
@@ -556,17 +561,17 @@ Mongbat.Mod {
 
         -- Override Initialize so the engine's call opens our window instead.
         originalSpellbook.Initialize = function()
-            local bookId = Data.DynamicWindowId()
+            local bookId = Api.Window.GetDynamicWindowId()
             -- Destroy the default XML window the engine just created so it does
             -- not linger as a hidden resource.
-            Api.Window.Destroy(Data.ActiveWindowName())
+            Api.Window.Destroy(Api.Window.GetActiveWindowName())
             -- Open our Mongbat window.
             OpenBook(bookId)
         end
 
         -- Override Shutdown so our window is destroyed cleanly.
         originalSpellbook.Shutdown = function()
-            local bookId = Api.Window.GetId(Data.ActiveWindowName())
+            local bookId = Api.Window.GetId(Api.Window.GetActiveWindowName())
             Api.Window.Destroy(WIN_PREFIX .. bookId)
         end
 

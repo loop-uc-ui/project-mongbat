@@ -978,10 +978,16 @@ Api.ListBox = {}
 
 ---
 --- Sets the data table for a list box.
+--- The engine expects ListBoxSetDataTable(windowName, globalVarName) where
+--- globalVarName is the string name of a global Lua variable holding the data.
+--- This wrapper stores the table in _G under a deterministic key and passes
+--- that key string to the engine.
 ---@param name string The name of the list box.
 ---@param data table The data table to set.
 function Api.ListBox.SetDataTable(name, data)
-    ListBoxSetDataTable(name, data)
+    local globalName = name .. "_DataTable"
+    _G[globalName] = data
+    ListBoxSetDataTable(name, globalName)
 end
 
 ---
@@ -1007,6 +1013,41 @@ end
 ---@param count number The visible row count to set.
 function Api.ListBox.SetVisibleRowCount(name, count)
     ListBoxSetVisibleRowCount(name, count)
+end
+
+---
+--- Gets the engine-managed PopulatorIndices for a list box.
+--- This table maps visible row indices to data indices and is populated by the engine
+--- after the list box display is updated.
+---@param name string The name of the list box.
+---@return table? The PopulatorIndices array, or nil if not populated.
+function Api.ListBox.GetPopulatorIndices(name)
+    local tbl = _G[name]
+    if tbl then
+        return tbl.PopulatorIndices
+    end
+    return nil
+end
+
+---
+--- Clears the global data table entry for a list box.
+--- Call this when the list box is destroyed to free the global reference.
+---@param name string The name of the list box.
+function Api.ListBox.ClearDataTable(name)
+    local globalName = name .. "_DataTable"
+    _G[globalName] = nil
+end
+
+---
+--- Gets the engine-managed number of visible rows for a list box.
+---@param name string The name of the list box.
+---@return number The number of visible rows.
+function Api.ListBox.GetNumVisibleRows(name)
+    local tbl = _G[name]
+    if tbl then
+        return tbl.numVisibleRows or 0
+    end
+    return 0
 end
 
 -- ========================================================================== --
@@ -1868,6 +1909,7 @@ end
 ---@return boolean Whether the window was destroyed.
 function Api.Window.Destroy(windowName)
     if Api.Window.DoesExist(windowName) then
+        _G[windowName .. "_DataTable"] = nil
         DestroyWindow(windowName)
         return true
     end
@@ -2478,6 +2520,28 @@ function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
 end
 
+---
+--- Returns the name of the currently active (event-dispatching) window.
+---@return string
+function Api.Window.GetActiveWindowName()
+    return SystemData.ActiveWindow.name
+end
+
+---
+--- Returns the dynamic window ID set by the engine when a dynamic window is created
+--- (e.g. the merchant ID for a Shopkeeper window).
+---@return integer
+function Api.Window.GetDynamicWindowId()
+    return SystemData.DynamicWindowId
+end
+
+---
+--- Returns the UpdateInstanceId from the most recent WindowData update event.
+---@return integer
+function Api.Window.GetUpdateInstanceId()
+    return WindowData.UpdateInstanceId
+end
+
 -- ========================================================================== --
 -- Api - Interface Core
 -- ========================================================================== --
@@ -2759,6 +2823,79 @@ function Utils.Array.Add(array, item, pos)
     end
 end
 
+---@generic T
+---@param array T[]
+---@param predicate fun(item: T, index: integer): boolean
+---@return integer[]
+function Utils.Array.Indices(array, predicate)
+    return Utils.Array.MapToArray(
+        array,
+        function(item, index)
+            if predicate(item, index) then
+                return index
+            else
+                return nil
+            end
+        end
+    )
+end
+
+---@generic T, R
+---@param array T[]
+---@param reducer fun(accumulator: R, item: T, index: integer): R
+---@param initial R
+---@return R
+function Utils.Array.Reduce(array, reducer, initial)
+    local acc = initial
+    Utils.Array.ForEach(array, function(item, index)
+        acc = reducer(acc, item, index)
+    end)
+    return acc
+end
+
+--- Returns true if every element in the array satisfies the predicate.
+--- Returns true for nil or empty arrays (vacuous truth).
+---@generic T
+---@param array T[]?
+---@param predicate fun(item: T, index: integer): boolean
+---@return boolean
+function Utils.Array.Every(array, predicate)
+    if not array or #array == 0 then
+        return true
+    end
+
+    for i = 1, #array do
+        if not predicate(array[i], i) then
+            return false
+        end
+    end
+
+    return true
+end
+
+--- Returns true if the array is nil or has no elements.
+---@param array any[]?
+---@return boolean
+function Utils.Array.IsEmpty(array)
+    return not array or #array == 0
+end
+
+--- Adds item to the array only if it is not already present (by == equality).
+--- Returns true if the item was added, false if it was already in the array.
+---@generic T
+---@param array T[]
+---@param item T
+---@return boolean added
+function Utils.Array.AddUnique(array, item)
+    for i = 1, #array do
+        if array[i] == item then
+            return false
+        end
+    end
+    table.insert(array, item)
+    return true
+end
+
 -- ========================================================================== --
 -- Utils - Table
 -- ========================================================================== --
@@ -3013,6 +3150,32 @@ function Utils.String.Format(fmt, ...)
     return string.format(fmt, ...)
 end
 
+--- Concatenates an arbitrary number of string/wstring/number values into a wstring.
+--- Numbers are converted to their display representation (e.g. 123 → L"123"), NOT treated as TIDs.
+--- Nil values are skipped.
+--- @param ... string|wstring|number|nil
+--- @return wstring
+function Utils.String.Concat(...)
+    local result = L""
+    local numArgs = select("#", ...)
+    for i = 1, numArgs do
+        local v = select(i, ...)
+        if v ~= nil then
+            local t = type(v)
+            if t == "wstring" then
+                result = result .. v
+            elseif t == "number" then
+                result = result .. towstring(v)
+            elseif t == "string" then
+                result = result .. Api.String.StringToWString(v)
+            else
+                result = result .. Api.String.StringToWString(tostring(v))
+            end
+        end
+    end
+    return result
+end
+
 -- ========================================================================== --
 -- Constants
 -- ========================================================================== --
@@ -3104,6 +3267,10 @@ Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar"
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
 Constants.DataEvents.OnUpdateSpellbook = DataEvent(WindowData.Spellbook, "OnUpdateSpellbook")
+Constants.DataEvents.OnUpdateShopData = DataEvent(WindowData.ShopData, "OnUpdateShopData")
+Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWindow, "OnUpdateContainerWindow")
+Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
+Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemProperties, "OnUpdateItemProperties")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3820,6 +3987,21 @@ function PlayerStatus:getType()
     return self:getData().Type
 end
 
+---@return integer
+function PlayerStatus:getRace()
+    return self:getData().Race or 0
+end
+
+---@return integer
+function PlayerStatus:getLowerManaCost()
+    return self:getData().LowerManaCost or 0
+end
+
+---@return integer
+function PlayerStatus:getTithingPoints()
+    return self:getData().TithingPoints or 0
+end
+
 function Data.PlayerStatus()
     return PlayerStatus:new()
 end
@@ -4050,10 +4232,231 @@ function Data.SkillDynamicData(serverId)
     return WindowData.SkillDynamicData[serverId]
 end
 
+-- ========================================================================== --
+-- Data - ShopData
+-- ========================================================================== --
+
+---@class WindowData.ShopData.SellList
+---@field Names wstring[]
+---@field Quantities integer[]
+---@field Ids integer[]
+---@field Prices integer[]
+---@field Types integer[]
+
+---@class WindowData.ShopData
+---@field IsSelling boolean
+---@field Sell WindowData.ShopData.SellList
+---@field OfferIds integer[]
+---@field OfferQuantities integer[]
+---@field Type integer
+---@field Event integer
+
+---@class ShopDataItem
+---@field id integer Object ID of the item
+---@field name wstring Display name of the item
+---@field price integer Gold price per unit
+---@field quantity integer Available quantity
+---@field objType integer Object type for icon rendering
+
+---@class ShopDataWrapper
+local ShopData = {}
+ShopData.__index = ShopData
+
+---@return ShopDataWrapper
+function ShopData:new()
+    local instance = setmetatable({}, self)
+    return instance
+end
+
+---@return boolean
+function ShopData:isSelling()
+    return WindowData.ShopData and WindowData.ShopData.IsSelling == true
+end
+
+---@return integer Number of sell items
+function ShopData:getSellCount()
+    if not WindowData.ShopData or not WindowData.ShopData.Sell then
+        return 0
+    end
+    return table.getn(WindowData.ShopData.Sell.Names)
+end
+
+---@param index integer 1-based index
+---@return ShopDataItem|nil
+function ShopData:getSellItem(index)
+    local sell = WindowData.ShopData and WindowData.ShopData.Sell
+    if not sell then return nil end
+    if sell.Quantities[index] == 0 then return nil end
+    return {
+        id       = sell.Ids[index],
+        name     = sell.Names[index],
+        price    = sell.Prices[index],
+        quantity = sell.Quantities[index],
+        objType  = sell.Types[index]
+    }
+end
+
+--- Returns all sell items as an array, skipping entries with zero quantity.
+---@return ShopDataItem[]
+function ShopData:getSellItems()
+    local result = {}
+    local count = self:getSellCount()
+    for i = 1, count do
+        local entry = self:getSellItem(i)
+        if entry then
+            table.insert(result, entry)
+        end
+    end
+    return result
+end
+
+---@param offerIds integer[]
+---@param offerQuantities integer[]
+function ShopData:setOffer(offerIds, offerQuantities)
+    if not WindowData.ShopData then return end
+    for i = 1, table.getn(offerIds) do
+        WindowData.ShopData.OfferIds[i] = offerIds[i]
+        WindowData.ShopData.OfferQuantities[i] = offerQuantities[i]
+    end
+end
+
+---@return ShopDataWrapper
+function Data.ShopData()
+    return ShopData:new()
+end
 
 -- ========================================================================== --
--- Components
+-- Data - ObjectInfo
 -- ========================================================================== --
+
+---@class WindowData.ObjectInfo
+---@field name wstring Display name of the object
+---@field objectType integer Numeric type ID of the object
+---@field shopValue integer Gold price per unit (shop context)
+---@field shopQuantity integer Available quantity in shop
+---@field sellContainerId integer Container ID for buy mode
+---@field quantity integer Quantity of the item
+---@field containerId integer Parent container's object ID
+---@field hueId integer Hue/color ID
+---@field Type integer
+---@field Event integer
+
+---@class ObjectInfoWrapper
+local ObjectInfoData = {}
+ObjectInfoData.__index = ObjectInfoData
+
+---@param id integer The object ID
+---@return ObjectInfoWrapper
+function ObjectInfoData:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return WindowData.ObjectInfo|nil
+function ObjectInfoData:getData()
+    if WindowData.ObjectInfo then
+        return WindowData.ObjectInfo[self._id]
+    end
+    return nil
+end
+
+--- Returns true if the engine has ObjectInfo data for this ID.
+---@return boolean
+function ObjectInfoData:exists()
+    return self:getData() ~= nil
+end
+
+--- Returns the object ID this wrapper was created for.
+---@return integer
+function ObjectInfoData:getId()
+    return self._id
+end
+
+--- Returns the display name of the object.
+---@return wstring
+function ObjectInfoData:getName()
+    local data = self:getData()
+    return data and data.name or L""
+end
+
+--- Returns the numeric type ID of the object.
+---@return integer
+function ObjectInfoData:getObjectType()
+    local data = self:getData()
+    return data and data.objectType or 0
+end
+
+--- Returns the gold price per unit (shop context).
+---@return integer
+function ObjectInfoData:getShopValue()
+    local data = self:getData()
+    return data and data.shopValue or 0
+end
+
+--- Returns the available quantity in shop.
+---@return integer
+function ObjectInfoData:getShopQuantity()
+    local data = self:getData()
+    return data and data.shopQuantity or 0
+end
+
+--- Returns the container ID for buy mode.
+---@return integer
+function ObjectInfoData:getSellContainerId()
+    local data = self:getData()
+    return data and data.sellContainerId or 0
+end
+
+--- Returns the quantity of the item.
+---@return integer
+function ObjectInfoData:getQuantity()
+    local data = self:getData()
+    return data and data.quantity or 0
+end
+
+--- Returns the parent container's object ID.
+---@return integer
+function ObjectInfoData:getContainerId()
+    local data = self:getData()
+    return data and data.containerId or 0
+end
+
+--- Returns the hue/color ID.
+---@return integer
+function ObjectInfoData:getHueId()
+    local data = self:getData()
+    return data and data.hueId or 0
+end
+
+--- Returns ObjectInfo data wrapped for the given object ID.
+---@param id integer The object ID.
+---@return ObjectInfoWrapper
+function Data.ObjectInfo(id)
+    return ObjectInfoData:new(id)
+end
+
+-- ========================================================================== --
+-- Data - ContainerWindow
+-- ========================================================================== --
+
+---
+--- Returns raw ContainerWindow data for the given container ID.
+---@param id integer The container ID.
+---@return WindowData.Container|nil
+function Data.ContainerWindow(id)
+    return WindowData.ContainerWindow and WindowData.ContainerWindow[id] or nil
+end
+
+-- ========================================================================== --
+-- Data - ItemProperties
+-- ========================================================================== --
+
+---
+--- Returns raw ItemProperties data for the given object ID.
+---@param id integer The object ID.
+---@return table|nil
+function Data.ItemProperties(id)
+    return WindowData.ItemProperties and WindowData.ItemProperties[id] or nil
+end
 
 local Active = {}
 
@@ -4628,6 +5031,13 @@ View.__index = View
 ---@field _endDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
 local Window = {}
 Window.__index = Window
+
+---@class ScaffoldModel : WindowModel
+
+---@class Scaffold : Window
+---@field _model ScaffoldModel?
+local Scaffold = {}
+Scaffold.__index = Scaffold
 
 -- ========================================================================== --
 -- Components - Internal Builders
@@ -5888,6 +6298,30 @@ end
 function EventHandler.OnUpdateSpellbook()
     withActiveView("OnUpdateSpellbook", function(window)
         window:onUpdateSpellbook()
+    end)
+end
+
+function EventHandler.OnUpdateShopData()
+    withActiveView("OnUpdateShopData", function(window)
+        window:onUpdateShopData()
+    end)
+end
+
+function EventHandler.OnUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(window)
+        window:onUpdateContainerWindow()
+    end)
+end
+
+function EventHandler.OnUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(window)
+        window:onUpdateObjectInfo()
+    end)
+end
+
+function EventHandler.OnUpdateItemProperties()
+    withActiveView("OnUpdateItemProperties", function(window)
+        window:onUpdateItemProperties()
     end)
 end
 
@@ -7252,6 +7686,41 @@ function View:onUpdateSpellbook()
     return false
 end
 
+function View:onUpdateShopData()
+    if self._model.OnUpdateShopData ~= nil then
+        self._model.OnUpdateShopData(self, Data.ShopData())
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    if self._model.OnUpdateContainerWindow ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateContainerWindow(self, instanceId, Data.ContainerWindow(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    if self._model.OnUpdateObjectInfo ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateObjectInfo(self, instanceId, Data.ObjectInfo(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateItemProperties()
+    if self._model.OnUpdateItemProperties ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateItemProperties(self, instanceId, Data.ItemProperties(instanceId))
+        return true
+    end
+    return false
+end
+
 function View:onTextChanged(text)
     if self._model.OnTextChanged ~= nil then
         self._model.OnTextChanged(self, text)
@@ -7310,7 +7779,11 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateShopData or
+                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
+                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
+                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -7325,7 +7798,11 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateShopData or
+                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
+                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
+                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -7906,6 +8383,23 @@ function Window:setChildren(children)
     self._children = children
 end
 
+-- ========================================================================== --
+-- Components - Scaffold
+-- ========================================================================== --
+
+--- Scaffold is a top-level root window with unconditional right-click-to-close
+--- behaviour. Inherits all resize, snap, and position-save logic from Window
+--- (which activates these features when the parent is Root). Use Scaffold for
+--- explicitly top-level, closeable windows; use Window for general windows.
+function Scaffold:new(model)
+    model = model or {}
+    local instance = Window.new(self, model) --[[@as Scaffold]]
+    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
+        window:destroy()
+    end
+    return instance
+end
+
 ---@param model WindowModel?
 ---@return Window
 function Components.Window(model)
@@ -7914,8 +8408,17 @@ function Components.Window(model)
     return window
 end
 
+---@param model ScaffoldModel?
+---@return Scaffold
+function Components.Scaffold(model)
+    local scaffold = Scaffold:new(model)
+    Cache[scaffold:getName()] = scaffold
+    return scaffold
+end
+
 setmetatable(View, { __index = Component })
 setmetatable(Window, { __index = View })
+setmetatable(Scaffold, { __index = Window })
 setmetatable(Button, { __index = Window })
 setmetatable(EditTextBox, { __index = View })
 setmetatable(Label, { __index = View })
