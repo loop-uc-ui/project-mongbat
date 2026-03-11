@@ -91,6 +91,26 @@
           </Windows>
       </LogDisplay>
 
+      <ScrollWindow name="MongbatScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" lineheight="55" autoHideScrollBar="true">
+        <Windows>
+          <Window name="$parentChild">
+            <Windows>
+              <Window name="$parentCont">
+                <Size>
+                  <AbsPoint x="0" y="0" />
+                </Size>
+              </Window>
+            </Windows>
+          </Window>
+          <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll">
+            <Anchors>
+              <Anchor point="topright" relativePoint="topright" />
+              <Anchor point="bottomright" relativePoint="bottomright" />
+            </Anchors>
+          </VerticalScrollbar>
+        </Windows>
+      </ScrollWindow>
+
       <CircleImage name="MongbatCircleImage">
         <Size>
           <AbsPoint x="200" y="200" />
@@ -158,6 +178,78 @@
               <AbsPoint x="100" y="100" />
           </Size>
       </FullResizeImage>
+
+      <SliderBar name="MongbatSliderBar" inherits="UO_Default_Horizontal_SliderBar">
+          <Size>
+              <AbsPoint x="160" y="16" />
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnSlide" function="Mongbat.EventHandler.OnSlide"/>
+          </EventHandlers>
+      </SliderBar>
+
+      <ComboBox name="MongbatComboBox" inherits="UO_Default_ComboBox">
+          <Size>
+              <AbsPoint x="181" y="27" />
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnSelChanged" function="Mongbat.EventHandler.OnSelChanged"/>
+          </EventHandlers>
+      </ComboBox>
+
+      <Button name="MongbatCheckBox" inherits="UO_Default_Check_Button">
+      </Button>
+
+      <HorizontalScrollWindow name="MongbatHorizontalScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" linewidth="50" autoHideScrollBar="true">
+        <Windows>
+          <Window name="$parentChild">
+            <Windows>
+              <Window name="$parentCont">
+                <Size>
+                  <AbsPoint x="0" y="0" />
+                </Size>
+              </Window>
+            </Windows>
+          </Window>
+          <HorizontalScrollbar name="$parentScrollbar" inherits="StandardHorizScroll" />
+        </Windows>
+      </HorizontalScrollWindow>
+
+      <AnimatedImage name="MongbatAnimatedImage" fps="10" movable="false" handleinput="false" layer="popup">
+          <Size>
+              <AbsPoint x="48" y="48" />
+          </Size>
+      </AnimatedImage>
+
+      <Button name="MongbatActionButton" inherits="ActionButtonDef" sticky="false">
+          <Size>
+              <AbsPoint x="50" y="50" />
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnLButtonDown" function="Mongbat.EventHandler.OnLButtonDown"/>
+              <EventHandler event="OnLButtonUp" function="Mongbat.EventHandler.OnLButtonUp"/>
+              <EventHandler event="OnRButtonUp" function="Mongbat.EventHandler.OnRButtonUp"/>
+              <EventHandler event="OnMouseOver" function="Mongbat.EventHandler.OnMouseOver"/>
+              <EventHandler event="OnMouseOverEnd" function="Mongbat.EventHandler.OnMouseOverEnd"/>
+          </EventHandlers>
+      </Button>
+
+      <AnimatedImage name="MongbatCooldownDisplay" inherits="CooldownEffect" handleinput="false" layer="popup">
+          <Size>
+              <AbsPoint x="48" y="48" />
+          </Size>
+          <Anchors>
+              <Anchor point="center" relativePoint="center">
+                  <AbsPoint x="0" y="0" />
+              </Anchor>
+          </Anchors>
+      </AnimatedImage>
+
+      <PageWindow name="MongbatPageWindow">
+          <Size>
+              <AbsPoint x="400" y="300" />
+          </Size>
+      </PageWindow>
 
     </Windows>
 </Interface>
