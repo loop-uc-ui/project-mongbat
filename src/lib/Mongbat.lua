@@ -7797,9 +7797,11 @@ function View:setId(id)
             end
         end
     else
-        -- Clear state when id is set to 0
+        -- Clear composite state when id is set to 0
         if self._model.OnRenderData then
-            self._state = {}
+            self._state.mobile = nil
+            self._state.item = nil
+            self._state.instanceId = nil
         end
     end
 
