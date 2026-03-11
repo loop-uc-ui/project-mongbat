@@ -113,7 +113,7 @@ local function OnInitialize()
                     windowRef:onRButtonUp(flags, x, y)
                 end
             end,
-            OnUpdateSkillDynamicData = function(self)
+            OnUpdateSkillDynamicData = function(_)
                 -- This fires only for the skill bound to this label via setId().
                 -- Triggering a full rebuild keeps the remaining total accurate.
                 if windowRef ~= nil then

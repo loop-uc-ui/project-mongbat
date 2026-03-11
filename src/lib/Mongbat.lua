@@ -4586,7 +4586,7 @@ CheckBox.__index = CheckBox
 local ComboBox = {}
 ComboBox.__index = ComboBox
 
----@class ListBoxModel : ViewModel]
+---@class ListBoxModel : ViewModel
 ---@field OnInitialize fun(self: ListBox)?
 ---@field OnShutdown fun(self: ListBox)?
 ---@field OnMouseWheel fun(self: ListBox, x: number, y: number, delta: number)?
