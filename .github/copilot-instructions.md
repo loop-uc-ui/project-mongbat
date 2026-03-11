@@ -14,7 +14,7 @@ When answering questions about Mongbat, **always cross-reference** the two prima
 
 > **Repository**: https://github.com/loop-uc-ui/enhanced-client-default
 >
-> This is the **authoritative reference** for how the UO EC UI works. It is 100% Lua + XML. All files live under the `Source/` directory.
+> This is the **authoritative reference** for how the UO EC UI works. It is 100% Lua + XML.
 
 **When to consult it:**
 - To understand the vanilla implementation of any window that Mongbat wraps or replaces.
@@ -430,7 +430,42 @@ local function getPlayerInfo(playerId)
 end
 ```
 
-#### 3.5 Lazy Window Creation
+**Use `@type` to help the language server wherever it cannot infer the correct type.** The UO EC Lua environment contains custom types (e.g., `wstring`) and polymorphic framework functions that return union types. The language server often cannot narrow these automatically. Add inline `---@type` annotations proactively rather than waiting for errors.
+
+**When to annotate:**
+- **Variables initialized to a narrow type but later assigned a wider one.** If a variable starts as `""` but will receive a `string|wstring` from a polymorphic function, annotate the declaration:
+  ```lua
+  local itemName = "" ---@type string|wstring
+  ```
+- **Return values from polymorphic functions.** When a framework function returns `string|wstring` but the consuming code needs one specific type, annotate the declaration to narrow:
+  ```lua
+  local name = Utils.String.Replace(raw, "^%d+ ", "") ---@type wstring
+  ```
+- **Engine data that the language server has no type information for.** Tables from `WindowData.*` or callback parameters often lack type info. Annotate locals that receive them:
+  ```lua
+  local data = WindowData.ContainerWindow[id] ---@type ContainerWindowData
+  ```
+- **Metatable-proxied objects.** The framework's Data wrappers and Component classes use metatables heavily. The language server cannot trace through `__index` chains. Annotate when the inferred type is wrong or `unknown`.
+
+**Keep `types/Engine.lua` up to date.** Custom engine types (`wstring`, `Event`, `Type`, etc.) are declared in `types/Engine.lua` and loaded via `.luarc.json`. When adding a new engine type or data structure that the language server doesn't know about, add its `@class` definition there rather than scattering `@type any` annotations across mod code.
+
+#### 3.5 Unused Parameters
+
+**Name unused function parameters `_`.** When a callback signature requires parameters that the function body does not reference, replace each unused parameter name with `_`. This signals intent ("deliberately ignored") and silences lint warnings.
+
+```lua
+-- Good: unused self and children params are _
+OnLayout = function(win, _, child, idx) ... end
+OnShutdown = function(_) ... end
+
+-- Bad: named params that are never read
+OnLayout = function(win, children, child, idx) ... end
+OnShutdown = function(self) ... end
+```
+
+Multiple consecutive unused parameters can all be `_` -- Lua allows repeated `_` in a parameter list. Only rename parameters that are truly unused in the function body.
+
+#### 3.6 Lazy Window Creation
 
 **Prefer creating windows when they are needed, not at mod initialization.** Favor outright creation and destruction over hiding and showing. If a window is not visible, it should usually not exist.
 
