@@ -4487,7 +4487,7 @@ CheckBox.__index = CheckBox
 local ComboBox = {}
 ComboBox.__index = ComboBox
 
----@class ListBoxModel : ViewModel]
+---@class ListBoxModel : ViewModel
 ---@field OnInitialize fun(self: ListBox)?
 ---@field OnShutdown fun(self: ListBox)?
 ---@field OnMouseWheel fun(self: ListBox, x: number, y: number, delta: number)?
@@ -6480,12 +6480,9 @@ function EventHandler.OnSelChanged()
 end
 
 function EventHandler.OnPopulateRow(arg)
-    local window = Active.window()
-    Debug.Print(arg)
-    Debug.Print(window)
-    -- withActiveView("OnPopulateRow", function(view)
-    --     view:onPopulateRow()
-    -- end)
+    withActiveView("OnPopulateRow", function(view)
+        view:onPopulateRow(arg)
+    end)
 end
 
 
@@ -7161,7 +7158,7 @@ function ListBox:getClickedDataIndex()
     return self:getDataIndex(rowIndex)
 end
 
---- Alias for getClickedDataIndex() for use in OnMouseOver handlers.f
+--- Alias for getClickedDataIndex() for use in OnMouseOver handlers.
 --- Both rely on SystemData.MouseOverWindow to identify the row under the cursor,
 --- but this name better communicates the hover-without-click context.
 ---@return number? dataIndex The data-table index of the hovered row, or nil.
@@ -8231,7 +8228,7 @@ end
 ---@param parent string? The parent window name (default "Root").
 function View:create(doShow, parent)
     doShow = doShow == nil or doShow
-    parent = parent or "Root"
+    parent = parent == nil and "Root" or parent
     if self._model.Template == nil then
         return Api.Window.Create(self.name, doShow)
     else

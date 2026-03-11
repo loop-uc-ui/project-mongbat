@@ -8,6 +8,8 @@ local Components = Mongbat.Components
 local Constants = Mongbat.Constants
 local Utils = Mongbat.Utils
 
+-- Mutable file-scope: both tables must survive across OnInitialize/OnShutdown
+-- since OnShutdown destroys all windows after restoring the default systems.
 ---@type table<integer, Window>
 local bars = {}
 
@@ -28,6 +30,8 @@ local function OnInitialize()
     -- Child component factories
     -- ------------------------------------------------------------------ --
 
+    ---@param mobileId integer
+    ---@return Label
     local function NameLabel(mobileId)
         return Components.Label {
             Name = NAME_PREFIX .. "Name_" .. mobileId,
@@ -42,27 +46,29 @@ local function OnInitialize()
         }
     end
 
+    ---@param mobileId integer
+    ---@return StatusBar
     local function HealthBar(mobileId)
-        return Components.StatusBar(
-            {
-                Name = NAME_PREFIX .. "Health_" .. mobileId,
-                Id = mobileId,
-                OnInitialize = function(self)
-                    self:setColor(Constants.Colors.HealhBar[1])
-                end,
-                OnUpdateMobileStatus = function(self, mobileStatus)
-                    local data = mobileStatus:getData()
-                    self:setCurrentValue(data.CurrentHealth)
-                    self:setMaxValue(data.MaxHealth)
-                end,
-                OnUpdateHealthBarColor = function(self, healthBarColor)
-                    self:setColor(healthBarColor:getVisualStateColor())
-                end
-            },
-            nil
-        )
+        return Components.StatusBar {
+            Name = NAME_PREFIX .. "Health_" .. mobileId,
+            Id = mobileId,
+            OnInitialize = function(self)
+                self:setColor(Constants.Colors.HealhBar[1])
+            end,
+            OnUpdateMobileStatus = function(self, mobileStatus)
+                local data = mobileStatus:getData()
+                self:setCurrentValue(data.CurrentHealth)
+                self:setMaxValue(data.MaxHealth)
+            end,
+            OnUpdateHealthBarColor = function(self, healthBarColor)
+                self:setColor(healthBarColor:getVisualStateColor())
+            end
+        }
     end
 
+    ---@param partyIndex integer
+    ---@param mobileId integer
+    ---@return Label
     local function PartyNameLabel(partyIndex, mobileId)
         return Components.Label {
             Name = PARTY_PREFIX .. "Name_" .. partyIndex,
@@ -77,31 +83,32 @@ local function OnInitialize()
         }
     end
 
+    ---@param partyIndex integer
+    ---@param mobileId integer
+    ---@return StatusBar
     local function PartyHealthBar(partyIndex, mobileId)
-        return Components.StatusBar(
-            {
-                Name = PARTY_PREFIX .. "Health_" .. partyIndex,
-                Id = mobileId,
-                OnInitialize = function(self)
-                    self:setColor(Constants.Colors.HealhBar[1])
-                end,
-                OnUpdateMobileStatus = function(self, mobileStatus)
-                    local data = mobileStatus:getData()
-                    self:setCurrentValue(data.CurrentHealth)
-                    self:setMaxValue(data.MaxHealth)
-                end,
-                OnUpdateHealthBarColor = function(self, healthBarColor)
-                    self:setColor(healthBarColor:getVisualStateColor())
-                end
-            },
-            nil
-        )
+        return Components.StatusBar {
+            Name = PARTY_PREFIX .. "Health_" .. partyIndex,
+            Id = mobileId,
+            OnInitialize = function(self)
+                self:setColor(Constants.Colors.HealhBar[1])
+            end,
+            OnUpdateMobileStatus = function(self, mobileStatus)
+                local data = mobileStatus:getData()
+                self:setCurrentValue(data.CurrentHealth)
+                self:setMaxValue(data.MaxHealth)
+            end,
+            OnUpdateHealthBarColor = function(self, healthBarColor)
+                self:setColor(healthBarColor:getVisualStateColor())
+            end
+        }
     end
 
     -- ------------------------------------------------------------------ --
     -- Health bar lifecycle helpers
     -- ------------------------------------------------------------------ --
 
+    ---@param mobileId integer
     local function createHealthBar(mobileId)
         local name = NAME_PREFIX .. mobileId
 
@@ -114,6 +121,7 @@ local function OnInitialize()
 
         local attachedToWorld = true
 
+        ---@param self Window
         local function detachFromWorld(self)
             if attachedToWorld then
                 attachedToWorld = false
@@ -121,6 +129,10 @@ local function OnInitialize()
             end
         end
 
+        -- Health bars are world-attached windows that track game entities.
+        -- Components.Window is used instead of Scaffold because Scaffold saves/
+        -- restores position (inappropriate for world-attached windows) and adds
+        -- a decorative frame and background that health bars do not need.
         local window = Components.Window {
             Name = name,
             Id = mobileId,
@@ -164,6 +176,7 @@ local function OnInitialize()
         bars[mobileId] = window
     end
 
+    ---@param mobileId integer
     local function closeHealthBar(mobileId)
         local window = bars[mobileId]
         if window then
@@ -172,6 +185,8 @@ local function OnInitialize()
         end
     end
 
+    ---@param mobileId integer
+    ---@return boolean
     local function hasHealthBar(mobileId)
         return bars[mobileId] ~= nil
     end
@@ -180,6 +195,8 @@ local function OnInitialize()
     -- Party health bar lifecycle helpers
     -- ------------------------------------------------------------------ --
 
+    ---@param mobileId integer
+    ---@param useDefaultPos boolean
     local function createPartyBar(mobileId, useDefaultPos)
         if mobileId == 0 then return end
 
@@ -193,6 +210,10 @@ local function OnInitialize()
 
         local name = PARTY_PREFIX .. partyIndex
 
+        -- Party health bars are non-world-attached movable windows.
+        -- Components.Window is used for the same reason as solo health bars:
+        -- no decorative Scaffold frame and no position save/restore that would
+        -- conflict with the party bar's manual placement logic.
         local window = Components.Window {
             Name = name,
             Id = mobileId,
@@ -237,6 +258,7 @@ local function OnInitialize()
         partyBars[partyIndex] = { window = window, mobileId = mobileId }
     end
 
+    ---@param index integer
     local function closePartyBarByIndex(index)
         local entry = partyBars[index]
         if entry then
@@ -245,16 +267,22 @@ local function OnInitialize()
         end
     end
 
+    ---@param index integer
+    ---@return boolean
     local function hasPartyBarByIndex(index)
         return partyBars[index] ~= nil
     end
 
+    ---@param mobileId integer
+    ---@return boolean
     local function hasPartyBar(mobileId)
         return Utils.Table.Find(partyBars, function(_, entry)
             return entry.mobileId == mobileId
         end) ~= nil
     end
 
+    ---@param index integer
+    ---@param mobileId integer
     local function refreshPartyBar(index, mobileId)
         local current = partyBars[index]
         if not current then return end
