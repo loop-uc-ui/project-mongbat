@@ -46,8 +46,7 @@ local function OnInitialize()
                 if hbColor then
                     self:setColor(hbColor)
                     self._colorSet = true
-                end
-                if not self._colorSet then
+                elseif not self._colorSet then
                     self:setColor(Constants.Colors.HealhBar[1])
                     self._colorSet = true
                 end

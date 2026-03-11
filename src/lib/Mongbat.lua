@@ -7459,12 +7459,12 @@ function View:onInitialize()
             self:registerEventHandler(dataEvent.getEvent(), functionName)
         elseif compositeEvent ~= nil then
             -- Register handlers for all sub-events of the composite
-            for _, subEvent in ipairs(compositeEvent.allSubEvents) do
+            Utils.Table.ForEach(compositeEvent.allSubEvents, function(_, subEvent)
                 self:registerEventHandler(
                     subEvent.getEvent(),
                     prefix .. subEvent.name
                 )
-            end
+            end)
         end
     end
 
@@ -7478,15 +7478,11 @@ function View:onInitialize()
     end
 
     pcall(function ()
-        if self._model.OnUpdateMobile then
-            self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
-        else
-            self:onUpdatePlayerStatus()
-            self:onUpdateMobileName()
-            self:onUpdateMobileStatus()
-            self:onUpdateHealthBarColor()
-            self:onUpdatePaperdoll()
-        end
+        self:onUpdatePlayerStatus()
+        self:onUpdateMobileName()
+        self:onUpdateMobileStatus()
+        self:onUpdateHealthBarColor()
+        self:onUpdatePaperdoll()
     end)
 end
 
@@ -7511,9 +7507,9 @@ function View:onShutdown()
         elseif dataEvent ~= nil then
             self:unregisterEventHandler(dataEvent.getEvent())
         elseif compositeEvent ~= nil then
-            for _, subEvent in ipairs(compositeEvent.allSubEvents) do
+            Utils.Table.ForEach(compositeEvent.allSubEvents, function(_, subEvent)
                 self:unregisterEventHandler(subEvent.getEvent())
-            end
+            end)
         end
     end
 end
@@ -7797,9 +7793,9 @@ function View:setId(id)
         for k, _ in pairs(self._model) do
             local compositeEvent = Constants.CompositeEvents[k]
             if compositeEvent ~= nil then
-                for _, subEvent in ipairs(compositeEvent.entitySubEvents) do
+                Utils.Table.ForEach(compositeEvent.entitySubEvents, function(_, subEvent)
                     Api.Window.UnregisterData(subEvent.getType(), oldId)
-                end
+                end)
             end
         end
 
@@ -7827,9 +7823,9 @@ function View:setId(id)
         for k, _ in pairs(self._model) do
             local compositeEvent = Constants.CompositeEvents[k]
             if compositeEvent ~= nil then
-                for _, subEvent in ipairs(compositeEvent.entitySubEvents) do
+                Utils.Table.ForEach(compositeEvent.entitySubEvents, function(_, subEvent)
                     Api.Window.RegisterData(subEvent.getType(), id)
-                end
+                end)
             end
         end
 
