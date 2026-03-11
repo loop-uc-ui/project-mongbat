@@ -271,7 +271,7 @@
 --     children[IDX_FIGURE] = paperdollFigure
 
 --     local function Window()
---         return Components.Scaffold {
+--         return Components.Window {
 --             Name = NAME,
 --             Resizable = false,
 --             OnLayout = GridLayout,

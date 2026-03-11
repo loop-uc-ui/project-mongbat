@@ -111,7 +111,7 @@ local function OnInitialize()
     end
 
     local function Window()
-        return Components.Scaffold {
+        return Components.Window {
             Name = NAME,
             OnInitialize = function(self)
                 self:setDimensions(200, 150)

@@ -860,9 +860,9 @@ function Api.Label.SetText(name, text)
     if text == nil then
         return
     elseif type(text) == "number" then
-        text = Api.String.GetStringFromTid(text)
+        text = StringFormatter.fromTid(text)
     elseif type(text) == "string" then
-        text = Api.String.StringToWString(text)
+        text = StringFormatter.toWString(text)
     end
     LabelSetText(name, text)
 end
@@ -2696,9 +2696,6 @@ function Utils.Array.Every(array, predicate)
 end
 
 ---@generic T
----@param array T[]
----@param forEach fun(item: T, index: integer)
-function Utils.Array.ForEach(array, forEach)
     if not array or #array == 0 then
         return
     end
@@ -2962,16 +2959,6 @@ function Utils.String.FromWString(text)
     end
 end
 
---- Returns true if text is nil, empty string "", or empty wstring L"".
---- @param text string|wstring|nil
---- @return boolean
-function Utils.String.IsEmpty(text)
-    if text == nil then return true end
-    if text == "" then return true end
-    if text == L"" then return true end
-    return false
-end
-
 function Utils.String.ToWString(text)
     if text == nil then return L"" end
     if type(text) == "number" then
@@ -2985,108 +2972,28 @@ function Utils.String.ToWString(text)
     end
 end
 
+--- Returns true if text is nil, empty string "", or empty wstring L"".
+--- @param text string|wstring|nil
+--- @return boolean
+function Utils.String.IsEmpty(text)
+    if text == nil then return true end
+    if text == "" then return true end
+    if text == L"" then return true end
+    return false
+end
+
 function Utils.String.Lower(text)
-    if text == nil then return "" end
-    if type(text) == "string" then
-        return string.lower(text)
     elseif type(text) == "wstring" then
         return string.lower(Utils.String.FromWString(text))
     end
 end
 
 function Utils.String.Upper(text)
-    if text == nil then return "" end
     if type(text) == "string" then
         return string.upper(text)
     elseif type(text) == "wstring" then
         return string.upper(Utils.String.FromWString(text))
     end
-end
-
---- Substitutes all occurrences of pattern in text.
---- Accepts string or wstring; returns the same type as the input.
---- Nil input returns L"".
----@param text string|wstring|nil
----@param pattern string Lua pattern
----@param replacement string
----@return string|wstring
-function Utils.String.Replace(text, pattern, replacement)
-    if text == nil then return L"" end
-    if type(text) == "wstring" then
-        local s = Api.String.WStringToString(text)
-        return Api.String.StringToWString(string.gsub(s, pattern, replacement))
-    end
-    return string.gsub(text, pattern, replacement)
-end
-
---- Searches for the first occurrence of pattern in text.
---- Accepts string or wstring. Returns start/end positions (always integers).
----@param text string|wstring|nil
----@param pattern string Lua pattern or plain substring
----@param init integer? Start position (default 1)
----@param plain boolean? If true, pattern is a plain string
----@param ignoreCase boolean? If true, lowercases both text and pattern before matching
----@return integer|nil startPos
----@return integer|nil endPos
-function Utils.String.Find(text, pattern, init, plain, ignoreCase)
-    if text == nil then return nil end
-    if type(text) == "wstring" then
-        text = Api.String.WStringToString(text)
-    end
-    if ignoreCase then
-        text = string.lower(text)
-        pattern = string.lower(pattern)
-    end
-    return string.find(text, pattern, init, plain)
-end
-
---- Returns true if text contains the given pattern.
---- Accepts string or wstring.
----@param text string|wstring|nil
----@param pattern string Lua pattern or plain substring
----@param plain boolean? If true, pattern is a plain string
----@param ignoreCase boolean? If true, lowercases both text and pattern before matching
----@return boolean
-function Utils.String.Contains(text, pattern, plain, ignoreCase)
-    return Utils.String.Find(text, pattern, 1, plain, ignoreCase) ~= nil
-end
-
---- Returns the first match of pattern in text, or nil if no match.
---- When the pattern contains captures, returns the first capture.
---- Accepts string or wstring; returns the same type as the input (or nil).
----@param text string|wstring|nil
----@param pattern string Lua pattern
----@return string|wstring|nil
-function Utils.String.Match(text, pattern)
-    if text == nil then return nil end
-    local isW = type(text) == "wstring"
-    local s = isW and Api.String.WStringToString(text) or text
-    local result = string.match(s, pattern)
-    if result == nil then return nil end
-    if isW then return Api.String.StringToWString(result) end
-    return result
-end
-
---- Returns an array of all matches of pattern in text.
---- When the pattern contains captures, each element is the first capture.
---- Accepts string or wstring; elements are the same type as the input.
---- Returns an empty table if no matches or text is nil.
----@param text string|wstring|nil
----@param pattern string Lua pattern
----@return (string|wstring)[]
-function Utils.String.MatchAll(text, pattern)
-    local results = {}
-    if text == nil then return results end
-    local isW = type(text) == "wstring"
-    local s = isW and Api.String.WStringToString(text) or text
-    for match in string.gmatch(s, pattern) do
-        if isW then
-            results[#results + 1] = Api.String.StringToWString(match)
-        else
-            results[#results + 1] = match
-        end
-    end
-    return results
 end
 
 ---@param fmt string
@@ -3096,26 +3003,63 @@ function Utils.String.Format(fmt, ...)
     return string.format(fmt, ...)
 end
 
---- Concatenates any mix of string, wstring, number, or nil values into a single wstring.
---- Numbers are converted to their display representation (e.g. 123 → L"123"), NOT treated as TIDs.
---- Nil values are skipped.
---- @param ... string|wstring|number|nil
+--- Searches for a pattern in text.
+--- @param text string|wstring The text to search in.
+--- @param pattern string The pattern to search for.
+--- @param plain boolean? If true, pattern is a literal string.
+--- @param caseInsensitive boolean? If true, search is case-insensitive.
+--- @return number|nil startIndex
+--- @return number|nil endIndex
+function Utils.String.Find(text, pattern, plain, caseInsensitive)
+    local s = Utils.String.FromWString(text) or ""
+    local p = Utils.String.FromWString(pattern) or ""
+    if caseInsensitive then
+        s = string.lower(s)
+        p = string.lower(p)
+    end
+    return string.find(s, p, 1, plain)
+end
+
+--- Returns true if text contains the given pattern.
+--- @param text string|wstring The text to search in.
+--- @param pattern string The pattern to search for.
+--- @param plain boolean? If true, pattern is a literal string.
+--- @param caseInsensitive boolean? If true, search is case-insensitive.
+--- @return boolean
+function Utils.String.Contains(text, pattern, plain, caseInsensitive)
+    return Utils.String.Find(text, pattern, plain, caseInsensitive) ~= nil
+end
+
+--- Replaces occurrences of pattern in text with replacement.
+--- @param text string|wstring
+--- @param pattern string
+--- @param replacement string
+--- @return string|wstring result
+function Utils.String.Replace(text, pattern, replacement)
+    local isW = type(text) == "wstring"
+    local s = Utils.String.FromWString(text) or ""
+    local result = string.gsub(s, pattern, replacement)
+    if isW then
+        return Api.String.StringToWString(result)
+    end
+    return result
+end
+
+--- Concatenates multiple values into a single wstring.
+--- @vararg string|number|wstring
 --- @return wstring
 function Utils.String.Concat(...)
     local result = L""
-    local numArgs = select("#", ...)
-    for i = 1, numArgs do
-        local v = select(i, ...)
+    local args = { ... }
+    for i = 1, #args do
+        local v = args[i]
         if v ~= nil then
-            local t = type(v)
-            if t == "wstring" then
-                result = result .. v
-            elseif t == "number" then
+            if type(v) == "number" then
                 result = result .. towstring(v)
-            elseif t == "string" then
+            elseif type(v) == "string" then
                 result = result .. Api.String.StringToWString(v)
             else
-                result = result .. Api.String.StringToWString(tostring(v))
+                result = result .. v
             end
         end
     end
@@ -3170,12 +3114,12 @@ function Constants.Broadcasts.BugReport()
     return SystemData.Events["BUG_REPORT_SCREEN"]
 end
 
-function Constants.Broadcasts.ShopOfferAccept()
-    return SystemData.Events["SHOP_OFFER_ACCEPT"]
+function Constants.Broadcasts.ShopCancelOffer()
+    return SystemData.Events["CYCLOPEAN_CANCEL_OFFER"]
 end
 
-function Constants.Broadcasts.ShopCancelOffer()
-    return SystemData.Events["SHOP_CANCEL_OFFER"]
+function Constants.Broadcasts.ShopOfferAccept()
+    return SystemData.Events["CYCLOPEAN_OFFER_ACCEPT"]
 end
 
 ---@class DataEvent
@@ -3913,11 +3857,6 @@ function PlayerStatus:getId()
 end
 
 ---@return integer
-function PlayerStatus:getGold()
-    return self:getData().Gold or 0
-end
-
----@return integer
 function PlayerStatus:getEvent()
     return self:getData().Event
 end
@@ -4063,91 +4002,131 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
--- Data - ShopData
+-- Data - Radar
 -- ========================================================================== --
 
----@class WindowData.ShopData.SellList
----@field Names wstring[]
----@field Quantities integer[]
----@field Ids integer[]
----@field Prices integer[]
----@field Types integer[]
+---@class WindowData.Radar
+---@field TexCoordX integer
+---@field TexCoordY integer
+---@field TexScale number
 
----@class WindowData.ShopData
----@field IsSelling boolean
----@field Sell WindowData.ShopData.SellList
----@field OfferIds integer[]
----@field OfferQuantities integer[]
----@field Type integer
----@field Event integer
 
----@class ShopDataItem
----@field id integer Object ID of the item
----@field name wstring Display name of the item
----@field price integer Gold price per unit
----@field quantity integer Available quantity
----@field objType integer Object type for icon rendering
+-- ========================================================================== --
+-- Data - Shop Data
+-- ========================================================================== --
+
+---@class ShopDataBuyEntry
+---@field objectId integer
+---@field objectType integer
+---@field hue integer
+
+---@class ShopDataSellEntry
+---@field objectId integer
+---@field objectType integer
+---@field hue integer
 
 ---@class ShopDataWrapper
+---@field _id number
 local ShopData = {}
 ShopData.__index = ShopData
 
----@return ShopDataWrapper
 function ShopData:new()
-    local instance = setmetatable({}, self)
-    return instance
+    return setmetatable({}, self)
 end
 
----@return boolean
-function ShopData:isSelling()
-    return WindowData.ShopData and WindowData.ShopData.IsSelling == true
+---@return table|nil
+function ShopData:getData()
+    return WindowData.ShopData
 end
 
----@return integer Number of sell items
+---@return integer
+function ShopData:getBuyCount()
+    local d = self:getData()
+    return d and d.BuyListCount or 0
+end
+
+---@return integer
 function ShopData:getSellCount()
-    if not WindowData.ShopData or not WindowData.ShopData.Sell then
-        return 0
-    end
-    return table.getn(WindowData.ShopData.Sell.Names)
+    local d = self:getData()
+    return d and d.SellListCount or 0
 end
 
----@param index integer 1-based index
----@return ShopDataItem|nil
-function ShopData:getSellItem(index)
-    local sell = WindowData.ShopData and WindowData.ShopData.Sell
-    if not sell then return nil end
-    if sell.Quantities[index] == 0 then return nil end
-    return {
-        id       = sell.Ids[index],
-        name     = sell.Names[index],
-        price    = sell.Prices[index],
-        quantity = sell.Quantities[index],
-        objType  = sell.Types[index]
-    }
+---@return table
+function ShopData:getBuyNames()
+    local d = self:getData()
+    return d and d.Buy and d.Buy.Names or {}
 end
 
---- Returns all sell items as an array, skipping entries with zero quantity.
----@return ShopDataItem[]
-function ShopData:getSellItems()
-    local result = {}
-    local count = self:getSellCount()
-    for i = 1, count do
-        local entry = self:getSellItem(i)
-        if entry then
-            table.insert(result, entry)
-        end
-    end
-    return result
+---@return table
+function ShopData:getSellNames()
+    local d = self:getData()
+    return d and d.Sell and d.Sell.Names or {}
 end
 
----@param offerIds integer[]
----@param offerQuantities integer[]
-function ShopData:setOffer(offerIds, offerQuantities)
-    if not WindowData.ShopData then return end
-    for i = 1, table.getn(offerIds) do
-        WindowData.ShopData.OfferIds[i] = offerIds[i]
-        WindowData.ShopData.OfferQuantities[i] = offerQuantities[i]
-    end
+---@return table
+function ShopData:getBuyPrices()
+    local d = self:getData()
+    return d and d.Buy and d.Buy.Prices or {}
+end
+
+---@return table
+function ShopData:getSellPrices()
+    local d = self:getData()
+    return d and d.Sell and d.Sell.Prices or {}
+end
+
+---@return table
+function ShopData:getBuyQuantities()
+    local d = self:getData()
+    return d and d.Buy and d.Buy.Quantities or {}
+end
+
+---@return table
+function ShopData:getSellQuantities()
+    local d = self:getData()
+    return d and d.Sell and d.Sell.Quantities or {}
+end
+
+---@return table
+function ShopData:getBuyObjectIds()
+    local d = self:getData()
+    return d and d.Buy and d.Buy.ObjectIds or {}
+end
+
+---@return table
+function ShopData:getSellObjectIds()
+    local d = self:getData()
+    return d and d.Sell and d.Sell.ObjectIds or {}
+end
+
+---@return table
+function ShopData:getBuyObjectTypes()
+    local d = self:getData()
+    return d and d.Buy and d.Buy.ObjectTypes or {}
+end
+
+---@return table
+function ShopData:getSellObjectTypes()
+    local d = self:getData()
+    return d and d.Sell and d.Sell.ObjectTypes or {}
+end
+
+---@return table
+function ShopData:getBuyHues()
+    local d = self:getData()
+    return d and d.Buy and d.Buy.Hues or {}
+end
+
+---@return table
+function ShopData:getSellHues()
+    local d = self:getData()
+    return d and d.Sell and d.Sell.Hues or {}
+end
+
+---@return integer
+function ShopData:getSellContainerId()
+    local d = self:getData()
+    return d and d.SellContainerId or 0
 end
 
 ---@return ShopDataWrapper
@@ -4156,140 +4135,70 @@ function Data.ShopData()
 end
 
 -- ========================================================================== --
--- Data - ObjectInfo
+-- Data - Container Window
 -- ========================================================================== --
 
----@class WindowData.ObjectInfo
----@field name wstring Display name of the object
----@field objectType integer Numeric type ID of the object
----@field shopValue integer Gold price per unit (shop context)
----@field shopQuantity integer Available quantity in shop
----@field sellContainerId integer Container ID for buy mode
----@field quantity integer Quantity of the item
----@field containerId integer Parent container's object ID
----@field hueId integer Hue/color ID
----@field Type integer
----@field Event integer
+--- Returns the raw ContainerWindow data for the given container ID, or nil.
+---@param id integer
+---@return table|nil
+function Data.ContainerWindow(id)
+    if not WindowData.ContainerWindow or not WindowData.ContainerWindow[id] then
+        return nil
+    end
+    return WindowData.ContainerWindow[id]
+end
+
+-- ========================================================================== --
+-- Data - Object Info
+-- ========================================================================== --
 
 ---@class ObjectInfoWrapper
+---@field _id number
 local ObjectInfoData = {}
 ObjectInfoData.__index = ObjectInfoData
 
----@param id integer The object ID
----@return ObjectInfoWrapper
 function ObjectInfoData:new(id)
     return setmetatable({ _id = id }, self)
 end
 
----@return WindowData.ObjectInfo|nil
+---@return table|nil
 function ObjectInfoData:getData()
-    if WindowData.ObjectInfo then
-        return WindowData.ObjectInfo[self._id]
+    if not WindowData.ObjectInfo or not WindowData.ObjectInfo[self._id] then
+        return nil
     end
-    return nil
+    return WindowData.ObjectInfo[self._id]
 end
 
---- Returns true if the engine has ObjectInfo data for this ID.
----@return boolean
-function ObjectInfoData:exists()
-    return self:getData() ~= nil
-end
-
---- Returns the object ID this wrapper was created for.
----@return integer
-function ObjectInfoData:getId()
-    return self._id
-end
-
---- Returns the display name of the object.
----@return wstring
-function ObjectInfoData:getName()
-    local data = self:getData()
-    return data and data.name or L""
-end
-
---- Returns the numeric type ID of the object.
 ---@return integer
 function ObjectInfoData:getObjectType()
-    local data = self:getData()
-    return data and data.objectType or 0
+    local d = self:getData()
+    return d and d.objectType or 0
 end
 
---- Returns the gold price per unit (shop context).
 ---@return integer
-function ObjectInfoData:getShopValue()
-    local data = self:getData()
-    return data and data.shopValue or 0
+function ObjectInfoData:getHue()
+    local d = self:getData()
+    return d and d.hue or 0
 end
 
---- Returns the available quantity in shop.
----@return integer
-function ObjectInfoData:getShopQuantity()
-    local data = self:getData()
-    return data and data.shopQuantity or 0
-end
-
---- Returns the container ID for buy mode.
----@return integer
-function ObjectInfoData:getSellContainerId()
-    local data = self:getData()
-    return data and data.sellContainerId or 0
-end
-
---- Returns the quantity of the item.
----@return integer
-function ObjectInfoData:getQuantity()
-    local data = self:getData()
-    return data and data.quantity or 0
-end
-
---- Returns the parent container's object ID.
----@return integer
-function ObjectInfoData:getContainerId()
-    local data = self:getData()
-    return data and data.containerId or 0
-end
-
---- Returns the hue/color ID.
----@return integer
-function ObjectInfoData:getHueId()
-    local data = self:getData()
-    return data and data.hueId or 0
-end
-
---- Returns ObjectInfo data wrapped for the given object ID.
----@param id integer The object ID.
 ---@return ObjectInfoWrapper
 function Data.ObjectInfo(id)
     return ObjectInfoData:new(id)
 end
 
 -- ========================================================================== --
--- Data - ContainerWindow
+-- Data - Item Properties
 -- ========================================================================== --
 
----
---- Returns raw ContainerWindow data for the given container ID.
----@param id integer The container ID.
----@return WindowData.Container|nil
-function Data.ContainerWindow(id)
-    return WindowData.ContainerWindow and WindowData.ContainerWindow[id] or nil
-end
-
--- ========================================================================== --
--- Data - ItemProperties
--- ========================================================================== --
-
----
---- Returns raw ItemProperties data for the given object ID.
----@param id integer The object ID.
+--- Returns the raw ItemProperties data for the given item ID, or nil.
+---@param id integer
 ---@return table|nil
 function Data.ItemProperties(id)
-    return WindowData.ItemProperties and WindowData.ItemProperties[id] or nil
+    if not WindowData.ItemProperties or not WindowData.ItemProperties[id] then
+        return nil
+    end
+    return WindowData.ItemProperties[id]
 end
----@field TexCoordX integer
----@field TexCoordY integer
----@field TexScale number
 
 
 -- ========================================================================== --
@@ -4656,13 +4565,6 @@ DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
 local DefaultObjectHandleComponent = {}
 DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 
----@class DefaultShopkeeper
----@field Initialize fun()
----@field Shutdown fun()
-
-local DefaultShopkeeperComponent = {}
-DefaultShopkeeperComponent.__index = DefaultShopkeeperComponent
-
 
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
@@ -4745,11 +4647,11 @@ FilterInput.__index = FilterInput
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
----@field OnUpdateShopData fun(self: Window, shopData: ShopDataWrapper)?
----@field OnUpdateContainerWindow fun(self: Window, instanceId: integer, data: WindowData.Container|nil)?
----@field OnUpdateObjectInfo fun(self: Window, instanceId: integer, data: ObjectInfoWrapper)?
----@field OnUpdateItemProperties fun(self: Window, instanceId: integer, data: table|nil)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
+---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
+---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
+---@field MinWidth number? Minimum width when resizing. Defaults to 100.
+---@field MinHeight number? Minimum height when resizing. Defaults to 100.
 
 ---@class LabelModel : ViewModel
 ---@field OnInitialize fun(self: Label)?
@@ -4770,7 +4672,7 @@ FilterInput.__index = FilterInput
 ---@field windowName string
 ---@field id integer
 
----@class GumpWModel : ScaffoldModel
+---@class GumpWModel : WindowModel
 ---@field windowName string
 ---@field TextEntry string[]?
 ---@field Labels GumpItem[]?
@@ -4779,7 +4681,7 @@ FilterInput.__index = FilterInput
 ---@field OnInitialize fun(self: Gump)?
 ---@field OnShutdown fun(self: Gump)?
 
----@class Gump : Scaffold
+---@class Gump : Window
 ---@field buttons Button[]
 ---@field textEntries EditTextBox[]
 ---@field _id integer The unique ID of the gump window.
@@ -4822,7 +4724,6 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
----@field OnUpdateShopData fun(self: View, shopData: ShopDataWrapper)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
@@ -4837,14 +4738,14 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
 ---@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
 
----@class ScrollWindowModel : WindowModel
+---@class ScrollWindowModel : ViewModel
 ---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
 ---@field ItemWidth number? Width per item column used for horizontal stacking (only when Horizontal is true). Defaults to 50.
 ---@field Horizontal boolean? When true, the scroll window scrolls horizontally instead of vertically. Defaults to false.
 ---@field OnInitialize fun(self: ScrollWindow)?
 ---@field OnShutdown fun(self: ScrollWindow)?
 
----@class ScrollWindow : Window
+---@class ScrollWindow : View
 ---@field _items View[] Views added as rows into the scroll content area.
 local ScrollWindow = {}
 ScrollWindow.__index = ScrollWindow
@@ -4868,17 +4769,6 @@ View.__index = View
 ---@field _endDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
 local Window = {}
 Window.__index = Window
-
----@class ScaffoldModel : WindowModel
----@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true.
----@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true.
----@field MinWidth number? Minimum width when resizing. Defaults to 100.
----@field MinHeight number? Minimum height when resizing. Defaults to 100.
-
----@class Scaffold : Window
----@field _model ScaffoldModel?
-local Scaffold = {}
-Scaffold.__index = Scaffold
 
 -- ========================================================================== --
 -- Components - Internal Builders
@@ -5107,31 +4997,20 @@ function DefaultComponent:asComponent()
 end
 
 --- Creates a proxy table that wraps the original global table.
---- When disabled, all function calls become no-ops UNLESS they were explicitly
---- overridden via assignment (stored in _overrides). Overrides always execute,
---- allowing a mod to intercept specific functions while the rest are suppressed.
+--- When disabled, all function calls become no-ops.
 ---@param original table The original global table to wrap
 ---@return table proxy The proxy table
 function DefaultComponent:_createProxy(original)
     local proxy = {
         _disabled = false,
-        _original = original,
-        _overrides = {}
+        _original = original
     }
 
     setmetatable(proxy, {
         __index = function(self, key)
             -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" or key == "_overrides" then
+            if key == "_disabled" or key == "_original" then
                 return rawget(self, key)
-            end
-
-            -- Overrides always take precedence regardless of disabled state.
-            -- This lets mods hook Initialize/Shutdown while still suppressing
-            -- all other original functions via disable().
-            local override = rawget(self, "_overrides")[key]
-            if override ~= nil then
-                return override
             end
 
             local value = rawget(self, "_original")[key]
@@ -5145,13 +5024,12 @@ function DefaultComponent:_createProxy(original)
         end,
         __newindex = function(self, key, value)
             -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" or key == "_overrides" then
+            if key == "_disabled" or key == "_original" then
                 rawset(self, key, value)
                 return
             end
-            -- Store as an override (not in _original).
-            -- restore() will clear all overrides, reverting to original behaviour.
-            rawget(self, "_overrides")[key] = value
+            -- Forward writes to the original
+            rawget(self, "_original")[key] = value
         end
     })
 
@@ -5159,7 +5037,6 @@ function DefaultComponent:_createProxy(original)
 end
 
 --- Disables the default component. All function calls become no-ops.
---- Functions explicitly overridden via assignment continue to work.
 function DefaultComponent:disable()
     local proxy = self._proxy
     if proxy then
@@ -5167,13 +5044,11 @@ function DefaultComponent:disable()
     end
 end
 
---- Restores the default component: re-enables original functions and clears
---- any overrides set via assignment, leaving no trace of the mod's hooks.
+--- Restores the default component. Function calls work normally again.
 function DefaultComponent:restore()
     local proxy = self._proxy
     if proxy then
         proxy._disabled = false
-        proxy._overrides = {}
     end
 end
 
@@ -5290,6 +5165,34 @@ end
 -- ========================================================================== --
 -- Components - Default - Health Bar Manager
 -- ========================================================================== --
+
+---@class DefaultShopkeeper
+---@field Initialize fun(mobileId: integer)
+---@field Shutdown fun()
+
+---@class DefaultShopkeeperComponent : DefaultComponent
+local DefaultShopkeeperComponent = {}
+DefaultShopkeeperComponent.__index = DefaultShopkeeperComponent
+
+---@return DefaultShopkeeperComponent
+function DefaultShopkeeperComponent:new()
+    local instance = DefaultComponent.new(self, "Shopkeeper") --[[@as DefaultShopkeeperComponent]]
+    instance._proxy = instance:_createProxy(Shopkeeper)
+    instance._globalKey = "Shopkeeper"
+    _G.Shopkeeper = instance._proxy
+    return instance
+end
+
+---@return DefaultShopkeeper
+function DefaultShopkeeperComponent:getDefault()
+    return self._proxy or Shopkeeper --[[@as DefaultShopkeeper]]
+end
+
+---@return Window
+function DefaultShopkeeperComponent:asComponent()
+    return Components.Window { Name = "ShopkeeperWindow" }
+end
+
 
 ---@class DefaultHealthBarManager
 ---@field OnBeginDragHealthBar fun(objectId: integer)
@@ -5477,31 +5380,6 @@ function DefaultObjectHandleComponent:asComponent()
 end
 
 -- ========================================================================== --
--- Components - Default - Shopkeeper
--- ========================================================================== --
-
----@class DefaultShopkeeperComponent : DefaultComponent
-
----@return DefaultShopkeeperComponent
-function DefaultShopkeeperComponent:new()
-    local instance = DefaultComponent.new(self, "Shopkeeper") --[[@as DefaultShopkeeperComponent]]
-    instance._proxy = instance:_createProxy(Shopkeeper)
-    instance._globalKey = "Shopkeeper"
-    _G.Shopkeeper = instance._proxy
-    return instance
-end
-
----@return table
-function DefaultShopkeeperComponent:getDefault()
-    return self._proxy or Shopkeeper
-end
-
----@return Window
-function DefaultShopkeeperComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
--- ========================================================================== --
 -- Components - Default - Status Window
 -- ========================================================================== --
 
@@ -5610,14 +5488,6 @@ end
 
 function DynamicImage:hasTexture()
     return Api.DynamicImage.HasTexture(self:getName())
-end
-
---- Updates this DynamicImage as an item icon from object/equipment data.
---- Accepts either raw engine data or an ObjectInfoWrapper (auto-unwrapped via getData()).
----@param slotData table|ObjectInfoWrapper The object/slot data (e.g., from Data.ObjectInfo).
-function DynamicImage:updateItemIcon(slotData)
-    local data = type(slotData.getData) == "function" and slotData:getData() or slotData
-    Api.Equipment.UpdateItemIcon(self:getName(), data)
 end
 
 ---@param model DynamicImageModel?
@@ -5945,10 +5815,6 @@ local function withActiveView(eventName, callback)
 end
 
 --- Safely dispatches an event to the mouse-over window.
---- If the direct cache lookup fails, walks up the parent chain
---- to find the nearest ancestor that is a cached View. This allows
---- auto-created children (e.g. ListBox rows) to propagate events to
---- their parent View.
 ---@param eventName string The name of the event (for error logging)
 ---@param callback fun(window: View)
 local function withMouseOverView(eventName, callback)
@@ -5960,19 +5826,7 @@ local function withMouseOverView(eventName, callback)
         if name == nil or name == "" then return end
 
         local window = Cache[name]
-        if window == nil then
-            -- Walk up the parent chain to find a cached ancestor View
-            local parentName = name
-            while parentName do
-                parentName = WindowGetParent(parentName)
-                if parentName == nil or parentName == "" or parentName == "Root" then
-                    break
-                end
-                window = Cache[parentName]
-                if window then break end
-            end
-            if window == nil then return end
-        end
+        if window == nil then return end
 
         callback(window)
     end)
@@ -6158,30 +6012,6 @@ function EventHandler.OnUpdatePaperdoll()
     end)
 end
 
-function EventHandler.OnUpdateShopData()
-    withActiveView("OnUpdateShopData", function(window)
-        window:onUpdateShopData()
-    end)
-end
-
-function EventHandler.OnUpdateContainerWindow()
-    withActiveView("OnUpdateContainerWindow", function(window)
-        window:onUpdateContainerWindow()
-    end)
-end
-
-function EventHandler.OnUpdateObjectInfo()
-    withActiveView("OnUpdateObjectInfo", function(window)
-        window:onUpdateObjectInfo()
-    end)
-end
-
-function EventHandler.OnUpdateItemProperties()
-    withActiveView("OnUpdateItemProperties", function(window)
-        window:onUpdateItemProperties()
-    end)
-end
-
 function EventHandler.OnUpdate(timePassed)
     withActiveView("OnUpdate", function(window)
         window:onUpdate(timePassed)
@@ -6224,6 +6054,30 @@ function EventHandler.OnUpdatePlayerLocation()
     end)
 end
 
+function EventHandler.OnUpdateShopData()
+    withActiveView("OnUpdateShopData", function(window)
+        window:onUpdateShopData()
+    end)
+end
+
+function EventHandler.OnUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(window)
+        window:onUpdateContainerWindow()
+    end)
+end
+
+function EventHandler.OnUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(window)
+        window:onUpdateObjectInfo()
+    end)
+end
+
+function EventHandler.OnUpdateItemProperties()
+    withActiveView("OnUpdateItemProperties", function(window)
+        window:onUpdateItemProperties()
+    end)
+end
+
 function EventHandler.OnMouseWheel(x, y, delta)
     withActiveView("OnMouseWheel", function(window)
         window:onMouseWheel(x, y, delta)
@@ -6260,15 +6114,6 @@ function EventHandler.OnSelChanged()
     end)
 end
 
-function EventHandler.OnPopulateRow(arg)
-    local window = Active.window()
-    Debug.Print(arg)
-    Debug.Print(window)
-    -- withActiveView("OnPopulateRow", function(view)
-    --     view:onPopulateRow()
-    -- end)
-end
-
 
 
 -- ========================================================================== --
@@ -6279,7 +6124,7 @@ end
 ---@param id integer
 ---@return Gump
 function Gump:new(gump, id)
-    local instance = Scaffold.new(self, { Name = gump.windowName }) --[[@as Gump]]
+    local instance = Window.new(self, { Name = gump.windowName }) --[[@as Gump]]
 
     instance.buttons = Utils.Array.MapToArray(
         gump.Buttons,
@@ -6451,14 +6296,13 @@ function ScrollWindow:new(model)
     else
         model.Template = model.Template or "MongbatScrollWindow"
     end
-    local instance = Window.new(self, model) --[[@as ScrollWindow]]
+    local instance = View.new(self, model) --[[@as ScrollWindow]]
     instance._items = {}
     return instance
 end
 
 ---@return string
 function ScrollWindow:_getContainerName()
-    -- Must be "Cont" to match XML template's $parentCont variable expansion
     return self.name .. "Cont"
 end
 
@@ -6468,19 +6312,17 @@ function ScrollWindow:isHorizontal()
 end
 
 function ScrollWindow:onInitialize()
-    Window.onInitialize(self)
+    View.onInitialize(self)
 end
 
 function ScrollWindow:onShutdown()
     self:clearItems()
-    Window.onShutdown(self)
+    View.onShutdown(self)
 end
 
 function ScrollWindow:onDimensionsChanged(width, height)
-    local childName = self.name .. "Child"
-    Api.Window.SetDimensions(childName, width - 20, height)
     self:_updateLayout()
-    Window.onDimensionsChanged(self, width, height)
+    View.onDimensionsChanged(self, width, height)
 end
 
 --- Adds a view as the next item in the scroll area. The view is created,
@@ -6521,7 +6363,6 @@ end
 function ScrollWindow:removeItem(view)
     local idx = Utils.Array.IndexOf(self._items, function(v) return v == view end)
     if idx == -1 then return end
-    Cache[view:getName()] = nil
     view:destroy()
     Utils.Array.Remove(self._items, idx)
     self:_updateLayout()
@@ -6530,7 +6371,6 @@ end
 --- Destroys all items and resets the scroll offset.
 function ScrollWindow:clearItems()
     Utils.Array.ForEach(self._items, function(item)
-        Cache[item:getName()] = nil
         item:destroy()
     end)
     self._items = {}
@@ -7466,41 +7306,6 @@ function View:onUpdatePaperdoll()
     return false
 end
 
-function View:onUpdateShopData()
-    if self._model.OnUpdateShopData ~= nil then
-        self._model.OnUpdateShopData(self, Data.ShopData())
-        return true
-    end
-    return false
-end
-
-function View:onUpdateContainerWindow()
-    if self._model.OnUpdateContainerWindow ~= nil then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateContainerWindow(self, instanceId, Data.ContainerWindow(instanceId))
-        return true
-    end
-    return false
-end
-
-function View:onUpdateObjectInfo()
-    if self._model.OnUpdateObjectInfo ~= nil then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateObjectInfo(self, instanceId, Data.ObjectInfo(instanceId))
-        return true
-    end
-    return false
-end
-
-function View:onUpdateItemProperties()
-    if self._model.OnUpdateItemProperties ~= nil then
-        local instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnUpdateItemProperties(self, instanceId, Data.ItemProperties(instanceId))
-        return true
-    end
-    return false
-end
-
 function View:onLButtonDblClk(flags, x, y)
     if self._model.OnLButtonDblClk ~= nil then
         self._model.OnLButtonDblClk(self, flags, x, y)
@@ -7550,6 +7355,41 @@ function View:onUpdatePlayerLocation(data)
     return false
 end
 
+function View:onUpdateShopData()
+    if self._model.OnUpdateShopData ~= nil then
+        self._model.OnUpdateShopData(self)
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    if self._model.OnUpdateContainerWindow ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateContainerWindow(self, instanceId, Data.ContainerWindow(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    if self._model.OnUpdateObjectInfo ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateObjectInfo(self, instanceId, Data.ObjectInfo(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateItemProperties()
+    if self._model.OnUpdateItemProperties ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateItemProperties(self, instanceId, Data.ItemProperties(instanceId))
+        return true
+    end
+    return false
+end
+
 function View:onTextChanged(text)
     if self._model.OnTextChanged ~= nil then
         self._model.OnTextChanged(self, text)
@@ -7585,14 +7425,6 @@ end
 function View:onSelChanged()
     if self._model.OnSelChanged ~= nil then
         self._model.OnSelChanged(self)
-        return true
-    end
-    return false
-end
-
-function View:onPopulateRow()
-    if self._model.OnPopulateRow ~= nil then
-        self._model.OnPopulateRow(self)
         return true
     end
     return false
@@ -7861,15 +7693,12 @@ function View:destroy()
     return Api.Window.Destroy(self.name)
 end
 
----@param doShow boolean? Whether to show the window after creation (default true).
----@param parent string? The parent window name (default "Root").
-function View:create(doShow, parent)
+function View:create(doShow)
     doShow = doShow == nil or doShow
-    parent = parent or "Root"
     if self._model.Template == nil then
         return Api.Window.Create(self.name, doShow)
     else
-        return Api.Window.CreateFromTemplate(self.name, self._model.Template, parent, doShow)
+        return Api.Window.CreateFromTemplate(self.name, self._model.Template, "Root", doShow)
     end
 end
 
@@ -7887,19 +7716,6 @@ function View:isParentRoot()
     return self:getParent() == "Root"
 end
 
---- Creates a generic View from a model table. Use this for lightweight
---- template-based elements that need event handling but do not require
---- the frame/background chrome of a Window or the specialised API of
---- Label, Button, etc.
----@param model ViewModel?
----@return View
-function Components.View(model)
-    model = model or {}
-    local view = View:new(model) --[[@as View]]
-    Cache[view:getName()] = view
-    return view
-end
-
 -- ========================================================================== --
 -- Components - Window
 -- ========================================================================== --
@@ -7915,40 +7731,80 @@ function Window:new(model)
     instance._background = instance.name .. "Background"
     instance._startDrag = { x = -1, y = -1 }
 
+    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
+        if window:isParentRoot() then
+            window:destroy()
+        end
+    end
+
     instance._model.OnLayout = model.OnLayout or Layouts.StackAndFill
 
     return instance
 end
 
 function Window:onInitialize()
-    self:toggleBackground(false)
-    self:toggleFrame(false)
+    local isParentRoot = self:isParentRoot()
+    self:toggleBackground(isParentRoot)
+    self:toggleFrame(isParentRoot)
     View.onInitialize(self)
-    self:_initializeChildren()
-end
 
---- Wraps each child's event handlers to propagate to this parent, then
---- creates and initialises every child window. Called by both Window and
---- Scaffold during their onInitialize.
-function Window:_initializeChildren()
+    -- Re-check parent after View.onInitialize, which may reparent this window
+    isParentRoot = self:isParentRoot()
+
+    if isParentRoot then
+        Api.Window.RestorePosition(self.name)
+    end
+
+    -- Create resize grip for root windows unless explicitly disabled
+    if isParentRoot and self._model.Resizable ~= false then
+        local parentWindow = self
+        local grip = Components.Button {
+            Template = "MongbatResizeGrip",
+            Resizable = false,
+            OnLButtonDown = function()
+                startResize(parentWindow)
+            end,
+        }
+        grip:create()
+        grip:onInitialize()
+        grip:setParent(self.name)
+        grip:clearAnchors()
+        grip:addAnchor("bottomright", self.name, "bottomright", 0, 0)
+        grip:setLayer():overlay()
+        self._resizeGrip = grip
+    end
+
+    -- Register snappable root windows for edge snapping
+    if isParentRoot and self._model.Snappable ~= false then
+        SnappableWindows[self.name] = true
+        self._wasMoving = false
+        self._isSnapped = false
+        -- Ensure OnUpdate CoreEvent is registered even if the model has no OnUpdate
+        if self._model.OnUpdate == nil then
+            self._snapRegisteredOnUpdate = true
+            self:registerCoreEventHandler(
+                Constants.CoreEvents.OnUpdate,
+                "Mongbat.EventHandler.OnUpdate"
+            )
+        end
+    end
+
     Utils.Array.ForEach(
         self._children,
         function(item, index)
             -- Guard against double-wrapping if onInitialize is called more than once
             if item._parentWrapped then
-                item:create(nil, self:getName())
+                item:create()
                 item:onInitialize()
                 return
             end
             item._parentWrapped = true
 
-            --- For each child, override its onInitialize to clear anchors and layout.
-            --- Children are created directly at the parent window (see item:create
-            --- below), so no reparent step is needed. This preserves anchor
-            --- relationships inside XML templates (e.g. ListBox scrollbars).
+            --- For each child, override its onInitialize to set its parent and anchors
             local onChildInitialize = item._model.OnInitialize
 
             item._model.OnInitialize = function(child)
+                child:setParent(self:getName())
                 child:clearAnchors()
                 self._model.OnLayout(self, self._children, child, index)
                 if onChildInitialize ~= nil then
@@ -8017,13 +7873,25 @@ function Window:_initializeChildren()
                 end
             end
 
-            item:create(nil, self:getName())
+            item:create()
             item:onInitialize()
         end
     )
 end
 
+local DETACH_NUDGE = 5
+
 function Window:onLButtonDown(flags, x, y)
+    -- Ctrl + left-click: detach this window from its snap group
+    if self._isSnapped and flags == Constants.ButtonFlags.Control then
+        local ox, oy = WindowGetOffsetFromParent(self.name)
+        WindowClearAnchors(self.name)
+        WindowAddAnchor(self.name, "topleft", "Root", "topleft",
+            ox + DETACH_NUDGE, oy + DETACH_NUDGE)
+        self._isSnapped = false
+        return
+    end
+
     View.onLButtonDown(self, flags, x, y)
     self._startDrag = { x = x, y = y }
 end
@@ -8040,129 +7908,6 @@ function Window:onLButtonUp(flags, x, y)
 end
 
 function Window:onUpdate(timePassed)
-    View.onUpdate(self, timePassed)
-end
-
-function Window:onShutdown()
-    Utils.Array.ForEach(self._children, function(item)
-        item:destroy()
-    end)
-    View.onShutdown(self)
-end
-
----@return Window
-function Window:getFrame()
-    if self._frameWindow == nil then
-        self._frameWindow = Window:new { Name = self._frame }
-    end
-    return self._frameWindow
-end
-
----@return Window
-function Window:getBackground()
-    if self._backgroundWindow == nil then
-        self._backgroundWindow = Window:new { Name = self._background }
-    end
-    return self._backgroundWindow
-end
-
-function Window:toggleFrame(doShow)
-    if Api.Window.DoesExist(self._frame) then
-        Api.Window.SetShowing(self._frame, doShow)
-    end
-end
-
-function Window:toggleBackground(doShow)
-    if Api.Window.DoesExist(self._background) then
-        Api.Window.SetShowing(self._background, doShow)
-    end
-end
-
-function Window:attachToObject()
-    Api.Window.AttachToWorldObject(self:getId(), self:getName())
-    return self
-end
-
-function Window:setChildren(children)
-    self._children = children
-end
-
--- ========================================================================== --
--- Components - Scaffold (top-level root window with resize, snap, close)
--- ========================================================================== --
-
-function Scaffold:new(model)
-    model = model or {}
-    local instance = Window.new(self, model) --[[@as Scaffold]]
-
-    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
-        window:destroy()
-    end
-
-    return instance
-end
-
-local DETACH_NUDGE = 5
-
-function Scaffold:onInitialize()
-    self:toggleBackground(true)
-    self:toggleFrame(true)
-    View.onInitialize(self)
-
-    Api.Window.RestorePosition(self.name)
-
-    -- Create resize grip unless explicitly disabled
-    if self._model.Resizable ~= false then
-        local parentWindow = self
-        local grip = Components.Button {
-            Template = "MongbatResizeGrip",
-            Resizable = false,
-            OnLButtonDown = function()
-                startResize(parentWindow)
-            end,
-        }
-        grip:create()
-        grip:onInitialize()
-        grip:setParent(self.name)
-        grip:clearAnchors()
-        grip:addAnchor("bottomright", self.name, "bottomright", 0, 0)
-        grip:setLayer():overlay()
-        self._resizeGrip = grip
-    end
-
-    -- Register snappable windows for edge snapping
-    if self._model.Snappable ~= false then
-        SnappableWindows[self.name] = true
-        self._wasMoving = false
-        self._isSnapped = false
-        -- Ensure OnUpdate CoreEvent is registered even if the model has no OnUpdate
-        if self._model.OnUpdate == nil then
-            self._snapRegisteredOnUpdate = true
-            self:registerCoreEventHandler(
-                Constants.CoreEvents.OnUpdate,
-                "Mongbat.EventHandler.OnUpdate"
-            )
-        end
-    end
-
-    self:_initializeChildren()
-end
-
-function Scaffold:onLButtonDown(flags, x, y)
-    -- Ctrl + left-click: detach this window from its snap group
-    if self._isSnapped and flags == Constants.ButtonFlags.Control then
-        local ox, oy = WindowGetOffsetFromParent(self.name)
-        WindowClearAnchors(self.name)
-        WindowAddAnchor(self.name, "topleft", "Root", "topleft",
-            ox + DETACH_NUDGE, oy + DETACH_NUDGE)
-        self._isSnapped = false
-        return
-    end
-
-    Window.onLButtonDown(self, flags, x, y)
-end
-
-function Scaffold:onUpdate(timePassed)
     -- Snap + group drag logic for snappable windows
     if self._wasMoving ~= nil then
         local isMoving = self:isMoving()
@@ -8234,11 +7979,13 @@ function Scaffold:onUpdate(timePassed)
         self._wasMoving = isMoving
     end
 
-    -- Chain to model OnUpdate via View
-    View.onUpdate(self, timePassed)
+    -- Chain to model OnUpdate if present
+    if self._model.OnUpdate ~= nil then
+        self._model.OnUpdate(self, timePassed)
+    end
 end
 
-function Scaffold:onShutdown()
+function Window:onShutdown()
     -- Cancel active resize if this window is being resized
     if resizingWindow == self then
         stopResize()
@@ -8258,9 +8005,51 @@ function Scaffold:onShutdown()
     end
     self._wasMoving = nil
 
-    Api.Window.SavePosition(self.name)
+    if self:isParentRoot() then
+        Api.Window.SavePosition(self.name)
+    end
 
-    Window.onShutdown(self)
+    Utils.Array.ForEach(self._children, function(item)
+        item:destroy()
+    end)
+    View.onShutdown(self)
+end
+
+---@return Window
+function Window:getFrame()
+    if self._frameWindow == nil then
+        self._frameWindow = Window:new { Name = self._frame }
+    end
+    return self._frameWindow
+end
+
+---@return Window
+function Window:getBackground()
+    if self._backgroundWindow == nil then
+        self._backgroundWindow = Window:new { Name = self._background }
+    end
+    return self._backgroundWindow
+end
+
+function Window:toggleFrame(doShow)
+    if Api.Window.DoesExist(self._frame) then
+        Api.Window.SetShowing(self._frame, doShow)
+    end
+end
+
+function Window:toggleBackground(doShow)
+    if Api.Window.DoesExist(self._background) then
+        Api.Window.SetShowing(self._background, doShow)
+    end
+end
+
+function Window:attachToObject()
+    Api.Window.AttachToWorldObject(self:getId(), self:getName())
+    return self
+end
+
+function Window:setChildren(children)
+    self._children = children
 end
 
 ---@param model WindowModel?
@@ -8271,24 +8060,28 @@ function Components.Window(model)
     return window
 end
 
----@param model ScaffoldModel?
----@return Scaffold
-function Components.Scaffold(model)
-    local scaffold = Scaffold:new(model)
-    Cache[scaffold:getName()] = scaffold
-    return scaffold
+--- Creates a generic View from a model table. Use this for lightweight
+--- template-based elements that need event handling but do not require
+--- the frame/background chrome of a Window or the specialised API of
+--- Label, Button, etc.
+---@param model ViewModel?
+---@return View
+function Components.View(model)
+    model = model or {}
+    local view = View:new(model) --[[@as View]]
+    Cache[view:getName()] = view
+    return view
 end
 
 setmetatable(View, { __index = Component })
 setmetatable(Window, { __index = View })
-setmetatable(Scaffold, { __index = Window })
 setmetatable(Button, { __index = Window })
 setmetatable(EditTextBox, { __index = View })
 setmetatable(Label, { __index = View })
 setmetatable(LogDisplay, { __index = View })
-setmetatable(ScrollWindow, { __index = Window })
+setmetatable(ScrollWindow, { __index = View })
 setmetatable(StatusBar, { __index = View })
-setmetatable(Gump, { __index = Scaffold })
+setmetatable(Gump, { __index = Window })
 setmetatable(CircleImage, { __index = View })
 setmetatable(DynamicImage, { __index = View })
 setmetatable(DefaultComponent, { __index = Component })
@@ -8426,7 +8219,7 @@ Mongbat.ModManager = {}
 Mongbat.ModManager.Mods = {}
 
 function Mongbat.ModManager.Window()
-    return Components.Scaffold {
+    return Components.Window {
         Name = "MongbatModManagerWindow",
         OnInitialize = function(self)
             self:setDimensions(400, 300)
@@ -8491,7 +8284,8 @@ local mod = Mod:new {
         local register = {
             Constants.DataEvents.OnUpdatePlayerStatus,
             Constants.DataEvents.OnUpdateRadar,
-            Constants.DataEvents.OnUpdatePlayerLocation
+            Constants.DataEvents.OnUpdatePlayerLocation,
+            Constants.DataEvents.OnUpdateShopData
         }
 
         Utils.Array.ForEach(

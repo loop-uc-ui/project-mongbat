@@ -94,9 +94,6 @@
       <ScrollWindow name="MongbatScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" lineheight="55" autoHideScrollBar="true">
         <Windows>
           <Window name="$parentChild">
-            <Size>
-              <AbsPoint x="0" y="0" />
-            </Size>
             <Windows>
               <Window name="$parentCont">
                 <Size>
@@ -105,7 +102,12 @@
               </Window>
             </Windows>
           </Window>
-          <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll" />
+          <VerticalScrollbar name="$parentScrollbar" inherits="MongbatVertScroll">
+            <Anchors>
+              <Anchor point="topright" relativePoint="topright" />
+              <Anchor point="bottomright" relativePoint="bottomright" />
+            </Anchors>
+          </VerticalScrollbar>
         </Windows>
       </ScrollWindow>
 
@@ -197,20 +199,6 @@
 
       <Button name="MongbatCheckBox" inherits="UO_Default_Check_Button">
       </Button>
-
-      <VerticalScrollbar name="MongbatListVertScroll" up="StandardVertScrollUpBtn" down="StandardVertScrollDownBtn" thumb="StandardVertScrollThumb" gutter="StandardVertScrollGutter" >
-        <Size>
-            <AbsPoint x="0" y="0" />
-          </Size>
-          <ThumbOffset x="1" y="1" />
-      </VerticalScrollbar>
-
-      <ListBox name="MongbatListBox"
-            scrollbar="MongbatListVertScroll">
-          <Size>
-              <AbsPoint x="310" y="300"/>
-          </Size>
-      </ListBox>
 
       <HorizontalScrollWindow name="MongbatHorizontalScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" linewidth="50" autoHideScrollBar="true">
         <Windows>
