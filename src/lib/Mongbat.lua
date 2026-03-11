@@ -982,6 +982,8 @@ Api.ListBox = {}
 --- globalVarName is the string name of a global Lua variable holding the data.
 --- This wrapper stores the table in _G under a deterministic key and passes
 --- that key string to the engine.
+--- This is an engine limitation: ListBoxSetDataTable does not accept a table
+--- reference directly — it requires the name of a global variable as a string.
 ---@param name string The name of the list box.
 ---@param data table The data table to set.
 function Api.ListBox.SetDataTable(name, data)
@@ -1909,6 +1911,7 @@ end
 ---@return boolean Whether the window was destroyed.
 function Api.Window.Destroy(windowName)
     if Api.Window.DoesExist(windowName) then
+        -- Clear ListBox DataTable global if this window had one (see Api.ListBox.SetDataTable).
         _G[windowName .. "_DataTable"] = nil
         DestroyWindow(windowName)
         return true

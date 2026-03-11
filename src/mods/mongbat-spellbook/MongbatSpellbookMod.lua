@@ -298,19 +298,10 @@ local function OpenBook(bookId)
                 or  { r = 90,  g = 80,  b = 60,  a = 255 })
         end)
 
-        -- Show tithing points for Chivalry.
+        -- Visibility for the tithing label is driven here; text is driven by
+        -- the OnUpdatePlayerStatus event handler on the label itself.
         if tithLabel then
-            if firstSpellNum == 201 then
-                local status     = Data.PlayerStatus()
-                local tithPoints = status:getTithingPoints()
-                Api.Label.SetText(
-                    tithLabel:getName(),
-                    Api.String.GetStringFromTid(1062099) .. L" " ..
-                    towstring(tithPoints))
-                tithLabel:setShowing(true)
-            else
-                tithLabel:setShowing(false)
-            end
+            tithLabel:setShowing(firstSpellNum == 201)
         end
 
         Utils.Array.ForEach(slotViews, function(slot, i)
@@ -414,15 +405,13 @@ local function OpenBook(bookId)
             self:setDimensions(200, HEADER_H)
         end,
         OnUpdatePlayerStatus = function(self, status)
-            -- Refresh tithing points for Chivalry books only.
-            if bookState.firstSpellNum == 201 then
-                self:setText(
-                    Api.String.GetStringFromTid(1062099) .. L" " ..
-                    towstring(status:getTithingPoints()))
-                self:setShowing(true)
-            else
-                self:setShowing(false)
-            end
+            -- Only update text for Chivalry books.
+            -- Visibility is managed by ShowTab; bookState.firstSpellNum is
+            -- stable once set and the handler is a no-op for other schools.
+            if bookState.firstSpellNum ~= 201 then return end
+            self:setText(
+                Api.String.GetStringFromTid(1062099) .. L" " ..
+                towstring(status:getTithingPoints()))
         end,
     }
     Utils.Array.Add(children, tithLabel)
