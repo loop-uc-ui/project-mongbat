@@ -180,9 +180,20 @@ local function OnInitialize()
         local data = Data.ContainerWindow(sellContainerId)
         if not data then return end
 
+        -- Unregister per-item data for old items before rebuilding
+        Utils.Array.ForEach(items, function(item)
+            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
+            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
+        end)
+
         -- Rebuild items list from container
         local newItems = {}
         Utils.Array.ForEach(data.ContainedItems, function(slot)
+            -- Register per-item data so the engine populates ObjectInfo
+            -- and ItemProperties for each contained item.
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), slot.objectId)
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), slot.objectId)
+
             local objInfo  = Data.ObjectInfo(slot.objectId)
             local price    = objInfo:getShopValue()
             local qty      = objInfo:getShopQuantity()
@@ -618,6 +629,23 @@ local function OnInitialize()
                 end
             end,
             OnShutdown = function(_)
+                -- Unregister per-item data for buy-mode items
+                if not isSelling then
+                    Utils.Array.ForEach(items, function(item)
+                        Api.Window.UnregisterData(
+                            Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
+                        Api.Window.UnregisterData(
+                            Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
+                    end)
+                    -- Unregister session-level data
+                    Api.Window.UnregisterData(
+                        Constants.DataEvents.OnUpdateObjectInfo.getType(), merchantId)
+                    if sellContainerId ~= 0 then
+                        Api.Window.UnregisterData(
+                            Constants.DataEvents.OnUpdateContainerWindow.getType(),
+                            sellContainerId)
+                    end
+                end
                 -- Reset per-session state
                 items           = {}
                 filterPatterns  = {}
@@ -672,9 +700,15 @@ local function OnInitialize()
 
         local isSell = Data.ShopData():isSelling()
 
-        -- For buy mode: read sellContainerId from ObjectInfo
+        -- For buy mode: read sellContainerId from ObjectInfo and register
+        -- per-entity data so the engine populates ContainerWindow and
+        -- fires update events.  These data types are NOT broadcast-style;
+        -- the engine requires explicit RegisterWindowData per entity.
         if not isSell then
+            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), mId)
             sellContainerId = Data.ObjectInfo(mId):getSellContainerId()
+            Api.Window.RegisterData(
+                Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
         end
 
         createShopWindow(mId, isSell)
