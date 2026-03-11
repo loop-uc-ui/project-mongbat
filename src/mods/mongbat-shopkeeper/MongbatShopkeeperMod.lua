@@ -448,34 +448,33 @@ local function OnInitialize()
             end
         }
         if not isSelling then
-            availModel.OnUpdateContainerWindow = function(_, instanceId)
+            availModel.OnUpdateItem = function(_, instanceId, itemData)
+                -- Container update: reload all buy items when the sell container changes
                 if instanceId == sellContainerId then
                     loadBuyItems()
                     refreshAll()
+                    return
                 end
-            end
 
-            availModel.OnUpdateObjectInfo = function(_, instanceId, objInfo)
+                -- Per-item update: refresh individual item data
                 local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
                 if found then
-                    local oldCart  = found.cartQty
-                    local newTotal = objInfo:getShopQuantity()
-                    if oldCart > newTotal then oldCart = newTotal end
-                    found.totalQty = newTotal
-                    found.availQty = newTotal - oldCart
-                    found.cartQty  = oldCart
-                    found.price    = objInfo:getShopValue()
-                    found.objType  = objInfo:getObjectType()
-                end
-                refreshAll()
-            end
+                    -- ObjectInfo fields
+                    local newTotal = itemData:getShopQuantity()
+                    if newTotal > 0 then
+                        local oldCart = found.cartQty
+                        if oldCart > newTotal then oldCart = newTotal end
+                        found.totalQty = newTotal
+                        found.availQty = newTotal - oldCart
+                        found.cartQty  = oldCart
+                        found.price    = itemData:getShopValue()
+                        found.objType  = itemData:getObjectType()
+                    end
 
-            availModel.OnUpdateItemProperties = function(_, instanceId, props)
-                if props and props.PropertiesList and props.PropertiesList[1] then
-                    local name  = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "") ---@type wstring
-                    local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
-                    if found then
-                        found.name = name
+                    -- ItemProperties fields
+                    local propName = itemData:getPropertyName()
+                    if propName then
+                        found.name = Utils.String.Replace(propName, "^%d+ ", "") ---@type wstring
                     end
                 end
                 refreshAll()
@@ -492,14 +491,14 @@ local function OnInitialize()
         }
 
         -- Total gold label (shows cost/gold)
-        -- OnUpdatePlayerStatus belongs here: this child displays the gold total.
+        -- OnUpdateMobile belongs here: this child displays the gold total.
         totalLabel = Components.Label {
             OnInitialize = function(self)
                 self:setDimensions(200, 22)
             end,
-            OnUpdatePlayerStatus = function(self, ps)
+            OnUpdateMobile = function(self, mobile)
                 local total = computeTotal()
-                local gold  = ps:getGold()
+                local gold  = mobile:getGold()
                 self:setText(Utils.String.Concat(total, "/", gold))
             end
         }

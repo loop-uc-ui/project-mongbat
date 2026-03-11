@@ -15,23 +15,22 @@ local function OnInitialize()
 
     local function PlayerName()
         return Components.Label {
-            OnUpdatePlayerStatus = function(self, playerStatus)
-                self:setId(playerStatus:getId())
-            end,
-            OnUpdateMobileStatus = function(self, mobileStatus)
-                self:setText(mobileStatus:getName())
+            OnUpdateMobile = function(self, mobile)
+                self:setId(mobile:getPlayerId())
+                local name = mobile:getName()
+                if name then
+                    self:setText(name)
+                end
             end
         }
     end
 
-    ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
-    ---@param onUpdateHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
+    ---@param onUpdateMobile fun(self: StatusBar, mobile: MobileDataComposite)
     ---@param label LabelModel
-    local function StatusBar(onUpdatePlayerStatus, onUpdateHealthBarColor, label)
+    local function StatusBar(onUpdateMobile, label)
         return Components.StatusBar(
             {
-                OnUpdatePlayerStatus = onUpdatePlayerStatus,
-                OnUpdateHealthBarColor = onUpdateHealthBarColor
+                OnUpdateMobile = onUpdateMobile
             },
             label
         )
@@ -39,26 +38,27 @@ local function OnInitialize()
 
     local function HealthStatusBar()
         return StatusBar(
-            function(self, playerStatus)
-                self:setId(playerStatus:getId())
-                self:setCurrentValue(playerStatus:getCurrentHealth())
-                self:setMaxValue(playerStatus:getMaxHealth())
+            function(self, mobile)
+                self:setId(mobile:getPlayerId())
+                self:setCurrentValue(mobile:getCurrentHealth())
+                self:setMaxValue(mobile:getMaxHealth())
+                local hbColor = mobile:getVisualStateColor()
+                if hbColor then
+                    self:setColor(hbColor)
+                    self._colorSet = true
+                end
                 if not self._colorSet then
                     self:setColor(Constants.Colors.HealhBar[1])
                     self._colorSet = true
                 end
             end,
-            function(self, healthBarColor)
-                self:setColor(healthBarColor:getVisualStateColor())
-                self._colorSet = true
-            end,
             {
-                OnUpdatePlayerStatus = function(self, playerStatus)
+                OnUpdateMobile = function(self, mobile)
                     self:setText(
                         string.format(
                             "%d / %d",
-                            playerStatus:getCurrentHealth(),
-                            playerStatus:getMaxHealth()
+                            mobile:getCurrentHealth(),
+                            mobile:getMaxHealth()
                         )
                     )
                 end
@@ -68,19 +68,18 @@ local function OnInitialize()
 
     local function ManaStatusBar()
         return StatusBar(
-            function(self, playerStatus)
+            function(self, mobile)
                 self:setColor(Constants.Colors.Blue)
-                self:setCurrentValue(playerStatus:getCurrentMana())
-                self:setMaxValue(playerStatus:getMaxMana())
+                self:setCurrentValue(mobile:getCurrentMana())
+                self:setMaxValue(mobile:getMaxMana())
             end,
-            nil,
             {
-                OnUpdatePlayerStatus = function(self, playerStatus)
+                OnUpdateMobile = function(self, mobile)
                     self:setText(
                         string.format(
                             "%d / %d",
-                            playerStatus:getCurrentMana(),
-                            playerStatus:getMaxMana()
+                            mobile:getCurrentMana(),
+                            mobile:getMaxMana()
                         )
                     )
                 end
@@ -90,19 +89,18 @@ local function OnInitialize()
 
     local function StaminaStatusBar()
         return StatusBar(
-            function(self, playerStatus)
+            function(self, mobile)
                 self:setColor(Constants.Colors.YellowDark)
-                self:setCurrentValue(playerStatus:getCurrentStamina())
-                self:setMaxValue(playerStatus:getMaxStamina())
+                self:setCurrentValue(mobile:getCurrentStamina())
+                self:setMaxValue(mobile:getMaxStamina())
             end,
-            nil,
             {
-                OnUpdatePlayerStatus = function(self, playerStatus)
+                OnUpdateMobile = function(self, mobile)
                     self:setText(
                         string.format(
                             "%d / %d",
-                            playerStatus:getCurrentStamina(),
-                            playerStatus:getMaxStamina()
+                            mobile:getCurrentStamina(),
+                            mobile:getMaxStamina()
                         )
                     )
                 end
@@ -123,10 +121,10 @@ local function OnInitialize()
                 }
             end,
             OnRButtonUp = function() end,
-            OnUpdatePlayerStatus = function(self, playerStatus)
+            OnUpdateMobile = function(self, mobile)
                 local frame = self:getFrame()
-                self:setId(playerStatus:getId())
-                if playerStatus:isInWarMode() then
+                self:setId(mobile:getPlayerId())
+                if mobile:isInWarMode() then
                     frame:setColor(Constants.Colors.Notoriety[6])
                 else
                     frame:setColor(Constants.Colors.Notoriety[1])
@@ -164,4 +162,3 @@ Mongbat.Mod {
     OnInitialize = OnInitialize,
     OnShutdown = OnShutdown
 }
-
