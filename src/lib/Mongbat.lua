@@ -3169,6 +3169,7 @@ Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemPropertie
 ---@field allSubEvents DataEvent[] All sub-DataEvents to register handlers for
 ---@field entitySubEvents DataEvent[] Per-entity sub-DataEvents for setId registration
 ---@field stateKey string Key in View._state that holds the composite data wrapper
+---@field createState fun(id: number): table Factory that creates the composite wrapper
 
 --- Mobile sub-events: per-entity types that need RegisterData in setId.
 --- PlayerStatus is global (registered by framework at startup, not here).
@@ -3207,11 +3208,13 @@ Constants.CompositeEvents = {
         allSubEvents = MOBILE_ALL_SUB_EVENTS,
         entitySubEvents = MOBILE_ENTITY_SUB_EVENTS,
         stateKey = "mobile",
+        createState = function(id) return Data.Mobile(id) end,
     },
     OnUpdateItem = {
         allSubEvents = ITEM_ALL_SUB_EVENTS,
         entitySubEvents = ITEM_ENTITY_SUB_EVENTS,
         stateKey = "item",
+        createState = function(id) return Data.Item(id) end,
     },
 }
 
@@ -7439,27 +7442,24 @@ function View:new(model)
     return instance
 end
 
---- Creates or updates the composite state object for the given state key.
---- For "mobile", creates a MobileDataComposite; for "item", creates an ItemDataComposite.
+--- Creates or updates the composite state object for the given state key
+--- using the factory defined in the composite event definition.
 ---@param stateKey string The key in _state (e.g., "mobile" or "item")
 ---@param id number The entity ID
-function View:_reduceState(stateKey, id)
-    if stateKey == "mobile" then
-        self._state.mobile = Data.Mobile(id)
-    elseif stateKey == "item" then
-        self._state.item = Data.Item(id)
-    end
+---@param createState fun(id: number): table Factory that creates the composite wrapper
+function View:_reduceState(stateKey, id, createState)
+    self._state[stateKey] = createState(id)
 end
 
 --- Calls composite handlers with the current _state for initial rendering.
 --- Wrapped in pcall so missing data doesn't break initialization.
 function View:_notifyComposites()
     pcall(function()
-        if self._model.OnUpdateMobile and self._state.mobile then
-            self._model.OnUpdateMobile(self, self._state.mobile)
-        end
-        if self._model.OnUpdateItem and self._state.item then
-            self._model.OnUpdateItem(self, self._state.item)
+        for k, _ in pairs(self._model) do
+            local compositeEvent = Constants.CompositeEvents[k]
+            if compositeEvent and self._state[compositeEvent.stateKey] then
+                self._model[k](self, self._state[compositeEvent.stateKey])
+            end
         end
     end)
 end
@@ -7495,7 +7495,7 @@ function View:onInitialize()
                 )
             end)
             -- Initialize state for this composite
-            self:_reduceState(compositeEvent.stateKey, id)
+            self:_reduceState(compositeEvent.stateKey, id, compositeEvent.createState)
         end
     end
 
@@ -7862,7 +7862,7 @@ function View:setId(id)
                     Api.Window.RegisterData(subEvent.getType(), id)
                 end)
                 -- Update state with new ID
-                self:_reduceState(compositeEvent.stateKey, id)
+                self:_reduceState(compositeEvent.stateKey, id, compositeEvent.createState)
             end
         end
 
