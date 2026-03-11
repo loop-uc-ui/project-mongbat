@@ -6437,12 +6437,9 @@ function EventHandler.OnSelChanged()
 end
 
 function EventHandler.OnPopulateRow(arg)
-    local window = Active.window()
-    Debug.Print(arg)
-    Debug.Print(window)
-    -- withActiveView("OnPopulateRow", function(view)
-    --     view:onPopulateRow()
-    -- end)
+    withActiveView("OnPopulateRow", function(view)
+        view:onPopulateRow()
+    end)
 end
 
 
@@ -7116,7 +7113,7 @@ function ListBox:getClickedDataIndex()
     return self:getDataIndex(rowIndex)
 end
 
---- Alias for getClickedDataIndex() for use in OnMouseOver handlers.f
+--- Alias for getClickedDataIndex() for use in OnMouseOver handlers.
 --- Both rely on SystemData.MouseOverWindow to identify the row under the cursor,
 --- but this name better communicates the hover-without-click context.
 ---@return number? dataIndex The data-table index of the hovered row, or nil.

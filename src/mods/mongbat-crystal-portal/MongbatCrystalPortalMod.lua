@@ -156,8 +156,9 @@ local BTN_H    = 28
 local MARGIN   = 12
 local GAP      = 8
 
--- Original Toggle saved for shutdown restoration.
--- Must survive across OnInitialize and OnShutdown, so file-scope state is required.
+-- originalCrystalPortalToggle must survive across OnInitialize and OnShutdown:
+-- OnInitialize overrides Toggle on the proxy; OnShutdown must restore it so the
+-- default CrystalPortal works correctly if this mod is later disabled/re-enabled.
 local originalCrystalPortalToggle = nil
 
 local function OnInitialize()
