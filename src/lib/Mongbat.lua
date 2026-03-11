@@ -752,6 +752,26 @@ function Api.Event.UnregisterEventHandler(event, callback)
 end
 
 -- ========================================================================== --
+-- Api - Actions
+-- ========================================================================== --
+
+Api.Actions = {}
+
+---
+--- Gets the current ToggleSkillsWindow action function.
+---@return function
+function Api.Actions.GetToggleSkillsWindow()
+    return Actions.ToggleSkillsWindow
+end
+
+---
+--- Overrides the ToggleSkillsWindow action with a custom function.
+---@param fn function The replacement function to call when the skills toggle fires.
+function Api.Actions.SetToggleSkillsWindow(fn)
+    Actions.ToggleSkillsWindow = fn
+end
+
+-- ========================================================================== --
 -- Api - Gump
 -- ========================================================================== --
 
@@ -1699,6 +1719,41 @@ end
 --- Toggles war mode.
 function Api.UserAction.ToggleWarMode()
     UserActionToggleWarMode()
+end
+
+-- ========================================================================== --
+-- Api - Skill
+-- ========================================================================== --
+
+Api.Skill = {}
+
+---
+--- Loads the skills CSV data from the game data directory.
+function Api.Skill.LoadCSV()
+    UOBuildTableFromCSV("data/gamedata/skilldata.csv", "SkillsCSV")
+end
+
+---
+--- Unloads the skills CSV data table from memory.
+function Api.Skill.UnloadCSV()
+    UOUnloadCSVTable("SkillsCSV")
+end
+
+---
+--- Uses a skill by server ID.
+---@param serverId number The server skill ID (0-based).
+function Api.Skill.UseSkill(serverId)
+    UserActionUseSkill(serverId)
+end
+
+---
+--- Sets the lock state for a skill and notifies the server.
+---@param serverId number The server skill ID.
+---@param lockState number The lock state (0=increasing, 1=decreasing, 2=locked).
+function Api.Skill.SetLockState(serverId, lockState)
+    ReturnWindowData.SkillSystem.SkillId = serverId
+    ReturnWindowData.SkillSystem.SkillButtonState = lockState
+    BroadcastEvent(SystemData.Events.SKILLS_ACTION_SKILL_STATE_CHANGE)
 end
 
 -- ========================================================================== --
@@ -3024,6 +3079,7 @@ Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "
 Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
 Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
 Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateSkillDynamicData = DataEvent(WindowData.SkillDynamicData, "OnUpdateSkillDynamicData")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -3867,8 +3923,76 @@ function Data.PaperdollTexture(id)
 end
 
 -- ========================================================================== --
--- Data - Radar
+-- Data - Skill Dynamic Data
 -- ========================================================================== --
+
+---@class SkillDynamicDataWrapper
+---@field _serverId number
+local SkillDynamicDataWrapper = {}
+SkillDynamicDataWrapper.__index = SkillDynamicDataWrapper
+
+function SkillDynamicDataWrapper:new(serverId)
+    return setmetatable({ _serverId = serverId }, self)
+end
+
+---@return table|nil
+function SkillDynamicDataWrapper:getData()
+    if WindowData.SkillDynamicData then
+        return WindowData.SkillDynamicData[self._serverId]
+    end
+    return nil
+end
+
+---@return number The server ID of this skill.
+function SkillDynamicDataWrapper:getServerId()
+    return self._serverId
+end
+
+---@return number The real skill value as a raw integer × 10 (e.g. 752 = 75.2%).
+function SkillDynamicDataWrapper:getValue()
+    local data = self:getData()
+    if data then return data.RealSkillValue or 0 end
+    return 0
+end
+
+---@return number The modified (temp) skill value as a raw integer × 10.
+function SkillDynamicDataWrapper:getModifiedValue()
+    local data = self:getData()
+    if data then return data.TempSkillValue or 0 end
+    return 0
+end
+
+---@return number The per-skill cap as a raw integer × 10.
+function SkillDynamicDataWrapper:getCap()
+    local data = self:getData()
+    if data then return data.SkillCap or 0 end
+    return 0
+end
+
+---@return number The lock state (0=increasing, 1=decreasing, 2=locked).
+function SkillDynamicDataWrapper:getLockState()
+    local data = self:getData()
+    if data then return data.SkillState or 0 end
+    return 0
+end
+
+---@param serverId number The server skill ID.
+---@return SkillDynamicDataWrapper
+function Data.SkillDynamicData(serverId)
+    return SkillDynamicDataWrapper:new(serverId)
+end
+
+-- ========================================================================== --
+-- Data - Skills CSV
+-- ========================================================================== --
+
+---
+--- Returns the raw WindowData.SkillsCSV table, or nil if not yet loaded.
+--- Call Api.Skill.LoadCSV() first to populate this table.
+---@return table|nil
+function Data.SkillsCSV()
+    return WindowData.SkillsCSV
+end
 
 ---@class WindowData.Radar
 ---@field TexCoordX integer
@@ -4240,6 +4364,15 @@ DefaultWarShieldComponent.__index = DefaultWarShieldComponent
 ---@class DefaultPaperdollWindowComponent : DefaultComponent
 local DefaultPaperdollWindowComponent = {}
 DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
+
+---@class DefaultSkillsWindow
+---@field Initialize fun()
+---@field Shutdown fun()
+---@field UpdateSkill fun()
+
+---@class DefaultSkillsWindowComponent : DefaultComponent
+local DefaultSkillsWindowComponent = {}
+DefaultSkillsWindowComponent.__index = DefaultSkillsWindowComponent
 
 ---@class DefaultObjectHandle
 ---@field CreateObjectHandles fun()
@@ -5106,6 +5239,29 @@ function DefaultPaperdollWindowComponent:asComponent()
 end
 
 -- ========================================================================== --
+-- Components - Default - Skills Window
+-- ========================================================================== --
+
+---@return DefaultSkillsWindowComponent
+function DefaultSkillsWindowComponent:new()
+    local instance = DefaultComponent.new(self, "SkillsWindow") --[[@as DefaultSkillsWindowComponent]]
+    instance._proxy = instance:_createProxy(SkillsWindow)
+    instance._globalKey = "SkillsWindow"
+    _G.SkillsWindow = instance._proxy
+    return instance
+end
+
+---@return DefaultSkillsWindow
+function DefaultSkillsWindowComponent:getDefault()
+    return self._proxy or SkillsWindow --[[@as DefaultSkillsWindow]]
+end
+
+---@return Window
+function DefaultSkillsWindowComponent:asComponent()
+    return Window:new { Name = self.name }
+end
+
+-- ========================================================================== --
 -- Components - Dynamic Image
 -- ========================================================================== --
 
@@ -5707,6 +5863,12 @@ end
 function EventHandler.OnUpdatePlayerLocation()
     withActiveView("OnUpdatePlayerLocation", function(window)
         window:onUpdatePlayerLocation(WindowData.PlayerLocation)
+    end)
+end
+
+function EventHandler.OnUpdateSkillDynamicData()
+    withActiveView("OnUpdateSkillDynamicData", function(window)
+        window:onUpdateSkillDynamicData(WindowData.UpdateInstanceId)
     end)
 end
 
@@ -7020,6 +7182,15 @@ function View:onUpdatePlayerLocation(data)
     return false
 end
 
+---@param serverId number The server skill ID that was updated.
+function View:onUpdateSkillDynamicData(serverId)
+    if self._model.OnUpdateSkillDynamicData ~= nil then
+        self._model.OnUpdateSkillDynamicData(self, Data.SkillDynamicData(serverId))
+        return true
+    end
+    return false
+end
+
 function View:onTextChanged(text)
     if self._model.OnTextChanged ~= nil then
         self._model.OnTextChanged(self, text)
@@ -7078,7 +7249,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateSkillDynamicData
 
                 if not skip then
                     Api.Window.UnregisterData(dataEvent.getType(), oldId)
@@ -7093,7 +7265,8 @@ function View:setId(id)
             if dataEvent ~= nil then
                 local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
                     dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
+                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
+                    dataEvent == Constants.DataEvents.OnUpdateSkillDynamicData
 
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
@@ -7699,6 +7872,7 @@ setmetatable(DefaultMainMenuWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultStatusWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
 setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
+setmetatable(DefaultSkillsWindowComponent, { __index = DefaultComponent })
 setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
 setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
 setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
@@ -7731,6 +7905,7 @@ Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
 Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
 Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
 Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults.SkillsWindow = DefaultSkillsWindowComponent:new()
 
 -- ========================================================================== --
 -- Mod
