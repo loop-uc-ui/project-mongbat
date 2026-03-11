@@ -241,9 +241,17 @@ local function OnInitialize()
         openContainers[containerId] = { windowName = winName, maxSlots = maxSlots }
 
         -- Do an initial slot fill in case container data is already available.
+        -- Also register ObjectInfo for each known item so HandleUpdateObjectEvent
+        -- fires once icon data arrives, filling any initially-empty slots.
         local containerData = Data.ContainerWindow(containerId)
         if containerData:getNumItems() > 0 then
             updateAllSlots(winName, maxSlots, containerData)
+            Utils.Array.ForEach(containerData:getItems(), function(item)
+                Api.Window.RegisterData(
+                    Constants.DataEvents.OnUpdateObjectInfo.getType(),
+                    item.objectId
+                )
+            end)
         end
     end
 
