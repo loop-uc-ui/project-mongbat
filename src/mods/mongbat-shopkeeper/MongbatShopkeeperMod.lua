@@ -491,14 +491,14 @@ local function OnInitialize()
         }
 
         -- Total gold label (shows cost/gold)
-        -- OnUpdateMobile belongs here: this child displays the gold total.
+        -- OnUpdatePlayer belongs here: this child displays the gold total.
         totalLabel = Components.Label {
             OnInitialize = function(self)
                 self:setDimensions(200, 22)
             end,
-            OnUpdateMobile = function(self, mobile)
+            OnUpdatePlayer = function(self, player)
                 local total = computeTotal()
-                local gold  = mobile:getGold()
+                local gold  = player:getGold()
                 self:setText(Utils.String.Concat(total, "/", gold))
             end
         }

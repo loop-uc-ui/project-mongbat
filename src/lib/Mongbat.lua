@@ -3170,7 +3170,6 @@ Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemPropertie
 ---@field entitySubEvents DataEvent[] Per-entity sub-DataEvents for setId registration
 
 --- Mobile sub-events: per-entity types that need RegisterData in setId.
---- PlayerStatus is global (registered by framework at startup, not here).
 local MOBILE_ENTITY_SUB_EVENTS = {
     Constants.DataEvents.OnUpdateMobileName,
     Constants.DataEvents.OnUpdateMobileStatus,
@@ -3178,14 +3177,26 @@ local MOBILE_ENTITY_SUB_EVENTS = {
     Constants.DataEvents.OnUpdatePaperdoll,
 }
 
---- All mobile sub-events including PlayerStatus (for handler registration).
+--- All mobile sub-events (handler registration only — no PlayerStatus).
 local MOBILE_ALL_SUB_EVENTS = {
+    Constants.DataEvents.OnUpdateMobileName,
+    Constants.DataEvents.OnUpdateMobileStatus,
+    Constants.DataEvents.OnUpdateHealthBarColor,
+    Constants.DataEvents.OnUpdatePaperdoll,
+}
+
+--- Player sub-events: PlayerStatus (broadcast) + all mobile sub-events.
+--- PlayerStatus is global (registered by framework at startup, not per-entity).
+local PLAYER_ALL_SUB_EVENTS = {
     Constants.DataEvents.OnUpdatePlayerStatus,
     Constants.DataEvents.OnUpdateMobileName,
     Constants.DataEvents.OnUpdateMobileStatus,
     Constants.DataEvents.OnUpdateHealthBarColor,
     Constants.DataEvents.OnUpdatePaperdoll,
 }
+
+--- Player entity sub-events: same as mobile (PlayerStatus is broadcast, not per-entity).
+local PLAYER_ENTITY_SUB_EVENTS = MOBILE_ENTITY_SUB_EVENTS
 
 --- Item sub-events: per-entity types that need RegisterData in setId.
 local ITEM_ENTITY_SUB_EVENTS = {
@@ -3205,6 +3216,10 @@ Constants.CompositeEvents = {
     OnUpdateMobile = {
         allSubEvents = MOBILE_ALL_SUB_EVENTS,
         entitySubEvents = MOBILE_ENTITY_SUB_EVENTS,
+    },
+    OnUpdatePlayer = {
+        allSubEvents = PLAYER_ALL_SUB_EVENTS,
+        entitySubEvents = PLAYER_ENTITY_SUB_EVENTS,
     },
     OnUpdateItem = {
         allSubEvents = ITEM_ALL_SUB_EVENTS,
@@ -4273,9 +4288,10 @@ end
 -- Data - Mobile (Composite)
 -- ========================================================================== --
 
---- Composite wrapper aggregating all mobile-related data for a given entity.
---- Provides nil-safe access to PlayerStatus, MobileName, MobileStatus,
---- HealthBarColor, and Paperdoll through a single object.
+--- Composite wrapper aggregating mobile-related data for a given entity.
+--- Provides nil-safe access to MobileName, MobileStatus, HealthBarColor,
+--- and Paperdoll through a single object. Does NOT include PlayerStatus —
+--- use Data.Player(id) for player-specific data that combines both.
 ---@class MobileDataComposite
 ---@field _id number
 local MobileDataComposite = {}
@@ -4290,23 +4306,6 @@ end
 ---@return number
 function MobileDataComposite:getId()
     return self._id
-end
-
----@return PlayerStatusWrapper
-function MobileDataComposite:getPlayerStatus()
-    return Data.PlayerStatus()
-end
-
---- Returns the player ID from PlayerStatus.
----@return number
-function MobileDataComposite:getPlayerId()
-    return self:getPlayerStatus():getId()
-end
-
---- Returns gold from PlayerStatus, or 0.
----@return number
-function MobileDataComposite:getGold()
-    return self:getPlayerStatus():getGold()
 end
 
 --- Returns the mobile's name, or nil if MobileName data is unavailable.
@@ -4340,42 +4339,6 @@ function MobileDataComposite:getPaperdoll()
     return Data.Paperdoll(self._id)
 end
 
---- Delegates to PlayerStatus for health.
----@return number
-function MobileDataComposite:getCurrentHealth()
-    return self:getPlayerStatus():getCurrentHealth()
-end
-
----@return number
-function MobileDataComposite:getMaxHealth()
-    return self:getPlayerStatus():getMaxHealth()
-end
-
----@return number
-function MobileDataComposite:getCurrentMana()
-    return self:getPlayerStatus():getCurrentMana()
-end
-
----@return number
-function MobileDataComposite:getMaxMana()
-    return self:getPlayerStatus():getMaxMana()
-end
-
----@return number
-function MobileDataComposite:getCurrentStamina()
-    return self:getPlayerStatus():getCurrentStamina()
-end
-
----@return number
-function MobileDataComposite:getMaxStamina()
-    return self:getPlayerStatus():getMaxStamina()
-end
-
----@return boolean
-function MobileDataComposite:isInWarMode()
-    return self:getPlayerStatus():isInWarMode()
-end
-
 --- Returns notoriety from MobileStatus, or 0.
 ---@return number
 function MobileDataComposite:getNotoriety()
@@ -4402,6 +4365,145 @@ end
 ---@return MobileDataComposite
 function Data.Mobile(id)
     return MobileDataComposite:new(id)
+end
+
+-- ========================================================================== --
+-- Data - Player (Composite)
+-- ========================================================================== --
+
+--- Composite wrapper aggregating player-related data for the local player.
+--- Combines PlayerStatus (global) with all mobile data (MobileName,
+--- MobileStatus, HealthBarColor, Paperdoll) for the player's entity ID.
+---@class PlayerDataComposite
+---@field _id number
+local PlayerDataComposite = {}
+PlayerDataComposite.__index = PlayerDataComposite
+
+---@param id number
+---@return PlayerDataComposite
+function PlayerDataComposite:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return number
+function PlayerDataComposite:getId()
+    return self._id
+end
+
+-- -- PlayerStatus accessors -- --
+
+---@return PlayerStatusWrapper
+function PlayerDataComposite:getPlayerStatus()
+    return Data.PlayerStatus()
+end
+
+--- Returns the player ID from PlayerStatus.
+---@return number
+function PlayerDataComposite:getPlayerId()
+    return self:getPlayerStatus():getId()
+end
+
+--- Returns gold from PlayerStatus, or 0.
+---@return number
+function PlayerDataComposite:getGold()
+    return self:getPlayerStatus():getGold()
+end
+
+--- Delegates to PlayerStatus for health.
+---@return number
+function PlayerDataComposite:getCurrentHealth()
+    return self:getPlayerStatus():getCurrentHealth()
+end
+
+---@return number
+function PlayerDataComposite:getMaxHealth()
+    return self:getPlayerStatus():getMaxHealth()
+end
+
+---@return number
+function PlayerDataComposite:getCurrentMana()
+    return self:getPlayerStatus():getCurrentMana()
+end
+
+---@return number
+function PlayerDataComposite:getMaxMana()
+    return self:getPlayerStatus():getMaxMana()
+end
+
+---@return number
+function PlayerDataComposite:getCurrentStamina()
+    return self:getPlayerStatus():getCurrentStamina()
+end
+
+---@return number
+function PlayerDataComposite:getMaxStamina()
+    return self:getPlayerStatus():getMaxStamina()
+end
+
+---@return boolean
+function PlayerDataComposite:isInWarMode()
+    return self:getPlayerStatus():isInWarMode()
+end
+
+-- -- Mobile accessors (delegated) -- --
+
+--- Returns the mobile's name, or nil if MobileName data is unavailable.
+---@return wstring|nil
+function PlayerDataComposite:getName()
+    local d = WindowData.MobileName and WindowData.MobileName[self._id]
+    return d and d.MobName or nil
+end
+
+--- Returns the MobileStatus wrapper for this entity.
+---@return MobileStatusWrapper|nil
+function PlayerDataComposite:getStatus()
+    if not WindowData.MobileStatus or not WindowData.MobileStatus[self._id] then
+        return nil
+    end
+    return Data.MobileStatus(self._id)
+end
+
+--- Returns the HealthBarColor wrapper for this entity.
+---@return HealthBarColorWrapper|nil
+function PlayerDataComposite:getHealthBarColor()
+    if not WindowData.HealthBarColor or not WindowData.HealthBarColor[self._id] then
+        return nil
+    end
+    return Data.HealthBarColor(self._id)
+end
+
+--- Returns the Paperdoll wrapper for this entity.
+---@return PaperdollWrapper|nil
+function PlayerDataComposite:getPaperdoll()
+    return Data.Paperdoll(self._id)
+end
+
+--- Returns notoriety from MobileStatus, or 0.
+---@return number
+function PlayerDataComposite:getNotoriety()
+    local status = self:getStatus()
+    return status and status:getNotoriety() or 0
+end
+
+--- Returns the notoriety color from MobileStatus.
+---@return table|nil
+function PlayerDataComposite:getNotorietyColor()
+    local status = self:getStatus()
+    return status and status:getNotorietyColor() or nil
+end
+
+--- Returns the health bar visual state color.
+---@return table|nil
+function PlayerDataComposite:getVisualStateColor()
+    local hbc = self:getHealthBarColor()
+    return hbc and hbc:getVisualStateColor() or nil
+end
+
+--- Creates a composite player data wrapper for the given entity ID.
+---@param id number
+---@return PlayerDataComposite
+function Data.Player(id)
+    return PlayerDataComposite:new(id)
 end
 
 -- ========================================================================== --
@@ -7578,6 +7680,10 @@ function View:onUpdate(timePassed, windowData)
 end
 
 function View:onUpdateMobileName()
+    if self._model.OnUpdatePlayer ~= nil then
+        self._model.OnUpdatePlayer(self, Data.Player(self:getId()))
+        return true
+    end
     if self._model.OnUpdateMobile ~= nil then
         self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
         return true
@@ -7590,8 +7696,8 @@ function View:onUpdateMobileName()
 end
 
 function View:onUpdatePlayerStatus()
-    if self._model.OnUpdateMobile ~= nil then
-        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+    if self._model.OnUpdatePlayer ~= nil then
+        self._model.OnUpdatePlayer(self, Data.Player(self:getId()))
         return true
     end
     if self._model.OnUpdatePlayerStatus ~= nil then
@@ -7602,6 +7708,10 @@ function View:onUpdatePlayerStatus()
 end
 
 function View:onUpdateHealthBarColor()
+    if self._model.OnUpdatePlayer ~= nil then
+        self._model.OnUpdatePlayer(self, Data.Player(self:getId()))
+        return true
+    end
     if self._model.OnUpdateMobile ~= nil then
         self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
         return true
@@ -7614,6 +7724,10 @@ function View:onUpdateHealthBarColor()
 end
 
 function View:onUpdateMobileStatus()
+    if self._model.OnUpdatePlayer ~= nil then
+        self._model.OnUpdatePlayer(self, Data.Player(self:getId()))
+        return true
+    end
     if self._model.OnUpdateMobile ~= nil then
         self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
         return true
@@ -7626,6 +7740,10 @@ function View:onUpdateMobileStatus()
 end
 
 function View:onUpdatePaperdoll()
+    if self._model.OnUpdatePlayer ~= nil then
+        self._model.OnUpdatePlayer(self, Data.Player(self:getId()))
+        return true
+    end
     if self._model.OnUpdateMobile ~= nil then
         self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
         return true
