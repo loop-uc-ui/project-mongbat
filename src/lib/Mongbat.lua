@@ -2696,6 +2696,9 @@ function Utils.Array.Every(array, predicate)
 end
 
 ---@generic T
+---@param array T[]
+---@param forEach fun(item: T, index: integer)
+function Utils.Array.ForEach(array, forEach)
     if not array or #array == 0 then
         return
     end
@@ -6237,32 +6240,32 @@ function EventHandler.OnShown()
 end
 
 function EventHandler.OnUpdatePlayerStatus()
-    withActiveView("OnUpdatePlayerStatus", function(window)
-        window:onUpdatePlayerStatus()
+    withActiveView("OnUpdatePlayerStatus", function(view)
+        view:onRenderData()
     end)
 end
 
 function EventHandler.OnUpdateMobileName()
-    withActiveView("OnUpdateMobileName", function(window)
-        window:onUpdateMobileName()
+    withActiveView("OnUpdateMobileName", function(view)
+        view:onRenderData()
     end)
 end
 
 function EventHandler.OnUpdateHealthBarColor()
-    withActiveView("OnUpdateHealthBarColor", function(window)
-        window:onUpdateHealthBarColor()
+    withActiveView("OnUpdateHealthBarColor", function(view)
+        view:onRenderData()
     end)
 end
 
 function EventHandler.OnUpdateMobileStatus()
-    withActiveView("OnUpdateMobileStatus", function(window)
-        window:onUpdateMobileStatus()
+    withActiveView("OnUpdateMobileStatus", function(view)
+        view:onRenderData()
     end)
 end
 
 function EventHandler.OnUpdatePaperdoll()
-    withActiveView("OnUpdatePaperdoll", function(window)
-        window:onUpdatePaperdoll()
+    withActiveView("OnUpdatePaperdoll", function(view)
+        view:onRenderData()
     end)
 end
 
@@ -6315,20 +6318,26 @@ function EventHandler.OnUpdateShopData()
 end
 
 function EventHandler.OnUpdateContainerWindow()
-    withActiveView("OnUpdateContainerWindow", function(window)
-        window:onUpdateContainerWindow()
+    withActiveView("OnUpdateContainerWindow", function(view)
+        view._state.instanceId = Api.Window.GetUpdateInstanceId()
+        view:onRenderData()
+        view._state.instanceId = nil
     end)
 end
 
 function EventHandler.OnUpdateObjectInfo()
-    withActiveView("OnUpdateObjectInfo", function(window)
-        window:onUpdateObjectInfo()
+    withActiveView("OnUpdateObjectInfo", function(view)
+        view._state.instanceId = Api.Window.GetUpdateInstanceId()
+        view:onRenderData()
+        view._state.instanceId = nil
     end)
 end
 
 function EventHandler.OnUpdateItemProperties()
-    withActiveView("OnUpdateItemProperties", function(window)
-        window:onUpdateItemProperties()
+    withActiveView("OnUpdateItemProperties", function(view)
+        view._state.instanceId = Api.Window.GetUpdateInstanceId()
+        view:onRenderData()
+        view._state.instanceId = nil
     end)
 end
 
@@ -7555,39 +7564,7 @@ function View:onUpdate(timePassed, windowData)
     return true
 end
 
-function View:onUpdateMobileName()
-    if self._model.OnRenderData then
-        self._model.OnRenderData(self, self._state)
-        return true
-    end
-    return false
-end
-
-function View:onUpdatePlayerStatus()
-    if self._model.OnRenderData then
-        self._model.OnRenderData(self, self._state)
-        return true
-    end
-    return false
-end
-
-function View:onUpdateHealthBarColor()
-    if self._model.OnRenderData then
-        self._model.OnRenderData(self, self._state)
-        return true
-    end
-    return false
-end
-
-function View:onUpdateMobileStatus()
-    if self._model.OnRenderData then
-        self._model.OnRenderData(self, self._state)
-        return true
-    end
-    return false
-end
-
-function View:onUpdatePaperdoll()
+function View:onRenderData()
     if self._model.OnRenderData then
         self._model.OnRenderData(self, self._state)
         return true
@@ -7652,35 +7629,7 @@ function View:onUpdateShopData()
     return false
 end
 
-function View:onUpdateContainerWindow()
-    if self._model.OnRenderData then
-        self._state.instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnRenderData(self, self._state)
-        self._state.instanceId = nil
-        return true
-    end
-    return false
-end
 
-function View:onUpdateObjectInfo()
-    if self._model.OnRenderData then
-        self._state.instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnRenderData(self, self._state)
-        self._state.instanceId = nil
-        return true
-    end
-    return false
-end
-
-function View:onUpdateItemProperties()
-    if self._model.OnRenderData then
-        self._state.instanceId = Api.Window.GetUpdateInstanceId()
-        self._model.OnRenderData(self, self._state)
-        self._state.instanceId = nil
-        return true
-    end
-    return false
-end
 
 function View:onTextChanged(text)
     if self._model.OnTextChanged ~= nil then
