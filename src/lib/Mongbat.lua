@@ -3164,10 +3164,11 @@ Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemPropertie
 
 --- Composite event definitions. When a model key matches a composite event,
 --- the framework auto-registers handlers for all sub-events and delegates
---- each to the composite handler with a unified data wrapper.
+--- each to the composite handler with a unified data wrapper stored on _state.
 ---@class CompositeEventDef
 ---@field allSubEvents DataEvent[] All sub-DataEvents to register handlers for
 ---@field entitySubEvents DataEvent[] Per-entity sub-DataEvents for setId registration
+---@field stateKey string Key in View._state that holds the composite data wrapper
 
 --- Mobile sub-events: per-entity types that need RegisterData in setId.
 --- PlayerStatus is global (registered by framework at startup, not here).
@@ -3205,10 +3206,12 @@ Constants.CompositeEvents = {
     OnUpdateMobile = {
         allSubEvents = MOBILE_ALL_SUB_EVENTS,
         entitySubEvents = MOBILE_ENTITY_SUB_EVENTS,
+        stateKey = "mobile",
     },
     OnUpdateItem = {
         allSubEvents = ITEM_ALL_SUB_EVENTS,
         entitySubEvents = ITEM_ENTITY_SUB_EVENTS,
+        stateKey = "item",
     },
 }
 
@@ -7432,7 +7435,33 @@ function View:new(model)
     local name = model.Name or Utils.String.Random()
     local instance = Component.new(self, name) --[[@as View]]
     instance._model = model
+    instance._state = {}
     return instance
+end
+
+--- Creates or updates the composite state object for the given state key.
+--- For "mobile", creates a MobileDataComposite; for "item", creates an ItemDataComposite.
+---@param stateKey string The key in _state (e.g., "mobile" or "item")
+---@param id number The entity ID
+function View:_reduceState(stateKey, id)
+    if stateKey == "mobile" then
+        self._state.mobile = Data.Mobile(id)
+    elseif stateKey == "item" then
+        self._state.item = Data.Item(id)
+    end
+end
+
+--- Calls composite handlers with the current _state for initial rendering.
+--- Wrapped in pcall so missing data doesn't break initialization.
+function View:_notifyComposites()
+    pcall(function()
+        if self._model.OnUpdateMobile and self._state.mobile then
+            self._model.OnUpdateMobile(self, self._state.mobile)
+        end
+        if self._model.OnUpdateItem and self._state.item then
+            self._model.OnUpdateItem(self, self._state.item)
+        end
+    end)
 end
 
 function View:onInitialize()
@@ -7465,6 +7494,8 @@ function View:onInitialize()
                     prefix .. subEvent.name
                 )
             end)
+            -- Initialize state for this composite
+            self:_reduceState(compositeEvent.stateKey, id)
         end
     end
 
@@ -7477,13 +7508,8 @@ function View:onInitialize()
         self._model.OnInitialize(self)
     end
 
-    pcall(function ()
-        self:onUpdatePlayerStatus()
-        self:onUpdateMobileName()
-        self:onUpdateMobileStatus()
-        self:onUpdateHealthBarColor()
-        self:onUpdatePaperdoll()
-    end)
+    -- Fire initial composite handler calls so views render with current data
+    self:_notifyComposites()
 end
 
 function View:onShutdown()
@@ -7492,6 +7518,7 @@ function View:onShutdown()
     end
 
     self:setId(0)
+    self._state = {}
 
     for k, _ in pairs(self._model) do
         local systemEvent = Constants.SystemEvents[k]
@@ -7578,8 +7605,8 @@ function View:onUpdate(timePassed, windowData)
 end
 
 function View:onUpdateMobileName()
-    if self._model.OnUpdateMobile ~= nil then
-        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+    if self._state.mobile and self._model.OnUpdateMobile then
+        self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
     if self._model.OnUpdateMobileName ~= nil then
@@ -7590,8 +7617,8 @@ function View:onUpdateMobileName()
 end
 
 function View:onUpdatePlayerStatus()
-    if self._model.OnUpdateMobile ~= nil then
-        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+    if self._state.mobile and self._model.OnUpdateMobile then
+        self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
     if self._model.OnUpdatePlayerStatus ~= nil then
@@ -7602,8 +7629,8 @@ function View:onUpdatePlayerStatus()
 end
 
 function View:onUpdateHealthBarColor()
-    if self._model.OnUpdateMobile ~= nil then
-        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+    if self._state.mobile and self._model.OnUpdateMobile then
+        self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
     if self._model.OnUpdateHealthBarColor ~= nil then
@@ -7614,8 +7641,8 @@ function View:onUpdateHealthBarColor()
 end
 
 function View:onUpdateMobileStatus()
-    if self._model.OnUpdateMobile ~= nil then
-        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+    if self._state.mobile and self._model.OnUpdateMobile then
+        self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
     if self._model.OnUpdateMobileStatus ~= nil then
@@ -7626,8 +7653,8 @@ function View:onUpdateMobileStatus()
 end
 
 function View:onUpdatePaperdoll()
-    if self._model.OnUpdateMobile ~= nil then
-        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+    if self._state.mobile and self._model.OnUpdateMobile then
+        self._model.OnUpdateMobile(self, self._state.mobile)
         return true
     end
     if self._model.OnUpdatePaperdoll ~= nil then
@@ -7695,7 +7722,7 @@ function View:onUpdateShopData()
 end
 
 function View:onUpdateContainerWindow()
-    if self._model.OnUpdateItem ~= nil then
+    if self._state.item and self._model.OnUpdateItem then
         local instanceId = Api.Window.GetUpdateInstanceId()
         self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
         return true
@@ -7709,7 +7736,7 @@ function View:onUpdateContainerWindow()
 end
 
 function View:onUpdateObjectInfo()
-    if self._model.OnUpdateItem ~= nil then
+    if self._state.item and self._model.OnUpdateItem then
         local instanceId = Api.Window.GetUpdateInstanceId()
         self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
         return true
@@ -7723,7 +7750,7 @@ function View:onUpdateObjectInfo()
 end
 
 function View:onUpdateItemProperties()
-    if self._model.OnUpdateItem ~= nil then
+    if self._state.item and self._model.OnUpdateItem then
         local instanceId = Api.Window.GetUpdateInstanceId()
         self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
         return true
@@ -7780,6 +7807,14 @@ function View:getId()
     return Api.Window.GetId(self.name)
 end
 
+--- Returns the view's composite state table.
+--- Contains `mobile` (MobileDataComposite) and/or `item` (ItemDataComposite)
+--- when the corresponding composite event handler is present in the model.
+---@return table
+function View:getState()
+    return self._state
+end
+
 function View:setId(id)
     id = id or 0
     local oldId = self:getId()
@@ -7826,6 +7861,8 @@ function View:setId(id)
                 Utils.Table.ForEach(compositeEvent.entitySubEvents, function(_, subEvent)
                     Api.Window.RegisterData(subEvent.getType(), id)
                 end)
+                -- Update state with new ID
+                self:_reduceState(compositeEvent.stateKey, id)
             end
         end
 
@@ -7844,6 +7881,14 @@ function View:setId(id)
                 if not skip then
                     Api.Window.RegisterData(dataEvent.getType(), id)
                 end
+            end
+        end
+    else
+        -- Clear state when id is set to 0
+        for k, _ in pairs(self._model) do
+            local compositeEvent = Constants.CompositeEvents[k]
+            if compositeEvent ~= nil then
+                self._state[compositeEvent.stateKey] = nil
             end
         end
     end
