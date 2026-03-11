@@ -1,36 +1,33 @@
-local COLUMNS = 5
-local SLOT_SIZE = 50
+-- ========================================================================== --
+-- MongbatContainerWindowMod
+-- Replaces the default ContainerWindow with a clean Mongbat grid UI.
+-- Uses the DefaultComponent proxy (disable/restore) to intercept
+-- ContainerWindow lifecycle without manual function save/restore.
+-- ========================================================================== --
+
+local COLUMNS            = 5
+local SLOT_SIZE          = 50
 local COUNT_LABEL_HEIGHT = 14
-local PADDING = 4
-local MARGIN = 8
-local HEADER_HEIGHT = 22
+local PADDING            = 4
+local MARGIN             = 8
+local HEADER_HEIGHT      = 22
 local FALLBACK_MAX_SLOTS = 125
-local Api = Mongbat.Api
-local Data = Mongbat.Data
+
+local Api        = Mongbat.Api
+local Data       = Mongbat.Data
 local Components = Mongbat.Components
-local Constants = Mongbat.Constants
-local Utils = Mongbat.Utils
+local Constants  = Mongbat.Constants
+local Utils      = Mongbat.Utils
 
--- Tracks open container windows: containerId -> { windowName }
+-- Tracks open container windows: containerId -> { windowName, maxSlots }
+---@type table<integer, { windowName: string, maxSlots: integer }>
 local openContainers = {}
-
--- Original ContainerWindow functions saved before overriding, restored on shutdown.
-local savedFunctions = {}
 
 local function OnInitialize()
     local containerDefault = Components.Defaults.ContainerWindow
 
-    -- Save the original functions exactly once so they can be restored in OnShutdown.
-    -- Guard against double-save if the mod is reloaded without an intervening shutdown.
-    if not savedFunctions.Initialize then
-        savedFunctions.Initialize             = containerDefault:getDefault().Initialize
-        savedFunctions.Shutdown               = containerDefault:getDefault().Shutdown
-        savedFunctions.HandleUpdateObjectEvent = containerDefault:getDefault().HandleUpdateObjectEvent
-        savedFunctions.MiniModelUpdate        = containerDefault:getDefault().MiniModelUpdate
-    end
-
     --- Returns the Mongbat window name for a given container ID.
-    ---@param containerId number
+    ---@param containerId integer
     ---@return string
     local function windowName(containerId)
         return "MongbatContainerWindow_" .. containerId
@@ -38,9 +35,9 @@ local function OnInitialize()
 
     --- Returns the objectId of the item at the given gridIndex in a container,
     --- or 0 if the cell is empty.
-    ---@param containerId number
-    ---@param gridIndex number
-    ---@return number
+    ---@param containerId integer
+    ---@param gridIndex integer
+    ---@return integer
     local function findItemAtGrid(containerId, gridIndex)
         local item = Utils.Array.Find(Data.ContainerWindow(containerId):getItems(), function(item)
             return item.gridIndex == gridIndex
@@ -49,10 +46,10 @@ local function OnInitialize()
     end
 
     --- Updates a single slot's icon DynamicImage and quantity Label.
-    --- Clears both if objectId is 0 or ObjectInfo is not yet available.
+    --- Clears both when objectId is 0 or ObjectInfo is not yet available.
     ---@param winName string
-    ---@param gridIndex number
-    ---@param objectId number
+    ---@param gridIndex integer
+    ---@param objectId integer
     local function updateSlot(winName, gridIndex, objectId)
         local iconName  = winName .. "Slot"  .. gridIndex
         local countName = winName .. "Count" .. gridIndex
@@ -67,27 +64,41 @@ local function OnInitialize()
         end
 
         local objectInfo = Data.ObjectInfo(objectId)
-        if objectInfo and objectInfo.iconName and objectInfo.iconName ~= "" then
-            objectInfo.id = objectId
-            if iconExists then Api.Equipment.UpdateItemIcon(iconName, objectInfo) end
+        if objectInfo:exists() then
+            if iconExists  then Api.Equipment.UpdateItemIcon(iconName, objectInfo) end
             if countExists then
-                if objectInfo.quantity and objectInfo.quantity > 1 then
-                    Api.Label.SetText(countName, towstring(objectInfo.quantity))
-                else
-                    Api.Label.SetText(countName, "")
-                end
+                local qty = objectInfo:getQuantity()
+                Api.Label.SetText(countName, qty > 1 and towstring(qty) or "")
             end
         else
             if iconExists  then Api.DynamicImage.SetTexture(iconName, "", 0, 0) end
             if countExists then Api.Label.SetText(countName, "") end
-            -- Register ObjectInfo so HandleUpdateObjectEvent fills the slot once data arrives.
-            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), objectId)
+        end
+    end
+
+    --- Repopulates all slots in a Mongbat container window from the given data.
+    --- Clears every slot first, then fills occupied grid positions.
+    ---@param winName string  The Mongbat window name.
+    ---@param maxSlots integer  Total number of slots the window was created with.
+    ---@param containerData ContainerWindowDataWrapper
+    local function updateAllSlots(winName, maxSlots, containerData)
+        for i = 1, maxSlots do
+            updateSlot(winName, i, 0)
+        end
+        Utils.Array.ForEach(containerData:getItems(), function(item)
+            if item and item.gridIndex and item.gridIndex >= 1 and item.gridIndex <= maxSlots then
+                updateSlot(winName, item.gridIndex, item.objectId)
+            end
+        end)
+        local titleName = winName .. "Title"
+        if Api.Window.DoesExist(titleName) then
+            Api.Label.SetText(titleName, containerData:getContainerName())
         end
     end
 
     --- Builds the Mongbat container window: slot DynamicImages, count Labels, title Label.
-    ---@param containerId number
-    ---@param maxSlots number
+    ---@param containerId integer
+    ---@param maxSlots integer
     local function createContainerWindow(containerId, maxSlots)
         local winName = windowName(containerId)
         local cols    = COLUMNS
@@ -97,7 +108,7 @@ local function OnInitialize()
         local winW    = gridW + MARGIN * 2 + 16
         local winH    = HEADER_HEIGHT + PADDING + gridH + MARGIN * 2 + 16
 
-        -- Slot icon DynamicImages (indices 1..maxSlots in children)
+        -- Slot icon DynamicImages
         local slotViews = {}
         for i = 1, maxSlots do
             local gridIndex = i
@@ -154,7 +165,7 @@ local function OnInitialize()
             }
         end
 
-        -- Slot quantity Labels (indices maxSlots+1..2*maxSlots in children)
+        -- Slot quantity Labels
         local countLabels = {}
         for i = 1, maxSlots do
             countLabels[i] = Components.Label {
@@ -166,7 +177,7 @@ local function OnInitialize()
             }
         end
 
-        -- Container name title label (index 2*maxSlots+1 in children)
+        -- Container name title Label
         local titleLabel = Components.Label {
             Name = winName .. "Title",
             OnInitialize = function(self)
@@ -175,7 +186,7 @@ local function OnInitialize()
             end
         }
 
-        -- Build children array: slot icons, then count labels, then title
+        -- Build children: slot icons, then count labels, then title
         local children = {}
         for i = 1, maxSlots do
             children[i] = slotViews[i]
@@ -185,7 +196,12 @@ local function OnInitialize()
         end
         children[2 * maxSlots + 1] = titleLabel
 
-        -- Grid layout: icons at cell topleft, count labels at cell bottomleft, title at topleft of window.
+        -- Grid layout: icons at cell topleft, count labels at cell bottomleft,
+        -- title at topleft of the window.
+        ---@param window Window
+        ---@param _ any
+        ---@param child View
+        ---@param index integer
         local function GridLayout(window, _, child, index)
             if index == 2 * maxSlots + 1 then
                 child:clearAnchors()
@@ -195,8 +211,8 @@ local function OnInitialize()
             local gridIndex = index <= maxSlots and index or index - maxSlots
             local col = (gridIndex - 1) % cols
             local row = math.floor((gridIndex - 1) / cols)
-            local x = MARGIN + col * (SLOT_SIZE + PADDING)
-            local y = MARGIN + HEADER_HEIGHT + PADDING + row * (SLOT_SIZE + PADDING)
+            local x   = MARGIN + col * (SLOT_SIZE + PADDING)
+            local y   = MARGIN + HEADER_HEIGHT + PADDING + row * (SLOT_SIZE + PADDING)
             child:clearAnchors()
             if index <= maxSlots then
                 child:addAnchor("topleft",    window:getName(), "topleft", x, y)
@@ -205,28 +221,12 @@ local function OnInitialize()
             end
         end
 
-        -- Repopulates all slots from a ContainerWindowData wrapper.
-        local function updateAllSlots(containerData)
-            for i = 1, maxSlots do
-                updateSlot(winName, i, 0)
-            end
-            Utils.Array.ForEach(containerData:getItems(), function(item)
-                if item and item.gridIndex and item.gridIndex >= 1 and item.gridIndex <= maxSlots then
-                    updateSlot(winName, item.gridIndex, item.objectId)
-                end
-            end)
-            titleLabel:setText(containerData:getContainerName())
-        end
-
         Components.Window {
             Name     = winName,
             OnLayout = GridLayout,
             OnInitialize = function(self)
                 self:setDimensions(winW, winH)
                 self:setChildren(children)
-            end,
-            OnUpdateContainerWindow = function(self, containerData)
-                updateAllSlots(containerData)
             end,
             OnLButtonUp = function(self)
                 if Data.Drag():isDraggingItem() then
@@ -238,27 +238,47 @@ local function OnInitialize()
             OnRButtonUp = function(self) end
         }:create(true)
 
-        openContainers[containerId] = { windowName = winName }
+        openContainers[containerId] = { windowName = winName, maxSlots = maxSlots }
+
+        -- Do an initial slot fill in case container data is already available.
+        local containerData = Data.ContainerWindow(containerId)
+        if containerData:getNumItems() > 0 then
+            updateAllSlots(winName, maxSlots, containerData)
+        end
     end
 
-    -- Override ContainerWindow.Initialize: suppress the default window and create ours.
+    -- -------------------------------------------------------------------------
+    -- disable() must be called BEFORE setting overrides.  Overrides stored in
+    -- _overrides always execute regardless of disabled state, so our custom
+    -- Initialize/Shutdown/MiniModelUpdate/HandleUpdateObjectEvent all fire
+    -- correctly.  restore() in OnShutdown clears them and re-enables originals.
+    -- -------------------------------------------------------------------------
+    containerDefault:disable()
+
+    -- Override Initialize: suppress the default window and create ours.
+    -- The engine sets SystemData.DynamicWindowId and SystemData.ActiveContainer
+    -- before calling Initialize, so GetDynamicWindowId / GetActiveContainerNumSlots
+    -- return valid values here.  RegisterData registers on the active default
+    -- window (ContainerWindow_<id>) so MiniModelUpdate and HandleUpdateObjectEvent
+    -- fire correctly on subsequent container updates.
     containerDefault:getDefault().Initialize = function()
-        local id      = Data.DynamicWindowId()
-        local maxSlots = Data.ActiveContainerNumSlots()
+        local id       = Api.Window.GetDynamicWindowId()
+        local maxSlots = Api.Window.GetActiveContainerNumSlots()
         if not maxSlots or maxSlots <= 0 then
             maxSlots = FALLBACK_MAX_SLOTS
         end
 
         local defaultWin = "ContainerWindow_" .. id
 
-        -- Assign the container ID to the default window so ContainerWindow.Shutdown
-        -- (our override) can retrieve it via Api.Window.GetId.
+        -- Register ContainerWindow data on the default window so MiniModelUpdate fires.
+        Api.Window.RegisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), id)
+
+        -- Assign the container ID to the default window so Shutdown can retrieve it.
         Api.Window.SetId(defaultWin, id)
 
-        -- Make the default window invisible and non-interactive.  We keep it
-        -- "showing" (WindowGetShowing == true) so Actions.ToggleInventoryWindow
-        -- correctly detects the backpack as open and destroys it on the next toggle,
-        -- which triggers our Shutdown override.
+        -- Make the default window invisible and non-interactive.  Keep it "showing"
+        -- so Actions.ToggleInventoryWindow correctly detects the backpack as open and
+        -- destroys it on the next toggle, triggering our Shutdown override.
         Api.Window.SetAlpha(defaultWin, 0)
         Api.Window.SetHandleInput(defaultWin, false)
         Api.Window.SetDimensions(defaultWin, 1, 1)
@@ -266,31 +286,20 @@ local function OnInitialize()
         -- Enable auto-destroy when the player presses Escape or a close button.
         Api.Interface.SetDestroyWindowOnClose(defaultWin, true)
 
-        -- Register the ObjectInfo event on the default window so
-        -- HandleUpdateObjectEvent fires when item icons become available.
-        Api.Window.RegisterEventHandler(
-            defaultWin,
-            Constants.DataEvents.OnUpdateObjectInfo.getEvent(),
-            "ContainerWindow.HandleUpdateObjectEvent"
-        )
-
-        -- Keep ContainerWindow.OpenContainers in sync so game code that inspects
-        -- this table (e.g. cascade management) sees the container as open.
-        -- Use the same field names as the default UI to avoid nil-access errors.
+        -- Keep ContainerWindow.OpenContainers in sync for cascade management.
         containerDefault:getDefault().OpenContainers[id] = {
             open = true, cascading = false, slotsWide = 0, slotsHigh = 0,
             dirty = 0, windowHeight = 0, windowWidth = 0, forceListView = 0
         }
 
-        -- Create the Mongbat window; its setId call registers ContainerWindow data.
         createContainerWindow(id, maxSlots)
     end
 
-    -- Override ContainerWindow.Shutdown: destroy our window and clean up.
+    -- Override Shutdown: destroy our window and clean up.
     containerDefault:getDefault().Shutdown = function()
-        local defaultWin = Data.ActiveWindowName()
+        local defaultWin = Api.Window.GetActiveWindowName()
         local id = Api.Window.GetId(defaultWin)
-        -- Fallback: extract from the window name if SetId was not called yet.
+        -- Fallback: extract from the window name if SetId was not called.
         if not id or id == 0 then
             id = tonumber(string.match(defaultWin, "%d+") or 0)
         end
@@ -307,14 +316,35 @@ local function OnInitialize()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdateContainerWindow.getType(), id)
     end
 
-    -- Override HandleUpdateObjectEvent: refresh an individual slot when ObjectInfo arrives.
-    containerDefault:getDefault().HandleUpdateObjectEvent = function()
-        local objectId   = Data.UpdateInstanceId()
-        local objectInfo = Data.ObjectInfo(objectId)
-        if not objectInfo then return end
+    -- Override MiniModelUpdate: relay container content updates to our window.
+    -- Also registers ObjectInfo for each item so HandleUpdateObjectEvent fires
+    -- when individual item icon data becomes available.
+    containerDefault:getDefault().MiniModelUpdate = function()
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        local state      = openContainers[instanceId]
+        if not state then return end
 
-        local containerId = objectInfo.containerId
-        if not containerId or containerId == 0 then return end
+        local containerData = Data.ContainerWindow(instanceId)
+
+        -- Register ObjectInfo for each item in the container.
+        Utils.Array.ForEach(containerData:getItems(), function(item)
+            Api.Window.RegisterData(
+                Constants.DataEvents.OnUpdateObjectInfo.getType(),
+                item.objectId
+            )
+        end)
+
+        updateAllSlots(state.windowName, state.maxSlots, containerData)
+    end
+
+    -- Override HandleUpdateObjectEvent: relay per-item icon updates to our slots.
+    containerDefault:getDefault().HandleUpdateObjectEvent = function()
+        local objectId   = Api.Window.GetUpdateInstanceId()
+        local objectInfo = Data.ObjectInfo(objectId)
+        if not objectInfo:exists() then return end
+
+        local containerId = objectInfo:getContainerId()
+        if containerId == 0 then return end
 
         local state = openContainers[containerId]
         if not state then return end
@@ -326,31 +356,21 @@ local function OnInitialize()
             updateSlot(state.windowName, found.gridIndex, objectId)
         end
     end
-
-    -- Suppress MiniModelUpdate: the DataEvent framework handles all container refreshes.
-    containerDefault:getDefault().MiniModelUpdate = function() end
 end
 
 local function OnShutdown()
-    local containerDefault  = Components.Defaults.ContainerWindow
-    local containerDataType = Constants.DataEvents.OnUpdateContainerWindow.getType()
+    local containerDefault = Components.Defaults.ContainerWindow
 
-    -- Destroy all open Mongbat container windows and unregister their data.
+    -- Destroy all open Mongbat container windows and clear state.
     Utils.Table.ForEach(openContainers, function(id, state)
         Api.Window.Destroy(state.windowName)
-        Api.Window.UnregisterData(containerDataType, id)
         containerDefault:getDefault().OpenContainers[id] = nil
     end)
     openContainers = {}
 
-    -- Restore the original ContainerWindow functions so the default UI resumes normally.
-    if savedFunctions.Initialize then
-        containerDefault:getDefault().Initialize              = savedFunctions.Initialize
-        containerDefault:getDefault().Shutdown                = savedFunctions.Shutdown
-        containerDefault:getDefault().HandleUpdateObjectEvent = savedFunctions.HandleUpdateObjectEvent
-        containerDefault:getDefault().MiniModelUpdate         = savedFunctions.MiniModelUpdate
-        savedFunctions = {}
-    end
+    -- restore() clears all _overrides (Initialize/Shutdown/MiniModelUpdate/
+    -- HandleUpdateObjectEvent hooks) and re-enables the original functions.
+    containerDefault:restore()
 end
 
 Mongbat.Mod {

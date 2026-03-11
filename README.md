@@ -119,9 +119,10 @@ Component                  -- Base: name, type, xml-template support
             ├─ Label       -- Text display (font, color, alignment)
             ├─ StatusBar   -- Progress bar (current/max values, tints)
             ├─ CircleImage -- Circular texture
-            ├─ DynamicImage-- Runtime-assigned texture with coordinates
+            ├─ DynamicImage -- Runtime-assigned texture with coordinates
             ├─ EditTextBox -- Text input field
             ├─ LogDisplay  -- Multi-line scrolling text area
+            ├─ ScrollWindow-- Scrollable container with vertical item rows
             └─ Gump        -- Server-sent generic gump wrapper
 ```
 
@@ -142,7 +143,7 @@ The `.env` file in the repository root defines environment variables for develop
 
 | Resource | URL | Description |
 |---|---|---|
-| Default UI Source | https://github.com/loop-uc-ui/enhanced-client-default | Authoritative Lua + XML source for every vanilla UI window. Files in `Source/`. |
+| Default UI Source | https://github.com/loop-uc-ui/enhanced-client-default | Authoritative Lua + XML source for every vanilla UI window. |
 | Default UI Docs | https://loop-uc-ui.github.io/enhanced-client-default-docs/ | EA Mythic's official API reference (outdated but still useful for engine functions). |
 | Ultima Online | https://uo.com/ | Official game site — lore, aesthetics, community. |
 
