@@ -15,9 +15,8 @@ local WIN_H = HEADER_H + VISIBLE_ROWS * ROW_H + MARGIN + 16
 
 -- Total number of CSV skill entries (1-indexed, 1..58) and server ID range (0..57)
 local NUM_CSV_SKILLS = 58
-local MAX_SERVER_ID = 57
 
--- Lock state display symbols: 0=increasing (â–²), 1=decreasing (â–¼), 2=locked (â– )
+-- Lock state display symbols: 0=increasing (▲), 1=decreasing (▼), 2=locked (■)
 local LOCK_SYMBOLS = {}
 LOCK_SYMBOLS[0] = L"\x25B2"
 LOCK_SYMBOLS[1] = L"\x25BC"
@@ -50,22 +49,16 @@ local function OnInitialize()
     -- Scrollable virtual list state
     local scrollOffset = 0
 
-    -- rowServerIds[i] = serverId currently displayed in visible row slot i
-    local rowServerIds = {}
-    for i = 1, VISIBLE_ROWS do
-        rowServerIds[i] = -1
-    end
-
-    -- rowCsvIds[i] = csvId currently displayed in visible row slot i
+    -- rowCsvIds[i] = csvId currently displayed in visible row slot i (-1 = empty)
     local rowCsvIds = {}
     for i = 1, VISIBLE_ROWS do
         rowCsvIds[i] = -1
     end
 
-    -- References to visible row Button views
+    -- References to visible row Button views (populated during window OnInitialize)
     local rowButtons = {}
 
-    -- Reference to the total points label
+    -- Reference to the total points label (populated during window OnInitialize)
     local totalPointsLabel = nil
 
     -- Ordered list of csvIds (1..NUM_CSV_SKILLS), modified by sorting
@@ -83,8 +76,7 @@ local function OnInitialize()
     -- Built once at init to avoid repeated TID lookups on every keystroke
     local skillNamesLower = {}
     Utils.Table.ForEach(Data.SkillsCSV(), function(csvId, entry)
-        skillNamesLower[csvId] = string.lower(Api.String.WStringToString(
-            Api.String.GetStringFromTid(entry.NameTid)))
+        skillNamesLower[csvId] = Utils.String.Lower(Api.String.GetStringFromTid(entry.NameTid))
     end)
 
     -- Rebuild filteredSkills from sortedSkills using current filterText.
@@ -92,7 +84,7 @@ local function OnInitialize()
     local function rebuildFilteredList()
         filteredSkills = {}
         Utils.Array.ForEach(sortedSkills, function(csvId)
-            if filterText == "" or string.find(skillNamesLower[csvId] or "", filterText, 1, true) then
+            if filterText == "" or Utils.String.Contains(skillNamesLower[csvId] or "", filterText, true) then
                 Utils.Array.Add(filteredSkills, csvId)
             end
         end)
@@ -131,7 +123,7 @@ local function OnInitialize()
     -- Apply default sort (alphabetical by name)
     sortByName()
 
-    -- Format a raw skill integer (value Ã— 10) as "NN.N"
+    -- Format a raw skill integer (value × 10) as "NN.N"
     local function formatValue(raw)
         if raw == nil or raw == 0 then return L"0.0" end
         local whole = math.floor(raw / 10)
@@ -160,21 +152,38 @@ local function OnInitialize()
         return lockSym .. L" " .. name .. L"  " .. valStr .. L"/" .. capStr
     end
 
-    -- Update a single visible row slot's content
+    -- Update the total skill points label from currently registered skill data
+    local function updateTotalPoints()
+        if totalPointsLabel == nil then return end
+        local total = 0
+        for i = 0, NUM_CSV_SKILLS - 1 do
+            total = total + Data.SkillDynamicData(i):getValue()
+        end
+        local points = math.floor(total / 10)
+        totalPointsLabel:setText(L"Total: " .. towstring(points) .. L" / 720")
+    end
+
+    -- Update a single visible row slot's content and bind its id for data events.
+    -- Calling btn:setId(serverId) causes the framework to automatically
+    -- RegisterWindowData(OnUpdateSkillDynamicData, serverId) so OnUpdateSkillDynamicData
+    -- fires directly on that button whenever its skill changes.
+    -- Calling btn:setId(0) unregisters the previous serverId.
     local function updateRow(rowIndex)
         local slotIndex = rowIndex + scrollOffset
         local csvId = filteredSkills[slotIndex]
         local btn = rowButtons[rowIndex]
         if btn == nil then return end
         if csvId == nil then
-            rowServerIds[rowIndex] = -1
             rowCsvIds[rowIndex] = -1
+            btn:setId(0)
             btn:setShowing(false)
         else
             local csv = Data.SkillsCSV()
             local serverId = csv and csv[csvId] and csv[csvId].ServerId or -1
-            rowServerIds[rowIndex] = serverId
             rowCsvIds[rowIndex] = csvId
+            -- setId changes the registered serverId → framework handles
+            -- UnregisterData(oldId) + RegisterData(newId) automatically
+            btn:setId(serverId >= 0 and serverId or 0)
             btn:setText(getRowText(csvId))
             btn:setShowing(true)
         end
@@ -185,17 +194,6 @@ local function OnInitialize()
         Utils.Array.ForEach(rowButtons, function(_, rowIndex)
             updateRow(rowIndex)
         end)
-    end
-
-    -- Update the total skill points label
-    local function updateTotalPoints()
-        if totalPointsLabel == nil then return end
-        local total = 0
-        for i = 0, MAX_SERVER_ID do
-            total = total + Data.SkillDynamicData(i):getValue()
-        end
-        local points = math.floor(total / 10)
-        totalPointsLabel:setText(L"Total: " .. towstring(points) .. L" / 720")
     end
 
     -- Show a skill detail popup for a skill identified by its csvId.
@@ -258,19 +256,6 @@ local function OnInitialize()
         }:create(true)
     end
 
-    -- Find which visible row is displaying a given serverId, or nil if not visible.
-    -- Utils.Table.ForEach has no early-exit mechanism; we accumulate the first match
-    -- and guard with `found == nil`. With VISIBLE_ROWS = 15 the full iteration is negligible.
-    local function findRowForServerId(serverId)
-        local found = nil
-        Utils.Table.ForEach(rowServerIds, function(rowIndex, id)
-            if id == serverId and found == nil then
-                found = rowIndex
-            end
-        end)
-        return found
-    end
-
     -- Scroll handler shared by all components
     local function onScroll(delta)
         local maxScroll = math.max(0, #filteredSkills - VISIBLE_ROWS)
@@ -282,7 +267,9 @@ local function OnInitialize()
         updateAllRows()
     end
 
-    -- Create a visible row Button for slot rowIndex
+    -- Create a visible row Button for slot rowIndex.
+    -- Each button has OnUpdateSkillDynamicData in its model so the framework
+    -- registers data events automatically via setId(serverId).
     local function SkillRowButton(rowIndex)
         return Components.Button {
             Template = "MongbatButton18",
@@ -293,8 +280,11 @@ local function OnInitialize()
             end,
             OnLButtonUp = function(self)
                 -- Cycle lock state for the skill shown in this row
-                local serverId = rowServerIds[rowIndex]
-                if serverId == nil or serverId < 0 then return end
+                local csvId = rowCsvIds[rowIndex]
+                if csvId == nil or csvId < 0 then return end
+                local csv = Data.SkillsCSV()
+                if csv == nil or csv[csvId] == nil then return end
+                local serverId = csv[csvId].ServerId
                 local skillData = Data.SkillDynamicData(serverId)
                 local rawData = skillData:getData()
                 if rawData == nil then return end
@@ -304,13 +294,15 @@ local function OnInitialize()
                 rawData.SkillState = newState
                 -- Notify the server of the state change
                 Api.Skill.SetLockState(serverId, newState)
-                updateRow(rowIndex)
+                self:setText(getRowText(csvId))
             end,
             OnLButtonDblClk = function(self)
                 -- Activate the skill shown in this row
-                local serverId = rowServerIds[rowIndex]
-                if serverId == nil or serverId < 0 then return end
-                Api.Skill.UseSkill(serverId)
+                local csvId = rowCsvIds[rowIndex]
+                if csvId == nil or csvId < 0 then return end
+                local csv = Data.SkillsCSV()
+                if csv == nil or csv[csvId] == nil then return end
+                Api.Skill.UseSkill(csv[csvId].ServerId)
             end,
             OnRButtonUp = function(self)
                 -- Show skill info popup for the skill in this row
@@ -320,6 +312,17 @@ local function OnInitialize()
             end,
             OnMouseWheel = function(self, x, y, delta)
                 onScroll(delta)
+            end,
+            -- Each row button registers for its own serverId's data event.
+            -- The framework calls RegisterWindowData(dataType, serverId) via setId().
+            OnUpdateSkillDynamicData = function(self, skillData)
+                -- The data for the skill bound to this slot changed; refresh the row.
+                local csvId = rowCsvIds[rowIndex]
+                if csvId ~= nil and csvId >= 0 then
+                    self:setText(getRowText(csvId))
+                end
+                -- Update total points whenever any visible skill changes.
+                updateTotalPoints()
             end
         }
     end
@@ -394,7 +397,7 @@ local function OnInitialize()
             self:setDimensions(WIN_W - MARGIN * 2 - 16, 22)
         end,
         OnTextChanged = function(self, text)
-            filterText = string.lower(Api.String.WStringToString(text))
+            filterText = Utils.String.Lower(text)
             rebuildFilteredList()
             updateAllRows()
         end,
@@ -454,20 +457,6 @@ local function OnInitialize()
             OnInitialize = function(self)
                 self:setDimensions(WIN_W, WIN_H)
                 self:setChildren(children)
-                -- Register dynamic skill data for all server IDs (0..57)
-                local dataType = Constants.DataEvents.OnUpdateSkillDynamicData.getType()
-                for i = 0, MAX_SERVER_ID do
-                    Api.Window.RegisterData(dataType, i)
-                end
-            end,
-            OnUpdateSkillDynamicData = function(self, skillData)
-                -- A skill's data changed: update the visible row showing it (if any)
-                local serverId = skillData:getServerId()
-                local rowIndex = findRowForServerId(serverId)
-                if rowIndex ~= nil then
-                    updateRow(rowIndex)
-                end
-                updateTotalPoints()
             end,
             OnMouseWheel = function(self, x, y, delta)
                 onScroll(delta)
@@ -482,7 +471,8 @@ local function OnInitialize()
 
     Window():create(true)
 
-    -- Populate rows and total points after window and children are fully created
+    -- Populate rows after window and children are fully created.
+    -- Row setId() calls register skill data events for each visible slot.
     updateAllRows()
     updateTotalPoints()
 end
@@ -492,12 +482,6 @@ local function OnShutdown()
     if originalToggleSkillsWindow ~= nil then
         Api.Actions.SetToggleSkillsWindow(originalToggleSkillsWindow)
         originalToggleSkillsWindow = nil
-    end
-
-    -- Unregister skill dynamic data for all server IDs
-    local dataType = Constants.DataEvents.OnUpdateSkillDynamicData.getType()
-    for i = 0, MAX_SERVER_ID do
-        Api.Window.UnregisterData(dataType, i)
     end
 
     Api.Window.Destroy(INFO_NAME)
