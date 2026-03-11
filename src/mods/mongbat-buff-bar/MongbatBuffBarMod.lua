@@ -79,11 +79,11 @@ local function OnInitialize()
         if secs <= 0 then return L" " end
         local min = math.floor(secs / 60)
         if min > 60 then
-            return towstring(math.floor(min / 60)) .. L"h"
+            return Utils.String.Concat(math.floor(min / 60), L"h")
         elseif min > 0 then
-            return towstring(min) .. L"m"
+            return Utils.String.Concat(min, L"m")
         else
-            return towstring(secs) .. L"s"
+            return Utils.String.Concat(secs, L"s")
         end
     end
 
@@ -198,7 +198,7 @@ local function OnInitialize()
                 local bodyW  = Api.String.TranslateMarkup(bodyStr)
 
                 if entry.hasTimer and entry.timerSecs > 0 then
-                    bodyW = bodyW .. L"\n" .. towstring(entry.timerSecs) .. L"s"
+                    bodyW = Utils.String.Concat(bodyW, L"\n", entry.timerSecs, L"s")
                 end
 
                 Api.ItemProperties.SetActiveItem({

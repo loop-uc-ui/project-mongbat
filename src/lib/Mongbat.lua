@@ -6566,10 +6566,7 @@ function EventHandler.OnSelChanged()
     end)
 end
 
-function EventHandler.OnPopulateRow(arg)
-    local window = Active.window()
-    Debug.Print(arg)
-    Debug.Print(window)
+function EventHandler.OnPopulateRow()
     -- withActiveView("OnPopulateRow", function(view)
     --     view:onPopulateRow()
     -- end)
