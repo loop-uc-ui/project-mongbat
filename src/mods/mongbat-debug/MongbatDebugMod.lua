@@ -96,7 +96,7 @@ local function OnInitialize()
         end,
     }
 
-    Components.Window({
+    Components.Scaffold({
         Name = NAME,
         OnLayout = function(window, children, child, index)
             local dimens = window:getDimensions()
