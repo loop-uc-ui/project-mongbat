@@ -1,158 +1,173 @@
+local Api        = Mongbat.Api
+local Data       = Mongbat.Data
+local Components = Mongbat.Components
+local Constants  = Mongbat.Constants
+local Utils      = Mongbat.Utils
+
+-- Window name constants
 local NAME_GOOD = "MongbatBuffBarGood"
 local NAME_EVIL = "MongbatBuffBarEvil"
-local Api = Mongbat.Api
-local Data = Mongbat.Data
-local Components = Mongbat.Components
-local Constants = Mongbat.Constants
-local Utils = Mongbat.Utils
 
 -- Persistence keys for direction settings
 local KEY_GOOD_DIRECTION = "MongbatBuffBarGoodDirection"
 local KEY_EVIL_DIRECTION = "MongbatBuffBarEvilDirection"
 
--- Default positions (can be dragged by the player)
+-- Default positions (player-draggable)
 local DEFAULT_GOOD_X = 451
 local DEFAULT_GOOD_Y = 125
 local DEFAULT_EVIL_X = 585
 local DEFAULT_EVIL_Y = 125
 
 -- Layout constants
-local ICON_SIZE = 32
+local ICON_SIZE    = 32
 local TIMER_HEIGHT = 12
-local ICON_GAP = 2
-local PADDING = 4
-local MIN_SIZE = ICON_SIZE + PADDING * 2
+local ICON_GAP     = 2
+local PADDING      = 4
+local MIN_SIZE     = ICON_SIZE + PADDING * 2
 
--- Names of the default AdvancedBuff container windows to hide/restore
+-- Default container window names created by the default AdvancedBuff system
 local ADVANCED_BUFF_GOOD = "AdvancedBuffGood"
 local ADVANCED_BUFF_EVIL = "AdvancedBuffEvil"
 
 local function OnInitialize()
-    -- Suppress default systems
-    local buffDebuffDefault = Components.Defaults.BuffDebuff
+    -- Suppress default buff systems
+    local buffDebuffDefault   = Components.Defaults.BuffDebuff
     local advancedBuffDefault = Components.Defaults.AdvancedBuff
 
     buffDebuffDefault:disable()
     advancedBuffDefault:disable()
 
-    -- Hide any default AdvancedBuff windows already created before our mod loaded
-    if Api.Window.DoesExist(ADVANCED_BUFF_GOOD) then
-        Api.Window.SetShowing(ADVANCED_BUFF_GOOD, false)
-    end
-    if Api.Window.DoesExist(ADVANCED_BUFF_EVIL) then
-        Api.Window.SetShowing(ADVANCED_BUFF_EVIL, false)
-    end
+    -- Suppress any default windows already on-screen (SetShowing guards DoesExist internally)
+    Api.Window.SetShowing(ADVANCED_BUFF_GOOD, false)
+    Api.Window.SetShowing(ADVANCED_BUFF_EVIL, false)
 
-    -- Load buff icon CSV data (will be a no-op if already loaded by the default system)
+    -- Load buff icon CSV (no-op if already loaded by the default system)
     Api.CSV.Load("Data/GameData/buffdata.csv", "BuffDataCSV")
 
-    -- Buff classification tables (field reads pass through even when disabled)
+    -- Proxy to classify buffs as good/neutral vs evil
     local buffDebuffProxy = buffDebuffDefault:getDefault()
 
-    -- State
-    local goodOrder = {}   -- array of buffIds (good/neutral)
-    local evilOrder = {}   -- array of buffIds (evil)
-    local buffEntries = {} -- buffId -> { iconView, timerView, timerSecs, hasTimer, nameVec, tooltipVec }
-    -- Load persisted direction preferences ("H" or "V")
+    -- Persisted direction preferences ("H" or "V")
     local goodDirection = Api.Interface.LoadString(KEY_GOOD_DIRECTION, "H")
     local evilDirection = Api.Interface.LoadString(KEY_EVIL_DIRECTION, "H")
-    local deltaTime = 0
 
-    -- Determine if a buffId is a good/neutral buff
+    -- Per-bar state captured by closures
+    local goodOrder   = {}   ---@type integer[]
+    local evilOrder   = {}   ---@type integer[]
+    local goodEntries = {}   ---@type table<integer, {iconView:DynamicImage, timerView:Label, timerSecs:number, hasTimer:boolean, nameVec:table, tooltipVec:table}>
+    local evilEntries = {}   ---@type table<integer, {iconView:DynamicImage, timerView:Label, timerSecs:number, hasTimer:boolean, nameVec:table, tooltipVec:table}>
+
+    --- Returns true if the given buffId is a good or neutral buff.
+    ---@param buffId integer
+    ---@return boolean
     local function isGoodBuff(buffId)
-        return (buffDebuffProxy.Good and buffDebuffProxy.Good[buffId] == true)
+        return (buffDebuffProxy.Good    and buffDebuffProxy.Good[buffId]    == true)
             or (buffDebuffProxy.Neutral and buffDebuffProxy.Neutral[buffId] == true)
     end
 
-    -- Get icon texture for a buff from the CSV via the framework wrapper
+    --- Returns the icon texture name and UV coords for the given buffId via the CSV data.
+    ---@param buffId integer
+    ---@return string|nil, integer, integer
     local function getBuffTexture(buffId)
         return Data.BuffDebuff():getIconTexture(buffId)
     end
 
-    -- Format a time in seconds as a readable string
+    --- Formats a duration in seconds as a readable wstring ("5s", "3m", "2h").
+    ---@param secs number
+    ---@return wstring
     local function formatTimer(secs)
         if secs <= 0 then return L" " end
         local min = math.floor(secs / 60)
         if min > 60 then
-            local h = math.floor(min / 60)
-            return Api.String.StringToWString(tostring(h) .. "h")
+            return towstring(math.floor(min / 60)) .. L"h"
         elseif min > 0 then
-            return Api.String.StringToWString(tostring(min) .. "m")
+            return towstring(min) .. L"m"
         else
-            return Api.String.StringToWString(tostring(secs) .. "s")
+            return towstring(secs) .. L"s"
         end
     end
 
-    -- Resize a container window to fit its icon count
+    --- Resizes a container window to fit its current icon count and direction.
+    ---@param containerName string
+    ---@param count integer
+    ---@param direction string "H" or "V"
     local function resizeContainer(containerName, count, direction)
-        local width, height
+        local w, h
         if count == 0 then
-            width = MIN_SIZE
-            height = MIN_SIZE
+            w = MIN_SIZE
+            h = MIN_SIZE
         elseif direction == "V" then
-            width = ICON_SIZE + PADDING * 2
-            height = count * (ICON_SIZE + ICON_GAP) - ICON_GAP + PADDING * 2 + TIMER_HEIGHT + 4
+            w = ICON_SIZE + PADDING * 2
+            h = count * (ICON_SIZE + ICON_GAP) - ICON_GAP + PADDING * 2 + TIMER_HEIGHT + 4
         else
-            width = count * (ICON_SIZE + ICON_GAP) - ICON_GAP + PADDING * 2
-            height = ICON_SIZE + TIMER_HEIGHT + PADDING * 2 + 4
+            w = count * (ICON_SIZE + ICON_GAP) - ICON_GAP + PADDING * 2
+            h = ICON_SIZE + TIMER_HEIGHT + PADDING * 2 + 4
         end
-        Api.Window.SetDimensions(containerName, width, height)
+        Api.Window.SetDimensions(containerName, w, h)
     end
 
-    -- Reflow icon anchors for a container after add/remove
-    local function reflowContainer(containerName, order, direction)
+    --- Re-anchors all icons in a container after add/remove, then resizes the container.
+    ---@param containerName string
+    ---@param order integer[]
+    ---@param entries table<integer, table>
+    ---@param direction string "H" or "V"
+    local function reflowContainer(containerName, order, entries, direction)
         Utils.Array.ForEach(order, function(buffId, i)
-            local entry = buffEntries[buffId]
-            if entry then
-                entry.iconView:clearAnchors()
-                entry.timerView:clearAnchors()
+            local entry = entries[buffId]
+            if not entry then return end
 
-                if direction == "V" then
-                    if i == 1 then
-                        entry.iconView:addAnchor("topleft", containerName, "topleft", PADDING, PADDING)
-                    else
-                        local prevId = order[i - 1]
-                        local prevEntry = buffEntries[prevId]
-                        if prevEntry then
-                            entry.iconView:addAnchor(
-                                "topleft", prevEntry.iconView:getName(), "bottomleft", 0, ICON_GAP
-                            )
-                        end
-                    end
-                    entry.timerView:addAnchor("centerleft", entry.iconView:getName(), "centerright", 2, 0)
+            entry.iconView:clearAnchors()
+            entry.timerView:clearAnchors()
+
+            if direction == "V" then
+                if i == 1 then
+                    entry.iconView:addAnchor("topleft", containerName, "topleft", PADDING, PADDING)
                 else
-                    if i == 1 then
-                        entry.iconView:addAnchor("topleft", containerName, "topleft", PADDING, PADDING)
-                    else
-                        local prevId = order[i - 1]
-                        local prevEntry = buffEntries[prevId]
-                        if prevEntry then
-                            entry.iconView:addAnchor(
-                                "topleft", prevEntry.iconView:getName(), "topright", ICON_GAP, 0
-                            )
-                        end
+                    local prevEntry = entries[order[i - 1]]
+                    if prevEntry then
+                        entry.iconView:addAnchor(
+                            "topleft", prevEntry.iconView:getName(), "bottomleft", 0, ICON_GAP
+                        )
                     end
-                    entry.timerView:addAnchor("top", entry.iconView:getName(), "bottom", 0, 1)
                 end
+                entry.timerView:addAnchor("centerleft", entry.iconView:getName(), "centerright", 2, 0)
+            else
+                if i == 1 then
+                    entry.iconView:addAnchor("topleft", containerName, "topleft", PADDING, PADDING)
+                else
+                    local prevEntry = entries[order[i - 1]]
+                    if prevEntry then
+                        entry.iconView:addAnchor(
+                            "topleft", prevEntry.iconView:getName(), "topright", ICON_GAP, 0
+                        )
+                    end
+                end
+                entry.timerView:addAnchor("top", entry.iconView:getName(), "bottom", 0, 1)
             end
         end)
         resizeContainer(containerName, #order, direction)
     end
 
-    -- Update the timer label for a single buff
-    local function updateTimerLabel(buffId)
-        local entry = buffEntries[buffId]
+    --- Updates the timer label for a single buff entry.
+    ---@param buffId integer
+    ---@param entries table<integer, table>
+    local function updateTimerLabel(buffId, entries)
+        local entry = entries[buffId]
         if not entry then return end
-        if entry.hasTimer then
-            entry.timerView:setText(formatTimer(entry.timerSecs))
-        else
-            entry.timerView:setText(L" ")
-        end
+        entry.timerView:setText(entry.hasTimer and formatTimer(entry.timerSecs) or L" ")
     end
 
-    -- Create a buff icon view and its timer label inside a container
-    local function createBuffIcon(buffId, containerName, nameVec, tooltipVec, timerSecs, hasTimer)
-        local iconName = "MongbatBuffIcon" .. buffId
+    --- Creates a buff icon (DynamicImage + timer Label) inside the given container.
+    ---@param buffId integer
+    ---@param containerName string
+    ---@param nameVec table
+    ---@param tooltipVec table
+    ---@param timerSecs number
+    ---@param hasTimer boolean
+    ---@param entries table<integer, table>
+    ---@return table The new buff entry table.
+    local function createBuffIcon(buffId, containerName, nameVec, tooltipVec, timerSecs, hasTimer, entries)
+        local iconName  = "MongbatBuffIcon" .. buffId
         local timerName = iconName .. "Timer"
 
         local iconView = Components.DynamicImage {
@@ -164,36 +179,36 @@ local function OnInitialize()
                     self:setTexture(texture, x, y)
                 end
             end,
+            --- Show buff tooltip on mouse-over.
             OnMouseOver = function(_)
-                local entry = buffEntries[buffId]
+                local entry = entries[buffId]
                 if not entry then return end
 
                 local nameStr = L""
-                Utils.Array.ForEach(entry.nameVec, function(part, _)
+                Utils.Array.ForEach(entry.nameVec, function(part)
                     nameStr = nameStr .. part
                 end)
 
                 local bodyStr = L""
-                Utils.Array.ForEach(entry.tooltipVec, function(part, _)
+                Utils.Array.ForEach(entry.tooltipVec, function(part)
                     bodyStr = bodyStr .. part
                 end)
 
                 local titleW = Api.String.TranslateMarkup(nameStr)
-                local bodyW = Api.String.TranslateMarkup(bodyStr)
+                local bodyW  = Api.String.TranslateMarkup(bodyStr)
 
                 if entry.hasTimer and entry.timerSecs > 0 then
-                    bodyW = bodyW .. L"\n" .. towstring(tostring(entry.timerSecs)) .. L"s"
+                    bodyW = bodyW .. L"\n" .. towstring(entry.timerSecs) .. L"s"
                 end
 
-                local itemData = {
+                Api.ItemProperties.SetActiveItem({
                     windowName = iconName,
-                    itemId = buffId,
-                    itemType = Constants.ItemPropertyType.WStringData,
-                    binding = L"",
-                    title = titleW,
-                    body = bodyW
-                }
-                Api.ItemProperties.SetActiveItem(itemData)
+                    itemId     = buffId,
+                    itemType   = Constants.ItemPropertyType.WStringData,
+                    binding    = L"",
+                    title      = titleW,
+                    body       = bodyW
+                })
             end,
             OnMouseOverEnd = function(_)
                 Api.ItemProperties.ClearMouseOverItem()
@@ -213,117 +228,136 @@ local function OnInitialize()
         timerView:onInitialize()
         timerView:setParent(containerName)
 
-        -- Copy name and tooltip vectors so tooltip survives future event updates
-        local nameVecCopy = Utils.Array.Copy(nameVec)
-        local tooltipVecCopy = Utils.Array.Copy(tooltipVec)
-
         return {
-            iconView = iconView,
-            timerView = timerView,
-            timerSecs = timerSecs,
-            hasTimer = hasTimer,
-            nameVec = nameVecCopy,
-            tooltipVec = tooltipVecCopy
+            iconView    = iconView,
+            timerView   = timerView,
+            timerSecs   = timerSecs,
+            hasTimer    = hasTimer,
+            nameVec     = Utils.Array.Copy(nameVec),
+            tooltipVec  = Utils.Array.Copy(tooltipVec)
         }
     end
 
-    -- Handle an OnUpdateBuffDebuff event
-    local function onUpdateBuffDebuff(_, buffDebuff)
+    --- Handles an OnUpdateBuffDebuff event for a specific container.
+    --- Only processes buffIds that match the given classification predicate.
+    ---@param buffDebuff BuffDebuffWrapper
+    ---@param containerName string
+    ---@param order integer[]
+    ---@param entries table<integer, table>
+    ---@param direction string "H" or "V"
+    ---@param predicate fun(buffId: integer): boolean
+    local function handleBuffUpdate(buffDebuff, containerName, order, entries, direction, predicate)
         local buffId = buffDebuff:getCurrentBuffId()
         if buffId == 0 then return end
-
-        local good = isGoodBuff(buffId)
-        local order = good and goodOrder or evilOrder
-        local containerName = good and NAME_GOOD or NAME_EVIL
-        local direction = good and goodDirection or evilDirection
+        if not predicate(buffId) then return end
 
         if buffDebuff:isBeingRemoved() then
-            local entry = buffEntries[buffId]
+            local entry = entries[buffId]
             if entry then
                 entry.iconView:destroy()
                 entry.timerView:destroy()
-                buffEntries[buffId] = nil
+                entries[buffId] = nil
             end
-
             local idx = Utils.Array.IndexOf(order, function(item) return item == buffId end)
             if idx ~= -1 then
                 Utils.Array.Remove(order, idx)
             end
-
-            reflowContainer(containerName, order, direction)
+            reflowContainer(containerName, order, entries, direction)
         else
-            local nameVec = buffDebuff:getNameVector()
+            local nameVec    = buffDebuff:getNameVector()
             local tooltipVec = buffDebuff:getTooltipVector()
-            local timerSecs = buffDebuff:getTimerSeconds()
-            local hasTimer = buffDebuff:hasTimer()
+            local timerSecs  = buffDebuff:getTimerSeconds()
+            local hasTimer   = buffDebuff:hasTimer()
 
-            if buffEntries[buffId] then
-                -- Update existing entry (re-applied buff)
-                local entry = buffEntries[buffId]
-                entry.timerSecs = timerSecs
-                entry.hasTimer = hasTimer
-                -- Update cached name/tooltip vectors
-                entry.nameVec = Utils.Array.Copy(nameVec)
-                entry.tooltipVec = Utils.Array.Copy(tooltipVec)
-                updateTimerLabel(buffId)
+            if entries[buffId] then
+                local entry = entries[buffId]
+                entry.timerSecs   = timerSecs
+                entry.hasTimer    = hasTimer
+                entry.nameVec     = Utils.Array.Copy(nameVec)
+                entry.tooltipVec  = Utils.Array.Copy(tooltipVec)
+                updateTimerLabel(buffId, entries)
             else
-                -- Create a new icon
                 local entry = createBuffIcon(
                     buffId, containerName,
-                    Utils.Array.Copy(nameVec), Utils.Array.Copy(tooltipVec),
-                    timerSecs, hasTimer
+                    nameVec, tooltipVec, timerSecs, hasTimer, entries
                 )
-                buffEntries[buffId] = entry
+                entries[buffId] = entry
                 Utils.Array.Add(order, buffId)
-                reflowContainer(containerName, order, direction)
-                updateTimerLabel(buffId)
+                reflowContainer(containerName, order, entries, direction)
+                updateTimerLabel(buffId, entries)
             end
         end
     end
 
-    -- Timer countdown: decrements per-second, updates labels, removes expired timers
-    local function onUpdate(_, timePassed)
-        deltaTime = deltaTime + timePassed
-        if deltaTime < 1 then return end
-        deltaTime = 0
-
-        Utils.Table.ForEach(buffEntries, function(buffId, entry)
+    --- Ticks timers for a set of buff entries and updates their labels.
+    ---@param entries table<integer, table>
+    local function tickTimers(entries)
+        Utils.Table.ForEach(entries, function(buffId, entry)
             if entry.hasTimer and entry.timerSecs > 0 then
                 entry.timerSecs = entry.timerSecs - 1
                 if entry.timerSecs < 0 then entry.timerSecs = 0 end
-                updateTimerLabel(buffId)
+                updateTimerLabel(buffId, entries)
             end
         end)
     end
 
-    -- Good bar: receives buff events and handles timer updates
+    -- -----------------------------------------------------------------------
+    -- Good buff bar
+    -- OnUpdateBuffDebuff is the innermost handler for good/neutral buffs.
+    -- OnUpdate ticks the timer labels each second.
+    -- -----------------------------------------------------------------------
+    local goodDelta = 0
     local goodWindow = Components.Window {
         Name = NAME_GOOD,
         OnInitialize = function(self)
             self:setDimensions(MIN_SIZE, MIN_SIZE)
             Api.Window.SetOffsetFromParent(NAME_GOOD, DEFAULT_GOOD_X, DEFAULT_GOOD_Y)
         end,
-        OnUpdateBuffDebuff = onUpdateBuffDebuff,
-        OnUpdate = onUpdate,
+        --- Handles incoming good/neutral buff updates.
+        OnUpdateBuffDebuff = function(_, buffDebuff)
+            handleBuffUpdate(buffDebuff, NAME_GOOD, goodOrder, goodEntries, goodDirection, isGoodBuff)
+        end,
+        OnUpdate = function(_, timePassed)
+            goodDelta = goodDelta + timePassed
+            if goodDelta < 1 then return end
+            goodDelta = 0
+            tickTimers(goodEntries)
+        end,
         OnRButtonUp = function(_)
             goodDirection = (goodDirection == "H") and "V" or "H"
             Api.Interface.SaveString(KEY_GOOD_DIRECTION, goodDirection)
-            reflowContainer(NAME_GOOD, goodOrder, goodDirection)
+            reflowContainer(NAME_GOOD, goodOrder, goodEntries, goodDirection)
         end
     }
     goodWindow:create(true)
 
-    -- Evil bar: display container for debuffs
+    -- -----------------------------------------------------------------------
+    -- Evil (debuff) bar
+    -- OnUpdateBuffDebuff is the innermost handler for evil buffs.
+    -- OnUpdate ticks the timer labels each second.
+    -- -----------------------------------------------------------------------
+    local evilDelta = 0
     local evilWindow = Components.Window {
         Name = NAME_EVIL,
         OnInitialize = function(self)
             self:setDimensions(MIN_SIZE, MIN_SIZE)
             Api.Window.SetOffsetFromParent(NAME_EVIL, DEFAULT_EVIL_X, DEFAULT_EVIL_Y)
         end,
+        --- Handles incoming evil buff (debuff) updates.
+        OnUpdateBuffDebuff = function(_, buffDebuff)
+            handleBuffUpdate(buffDebuff, NAME_EVIL, evilOrder, evilEntries, evilDirection,
+                function(id) return not isGoodBuff(id) end)
+        end,
+        OnUpdate = function(_, timePassed)
+            evilDelta = evilDelta + timePassed
+            if evilDelta < 1 then return end
+            evilDelta = 0
+            tickTimers(evilEntries)
+        end,
         OnRButtonUp = function(_)
             evilDirection = (evilDirection == "H") and "V" or "H"
             Api.Interface.SaveString(KEY_EVIL_DIRECTION, evilDirection)
-            reflowContainer(NAME_EVIL, evilOrder, evilDirection)
+            reflowContainer(NAME_EVIL, evilOrder, evilEntries, evilDirection)
         end
     }
     evilWindow:create(true)
@@ -333,25 +367,21 @@ local function OnShutdown()
     Api.Window.Destroy(NAME_GOOD)
     Api.Window.Destroy(NAME_EVIL)
 
-    -- Unload CSV data (mirrors default UI BuffDebuff.Shutdown cleanup; prevents resource leaks)
+    -- Unload CSV data — mirrors default UI BuffDebuff.Shutdown() cleanup
     Api.CSV.Unload("BuffDataCSV")
 
-    -- Restore the default systems
+    -- Restore the default buff systems
     Components.Defaults.BuffDebuff:restore()
     Components.Defaults.AdvancedBuff:restore()
 
-    -- Show the default AdvancedBuff windows again
-    if Api.Window.DoesExist(ADVANCED_BUFF_GOOD) then
-        Api.Window.SetShowing(ADVANCED_BUFF_GOOD, true)
-    end
-    if Api.Window.DoesExist(ADVANCED_BUFF_EVIL) then
-        Api.Window.SetShowing(ADVANCED_BUFF_EVIL, true)
-    end
+    -- Re-show the default AdvancedBuff windows (SetShowing guards DoesExist internally)
+    Api.Window.SetShowing(ADVANCED_BUFF_GOOD, true)
+    Api.Window.SetShowing(ADVANCED_BUFF_EVIL, true)
 end
 
 Mongbat.Mod {
-    Name = "MongbatBuffBar",
-    Path = "/src/mods/mongbat-buff-bar",
+    Name         = "MongbatBuffBar",
+    Path         = "/src/mods/mongbat-buff-bar",
     OnInitialize = OnInitialize,
-    OnShutdown = OnShutdown
+    OnShutdown   = OnShutdown
 }
