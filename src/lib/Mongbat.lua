@@ -3162,6 +3162,56 @@ Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWin
 Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
 Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemProperties, "OnUpdateItemProperties")
 
+--- Composite event definitions. When a model key matches a composite event,
+--- the framework auto-registers handlers for all sub-events and delegates
+--- each to the composite handler with a unified data wrapper.
+---@class CompositeEventDef
+---@field allSubEvents DataEvent[] All sub-DataEvents to register handlers for
+---@field entitySubEvents DataEvent[] Per-entity sub-DataEvents for setId registration
+
+--- Mobile sub-events: per-entity types that need RegisterData in setId.
+--- PlayerStatus is global (registered by framework at startup, not here).
+local MOBILE_ENTITY_SUB_EVENTS = {
+    Constants.DataEvents.OnUpdateMobileName,
+    Constants.DataEvents.OnUpdateMobileStatus,
+    Constants.DataEvents.OnUpdateHealthBarColor,
+    Constants.DataEvents.OnUpdatePaperdoll,
+}
+
+--- All mobile sub-events including PlayerStatus (for handler registration).
+local MOBILE_ALL_SUB_EVENTS = {
+    Constants.DataEvents.OnUpdatePlayerStatus,
+    Constants.DataEvents.OnUpdateMobileName,
+    Constants.DataEvents.OnUpdateMobileStatus,
+    Constants.DataEvents.OnUpdateHealthBarColor,
+    Constants.DataEvents.OnUpdatePaperdoll,
+}
+
+--- Item sub-events: per-entity types that need RegisterData in setId.
+local ITEM_ENTITY_SUB_EVENTS = {
+    Constants.DataEvents.OnUpdateObjectInfo,
+    Constants.DataEvents.OnUpdateItemProperties,
+}
+
+--- All item sub-events (for handler registration).
+local ITEM_ALL_SUB_EVENTS = {
+    Constants.DataEvents.OnUpdateObjectInfo,
+    Constants.DataEvents.OnUpdateItemProperties,
+    Constants.DataEvents.OnUpdateContainerWindow,
+}
+
+---@type table<string, CompositeEventDef>
+Constants.CompositeEvents = {
+    OnUpdateMobile = {
+        allSubEvents = MOBILE_ALL_SUB_EVENTS,
+        entitySubEvents = MOBILE_ENTITY_SUB_EVENTS,
+    },
+    OnUpdateItem = {
+        allSubEvents = ITEM_ALL_SUB_EVENTS,
+        entitySubEvents = ITEM_ENTITY_SUB_EVENTS,
+    },
+}
+
 ---@class SystemEvent
 ---@field getEvent fun(): integer
 ---@field name string
@@ -3854,6 +3904,11 @@ function PlayerStatus:isInWarMode()
     return self:getData().InWarMode or false
 end
 
+---@return number
+function PlayerStatus:getGold()
+    return self:getData().Gold or 0
+end
+
 function PlayerStatus:getId()
     return self:getData().PlayerId or 0
 end
@@ -4183,6 +4238,18 @@ function ObjectInfoData:getHueId()
     return d and d.hueId or 0
 end
 
+---@return integer
+function ObjectInfoData:getShopValue()
+    local d = self:getData()
+    return d and d.shopValue or 0
+end
+
+---@return integer
+function ObjectInfoData:getShopQuantity()
+    local d = self:getData()
+    return d and d.shopQuantity or 0
+end
+
 ---@return ObjectInfoWrapper
 function Data.ObjectInfo(id)
     return ObjectInfoData:new(id)
@@ -4200,6 +4267,233 @@ function Data.ItemProperties(id)
         return nil
     end
     return WindowData.ItemProperties[id]
+end
+
+-- ========================================================================== --
+-- Data - Mobile (Composite)
+-- ========================================================================== --
+
+--- Composite wrapper aggregating all mobile-related data for a given entity.
+--- Provides nil-safe access to PlayerStatus, MobileName, MobileStatus,
+--- HealthBarColor, and Paperdoll through a single object.
+---@class MobileDataComposite
+---@field _id number
+local MobileDataComposite = {}
+MobileDataComposite.__index = MobileDataComposite
+
+---@param id number
+---@return MobileDataComposite
+function MobileDataComposite:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return number
+function MobileDataComposite:getId()
+    return self._id
+end
+
+---@return PlayerStatusWrapper
+function MobileDataComposite:getPlayerStatus()
+    return Data.PlayerStatus()
+end
+
+--- Returns the player ID from PlayerStatus.
+---@return number
+function MobileDataComposite:getPlayerId()
+    return self:getPlayerStatus():getId()
+end
+
+--- Returns gold from PlayerStatus, or 0.
+---@return number
+function MobileDataComposite:getGold()
+    return self:getPlayerStatus():getGold()
+end
+
+--- Returns the mobile's name, or nil if MobileName data is unavailable.
+---@return wstring|nil
+function MobileDataComposite:getName()
+    local d = WindowData.MobileName and WindowData.MobileName[self._id]
+    return d and d.MobName or nil
+end
+
+--- Returns the MobileStatus wrapper for this entity.
+---@return MobileStatusWrapper|nil
+function MobileDataComposite:getStatus()
+    if not WindowData.MobileStatus or not WindowData.MobileStatus[self._id] then
+        return nil
+    end
+    return Data.MobileStatus(self._id)
+end
+
+--- Returns the HealthBarColor wrapper for this entity.
+---@return HealthBarColorWrapper|nil
+function MobileDataComposite:getHealthBarColor()
+    if not WindowData.HealthBarColor or not WindowData.HealthBarColor[self._id] then
+        return nil
+    end
+    return Data.HealthBarColor(self._id)
+end
+
+--- Returns the Paperdoll wrapper for this entity.
+---@return PaperdollWrapper|nil
+function MobileDataComposite:getPaperdoll()
+    return Data.Paperdoll(self._id)
+end
+
+--- Delegates to PlayerStatus for health.
+---@return number
+function MobileDataComposite:getCurrentHealth()
+    return self:getPlayerStatus():getCurrentHealth()
+end
+
+---@return number
+function MobileDataComposite:getMaxHealth()
+    return self:getPlayerStatus():getMaxHealth()
+end
+
+---@return number
+function MobileDataComposite:getCurrentMana()
+    return self:getPlayerStatus():getCurrentMana()
+end
+
+---@return number
+function MobileDataComposite:getMaxMana()
+    return self:getPlayerStatus():getMaxMana()
+end
+
+---@return number
+function MobileDataComposite:getCurrentStamina()
+    return self:getPlayerStatus():getCurrentStamina()
+end
+
+---@return number
+function MobileDataComposite:getMaxStamina()
+    return self:getPlayerStatus():getMaxStamina()
+end
+
+---@return boolean
+function MobileDataComposite:isInWarMode()
+    return self:getPlayerStatus():isInWarMode()
+end
+
+--- Returns notoriety from MobileStatus, or 0.
+---@return number
+function MobileDataComposite:getNotoriety()
+    local status = self:getStatus()
+    return status and status:getNotoriety() or 0
+end
+
+--- Returns the notoriety color from MobileStatus.
+---@return table|nil
+function MobileDataComposite:getNotorietyColor()
+    local status = self:getStatus()
+    return status and status:getNotorietyColor() or nil
+end
+
+--- Returns the health bar visual state color.
+---@return table|nil
+function MobileDataComposite:getVisualStateColor()
+    local hbc = self:getHealthBarColor()
+    return hbc and hbc:getVisualStateColor() or nil
+end
+
+--- Creates a composite mobile data wrapper for the given entity ID.
+---@param id number
+---@return MobileDataComposite
+function Data.Mobile(id)
+    return MobileDataComposite:new(id)
+end
+
+-- ========================================================================== --
+-- Data - Item (Composite)
+-- ========================================================================== --
+
+--- Composite wrapper aggregating all item-related data for a given entity.
+--- Provides nil-safe access to ObjectInfo, ItemProperties, and ContainerWindow.
+---@class ItemDataComposite
+---@field _id number
+local ItemDataComposite = {}
+ItemDataComposite.__index = ItemDataComposite
+
+---@param id number
+---@return ItemDataComposite
+function ItemDataComposite:new(id)
+    return setmetatable({ _id = id }, self)
+end
+
+---@return number
+function ItemDataComposite:getId()
+    return self._id
+end
+
+--- Returns the ObjectInfo wrapper for this item.
+---@return ObjectInfoWrapper|nil
+function ItemDataComposite:getObjectInfo()
+    return Data.ObjectInfo(self._id)
+end
+
+--- Returns the raw ItemProperties data for this item.
+---@return table|nil
+function ItemDataComposite:getItemProperties()
+    return Data.ItemProperties(self._id)
+end
+
+--- Returns the raw ContainerWindow data for this item's container.
+---@return table|nil
+function ItemDataComposite:getContainerWindow()
+    return Data.ContainerWindow(self._id)
+end
+
+--- Delegates to ObjectInfo for object type.
+---@return integer
+function ItemDataComposite:getObjectType()
+    local info = self:getObjectInfo()
+    return info and info:getObjectType() or 0
+end
+
+--- Delegates to ObjectInfo for hue ID.
+---@return integer
+function ItemDataComposite:getHueId()
+    local info = self:getObjectInfo()
+    return info and info:getHueId() or 0
+end
+
+--- Delegates to ObjectInfo for shop value.
+---@return integer
+function ItemDataComposite:getShopValue()
+    local info = self:getObjectInfo()
+    return info and info:getShopValue() or 0
+end
+
+--- Delegates to ObjectInfo for shop quantity.
+---@return integer
+function ItemDataComposite:getShopQuantity()
+    local info = self:getObjectInfo()
+    return info and info:getShopQuantity() or 0
+end
+
+--- Returns the first property name from ItemProperties, or nil.
+---@return wstring|nil
+function ItemDataComposite:getPropertyName()
+    local props = self:getItemProperties()
+    if props and props.PropertiesList and props.PropertiesList[1] then
+        return props.PropertiesList[1]
+    end
+    return nil
+end
+
+--- Returns the ContainedItems array from ContainerWindow, or empty table.
+---@return table
+function ItemDataComposite:getContainedItems()
+    local cw = self:getContainerWindow()
+    return cw and cw.ContainedItems or {}
+end
+
+--- Creates a composite item data wrapper for the given entity ID.
+---@param id number
+---@return ItemDataComposite
+function Data.Item(id)
+    return ItemDataComposite:new(id)
 end
 
 
@@ -7151,6 +7445,7 @@ function View:onInitialize()
         local systemEvent = Constants.SystemEvents[k]
         local isCore = Constants.CoreEvents[k] ~= nil
         local dataEvent = Constants.DataEvents[k]
+        local compositeEvent = Constants.CompositeEvents[k]
         local skip = k == Constants.CoreEvents.OnInitialize or
             k == Constants.CoreEvents.OnShutdown
 
@@ -7162,6 +7457,14 @@ function View:onInitialize()
             self:registerEventHandler(systemEvent.getEvent(), functionName)
         elseif dataEvent ~= nil then
             self:registerEventHandler(dataEvent.getEvent(), functionName)
+        elseif compositeEvent ~= nil then
+            -- Register handlers for all sub-events of the composite
+            for _, subEvent in ipairs(compositeEvent.allSubEvents) do
+                self:registerEventHandler(
+                    subEvent.getEvent(),
+                    prefix .. subEvent.name
+                )
+            end
         end
     end
 
@@ -7175,11 +7478,15 @@ function View:onInitialize()
     end
 
     pcall(function ()
-        self:onUpdatePlayerStatus()
-        self:onUpdateMobileName()
-        self:onUpdateMobileStatus()
-        self:onUpdateHealthBarColor()
-        self:onUpdatePaperdoll()
+        if self._model.OnUpdateMobile then
+            self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+        else
+            self:onUpdatePlayerStatus()
+            self:onUpdateMobileName()
+            self:onUpdateMobileStatus()
+            self:onUpdateHealthBarColor()
+            self:onUpdatePaperdoll()
+        end
     end)
 end
 
@@ -7193,6 +7500,7 @@ function View:onShutdown()
     for k, _ in pairs(self._model) do
         local systemEvent = Constants.SystemEvents[k]
         local dataEvent = Constants.DataEvents[k]
+        local compositeEvent = Constants.CompositeEvents[k]
         local isCore = k == Constants.CoreEvents.OnInitialize or
             k == Constants.CoreEvents.OnShutdown
 
@@ -7202,6 +7510,10 @@ function View:onShutdown()
             self:unregisterEventHandler(systemEvent.getEvent())
         elseif dataEvent ~= nil then
             self:unregisterEventHandler(dataEvent.getEvent())
+        elseif compositeEvent ~= nil then
+            for _, subEvent in ipairs(compositeEvent.allSubEvents) do
+                self:unregisterEventHandler(subEvent.getEvent())
+            end
         end
     end
 end
@@ -7270,6 +7582,10 @@ function View:onUpdate(timePassed, windowData)
 end
 
 function View:onUpdateMobileName()
+    if self._model.OnUpdateMobile ~= nil then
+        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+        return true
+    end
     if self._model.OnUpdateMobileName ~= nil then
         self._model.OnUpdateMobileName(self, Data.MobileName(self:getId()))
         return true
@@ -7278,6 +7594,10 @@ function View:onUpdateMobileName()
 end
 
 function View:onUpdatePlayerStatus()
+    if self._model.OnUpdateMobile ~= nil then
+        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+        return true
+    end
     if self._model.OnUpdatePlayerStatus ~= nil then
         self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
         return true
@@ -7286,6 +7606,10 @@ function View:onUpdatePlayerStatus()
 end
 
 function View:onUpdateHealthBarColor()
+    if self._model.OnUpdateMobile ~= nil then
+        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+        return true
+    end
     if self._model.OnUpdateHealthBarColor ~= nil then
         self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
         return true
@@ -7294,6 +7618,10 @@ function View:onUpdateHealthBarColor()
 end
 
 function View:onUpdateMobileStatus()
+    if self._model.OnUpdateMobile ~= nil then
+        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+        return true
+    end
     if self._model.OnUpdateMobileStatus ~= nil then
         self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
         return true
@@ -7302,6 +7630,10 @@ function View:onUpdateMobileStatus()
 end
 
 function View:onUpdatePaperdoll()
+    if self._model.OnUpdateMobile ~= nil then
+        self._model.OnUpdateMobile(self, Data.Mobile(self:getId()))
+        return true
+    end
     if self._model.OnUpdatePaperdoll ~= nil then
         self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
         return true
@@ -7367,6 +7699,11 @@ function View:onUpdateShopData()
 end
 
 function View:onUpdateContainerWindow()
+    if self._model.OnUpdateItem ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
+        return true
+    end
     if self._model.OnUpdateContainerWindow ~= nil then
         local instanceId = Api.Window.GetUpdateInstanceId()
         self._model.OnUpdateContainerWindow(self, instanceId, Data.ContainerWindow(instanceId))
@@ -7376,6 +7713,11 @@ function View:onUpdateContainerWindow()
 end
 
 function View:onUpdateObjectInfo()
+    if self._model.OnUpdateItem ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
+        return true
+    end
     if self._model.OnUpdateObjectInfo ~= nil then
         local instanceId = Api.Window.GetUpdateInstanceId()
         self._model.OnUpdateObjectInfo(self, instanceId, Data.ObjectInfo(instanceId))
@@ -7385,6 +7727,11 @@ function View:onUpdateObjectInfo()
 end
 
 function View:onUpdateItemProperties()
+    if self._model.OnUpdateItem ~= nil then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        self._model.OnUpdateItem(self, instanceId, Data.Item(instanceId))
+        return true
+    end
     if self._model.OnUpdateItemProperties ~= nil then
         local instanceId = Api.Window.GetUpdateInstanceId()
         self._model.OnUpdateItemProperties(self, instanceId, Data.ItemProperties(instanceId))
@@ -7446,6 +7793,17 @@ function View:setId(id)
     end
 
     if oldId ~= 0 then
+        -- Unregister composite sub-events for old ID
+        for k, _ in pairs(self._model) do
+            local compositeEvent = Constants.CompositeEvents[k]
+            if compositeEvent ~= nil then
+                for _, subEvent in ipairs(compositeEvent.entitySubEvents) do
+                    Api.Window.UnregisterData(subEvent.getType(), oldId)
+                end
+            end
+        end
+
+        -- Unregister individual DataEvents for old ID
         for k, _ in pairs(self._model) do
             local dataEvent = Constants.DataEvents[k]
             if dataEvent ~= nil then
@@ -7465,6 +7823,17 @@ function View:setId(id)
     end
 
     if id ~= 0 then
+        -- Register composite sub-events for new ID
+        for k, _ in pairs(self._model) do
+            local compositeEvent = Constants.CompositeEvents[k]
+            if compositeEvent ~= nil then
+                for _, subEvent in ipairs(compositeEvent.entitySubEvents) do
+                    Api.Window.RegisterData(subEvent.getType(), id)
+                end
+            end
+        end
+
+        -- Register individual DataEvents for new ID
         for k, _ in pairs(self._model) do
             local dataEvent = Constants.DataEvents[k]
             if dataEvent ~= nil then
