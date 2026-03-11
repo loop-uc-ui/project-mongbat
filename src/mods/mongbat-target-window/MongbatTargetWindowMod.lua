@@ -21,6 +21,9 @@ local function OnInitialize()
         end
     }
 
+    -- healthBar is the innermost interactive child: all user interactions
+    -- (click to target, double-click to use, right-click for menu, hover for tooltip)
+    -- are registered here rather than on the parent Window.
     local healthBar = Components.StatusBar {
         OnUpdateMobileStatus = function(self, mobileStatus)
             self:setCurrentValue(mobileStatus:getCurrentHealth())
@@ -40,6 +43,28 @@ local function OnInitialize()
             else
                 Api.Target.LeftClick(targetId)
             end
+        end,
+        OnLButtonDblClk = function()
+            if targetId ~= 0 then
+                Api.UserAction.UseItem(targetId, false)
+            end
+        end,
+        OnRButtonUp = function()
+            if targetId ~= 0 then
+                Api.ContextMenu.RequestMenu(targetId)
+            end
+        end,
+        OnMouseOver = function(self)
+            if targetId ~= 0 then
+                Api.ItemProperties.SetActiveItem({
+                    windowName = self:getName(),
+                    itemId = targetId,
+                    itemType = Constants.ItemPropertyType.Item
+                })
+            end
+        end,
+        OnMouseOverEnd = function()
+            Api.ItemProperties.ClearMouseOverItem()
         end
     }
 
@@ -67,28 +92,6 @@ local function OnInitialize()
                 self:setShowing(false)
                 targetId = 0
             end
-        end,
-        OnLButtonDblClk = function()
-            if targetId ~= 0 then
-                Api.UserAction.UseItem(targetId, false)
-            end
-        end,
-        OnRButtonUp = function()
-            if targetId ~= 0 then
-                Api.ContextMenu.RequestMenu(targetId)
-            end
-        end,
-        OnMouseOver = function(self)
-            if targetId ~= 0 then
-                Api.ItemProperties.SetActiveItem({
-                    windowName = self:getName(),
-                    itemId = targetId,
-                    itemType = Constants.ItemPropertyType.Item
-                })
-            end
-        end,
-        OnMouseOverEnd = function()
-            Api.ItemProperties.ClearMouseOverItem()
         end
     }:create(false)
 end
