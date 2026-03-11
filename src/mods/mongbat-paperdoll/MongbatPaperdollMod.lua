@@ -1,323 +1,323 @@
-local NAME = "PaperdollWindow"
-local NUM_SLOTS = 19
-local COLUMNS = 4
-local CELL_SIZE = 50
-local PADDING = 8
-local MARGIN = 16
-local LABEL_HEIGHT = 22
-local LABEL_GAP = 12
+-- local NAME = "PaperdollWindow"
+-- local NUM_SLOTS = 19
+-- local COLUMNS = 4
+-- local CELL_SIZE = 50
+-- local PADDING = 8
+-- local MARGIN = 16
+-- local LABEL_HEIGHT = 22
+-- local LABEL_GAP = 12
 
-local Api = Mongbat.Api
-local Data = Mongbat.Data
-local Constants = Mongbat.Constants
-local Components = Mongbat.Components
+-- local Api = Mongbat.Api
+-- local Data = Mongbat.Data
+-- local Constants = Mongbat.Constants
+-- local Components = Mongbat.Components
 
-local function OnInitialize()
-    local slotViews = {}
-    local showingGrid = true
-    local paperdollFigure = nil
-    local toggleButton = nil
+-- local function OnInitialize()
+--     local slotViews = {}
+--     local showingGrid = true
+--     local paperdollFigure = nil
+--     local toggleButton = nil
 
-    local paperdollDefault = Components.Defaults.PaperdollWindow
-    paperdollDefault:disable()
+--     local paperdollDefault = Components.Defaults.PaperdollWindow
+--     paperdollDefault:disable()
 
-    local playerId = Data.PlayerStatus():getId()
+--     local playerId = Data.PlayerStatus():getId()
 
-    -- Prevent Interface.PaperdollCheck from re-creating the default window
-    Api.Interface.SetPaperdollOpen(false)
+--     -- Prevent Interface.PaperdollCheck from re-creating the default window
+--     Api.Interface.SetPaperdollOpen(false)
 
-    -- Destroy any already-existing default paperdoll window
-    local defaultName = "PaperdollWindow" .. playerId
-    if Api.Window.DoesExist(defaultName) then
-        Api.Window.Destroy(defaultName)
-    end
+--     -- Destroy any already-existing default paperdoll window
+--     local defaultName = "PaperdollWindow" .. playerId
+--     if Api.Window.DoesExist(defaultName) then
+--         Api.Window.Destroy(defaultName)
+--     end
 
-    --- Creates a DynamicImage component for a single equipment slot.
-    ---@param slotIndex integer The paperdoll slot index (1-based)
-    ---@return DynamicImage
-    local function Slot(slotIndex)
-        return Components.DynamicImage {
-            OnInitialize = function(self)
-                self:setDimensions(CELL_SIZE, CELL_SIZE)
-            end,
-            OnLButtonDown = function(self, flags)
-                local paperdoll = Data.Paperdoll(playerId)
-                local slot = paperdoll:getSlot(slotIndex)
-                if not slot or slot.slotId == 0 then return end
+--     --- Creates a DynamicImage component for a single equipment slot.
+--     ---@param slotIndex integer The paperdoll slot index (1-based)
+--     ---@return DynamicImage
+--     local function Slot(slotIndex)
+--         return Components.DynamicImage {
+--             OnInitialize = function(self)
+--                 self:setDimensions(CELL_SIZE, CELL_SIZE)
+--             end,
+--             OnLButtonDown = function(self, flags)
+--                 local paperdoll = Data.Paperdoll(playerId)
+--                 local slot = paperdoll:getSlot(slotIndex)
+--                 if not slot or slot.slotId == 0 then return end
 
-                if Data.Cursor():isTarget() then
-                    Api.Target.LeftClick(slot.slotId)
-                    return
-                end
+--                 if Data.Cursor():isTarget() then
+--                     Api.Target.LeftClick(slot.slotId)
+--                     return
+--                 end
 
-                Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
-            end,
-            OnLButtonUp = function(self)
-                if Data.Drag():isDraggingItem() then
-                    local paperdoll = Data.Paperdoll(playerId)
-                    local slot = paperdoll:getSlot(slotIndex)
-                    if slot and slot.slotId ~= 0 then
-                        Api.Drag.DropOnPaperdollEquipment(slot.slotId)
-                    else
-                        Api.Drag.DropOnPaperdoll(playerId)
-                    end
-                end
-            end,
-            OnLButtonDblClk = function(self)
-                local paperdoll = Data.Paperdoll(playerId)
-                local slot = paperdoll:getSlot(slotIndex)
-                if slot and slot.slotId ~= 0 then
-                    Api.UserAction.UseItem(slot.slotId, false)
-                end
-            end,
-            OnRButtonDown = function(self)
-                local paperdoll = Data.Paperdoll(playerId)
-                local slot = paperdoll:getSlot(slotIndex)
-                if slot and slot.slotId ~= 0 then
-                    Api.ContextMenu.RequestMenu(slot.slotId)
-                end
-            end,
-            OnMouseOver = function(self)
-                local paperdoll = Data.Paperdoll(playerId)
-                local slot = paperdoll:getSlot(slotIndex)
-                if slot and slot.slotId ~= 0 then
-                    local itemData = {
-                        windowName = NAME,
-                        itemId = slot.slotId,
-                        itemType = Constants.ItemPropertyType.Item,
-                        detail = Constants.ItemPropertyDetail.Long,
-                        data = slot
-                    }
-                    Api.ItemProperties.SetActiveItem(itemData)
-                end
-            end,
-            OnMouseOverEnd = function(self)
-                Api.ItemProperties.ClearMouseOverItem()
-            end
-        }
-    end
+--                 Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
+--             end,
+--             OnLButtonUp = function(self)
+--                 if Data.Drag():isDraggingItem() then
+--                     local paperdoll = Data.Paperdoll(playerId)
+--                     local slot = paperdoll:getSlot(slotIndex)
+--                     if slot and slot.slotId ~= 0 then
+--                         Api.Drag.DropOnPaperdollEquipment(slot.slotId)
+--                     else
+--                         Api.Drag.DropOnPaperdoll(playerId)
+--                     end
+--                 end
+--             end,
+--             OnLButtonDblClk = function(self)
+--                 local paperdoll = Data.Paperdoll(playerId)
+--                 local slot = paperdoll:getSlot(slotIndex)
+--                 if slot and slot.slotId ~= 0 then
+--                     Api.UserAction.UseItem(slot.slotId, false)
+--                 end
+--             end,
+--             OnRButtonDown = function(self)
+--                 local paperdoll = Data.Paperdoll(playerId)
+--                 local slot = paperdoll:getSlot(slotIndex)
+--                 if slot and slot.slotId ~= 0 then
+--                     Api.ContextMenu.RequestMenu(slot.slotId)
+--                 end
+--             end,
+--             OnMouseOver = function(self)
+--                 local paperdoll = Data.Paperdoll(playerId)
+--                 local slot = paperdoll:getSlot(slotIndex)
+--                 if slot and slot.slotId ~= 0 then
+--                     local itemData = {
+--                         windowName = NAME,
+--                         itemId = slot.slotId,
+--                         itemType = Constants.ItemPropertyType.Item,
+--                         detail = Constants.ItemPropertyDetail.Long,
+--                         data = slot
+--                     }
+--                     Api.ItemProperties.SetActiveItem(itemData)
+--                 end
+--             end,
+--             OnMouseOverEnd = function(self)
+--                 Api.ItemProperties.ClearMouseOverItem()
+--             end
+--         }
+--     end
 
-    --- The scale applied to the entire window in figure mode, matching the
-    --- default PaperdollWindow's approach of scaling the whole window to 0.70.
-    local FIGURE_SCALE = 0.70
+--     --- The scale applied to the entire window in figure mode, matching the
+--     --- default PaperdollWindow's approach of scaling the whole window to 0.70.
+--     local FIGURE_SCALE = 0.70
 
-    --- Toggles between grid view and paperdoll figure view.
-    --- In figure mode, the window is resized to the full texture dimensions
-    --- and the entire window is scaled down (matching the default PaperdollWindow
-    --- approach). DynamicImageSetTextureScale is NOT used because it causes
-    --- UV tiling/tessellation on non-legacy render-target textures.
-    local function ToggleView()
-        showingGrid = not showingGrid
-        for i = 1, NUM_SLOTS do
-            if slotViews[i] then
-                slotViews[i]:setShowing(showingGrid)
-            end
-        end
-        if paperdollFigure then
-            paperdollFigure:setShowing(not showingGrid)
-        end
-        if showingGrid then
-            -- Restore grid dimensions and scale
-            local r = math.ceil(NUM_SLOTS / COLUMNS)
-            local gw = COLUMNS * CELL_SIZE + (COLUMNS - 1) * PADDING
-            local gh = r * CELL_SIZE + (r - 1) * PADDING
-            local ww = gw + MARGIN * 2 + 16
-            local wh = LABEL_HEIGHT + LABEL_GAP + gh + MARGIN * 2 + 16
-            Api.Window.SetScale(NAME, 1.0)
-            Api.Window.SetDimensions(NAME, ww, wh)
-        end
-    end
+--     --- Toggles between grid view and paperdoll figure view.
+--     --- In figure mode, the window is resized to the full texture dimensions
+--     --- and the entire window is scaled down (matching the default PaperdollWindow
+--     --- approach). DynamicImageSetTextureScale is NOT used because it causes
+--     --- UV tiling/tessellation on non-legacy render-target textures.
+--     local function ToggleView()
+--         showingGrid = not showingGrid
+--         for i = 1, NUM_SLOTS do
+--             if slotViews[i] then
+--                 slotViews[i]:setShowing(showingGrid)
+--             end
+--         end
+--         if paperdollFigure then
+--             paperdollFigure:setShowing(not showingGrid)
+--         end
+--         if showingGrid then
+--             -- Restore grid dimensions and scale
+--             local r = math.ceil(NUM_SLOTS / COLUMNS)
+--             local gw = COLUMNS * CELL_SIZE + (COLUMNS - 1) * PADDING
+--             local gh = r * CELL_SIZE + (r - 1) * PADDING
+--             local ww = gw + MARGIN * 2 + 16
+--             local wh = LABEL_HEIGHT + LABEL_GAP + gh + MARGIN * 2 + 16
+--             Api.Window.SetScale(NAME, 1.0)
+--             Api.Window.SetDimensions(NAME, ww, wh)
+--         end
+--     end
 
-    --- Updates the paperdoll figure texture. Resizes the MaskWindow to the
-    --- texture dimensions, places the figure at full size using the engine's
-    --- canonical anchoring, and scales the entire window to FIGURE_SCALE.
-    local function UpdatePaperdollFigure()
-        if not paperdollFigure then return end
+--     --- Updates the paperdoll figure texture. Resizes the MaskWindow to the
+--     --- texture dimensions, places the figure at full size using the engine's
+--     --- canonical anchoring, and scales the entire window to FIGURE_SCALE.
+--     local function UpdatePaperdollFigure()
+--         if not paperdollFigure then return end
 
-        local tex = Data.PaperdollTexture(playerId)
-        local figName = paperdollFigure:getName()
+--         local tex = Data.PaperdollTexture(playerId)
+--         local figName = paperdollFigure:getName()
 
-        local texW, texH
-        if tex:hasData() then
-            texW = tex:getWidth()
-            texH = tex:getHeight()
-        else
-            texW, texH = 200, 400
-        end
+--         local texW, texH
+--         if tex:hasData() then
+--             texW = tex:getWidth()
+--             texH = tex:getHeight()
+--         else
+--             texW, texH = 200, 400
+--         end
 
-        -- Resize the window to fit the full texture, then scale the whole
-        -- window down visually — exactly as the default PaperdollWindow does.
-        Api.Window.SetDimensions(NAME, texW, texH)
-        Api.Window.SetScale(NAME, FIGURE_SCALE)
+--         -- Resize the window to fit the full texture, then scale the whole
+--         -- window down visually — exactly as the default PaperdollWindow does.
+--         Api.Window.SetDimensions(NAME, texW, texH)
+--         Api.Window.SetScale(NAME, FIGURE_SCALE)
 
-        -- Figure at full texture size, no DynamicImageSetTextureScale
-        Api.Window.SetDimensions(figName, texW, texH)
-        Api.DynamicImage.SetTexture(figName, tex:getTextureName(), 0, 0)
+--         -- Figure at full texture size, no DynamicImageSetTextureScale
+--         Api.Window.SetDimensions(figName, texW, texH)
+--         Api.DynamicImage.SetTexture(figName, tex:getTextureName(), 0, 0)
 
-        -- Position using the engine's canonical center-to-topleft anchoring
-        -- with texture offsets, matching the default PaperdollWindow.
-        paperdollFigure:clearAnchors()
-        if tex:hasData() then
-            paperdollFigure:addAnchor("center", NAME, "topleft",
-                tex:getXOffset(), tex:getYOffset() + 30)
-        else
-            paperdollFigure:addAnchor("center", NAME, "center", 0, 0)
-        end
-    end
+--         -- Position using the engine's canonical center-to-topleft anchoring
+--         -- with texture offsets, matching the default PaperdollWindow.
+--         paperdollFigure:clearAnchors()
+--         if tex:hasData() then
+--             paperdollFigure:addAnchor("center", NAME, "topleft",
+--                 tex:getXOffset(), tex:getYOffset() + 30)
+--         else
+--             paperdollFigure:addAnchor("center", NAME, "center", 0, 0)
+--         end
+--     end
 
-    -- Child index constants
-    local IDX_TOGGLE = NUM_SLOTS + 1
-    local IDX_LABEL = NUM_SLOTS + 2
-    local IDX_FIGURE = NUM_SLOTS + 3
+--     -- Child index constants
+--     local IDX_TOGGLE = NUM_SLOTS + 1
+--     local IDX_LABEL = NUM_SLOTS + 2
+--     local IDX_FIGURE = NUM_SLOTS + 3
 
-    --- Grid layout: places children in a fixed-column grid.
-    --- Special indices: IDX_TOGGLE = toggle button (bottom-right cell),
-    --- IDX_LABEL = name label (top), IDX_FIGURE = paperdoll figure (centered).
-    local function GridLayout(window, children, child, index)
-        if index == IDX_LABEL then
-            child:clearAnchors()
-            child:addAnchor("topleft", window:getName(), "topleft", MARGIN, MARGIN)
-            return
-        end
-        if index == IDX_FIGURE then
-            -- Figure is positioned by UpdatePaperdollFigure
-            return
-        end
-        -- Slots 1..NUM_SLOTS and toggle button at IDX_TOGGLE
-        local gridIndex = index - 1
-        if index == IDX_TOGGLE then
-            -- Place in the last cell of the grid (bottom-right)
-            gridIndex = COLUMNS * math.ceil(NUM_SLOTS / COLUMNS) - 1
-        end
-        local col = gridIndex % COLUMNS
-        local row = math.floor(gridIndex / COLUMNS)
-        local x = MARGIN + col * (CELL_SIZE + PADDING)
-        local y = MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL_SIZE + PADDING)
-        child:clearAnchors()
-        child:addAnchor("topleft", window:getName(), "topleft", x, y)
-    end
+--     --- Grid layout: places children in a fixed-column grid.
+--     --- Special indices: IDX_TOGGLE = toggle button (bottom-right cell),
+--     --- IDX_LABEL = name label (top), IDX_FIGURE = paperdoll figure (centered).
+--     local function GridLayout(window, children, child, index)
+--         if index == IDX_LABEL then
+--             child:clearAnchors()
+--             child:addAnchor("topleft", window:getName(), "topleft", MARGIN, MARGIN)
+--             return
+--         end
+--         if index == IDX_FIGURE then
+--             -- Figure is positioned by UpdatePaperdollFigure
+--             return
+--         end
+--         -- Slots 1..NUM_SLOTS and toggle button at IDX_TOGGLE
+--         local gridIndex = index - 1
+--         if index == IDX_TOGGLE then
+--             -- Place in the last cell of the grid (bottom-right)
+--             gridIndex = COLUMNS * math.ceil(NUM_SLOTS / COLUMNS) - 1
+--         end
+--         local col = gridIndex % COLUMNS
+--         local row = math.floor(gridIndex / COLUMNS)
+--         local x = MARGIN + col * (CELL_SIZE + PADDING)
+--         local y = MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL_SIZE + PADDING)
+--         child:clearAnchors()
+--         child:addAnchor("topleft", window:getName(), "topleft", x, y)
+--     end
 
-    --- Updates a single slot's DynamicImage from paperdoll data.
-    ---@param slotIndex integer
-    ---@param slotData PaperdollSlot|nil
-    local function UpdateSlotIcon(slotIndex, slotData)
-        local view = slotViews[slotIndex]
-        if not view then return end
-        local elementName = view:getName()
+--     --- Updates a single slot's DynamicImage from paperdoll data.
+--     ---@param slotIndex integer
+--     ---@param slotData PaperdollSlot|nil
+--     local function UpdateSlotIcon(slotIndex, slotData)
+--         local view = slotViews[slotIndex]
+--         if not view then return end
+--         local elementName = view:getName()
 
-        if slotData and slotData.slotId ~= 0 then
-            Api.Equipment.UpdateItemIcon(elementName, slotData)
-            view:setShowing(true)
-        else
-            Api.DynamicImage.SetTexture(elementName, "", 0, 0)
-            view:setShowing(true)
-        end
-    end
+--         if slotData and slotData.slotId ~= 0 then
+--             Api.Equipment.UpdateItemIcon(elementName, slotData)
+--             view:setShowing(true)
+--         else
+--             Api.DynamicImage.SetTexture(elementName, "", 0, 0)
+--             view:setShowing(true)
+--         end
+--     end
 
-    local children = {}
-    for i = 1, NUM_SLOTS do
-        local slot = Slot(i)
-        slotViews[i] = slot
-        children[i] = slot
-    end
+--     local children = {}
+--     for i = 1, NUM_SLOTS do
+--         local slot = Slot(i)
+--         slotViews[i] = slot
+--         children[i] = slot
+--     end
 
-    local rows = math.ceil(NUM_SLOTS / COLUMNS)
-    local gridWidth = COLUMNS * CELL_SIZE + (COLUMNS - 1) * PADDING
-    local gridHeight = rows * CELL_SIZE + (rows - 1) * PADDING
-    local windowWidth = gridWidth + MARGIN * 2 + 16
-    local windowHeight = LABEL_HEIGHT + LABEL_GAP + gridHeight + MARGIN * 2 + 16
+--     local rows = math.ceil(NUM_SLOTS / COLUMNS)
+--     local gridWidth = COLUMNS * CELL_SIZE + (COLUMNS - 1) * PADDING
+--     local gridHeight = rows * CELL_SIZE + (rows - 1) * PADDING
+--     local windowWidth = gridWidth + MARGIN * 2 + 16
+--     local windowHeight = LABEL_HEIGHT + LABEL_GAP + gridHeight + MARGIN * 2 + 16
 
-    -- Toggle button in the last grid cell (bottom-right)
-    toggleButton = Components.Button {
-        Template = "MongbatButton18",
-        OnInitialize = function(self)
-            self:setDimensions(CELL_SIZE, CELL_SIZE)
-            self:setText(L"\x263A")
-        end,
-        OnLButtonUp = function(self)
-            ToggleView()
-            if not showingGrid then
-                UpdatePaperdollFigure()
-            end
-        end
-    }
-    children[IDX_TOGGLE] = toggleButton
+--     -- Toggle button in the last grid cell (bottom-right)
+--     toggleButton = Components.Button {
+--         Template = "MongbatButton18",
+--         OnInitialize = function(self)
+--             self:setDimensions(CELL_SIZE, CELL_SIZE)
+--             self:setText(L"\x263A")
+--         end,
+--         OnLButtonUp = function(self)
+--             ToggleView()
+--             if not showingGrid then
+--                 UpdatePaperdollFigure()
+--             end
+--         end
+--     }
+--     children[IDX_TOGGLE] = toggleButton
 
-    -- Name label with notoriety color
-    local nameLabel = Components.Label {
-        OnInitialize = function(self)
-            self:setDimensions(windowWidth - MARGIN * 2, LABEL_HEIGHT)
-            self:centerText()
-            self:setId(playerId)
-        end,
-        OnUpdateMobileName = function(self, mobileName)
-            self:setText(mobileName:getName())
-        end,
-        OnUpdateMobileStatus = function(self, mobileStatus)
-            self:setTextColor(mobileStatus:getNotorietyColor())
-        end
-    }
-    children[IDX_LABEL] = nameLabel
+--     -- Name label with notoriety color
+--     local nameLabel = Components.Label {
+--         OnInitialize = function(self)
+--             self:setDimensions(windowWidth - MARGIN * 2, LABEL_HEIGHT)
+--             self:centerText()
+--             self:setId(playerId)
+--         end,
+--         OnUpdateMobileName = function(self, mobileName)
+--             self:setText(mobileName:getName())
+--         end,
+--         OnUpdateMobileStatus = function(self, mobileStatus)
+--             self:setTextColor(mobileStatus:getNotorietyColor())
+--         end
+--     }
+--     children[IDX_LABEL] = nameLabel
 
-    -- Paperdoll character figure (hidden initially)
-    -- Uses a custom template with filtering="true" for smooth bilinear
-    -- scaling of the engine's paperdoll render-target texture.
-    paperdollFigure = Components.DynamicImage {
-        Template = "MongbatFilteredDynamicImage",
-        OnInitialize = function(self)
-            self:setShowing(false)
-        end
-    }
-    children[IDX_FIGURE] = paperdollFigure
+--     -- Paperdoll character figure (hidden initially)
+--     -- Uses a custom template with filtering="true" for smooth bilinear
+--     -- scaling of the engine's paperdoll render-target texture.
+--     paperdollFigure = Components.DynamicImage {
+--         Template = "MongbatFilteredDynamicImage",
+--         OnInitialize = function(self)
+--             self:setShowing(false)
+--         end
+--     }
+--     children[IDX_FIGURE] = paperdollFigure
 
-    local function Window()
-        return Components.Window {
-            Name = NAME,
-            Resizable = false,
-            OnLayout = GridLayout,
-            OnInitialize = function(self)
-                self:setDimensions(windowWidth, windowHeight)
-                self:setChildren(children)
-                self:setId(playerId)
-            end,
-            OnUpdatePaperdoll = function(self, paperdoll)
-                local numSlots = paperdoll:getNumSlots()
-                for i = 1, NUM_SLOTS do
-                    if i <= numSlots then
-                        UpdateSlotIcon(i, paperdoll:getSlot(i))
-                    else
-                        UpdateSlotIcon(i, nil)
-                    end
-                end
-                -- Refresh figure texture when in player view
-                if not showingGrid then
-                    UpdatePaperdollFigure()
-                end
-            end,
-            OnLButtonUp = function(self)
-                if Data.Drag():isDraggingItem() then
-                    Api.Drag.DropOnPaperdoll(playerId)
-                end
-            end,
-            OnRButtonUp = function() end
-        }
-    end
+--     local function Window()
+--         return Components.Scaffold {
+--             Name = NAME,
+--             Resizable = false,
+--             OnLayout = GridLayout,
+--             OnInitialize = function(self)
+--                 self:setDimensions(windowWidth, windowHeight)
+--                 self:setChildren(children)
+--                 self:setId(playerId)
+--             end,
+--             OnUpdatePaperdoll = function(self, paperdoll)
+--                 local numSlots = paperdoll:getNumSlots()
+--                 for i = 1, NUM_SLOTS do
+--                     if i <= numSlots then
+--                         UpdateSlotIcon(i, paperdoll:getSlot(i))
+--                     else
+--                         UpdateSlotIcon(i, nil)
+--                     end
+--                 end
+--                 -- Refresh figure texture when in player view
+--                 if not showingGrid then
+--                     UpdatePaperdollFigure()
+--                 end
+--             end,
+--             OnLButtonUp = function(self)
+--                 if Data.Drag():isDraggingItem() then
+--                     Api.Drag.DropOnPaperdoll(playerId)
+--                 end
+--             end,
+--             OnRButtonUp = function() end
+--         }
+--     end
 
-    Window():create(true)
-end
+--     Window():create(true)
+-- end
 
-local function OnShutdown()
-    Api.Window.Destroy(NAME)
+-- local function OnShutdown()
+--     Api.Window.Destroy(NAME)
 
-    -- Restore default paperdoll
-    Api.Interface.SetPaperdollOpen(true)
-    local paperdollDefault = Components.Defaults.PaperdollWindow
-    paperdollDefault:restore()
-end
+--     -- Restore default paperdoll
+--     Api.Interface.SetPaperdollOpen(true)
+--     local paperdollDefault = Components.Defaults.PaperdollWindow
+--     paperdollDefault:restore()
+-- end
 
-Mongbat.Mod {
-    Name = "MongbatPaperdoll",
-    Path = "/src/mods/mongbat-paperdoll",
-    OnInitialize = OnInitialize,
-    OnShutdown = OnShutdown
-}
+-- Mongbat.Mod {
+--     Name = "MongbatPaperdoll",
+--     Path = "/src/mods/mongbat-paperdoll",
+--     OnInitialize = OnInitialize,
+--     OnShutdown = OnShutdown
+-- }
