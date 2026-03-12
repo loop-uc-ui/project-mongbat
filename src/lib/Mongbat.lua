@@ -3237,6 +3237,8 @@ Constants.CoreEvents.OnLButtonDblClk = "OnLButtonDblClk"
 Constants.CoreEvents.OnMouseOver = "OnMouseOver"
 Constants.CoreEvents.OnMouseOverEnd = "OnMouseOverEnd"
 Constants.CoreEvents.OnMouseWheel = "OnMouseWheel"
+Constants.CoreEvents.OnLButtonDown = "OnLButtonDown"
+Constants.CoreEvents.OnLButtonUp = "OnLButtonUp"
 Constants.CoreEvents.OnSlide = "OnSlide"
 Constants.CoreEvents.OnSelChanged = "OnSelChanged"
 
@@ -4492,6 +4494,11 @@ local EventHandler = {}
 ---@type table<string, View>
 local Cache = {}
 
+--- Per-frame marker: the view name that already handled OnLButtonUp via
+--- CoreEvent this frame.  Prevents the SystemEvent fallback from double-firing.
+---@type string?
+local lbuttonUpHandledView = nil
+
 --- Module-level resize tracking
 ---@type Window?
 local resizingWindow = nil
@@ -4513,6 +4520,7 @@ local SNAP_THRESHOLD = 20
 ---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Button)?
 ---@field OnMouseOverEnd fun(self: Button)?
+---@field OnRenderData fun(self: Button, state: ViewState)?
 
 ---@class Button: Window
 local Button = {}
@@ -4524,6 +4532,7 @@ Button.__index = Button
 ---@field OnLButtonUp fun(self: CheckBox, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: CheckBox)?
 ---@field OnMouseOverEnd fun(self: CheckBox)?
+---@field OnRenderData fun(self: CheckBox, state: ViewState)?
 
 ---@class CheckBox: View
 ---@field label Label?
@@ -4534,6 +4543,7 @@ CheckBox.__index = CheckBox
 ---@field OnInitialize fun(self: ComboBox)?
 ---@field OnShutdown fun(self: ComboBox)?
 ---@field OnSelChanged fun(self: ComboBox)?
+---@field OnRenderData fun(self: ComboBox, state: ViewState)?
 
 ---@class ComboBox: View
 local ComboBox = {}
@@ -4543,6 +4553,7 @@ ComboBox.__index = ComboBox
 ---@field OnInitialize fun(self: SliderBar)?
 ---@field OnShutdown fun(self: SliderBar)?
 ---@field OnSlide fun(self: SliderBar, position: number)?
+---@field OnRenderData fun(self: SliderBar, state: ViewState)?
 
 ---@class SliderBar: View
 local SliderBar = {}
@@ -4551,6 +4562,7 @@ SliderBar.__index = SliderBar
 ---@class AnimatedImageModel : ViewModel
 ---@field OnInitialize fun(self: AnimatedImage)?
 ---@field OnShutdown fun(self: AnimatedImage)?
+---@field OnRenderData fun(self: AnimatedImage, state: ViewState)?
 
 ---@class AnimatedImage: View
 local AnimatedImage = {}
@@ -4564,6 +4576,7 @@ AnimatedImage.__index = AnimatedImage
 ---@field OnRButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: ActionButton)?
 ---@field OnMouseOverEnd fun(self: ActionButton)?
+---@field OnRenderData fun(self: ActionButton, state: ViewState)?
 
 ---@class ActionButton: Button
 local ActionButton = {}
@@ -4589,6 +4602,7 @@ ActionButtonGroup.__index = ActionButtonGroup
 ---@class CooldownDisplayModel : ViewModel
 ---@field OnInitialize fun(self: CooldownDisplay)?
 ---@field OnShutdown fun(self: CooldownDisplay)?
+---@field OnRenderData fun(self: CooldownDisplay, state: ViewState)?
 
 ---@class CooldownDisplay: AnimatedImage
 local CooldownDisplay = {}
@@ -4605,6 +4619,7 @@ DockableWindow.__index = DockableWindow
 ---@class PageWindowModel : ViewModel
 ---@field OnInitialize fun(self: PageWindow)?
 ---@field OnShutdown fun(self: PageWindow)?
+---@field OnRenderData fun(self: PageWindow, state: ViewState)?
 
 ---@class PageWindow: View
 local PageWindow = {}
@@ -4845,6 +4860,7 @@ DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
 ---@field OnShutdown fun(self: CircleImage)?
 ---@field OnUpdate fun(self: CircleImage, timePassed: integer)?
 ---@field OnUpdateRadar fun(self: CircleImage, data: WindowData.Radar)?
+---@field OnRenderData fun(self: CircleImage, state: ViewState)?
 
 ---@class CircleImage : View
 local CircleImage = {}
@@ -4867,6 +4883,7 @@ Component.__index = Component
 ---@field OnMouseWheel fun(self: DynamicImage, x: number, y: number, delta: number)?
 ---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
+---@field OnRenderData fun(self: DynamicImage, state: ViewState)?
 
 ---@class DynamicImage: View
 local DynamicImage = {}
@@ -4878,6 +4895,7 @@ DynamicImage.__index = DynamicImage
 ---@field OnTextChanged fun(self: EditTextBox, text: wstring)?
 ---@field OnKeyEnter fun(self: EditTextBox)?
 ---@field OnKeyEscape fun(self: EditTextBox)?
+---@field OnRenderData fun(self: EditTextBox, state: ViewState)?
 
 ---@class EditTextBox: View
 local EditTextBox = {}
@@ -4915,6 +4933,7 @@ FilterInput.__index = FilterInput
 ---@field OnEndHealthBarDrag fun(self: Window)?
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
+---@field OnRenderData fun(self: Window, state: ViewState)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4930,6 +4949,7 @@ FilterInput.__index = FilterInput
 ---@field OnMouseOverEnd fun(self: Label)?
 ---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
+---@field OnRenderData fun(self: Label, state: ViewState)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -4959,6 +4979,7 @@ Label.__index = Label
 ---@class LogDisplayModel : ViewModel
 ---@field OnInitialize fun(self: LogDisplay)?
 ---@field OnShutdown fun(self: LogDisplay)?
+---@field OnRenderData fun(self: LogDisplay, state: ViewState)?
 
 ---@class LogDisplay: View
 local LogDisplay = {}
@@ -4994,6 +5015,7 @@ LogDisplay.__index = LogDisplay
 ---@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: StatusBar)?
 ---@field OnMouseOverEnd fun(self: StatusBar)?
+---@field OnRenderData fun(self: StatusBar, state: ViewState)?
 
 ---@class ScrollWindowModel : ViewModel
 ---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
@@ -5001,6 +5023,7 @@ LogDisplay.__index = LogDisplay
 ---@field Horizontal boolean? When true, the scroll window scrolls horizontally instead of vertically. Defaults to false.
 ---@field OnInitialize fun(self: ScrollWindow)?
 ---@field OnShutdown fun(self: ScrollWindow)?
+---@field OnRenderData fun(self: ScrollWindow, state: ViewState)?
 
 ---@class ScrollWindow : View
 ---@field _items View[] Views added as rows into the scroll content area.
@@ -6136,6 +6159,9 @@ local function stopResize()
             window._model.OnLayout(window, window._children, child, index)
         end)
     end
+
+    -- Ensure the window is no longer in a moving state
+    Api.Window.SetMoving(window.name, false)
 end
 
 --- Begins a live resize for the given window. Injects a per-frame OnUpdate
@@ -6204,13 +6230,32 @@ function EventHandler.OnLButtonUp(flags, x, y)
     if resizingWindow ~= nil then
         stopResize()
     end
-    withMouseOverView("OnLButtonUp", function(window)
+    withActiveView("OnLButtonUp", function(window)
+        lbuttonUpHandledView = window:getName()
         window:onLButtonUp(flags, x, y)
     end)
 end
 
+--- SystemEvent fallback for L_BUTTON_UP_PROCESSED.  Handles two cases:
+--- 1) Resize termination when the cursor is not over any Mongbat view.
+--- 2) Cross-window drag-and-drop: the drop target (MouseOverWindow) differs
+---    from the CoreEvent's ActiveWindow, so the CoreEvent handler above
+---    never dispatches to it.
+function EventHandler.OnLButtonUpProcessed(flags, x, y)
+    if resizingWindow ~= nil then
+        stopResize()
+    end
+    withMouseOverView("OnLButtonUp", function(window)
+        -- Skip if the CoreEvent already dispatched to this exact view
+        if window:getName() ~= lbuttonUpHandledView then
+            window:onLButtonUp(flags, x, y)
+        end
+    end)
+    lbuttonUpHandledView = nil
+end
+
 function EventHandler.OnLButtonDown(flags, x, y)
-    withMouseOverView("OnLButtonDown", function(window)
+    withActiveView("OnLButtonDown", function(window)
         window:onLButtonDown(flags, x, y)
     end)
 end
@@ -7465,6 +7510,19 @@ function View:onInitialize()
         prefix .. Constants.CoreEvents.OnShutdown
     )
 
+    -- Always register OnLButtonDown and OnLButtonUp as CoreEvents so the
+    -- engine tracks input state per-window.  This is required for buttons,
+    -- resize grips, and to prevent movable MaskWindows from auto-starting
+    -- movement without going through the framework's handler.
+    self:registerCoreEventHandler(
+        Constants.CoreEvents.OnLButtonDown,
+        prefix .. Constants.CoreEvents.OnLButtonDown
+    )
+    self:registerCoreEventHandler(
+        Constants.CoreEvents.OnLButtonUp,
+        prefix .. Constants.CoreEvents.OnLButtonUp
+    )
+
     if self._model.OnInitialize ~= nil then
         self._model.OnInitialize(self)
     end
@@ -8035,6 +8093,7 @@ function Window:onInitialize()
         local grip = Components.Button {
             Template = "MongbatResizeGrip",
             Resizable = false,
+            Snappable = false,
             OnLButtonDown = function()
                 startResize(parentWindow)
             end,
@@ -8168,6 +8227,12 @@ function Window:onLButtonDown(flags, x, y)
 
     View.onLButtonDown(self, flags, x, y)
     self._startDrag = { x = x, y = y }
+
+    -- Registering OnLButtonDown as a CoreEvent prevents the engine from
+    -- auto-starting movement for movable MaskWindows.  Explicitly start it.
+    if self:isParentRoot() then
+        Api.Window.SetMoving(self.name, true)
+    end
 end
 
 function Window:onLButtonUp(flags, x, y)
@@ -8569,21 +8634,16 @@ local mod = Mod:new {
             end
         )
 
-        --- We are using SystemEvents for onLButtonUp and onLButtonDown to facilitate the
-        --- dragging and dropping of items onto another window. In this scenario, the onLButtonUp attached
-        --- to the window is not activated. For example, if you drag an item from the inventory
-        --- to the status window, the onLButtonUp attached to the status window will not be activated.
+        --- SystemEvent fallbacks for cross-window drag-and-drop.  CoreEvents
+        --- fire on the window that originated the click; the drop *target*
+        --- (a different Mongbat window) only receives L_BUTTON_UP_PROCESSED.
         Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonUp")
-        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonDown")
+            "Mongbat.EventHandler.OnLButtonUpProcessed")
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonUp")
-        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonDown")
+            "Mongbat.EventHandler.OnLButtonUpProcessed")
         SnappableWindows = {}
         destroySnapPreview()
         Cache = {}
