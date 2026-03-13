@@ -33,13 +33,13 @@ Mongbat.Mod {
         local label = Components.Label {
             Name = NAME,
             OnInitialize = function(self)
-                self:setDimensions(60, 20)
-                self:setHandleInput(false)
-                self:setLayer():overlay()
+                self.dimensions = {60, 20}
+                self.handleInput = false
+                self.layer:overlay()
             end,
             OnUpdate = function(self)
-                if not Data.Cursor():isTarget() then
-                    self:setText("")
+                if not Data.Cursor().target then
+                    self.text = ""
                     return
                 end
 
@@ -58,7 +58,7 @@ Mongbat.Mod {
 
                 -- If cursor is outside the game viewport, clear
                 if mx < vpX or mx > vpX + vpW or my < vpY or my > vpY + vpH then
-                    self:setText("")
+                    self.text = ""
                     return
                 end
 
@@ -69,11 +69,11 @@ Mongbat.Mod {
                 local distance = math.floor(isoMetric(dx, dy) / PIXELS_PER_TILE)
 
                 -- Position the label near the cursor
-                self:setOffsetFromParent(
+                self.offsetFromParent = {
                     mx + CURSOR_OFFSET_X,
                     my + CURSOR_OFFSET_Y
-                )
-                self:setText(tostring(distance))
+                }
+                self.text = tostring(distance)
             end
         }
 

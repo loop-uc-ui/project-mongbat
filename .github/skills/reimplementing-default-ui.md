@@ -115,7 +115,7 @@ local function OnInitialize()
         Name = NAME,
         OnInitialize = function(self)
             self:setId(entityId)  -- triggers RegisterWindowData for all DataEvents in model
-            self:setChildren(children)
+            self.children = children
         end,
         OnUpdate<DataType> = function(self, wrapper)
             -- update display from data

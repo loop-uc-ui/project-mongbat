@@ -72,9 +72,9 @@ The UO EC embeds a **sandboxed Lua** runtime (believed to be **5.0 or 5.1**). Un
 - **No `goto`** -- not available in the runtime.
 - **`math.mod` not `math.fmod`** -- use `math.mod()` (the Lua 5.0 name).
 - **Limited pattern matching** -- Lua patterns, not regex. No alternation (`|`), no `\d`, no lookahead.
-- **Metatables** -- Mongbat makes heavy use of `__index`, `__newindex`, `__call`, and `__tostring` metamethods for its class system and proxy pattern.
+- **Metatables** -- Mongbat makes heavy use of `__index`, `__newindex`, `__call`, and `__tostring` metamethods for its class system.
 - **`local function` ordering** -- A `local function` must be **defined before** its first call site in the file. Lua resolves `local` bindings at parse time; calling a local function before its definition results in a "nil value" error at runtime. When adding new local functions to `Mongbat.lua`, always verify the definition appears above all call sites.
-- **Global namespace** -- all default UI scripts and engine functions populate the global table. Mongbat captures references and sometimes overrides globals (via its `DefaultComponent` system).
+- **Global namespace** -- all default UI scripts and engine functions populate the global table. Mongbat captures references and modifies originals in-place (via its `DefaultComponent` system).
 
 ---
 
@@ -178,11 +178,13 @@ Mongbat centralizes XML templates in `Mongbat.xml` (minimal templates that rely 
 
 ### DefaultComponent Replacement
 
-Mongbat can **replace** default UI windows by intercepting their global Lua tables:
-1. Captures the original global (e.g., `StatusWindow`) before the mod loads.
-2. Replaces it with a proxy whose lifecycle methods are no-ops.
-3. Provides `disable()` / `restore()` methods to toggle the replacement.
+Mongbat can **replace** default UI windows by modifying their global Lua tables in-place:
+1. A `DefaultComponent` wraps the original global table (e.g., `StatusWindow`) by reference.
+2. `disable()` saves all functions on the original table and replaces them with no-ops, neutralizing the default window's behavior.
+3. `restore()` puts the saved functions back and wipes any overrides the mod wrote.
 4. The mod creates its own Window that takes over the visual role.
+
+There is no proxy or global replacement -- `disable()` and `restore()` mutate the original table directly. The engine continues to call through the same table object.
 
 Mods access default components via `Components.Defaults.<name>`. See existing mods for the pattern: disable the original in `OnInitialize`, restore it in `OnShutdown`.
 

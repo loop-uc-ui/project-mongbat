@@ -118,7 +118,7 @@ Every action in `OnInitialize` must have a corresponding reverse in `OnShutdown`
 
 - [ ] UI elements are created via `Components.*` factories (Window, Label, Button, DynamicImage, StatusBar, etc.), not via raw `Api.Window.CreateFromTemplate` with manual setup.
 - [ ] Builder pattern is used where applicable — fluent chaining (`:setDimensions():setColor():create()`).
-- [ ] Children are set via `:setChildren()` or the `Children` model key, not manually reparented.
+- [ ] Children are set via the `.children` property or the `Children` model key, not manually reparented.
 - [ ] Component types match their purpose — Labels for text, DynamicImages for icons, StatusBars for progress, etc.
 
 ---

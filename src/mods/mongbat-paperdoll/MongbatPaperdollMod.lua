@@ -21,7 +21,7 @@
 --     local paperdollDefault = Components.Defaults.PaperdollWindow
 --     paperdollDefault:disable()
 
---     local playerId = Data.PlayerStatus():getId()
+--     local playerId = Data.PlayerStatus().id
 
 --     -- Prevent Interface.PaperdollCheck from re-creating the default window
 --     Api.Interface.SetPaperdollOpen(false)
@@ -45,7 +45,7 @@
 --                 local slot = paperdoll:getSlot(slotIndex)
 --                 if not slot or slot.slotId == 0 then return end
 
---                 if Data.Cursor():isTarget() then
+--                 if Data.Cursor().target then
 --                     Api.Target.LeftClick(slot.slotId)
 --                     return
 --                 end
@@ -53,7 +53,7 @@
 --                 Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
 --             end,
 --             OnLButtonUp = function(self)
---                 if Data.Drag():isDraggingItem() then
+--                 if Data.Drag().draggingItem then
 --                     local paperdoll = Data.Paperdoll(playerId)
 --                     local slot = paperdoll:getSlot(slotIndex)
 --                     if slot and slot.slotId ~= 0 then
@@ -135,12 +135,12 @@
 --         if not paperdollFigure then return end
 
 --         local tex = Data.PaperdollTexture(playerId)
---         local figName = paperdollFigure:getName()
+--         local figName = paperdollFigure.name
 
 --         local texW, texH
---         if tex:hasData() then
---             texW = tex:getWidth()
---             texH = tex:getHeight()
+--         if tex.hasData then
+--             texW = tex.width
+--             texH = tex.height
 --         else
 --             texW, texH = 200, 400
 --         end
@@ -152,14 +152,14 @@
 
 --         -- Figure at full texture size, no DynamicImageSetTextureScale
 --         Api.Window.SetDimensions(figName, texW, texH)
---         Api.DynamicImage.SetTexture(figName, tex:getTextureName(), 0, 0)
+--         Api.DynamicImage.SetTexture(figName, tex.textureName, 0, 0)
 
 --         -- Position using the engine's canonical center-to-topleft anchoring
 --         -- with texture offsets, matching the default PaperdollWindow.
 --         paperdollFigure:clearAnchors()
---         if tex:hasData() then
+--         if tex.hasData then
 --             paperdollFigure:addAnchor("center", NAME, "topleft",
---                 tex:getXOffset(), tex:getYOffset() + 30)
+--                 tex.xOffset, tex.yOffset + 30)
 --         else
 --             paperdollFigure:addAnchor("center", NAME, "center", 0, 0)
 --         end
@@ -176,7 +176,7 @@
 --     local function GridLayout(window, children, child, index)
 --         if index == IDX_LABEL then
 --             child:clearAnchors()
---             child:addAnchor("topleft", window:getName(), "topleft", MARGIN, MARGIN)
+--             child:addAnchor("topleft", window.name, "topleft", MARGIN, MARGIN)
 --             return
 --         end
 --         if index == IDX_FIGURE then
@@ -194,7 +194,7 @@
 --         local x = MARGIN + col * (CELL_SIZE + PADDING)
 --         local y = MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL_SIZE + PADDING)
 --         child:clearAnchors()
---         child:addAnchor("topleft", window:getName(), "topleft", x, y)
+--         child:addAnchor("topleft", window.name, "topleft", x, y)
 --     end
 
 --     --- Updates a single slot's DynamicImage from paperdoll data.
@@ -203,7 +203,7 @@
 --     local function UpdateSlotIcon(slotIndex, slotData)
 --         local view = slotViews[slotIndex]
 --         if not view then return end
---         local elementName = view:getName()
+--         local elementName = view.name
 
 --         if slotData and slotData.slotId ~= 0 then
 --             Api.Equipment.UpdateItemIcon(elementName, slotData)
@@ -251,10 +251,10 @@
 --             self:setId(playerId)
 --         end,
 --         OnUpdateMobileName = function(self, mobileName)
---             self:setText(mobileName:getName())
+--             self:setText(mobileName.name)
 --         end,
 --         OnUpdateMobileStatus = function(self, mobileStatus)
---             self:setTextColor(mobileStatus:getNotorietyColor())
+--             self:setTextColor(mobileStatus.notorietyColor)
 --         end
 --     }
 --     children[IDX_LABEL] = nameLabel
@@ -277,11 +277,11 @@
 --             OnLayout = GridLayout,
 --             OnInitialize = function(self)
 --                 self:setDimensions(windowWidth, windowHeight)
---                 self:setChildren(children)
+--                 self.children = children
 --                 self:setId(playerId)
 --             end,
 --             OnUpdatePaperdoll = function(self, paperdoll)
---                 local numSlots = paperdoll:getNumSlots()
+--                 local numSlots = paperdoll.numSlots
 --                 for i = 1, NUM_SLOTS do
 --                     if i <= numSlots then
 --                         UpdateSlotIcon(i, paperdoll:getSlot(i))
@@ -295,7 +295,7 @@
 --                 end
 --             end,
 --             OnLButtonUp = function(self)
---                 if Data.Drag():isDraggingItem() then
+--                 if Data.Drag().draggingItem then
 --                     Api.Drag.DropOnPaperdoll(playerId)
 --                 end
 --             end,

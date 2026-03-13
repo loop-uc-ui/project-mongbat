@@ -7,19 +7,19 @@ local Components = Mongbat.Components
 
 local function OnInitialize()
     local original = Components.Defaults.StatusWindow
-    original:asComponent():setShowing(false)
+    original:asComponent().showing = false
     original:disable()
     local warShield = Components.Defaults.WarShield
-    warShield:asComponent():setShowing(false)
+    warShield:asComponent().showing = false
     warShield:disable()
 
     local function PlayerName()
         return Components.Label {
             OnRenderData = function(self, state)
-                self:setId(state.mobile:getPlayerId())
-                local name = state.mobile:getName()
+                self.id = state.mobile.playerId
+                local name = state.mobile.name
                 if name then
-                    self:setText(name)
+                    self.text = name
                 end
             end
         }
@@ -39,27 +39,26 @@ local function OnInitialize()
     local function HealthStatusBar()
         return StatusBar(
             function(self, state)
-                self:setId(state.mobile:getPlayerId())
-                self:setCurrentValue(state.mobile:getCurrentHealth())
-                self:setMaxValue(state.mobile:getMaxHealth())
-                local hbColor = state.mobile:getVisualStateColor()
+                self.id = state.mobile.playerId
+                self.currentValue = state.mobile.currentHealth
+                self.maxValue = state.mobile.maxHealth
+                local hbColor = state.mobile.visualStateColor
                 if hbColor then
-                    self:setColor(hbColor)
+                    self.color = hbColor
                     self._colorSet = true
                 elseif not self._colorSet then
-                    self:setColor(Constants.Colors.HealhBar[1])
+                    self.color = Constants.Colors.HealhBar[1]
                     self._colorSet = true
                 end
             end,
             {
                 OnRenderData = function(self, state)
-                    self:setText(
+                    self.text =
                         string.format(
                             "%d / %d",
-                            state.mobile:getCurrentHealth(),
-                            state.mobile:getMaxHealth()
+                            state.mobile.currentHealth,
+                            state.mobile.maxHealth
                         )
-                    )
                 end
             }
         )
@@ -68,19 +67,18 @@ local function OnInitialize()
     local function ManaStatusBar()
         return StatusBar(
             function(self, state)
-                self:setColor(Constants.Colors.Blue)
-                self:setCurrentValue(state.mobile:getCurrentMana())
-                self:setMaxValue(state.mobile:getMaxMana())
+                self.color = Constants.Colors.Blue
+                self.currentValue = state.mobile.currentMana
+                self.maxValue = state.mobile.maxMana
             end,
             {
                 OnRenderData = function(self, state)
-                    self:setText(
+                    self.text =
                         string.format(
                             "%d / %d",
-                            state.mobile:getCurrentMana(),
-                            state.mobile:getMaxMana()
+                            state.mobile.currentMana,
+                            state.mobile.maxMana
                         )
-                    )
                 end
             }
         )
@@ -89,19 +87,18 @@ local function OnInitialize()
     local function StaminaStatusBar()
         return StatusBar(
             function(self, state)
-                self:setColor(Constants.Colors.YellowDark)
-                self:setCurrentValue(state.mobile:getCurrentStamina())
-                self:setMaxValue(state.mobile:getMaxStamina())
+                self.color = Constants.Colors.YellowDark
+                self.currentValue = state.mobile.currentStamina
+                self.maxValue = state.mobile.maxStamina
             end,
             {
                 OnRenderData = function(self, state)
-                    self:setText(
+                    self.text =
                         string.format(
                             "%d / %d",
-                            state.mobile:getCurrentStamina(),
-                            state.mobile:getMaxStamina()
+                            state.mobile.currentStamina,
+                            state.mobile.maxStamina
                         )
-                    )
                 end
             }
         )
@@ -111,8 +108,8 @@ local function OnInitialize()
         return Components.Window {
             Name = NAME,
             OnInitialize = function(self)
-                self:setDimensions(200, 150)
-                self:setChildren {
+                self.dimensions = {200, 150}
+                self.children = {
                     PlayerName(),
                     HealthStatusBar(),
                     ManaStatusBar(),
@@ -121,22 +118,22 @@ local function OnInitialize()
             end,
             OnRButtonUp = function() end,
             OnRenderData = function(self, state)
-                local frame = self:getFrame()
-                self:setId(state.mobile:getPlayerId())
-                if state.mobile:isInWarMode() then
-                    frame:setColor(Constants.Colors.Notoriety[6])
+                local frame = self.frame
+                self.id = state.mobile.playerId
+                if state.mobile.inWarMode then
+                    frame.color = Constants.Colors.Notoriety[6]
                 else
-                    frame:setColor(Constants.Colors.Notoriety[1])
+                    frame.color = Constants.Colors.Notoriety[1]
                 end
             end,
             OnLButtonDblClk = function(self)
-                Api.UserAction.UseItem(self:getId())
+                Api.UserAction.UseItem(self.id)
             end,
             OnLButtonUp = function(self)
-                if Data.Drag():isDraggingItem() then
-                    Api.Drag.DragToObject(self:getId())
+                if Data.Drag().draggingItem then
+                    Api.Drag.DragToObject(self.id)
                 else
-                    Api.Target.LeftClick(self:getId())
+                    Api.Target.LeftClick(self.id)
                 end
             end
         }
@@ -149,10 +146,10 @@ local function OnShutdown()
     Api.Window.Destroy(NAME)
     local original = Components.Defaults.StatusWindow
     original:restore()
-    original:asComponent():setShowing(true)
+    original:asComponent().showing = true
     local warShield = Components.Defaults.WarShield
     warShield:restore()
-    warShield:asComponent():setShowing(true)
+    warShield:asComponent().showing = true
 end
 
 Mongbat.Mod {

@@ -18,8 +18,8 @@ local FilterColors = {
 ---@param text wstring
 local function applyFilter(fullLog, filteredLog, text)
     if wstring.len(text) <= 0 then
-        filteredLog:setShowing(false)
-        fullLog:setShowing(true)
+        filteredLog.showing = false
+        fullLog.showing = true
         return
     end
 
@@ -36,8 +36,8 @@ local function applyFilter(fullLog, filteredLog, text)
         end
     end
 
-    fullLog:setShowing(false)
-    filteredLog:setShowing(true)
+    fullLog.showing = false
+    filteredLog.showing = true
 end
 
 local function OnInitialize()
@@ -59,9 +59,9 @@ local function OnInitialize()
 
     local fullLogDisplay = Components.LogDisplay {
         OnInitialize = function(self)
-            self:showTimestamp(false)
-            self:showLogName(true)
-            self:showFilterName(true)
+            self.timestampVisible = false
+            self.logNameVisible = true
+            self.filterNameVisible = true
             self:addLog("UiLog", true)
             self:addLog("DebugPrint", true)
 
@@ -73,16 +73,16 @@ local function OnInitialize()
 
     local filteredLogDisplay = Components.LogDisplay {
         OnInitialize = function(self)
-            self:showTimestamp(false)
-            self:showLogName(false)
-            self:showFilterName(true)
+            self.timestampVisible = false
+            self.logNameVisible = false
+            self.filterNameVisible = true
             self:addLog(FILTERED_LOG, true)
 
             for id, color in pairs(FilterColors) do
                 self:setFilterColor(FILTERED_LOG, id, color)
             end
 
-            self:setShowing(false)
+            self.showing = false
         end,
     }
 
@@ -99,7 +99,7 @@ local function OnInitialize()
     Components.Window({
         Name = NAME,
         OnLayout = function(window, children, child, index)
-            local dimens = window:getDimensions()
+            local dimens = window.dimensions
             local padding = 12
             local spacing = 4
             local filterHeight = 24
@@ -108,18 +108,18 @@ local function OnInitialize()
 
             if index == 1 then
                 -- FilterInput
-                child:addAnchor("topleft", window:getName(), "topleft", padding, padding)
-                child:setDimensions(contentWidth, filterHeight)
+                child.anchor:add("topleft", window.name, "topleft", padding, padding)
+                child.dimensions = {contentWidth, filterHeight}
             else
                 -- Both LogDisplays occupy the same space below the filter
-                child:addAnchor("bottomleft", children[1]:getName(), "topleft", 0, spacing)
-                child:setDimensions(contentWidth, logHeight)
+                child.anchor:add("bottomleft", children[1].name, "topleft", 0, spacing)
+                child.dimensions = {contentWidth, logHeight}
             end
         end,
         OnInitialize = function(self)
-            self:setDimensions(800, 500)
-            self:setAlpha(0.75)
-            self:setChildren { filterInput, fullLogDisplay, filteredLogDisplay }
+            self.dimensions = {800, 500}
+            self.alpha = 0.75
+            self.children = { filterInput, fullLogDisplay, filteredLogDisplay }
         end
     }):create(false)
 end

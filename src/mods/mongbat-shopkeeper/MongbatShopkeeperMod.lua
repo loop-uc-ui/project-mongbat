@@ -149,7 +149,7 @@ local function OnInitialize()
         return Components.View {
             Template = "ShopkeeperItemRow",
             OnInitialize = function(self)
-                local rowName = self:getName()
+                local rowName = self.name
                 Api.Label.SetText(rowName .. "Name", item.name or L"")
                 Api.Label.SetText(rowName .. "Price", Utils.String.Concat(item.price, "g"))
                 Api.Label.SetText(rowName .. "Qty", Utils.String.Concat(qty))
@@ -195,9 +195,9 @@ local function OnInitialize()
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), slot.objectId)
 
             local objInfo  = Data.ObjectInfo(slot.objectId)
-            local price    = objInfo:getShopValue()
-            local qty      = objInfo:getShopQuantity()
-            local objType  = objInfo:getObjectType()
+            local price    = objInfo.shopValue
+            local qty      = objInfo.shopQuantity
+            local objType  = objInfo.objectType
             local itemName = "" ---@type string|wstring
 
             local props = Data.ItemProperties(slot.objectId)
@@ -310,8 +310,8 @@ local function OnInitialize()
         end
         if totalLabel then
             local total = computeTotal()
-            local gold  = Data.PlayerStatus():getGold()
-            totalLabel:setText(Utils.String.Concat(total, "/", gold))
+            local gold  = Data.PlayerStatus().gold
+            totalLabel.text = Utils.String.Concat(total, "/", gold)
         end
     end
 
@@ -369,9 +369,9 @@ local function OnInitialize()
         else
             -- Try to get the merchant's name
             local mobileName = Data.MobileName(mId)
-            local mobData    = mobileName and mobileName:getData()
-            if mobData and not Utils.String.IsEmpty(mobData.MobName) then
-                titleText = mobData.MobName
+            local name       = mobileName and mobileName.name
+            if name and not Utils.String.IsEmpty(name) then
+                titleText = name
             else
                 titleText = "NPC Store"
             end
@@ -384,8 +384,8 @@ local function OnInitialize()
         -- Title label
         local titleLabel = Components.Label {
             OnInitialize = function(self)
-                self:setDimensions(WIN_W - MARGIN * 2, TITLE_H)
-                self:setText(titleText)
+                self.dimensions = {WIN_W - MARGIN * 2, TITLE_H}
+                self.text = titleText
                 self:centerText()
             end
         }
@@ -393,10 +393,10 @@ local function OnInitialize()
         -- Search box
         searchBox = Components.EditTextBox {
             OnInitialize = function(self)
-                self:setDimensions(PANEL_W - 58, SEARCH_H)
+                self.dimensions = {PANEL_W - 58, SEARCH_H}
             end,
             OnKeyEnter = function(_)
-                local text = searchBox:getText()
+                local text = searchBox.text
                 if not Utils.String.IsEmpty(text) then
                     Utils.Array.AddUnique(filterPatterns, Utils.String.Lower(text))
                     refreshAll()
@@ -408,13 +408,13 @@ local function OnInitialize()
         local clearFilterBtn = Components.Button {
             Template = "MongbatButton18",
             OnInitialize = function(self)
-                self:setDimensions(52, SEARCH_H)
-                self:setText("Clear")
+                self.dimensions = {52, SEARCH_H}
+                self.text = "Clear"
             end,
             OnLButtonUp = function(_)
                 filterPatterns = {}
                 if searchBox then
-                    searchBox:setText("")
+                    searchBox.text = ""
                 end
                 refreshAll()
             end
@@ -423,8 +423,8 @@ local function OnInitialize()
         -- Available panel header
         local availHeader = Components.Label {
             OnInitialize = function(self)
-                self:setDimensions(PANEL_W, 20)
-                self:setText(availHdr)
+                self.dimensions = {PANEL_W, 20}
+                self.text = availHdr
                 self:centerText()
             end
         }
@@ -432,8 +432,8 @@ local function OnInitialize()
         -- Cart panel header
         local cartHeader = Components.Label {
             OnInitialize = function(self)
-                self:setDimensions(PANEL_W, 20)
-                self:setText(cartHdr)
+                self.dimensions = {PANEL_W, 20}
+                self.text = cartHdr
                 self:centerText()
             end
         }
@@ -444,7 +444,7 @@ local function OnInitialize()
         local availModel = {
             ItemHeight = ROW_H,
             OnInitialize = function(self)
-                self:setDimensions(PANEL_W, PANEL_H)
+                self.dimensions = {PANEL_W, PANEL_H}
             end
         }
         if not isSelling then
@@ -464,19 +464,19 @@ local function OnInitialize()
                 local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
                 if found then
                     -- ObjectInfo fields
-                    local newTotal = itemData:getShopQuantity()
+                    local newTotal = itemData.shopQuantity
                     if newTotal > 0 then
                         local oldCart = found.cartQty
                         if oldCart > newTotal then oldCart = newTotal end
                         found.totalQty = newTotal
                         found.availQty = newTotal - oldCart
                         found.cartQty  = oldCart
-                        found.price    = itemData:getShopValue()
-                        found.objType  = itemData:getObjectType()
+                        found.price    = itemData.shopValue
+                        found.objType  = itemData.objectType
                     end
 
                     -- ItemProperties fields
-                    local propName = itemData:getPropertyName()
+                    local propName = itemData.propertyName
                     if propName then
                         found.name = Utils.String.Replace(propName, "^%d+ ", "") ---@type wstring
                     end
@@ -490,7 +490,7 @@ local function OnInitialize()
         cartList = Components.ScrollWindow {
             ItemHeight = ROW_H,
             OnInitialize = function(self)
-                self:setDimensions(PANEL_W, PANEL_H)
+                self.dimensions = {PANEL_W, PANEL_H}
             end
         }
 
@@ -498,12 +498,12 @@ local function OnInitialize()
         -- OnRenderData belongs here: this child displays the gold total.
         totalLabel = Components.Label {
             OnInitialize = function(self)
-                self:setDimensions(200, 22)
+                self.dimensions = {200, 22}
             end,
             OnRenderData = function(self, state)
                 local total = computeTotal()
-                local gold  = state.mobile:getGold()
-                self:setText(Utils.String.Concat(total, "/", gold))
+                local gold  = state.mobile.gold
+                self.text = Utils.String.Concat(total, "/", gold)
             end
         }
 
@@ -511,8 +511,8 @@ local function OnInitialize()
         local acceptBtn = Components.Button {
             Template = "MongbatButton18",
             OnInitialize = function(self)
-                self:setDimensions(BTN_W, BTN_H)
-                self:setText(isSelling and "Sell" or "Buy")
+                self.dimensions = {BTN_W, BTN_H}
+                self.text = isSelling and "Sell" or "Buy"
             end,
             OnLButtonUp = function(_)
                 acceptOffer()
@@ -523,8 +523,8 @@ local function OnInitialize()
         local cancelBtn = Components.Button {
             Template = "MongbatButton18",
             OnInitialize = function(self)
-                self:setDimensions(BTN_W, BTN_H)
-                self:setText("Clear")
+                self.dimensions = {BTN_W, BTN_H}
+                self.text = "Clear"
             end,
             OnLButtonUp = function(_)
                 clearCart()
@@ -535,8 +535,8 @@ local function OnInitialize()
         local closeBtn = Components.Button {
             Template = "MongbatButton18",
             OnInitialize = function(self)
-                self:setDimensions(BTN_W, BTN_H)
-                self:setText("Close")
+                self.dimensions = {BTN_W, BTN_H}
+                self.text = "Close"
             end,
             OnLButtonUp = function(_)
                 cancelOffer()
@@ -579,55 +579,44 @@ local function OnInitialize()
             Name      = "MongbatShopkeeperWindow",
             Resizable = false,
             OnInitialize = function(self)
-                self:setDimensions(WIN_W, WIN_H)
-                self:setChildren(children)
-                self:setId(merchantId)
+                self.dimensions = {WIN_W, WIN_H}
+                self.children = children
+                self.id = merchantId
             end,
             OnLayout = function(win, _, child, idx)
-                local winName = win:getName()
+                local winName = win.name
                 if idx == IDX_TITLE then
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft", MARGIN, MARGIN)
+                    child.anchor:clear():add("topleft", winName, "topleft", MARGIN, MARGIN)
                 elseif idx == IDX_SEARCH then
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft",
+                    child.anchor:clear():add("topleft", winName, "topleft",
                         MARGIN, MARGIN + TITLE_H + MARGIN)
                 elseif idx == IDX_CLRFILTER then
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft",
+                    child.anchor:clear():add("topleft", winName, "topleft",
                         MARGIN + (PANEL_W - 58) + 4,
                         MARGIN + TITLE_H + MARGIN)
                 elseif idx == IDX_AVAILHDR then
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft",
+                    child.anchor:clear():add("topleft", winName, "topleft",
                         MARGIN, panelTop)
                 elseif idx == IDX_CARTHDR then
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft",
+                    child.anchor:clear():add("topleft", winName, "topleft",
                         MARGIN + PANEL_W + MARGIN, panelTop)
                 elseif idx == IDX_AVAIL then
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft",
+                    child.anchor:clear():add("topleft", winName, "topleft",
                         MARGIN, panelTop + 22)
                 elseif idx == IDX_CART then
-                    child:clearAnchors()
-                    child:addAnchor("topleft", winName, "topleft",
+                    child.anchor:clear():add("topleft", winName, "topleft",
                         MARGIN + PANEL_W + MARGIN, panelTop + 22)
                 elseif idx == IDX_TOTAL then
-                    child:clearAnchors()
-                    child:addAnchor("bottomleft", winName, "bottomleft",
+                    child.anchor:clear():add("bottomleft", winName, "bottomleft",
                         MARGIN, -MARGIN - BTN_H)
                 elseif idx == IDX_ACCEPT then
-                    child:clearAnchors()
-                    child:addAnchor("bottomright", winName, "bottomright",
+                    child.anchor:clear():add("bottomright", winName, "bottomright",
                         -MARGIN - BTN_W * 2 - 8, -MARGIN)
                 elseif idx == IDX_CANCEL then
-                    child:clearAnchors()
-                    child:addAnchor("bottomright", winName, "bottomright",
+                    child.anchor:clear():add("bottomright", winName, "bottomright",
                         -MARGIN - BTN_W - 4, -MARGIN)
                 elseif idx == IDX_CLOSE then
-                    child:clearAnchors()
-                    child:addAnchor("bottomright", winName, "bottomright",
+                    child.anchor:clear():add("bottomright", winName, "bottomright",
                         -MARGIN, -MARGIN)
                 end
             end,
@@ -677,17 +666,14 @@ local function OnInitialize()
     end
 
     -- -----------------------------------------------------------------------
-    -- disable() must be called BEFORE setting overrides.  disable() sets
-    -- _disabled=true on the proxy.  Override assignments go to _overrides
-    -- (not _original), so they are unaffected by the disabled state.
-    -- Any call to an _overrides key bypasses _disabled and executes our
-    -- custom function; calls to original-only keys return no-ops.
-    -- restore() clears _overrides and sets _disabled=false, reverting
-    -- everything cleanly without any manual save/restore bookkeeping.
+    -- disable() replaces all original functions with no-ops.
+    -- Override assignments then replace specific no-ops with our custom
+    -- functions, which the engine calls normally.
+    -- restore() puts back all original functions, wiping our overrides.
     -- -----------------------------------------------------------------------
     shopkeeperDefault:disable()
 
-    shopkeeperDefault:getDefault().Initialize = function()
+    shopkeeperDefault.default.Initialize = function()
         local defaultWin = Api.Window.GetActiveWindowName()
         local mId        = Api.Window.GetDynamicWindowId()
 
@@ -722,7 +708,7 @@ local function OnInitialize()
     -- Override Shopkeeper.Shutdown -- called when the default XML window is torn
     -- down (e.g. server closes shop).  Broadcast cancel and destroy our window
     -- if it is still open; our window's OnShutdown handles data cleanup.
-    shopkeeperDefault:getDefault().Shutdown = function()
+    shopkeeperDefault.default.Shutdown = function()
         -- Prevent MongbatShopkeeperWindow OnShutdown from trying to
         -- destroy the default window again (it's already being destroyed
         -- by the engine right now).
@@ -744,8 +730,7 @@ local function OnShutdown()
         defaultWindowName = nil
     end
 
-    -- restore() clears all _overrides (Initialize/Shutdown hooks) and
-    -- re-enables the original Shopkeeper functions.
+    -- restore() puts back all original Shopkeeper functions.
     local shopkeeperDefault = Components.Defaults.Shopkeeper
     shopkeeperDefault:restore()
 end

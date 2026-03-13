@@ -118,7 +118,7 @@ Component                  -- Base: name, type, xml-template support
             │    ├─ DockableWindow    -- Window with automatic position save/restore
             │    └─ ActionButtonGroup -- Row of ActionButton slots with event delegation
             ├─ Button      -- Pressable button with text and textures
-            │    └─ ActionButton      -- Button bound to a game action (spell, ability, macro)
+            ├─ ActionButton -- Button bound to a game action (spell, ability, macro)
             ├─ Label       -- Text display (font, color, alignment)
             ├─ StatusBar   -- Progress bar (current/max values, tints)
             ├─ CircleImage -- Circular texture

@@ -14,7 +14,7 @@ Mongbat.Mod {
     Path = "/src/mods/mongbat-map",
     OnInitialize = function()
         local mapWindow = Components.Defaults.MapWindow
-        mapWindow:asComponent():setShowing(false)
+        mapWindow:asComponent().showing = false
         mapWindow:disable()
 
         local mapCommon = Components.Defaults.MapCommon
@@ -83,8 +83,8 @@ Mongbat.Mod {
             local x, y
             if centerOnPlayer then
                 local loc = Data.PlayerLocation()
-                x = loc:getX()
-                y = loc:getY()
+                x = loc.x
+                y = loc.y
             else
                 x, y = Radar.GetCenter()
             end
@@ -123,7 +123,7 @@ Mongbat.Mod {
             return Components.DynamicImage {
                 OnInitialize = function(self)
                     -- Activate the radar (mirrors MapWindow.ActivateMap)
-                    local dims = self:getDimensions()
+                    local dims = self.dimensions
                     updateRadarSize(dims.x, dims.y)
                     Api.Radar.SetRotation(0)
                     Api.Radar.SetWindowOffset(0, 0)
@@ -131,8 +131,8 @@ Mongbat.Mod {
                     initializeZoom()
                 end,
                 OnUpdateRadar = function(self, data)
-                    self:setTexture("radar_texture", data.TexCoordX, data.TexCoordY)
-                    self:setTextureScale(data.TexScale)
+                    self.texture = {"radar_texture", data.TexCoordX, data.TexCoordY}
+                    self.textureScale = data.TexScale
                 end,
                 OnDimensionsChanged = function(self, width, height)
                     updateRadarSize(width, height)
@@ -148,7 +148,7 @@ Mongbat.Mod {
                         lastMouseX = pos.x
                         lastMouseY = pos.y
                         Api.Radar.SetCenterOnPlayer(false)
-                        Api.Window.SetMoving(self:getParent(), false)
+                        Api.Window.SetMoving(self.parent, false)
                     end
                 end,
                 OnLButtonUp = function(self)
@@ -200,16 +200,16 @@ Mongbat.Mod {
             return Components.Label {
                 Template = "MongbatLabelSmall",
                 OnInitialize = function(self)
-                    self:setDimensions(WINDOW_SIZE, 16)
-                    self:setLayer():overlay()
-                    self:setText(formatLocationText())
+                    self.dimensions = {WINDOW_SIZE, 16}
+                    self.layer:overlay()
+                    self.text = formatLocationText()
                 end,
                 OnUpdateRadar = function(self)
-                    self:setText(formatLocationText())
+                    self.text = formatLocationText()
                 end,
                 OnUpdatePlayerLocation = function(self)
                     if centerOnPlayer then
-                        self:setText(formatLocationText())
+                        self.text = formatLocationText()
                     end
                 end,
             }
@@ -221,22 +221,22 @@ Mongbat.Mod {
                 MinWidth = 100 + MARGIN * 2,
                 MinHeight = 100 + MARGIN * 2,
                 OnInitialize = function(self)
-                    self:setDimensions(WINDOW_SIZE + MARGIN * 2, WINDOW_SIZE + MARGIN * 2)
-                    self:setChildren { Map(), CoordsLabel() }
+                    self.dimensions = {WINDOW_SIZE + MARGIN * 2, WINDOW_SIZE + MARGIN * 2}
+                    self.children = { Map(), CoordsLabel() }
                 end,
                 OnLayout = function(self, children, child, index)
-                    local dimens = self:getDimensions()
+                    local dimens = self.dimensions
                     local contentW = dimens.x - MARGIN * 2
                     local contentH = dimens.y - MARGIN * 2
 
                     if index == 1 then
                         -- Map image: fill the window minus margins
-                        child:setDimensions(contentW, contentH)
-                        child:anchorToParentCenter(0, 0)
+                        child.dimensions = {contentW, contentH}
+                        child.anchor:toParentCenter(0, 0)
                     elseif index == 2 then
                         -- Coords/facet label: full width, bottom-left
-                        child:setDimensions(contentW, 16)
-                        child:addAnchor("bottomleft", self:getName(), "bottomleft", MARGIN, -MARGIN)
+                        child.dimensions = {contentW, 16}
+                        child.anchor:add("bottomleft", self.name, "bottomleft", MARGIN, -MARGIN)
                     end
                 end,
             }
@@ -256,6 +256,6 @@ Mongbat.Mod {
 
         local mapWindow = Components.Defaults.MapWindow
         mapWindow:restore()
-        mapWindow:asComponent():setShowing(true)
+        mapWindow:asComponent().showing = true
     end,
 }
