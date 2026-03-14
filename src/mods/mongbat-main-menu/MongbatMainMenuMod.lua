@@ -11,8 +11,10 @@ Mongbat.Mod {
             return Components.Button {
                 OnInitialize = function (self)
                     self.text = text
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onLButtonUp(onLButtonUp)
+                    end)
                 end,
-                OnLButtonUp = onLButtonUp,
             }
         end
 
@@ -24,6 +26,11 @@ Mongbat.Mod {
                     self.dimensions = {214, 440}
                     self.anchors = self:anchorBuilder(function(a)
                         return { a:toParentCenter() }
+                    end)
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onRButtonUp(function()
+                            self.showing = false
+                        end)
                     end)
                     self.children = {
                         Button(
@@ -88,9 +95,6 @@ Mongbat.Mod {
                         )
                     }
                 end,
-                OnRButtonUp = function (self)
-                    self.showing = false
-                end
             }
         end
 

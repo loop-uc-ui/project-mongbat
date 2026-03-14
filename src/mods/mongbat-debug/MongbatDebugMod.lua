@@ -90,12 +90,16 @@ local function OnInitialize()
     }
 
     local filterInput = Components.FilterInput {
-        OnTextChanged = function(self, text)
-            applyFilter(fullLogDisplay, filteredLogDisplay, text)
-        end,
-        OnKeyEscape = function(self)
-            self:clear()
-            applyFilter(fullLogDisplay, filteredLogDisplay, L"")
+        OnInitialize = function(self)
+            self.bindings = self:bindingsBuilder(function(bind)
+                bind:onTextChanged(function(text)
+                    applyFilter(fullLogDisplay, filteredLogDisplay, text)
+                end)
+                :onKeyEscape(function()
+                    self:clear()
+                    applyFilter(fullLogDisplay, filteredLogDisplay, L"")
+                end)
+            end)
         end,
     }
 

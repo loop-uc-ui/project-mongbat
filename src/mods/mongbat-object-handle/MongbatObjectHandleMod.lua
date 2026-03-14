@@ -45,37 +45,40 @@ Mongbat.Mod {
                         local color = Constants.Colors.Notoriety[handle.notoriety]
                         self.frame.color = color
                     end
+
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onMouseOver(function()
+                            self.alpha = 1.0
+                            self.layer = self:layerBuilder(function(l) return l:default() end)
+                        end)
+                        :onMouseOverEnd(function()
+                            self.alpha = 0.7
+                            self.layer = self:layerBuilder(function(l) return l:background() end)
+                        end)
+                        :onLButtonDblClk(function()
+                            Api.UserAction.UseItem(self.id)
+                        end)
+                        :onLButtonUp(function()
+                            if Data.Drag().draggingItem then
+                                Api.Drag.DragToObject(self.id)
+                            else
+                                Api.Target.LeftClick(self.id)
+                            end
+                        end)
+                        :onLButtonDown(function()
+                            if handle.isMobile then
+                                Components.Defaults.HealthBarManager
+                                    .default
+                                    .OnBeginDragHealthBar(handle.id)
+                            end
+                        end)
+                    end)
                 end,
                 OnLayout = function (_, _, child, _)
                     child.anchors = child:anchorBuilder(function(a)
                         return { a:centerIn() }
                     end)
                 end,
-                OnMouseOver = function(self)
-                    self.alpha = 1.0
-                    self.layer = self:layerBuilder(function(l) return l:default() end)
-                end,
-                OnMouseOverEnd = function(self)
-                    self.alpha = 0.7
-                    self.layer = self:layerBuilder(function(l) return l:background() end)
-                end,
-                OnLButtonDblClk = function(self)
-                    Api.UserAction.UseItem(self.id)
-                end,
-                OnLButtonUp = function(self)
-                    if Data.Drag().draggingItem then
-                        Api.Drag.DragToObject(self.id)
-                    else
-                        Api.Target.LeftClick(self.id)
-                    end
-                end,
-                OnLButtonDown = function(self)
-                    if handle.isMobile then
-                        Components.Defaults.HealthBarManager
-                            .default
-                            .OnBeginDragHealthBar(self.id)
-                    end
-                end
             }
         end
 

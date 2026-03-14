@@ -154,16 +154,18 @@ local function OnInitialize()
                 Api.Label.SetText(rowName .. "Price", Utils.String.Concat(item.price, "g"))
                 Api.Label.SetText(rowName .. "Qty", Utils.String.Concat(qty))
                 updateRowIcon(rowName, item)
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onLButtonDown(function()
+                        onClick(itemIdx, 1)
+                    end)
+                    :onMouseOver(function()
+                        showItemTooltip(itemIdx)
+                    end)
+                    :onMouseOverEnd(function()
+                        Api.ItemProperties.ClearMouseOverItem()
+                    end)
+                end)
             end,
-            OnLButtonDown = function(_)
-                onClick(itemIdx, 1)
-            end,
-            OnMouseOver = function(_)
-                showItemTooltip(itemIdx)
-            end,
-            OnMouseOverEnd = function(_)
-                Api.ItemProperties.ClearMouseOverItem()
-            end
         }
     end
 
@@ -394,14 +396,16 @@ local function OnInitialize()
         searchBox = Components.EditTextBox {
             OnInitialize = function(self)
                 self.dimensions = {PANEL_W - 58, SEARCH_H}
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onKeyEnter(function()
+                        local text = searchBox.text
+                        if not Utils.String.IsEmpty(text) then
+                            Utils.Array.AddUnique(filterPatterns, Utils.String.Lower(text))
+                            refreshAll()
+                        end
+                    end)
+                end)
             end,
-            OnKeyEnter = function(_)
-                local text = searchBox.text
-                if not Utils.String.IsEmpty(text) then
-                    Utils.Array.AddUnique(filterPatterns, Utils.String.Lower(text))
-                    refreshAll()
-                end
-            end
         }
 
         -- Clear filter button
@@ -410,14 +414,16 @@ local function OnInitialize()
             OnInitialize = function(self)
                 self.dimensions = {52, SEARCH_H}
                 self.text = "Clear"
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onLButtonUp(function()
+                        filterPatterns = {}
+                        if searchBox then
+                            searchBox.text = ""
+                        end
+                        refreshAll()
+                    end)
+                end)
             end,
-            OnLButtonUp = function(_)
-                filterPatterns = {}
-                if searchBox then
-                    searchBox.text = ""
-                end
-                refreshAll()
-            end
         }
 
         -- Available panel header
@@ -451,41 +457,39 @@ local function OnInitialize()
             local origAvailInit = availModel.OnInitialize
             availModel.OnInitialize = function(self)
                 origAvailInit(self)
-                self:bindingsBuilder(function(bind)
-                    return {
-                        bind:onContainerWindow(function(_, instanceId)
-                            if instanceId == sellContainerId then
-                                loadBuyItems()
-                                refreshAll()
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onContainerWindow(function(instanceId)
+                        if instanceId == sellContainerId then
+                            loadBuyItems()
+                            refreshAll()
+                        end
+                    end)
+                    :onObjectInfo(function(instanceId, objInfo)
+                        local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                        if found then
+                            local newTotal = objInfo.shopQuantity
+                            if newTotal > 0 then
+                                local oldCart = found.cartQty
+                                if oldCart > newTotal then oldCart = newTotal end
+                                found.totalQty = newTotal
+                                found.availQty = newTotal - oldCart
+                                found.cartQty  = oldCart
+                                found.price    = objInfo.shopValue
+                                found.objType  = objInfo.objectType
                             end
-                        end),
-                        bind:onObjectInfo(function(_, instanceId, objInfo)
+                        end
+                        refreshAll()
+                    end)
+                    :onItemProperties(function(instanceId, props)
+                        if props and props.PropertiesList and props.PropertiesList[1] then
+                            local name = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "") ---@type wstring
                             local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
                             if found then
-                                local newTotal = objInfo.shopQuantity
-                                if newTotal > 0 then
-                                    local oldCart = found.cartQty
-                                    if oldCart > newTotal then oldCart = newTotal end
-                                    found.totalQty = newTotal
-                                    found.availQty = newTotal - oldCart
-                                    found.cartQty  = oldCart
-                                    found.price    = objInfo.shopValue
-                                    found.objType  = objInfo.objectType
-                                end
+                                found.name = name
                             end
-                            refreshAll()
-                        end),
-                        bind:onItemProperties(function(_, instanceId, props)
-                            if props and props.PropertiesList and props.PropertiesList[1] then
-                                local name = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "") ---@type wstring
-                                local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
-                                if found then
-                                    found.name = name
-                                end
-                            end
-                            refreshAll()
-                        end),
-                    }
+                        end
+                        refreshAll()
+                    end)
                 end)
             end
         end
@@ -504,14 +508,12 @@ local function OnInitialize()
         totalLabel = Components.Label {
             OnInitialize = function(self)
                 self.dimensions = {200, 22}
-                self:bindingsBuilder(function(bind)
-                    return {
-                        bind:onPlayerStatus(function(s, playerStatus)
-                            local total = computeTotal()
-                            local gold  = playerStatus.gold
-                            s.text = Utils.String.Concat(total, "/", gold)
-                        end),
-                    }
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onPlayerStatus(function(playerStatus)
+                        local total = computeTotal()
+                        local gold  = playerStatus.gold
+                        self.text = Utils.String.Concat(total, "/", gold)
+                    end)
                 end)
             end
         }
@@ -522,10 +524,12 @@ local function OnInitialize()
             OnInitialize = function(self)
                 self.dimensions = {BTN_W, BTN_H}
                 self.text = isSelling and "Sell" or "Buy"
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onLButtonUp(function()
+                        acceptOffer()
+                    end)
+                end)
             end,
-            OnLButtonUp = function(_)
-                acceptOffer()
-            end
         }
 
         -- Clear cart / Cancel button
@@ -534,10 +538,12 @@ local function OnInitialize()
             OnInitialize = function(self)
                 self.dimensions = {BTN_W, BTN_H}
                 self.text = "Clear"
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onLButtonUp(function()
+                        clearCart()
+                    end)
+                end)
             end,
-            OnLButtonUp = function(_)
-                clearCart()
-            end
         }
 
         -- Close button
@@ -546,10 +552,12 @@ local function OnInitialize()
             OnInitialize = function(self)
                 self.dimensions = {BTN_W, BTN_H}
                 self.text = "Close"
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onLButtonUp(function()
+                        cancelOffer()
+                    end)
+                end)
             end,
-            OnLButtonUp = function(_)
-                cancelOffer()
-            end
         }
 
         -- Children in layout order

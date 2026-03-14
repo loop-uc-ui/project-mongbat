@@ -16,15 +16,13 @@ local function OnInitialize()
     local function PlayerName()
         return Components.Label {
             OnInitialize = function(self)
-                self:bindingsBuilder(function(bind)
-                    return {
-                        bind:onPlayerStatus(function(s, playerStatus)
-                            s.id = playerStatus.id
-                        end),
-                        bind:onMobileName(function(s, mobileName)
-                            s.text = mobileName.name
-                        end),
-                    }
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onPlayerStatus(function(playerStatus)
+                        self.id = playerStatus.id
+                    end)
+                    :onMobileName(function(mobileName)
+                        self.text = mobileName.name
+                    end)
                 end)
             end
         }
@@ -37,12 +35,15 @@ local function OnInitialize()
         return Components.StatusBar(
             {
                 OnInitialize = function(self)
-                    self:bindingsBuilder(function(bind)
-                        local specs = { bind:onPlayerStatus(onPlayerStatus) }
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            onPlayerStatus(self, playerStatus)
+                        end)
                         if onHealthBarColor then
-                            table.insert(specs, bind:onHealthBarColor(onHealthBarColor))
+                            bind:onHealthBarColor(function(healthBarColor)
+                                onHealthBarColor(self, healthBarColor)
+                            end)
                         end
-                        return specs
                     end)
                 end
             },
@@ -67,17 +68,15 @@ local function OnInitialize()
             end,
             {
                 OnInitialize = function(self)
-                    self:bindingsBuilder(function(bind)
-                        return {
-                            bind:onPlayerStatus(function(s, playerStatus)
-                                s.text =
-                                    string.format(
-                                        "%d / %d",
-                                        playerStatus.currentHealth,
-                                        playerStatus.maxHealth
-                                    )
-                            end),
-                        }
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            self.text =
+                                string.format(
+                                    "%d / %d",
+                                    playerStatus.currentHealth,
+                                    playerStatus.maxHealth
+                                )
+                        end)
                     end)
                 end
             }
@@ -94,17 +93,15 @@ local function OnInitialize()
             nil,
             {
                 OnInitialize = function(self)
-                    self:bindingsBuilder(function(bind)
-                        return {
-                            bind:onPlayerStatus(function(s, playerStatus)
-                                s.text =
-                                    string.format(
-                                        "%d / %d",
-                                        playerStatus.currentMana,
-                                        playerStatus.maxMana
-                                    )
-                            end),
-                        }
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            self.text =
+                                string.format(
+                                    "%d / %d",
+                                    playerStatus.currentMana,
+                                    playerStatus.maxMana
+                                )
+                        end)
                     end)
                 end
             }
@@ -121,17 +118,15 @@ local function OnInitialize()
             nil,
             {
                 OnInitialize = function(self)
-                    self:bindingsBuilder(function(bind)
-                        return {
-                            bind:onPlayerStatus(function(s, playerStatus)
-                                s.text =
-                                    string.format(
-                                        "%d / %d",
-                                        playerStatus.currentStamina,
-                                        playerStatus.maxStamina
-                                    )
-                            end),
-                        }
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            self.text =
+                                string.format(
+                                    "%d / %d",
+                                    playerStatus.currentStamina,
+                                    playerStatus.maxStamina
+                                )
+                        end)
                     end)
                 end
             }
@@ -149,31 +144,29 @@ local function OnInitialize()
                     ManaStatusBar(),
                     StaminaStatusBar()
                 }
-                self:bindingsBuilder(function(bind)
-                    return {
-                        bind:onPlayerStatus(function(s, playerStatus)
-                            local frame = s.frame
-                            s.id = playerStatus.id
-                            if playerStatus.inWarMode then
-                                frame.color = Constants.Colors.Notoriety[6]
-                            else
-                                frame.color = Constants.Colors.Notoriety[1]
-                            end
-                        end),
-                    }
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onPlayerStatus(function(playerStatus)
+                        local frame = self.frame
+                        self.id = playerStatus.id
+                        if playerStatus.inWarMode then
+                            frame.color = Constants.Colors.Notoriety[6]
+                        else
+                            frame.color = Constants.Colors.Notoriety[1]
+                        end
+                    end)
+                    :onRButtonUp(function() end)
+                    :onLButtonDblClk(function()
+                        Api.UserAction.UseItem(self.id)
+                    end)
+                    :onLButtonUp(function()
+                        if Data.Drag().draggingItem then
+                            Api.Drag.DragToObject(self.id)
+                        else
+                            Api.Target.LeftClick(self.id)
+                        end
+                    end)
                 end)
             end,
-            OnRButtonUp = function() end,
-            OnLButtonDblClk = function(self)
-                Api.UserAction.UseItem(self.id)
-            end,
-            OnLButtonUp = function(self)
-                if Data.Drag().draggingItem then
-                    Api.Drag.DragToObject(self.id)
-                else
-                    Api.Target.LeftClick(self.id)
-                end
-            end
         }
     end
 

@@ -4893,60 +4893,236 @@ local INITIAL_FIRE_EVENTS = {
 }
 
 ---@class BindingSpec
----@field event DataEvent
+---@field name string
 ---@field fn function
----@field entity boolean
+---@field kind "core"|"data"|"system"|nil
+---@field event DataEvent|nil
+---@field entity boolean|nil
 
 ---@class BindingFactory
+---@field _specs BindingSpec[]
 local BindingFactory = {}
 BindingFactory.__index = BindingFactory
 
----@param fn fun(self: View, playerStatus: PlayerStatusWrapper)
----@return BindingSpec
+---@return BindingFactory
+function BindingFactory:new()
+    return setmetatable({ _specs = {} }, self)
+end
+
+---@return BindingSpec[]
+function BindingFactory:build()
+    return self._specs
+end
+
+-- Data Events
+
+---@param fn fun(playerStatus: PlayerStatusWrapper)
+---@return BindingFactory
 function BindingFactory:onPlayerStatus(fn)
-    return { event = Constants.DataEvents.OnUpdatePlayerStatus, fn = fn, entity = false }
+    self._specs[#self._specs + 1] = { name = "OnUpdatePlayerStatus", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdatePlayerStatus, entity = false }
+    return self
 end
 
----@param fn fun(self: View, mobileName: MobileNameWrapper)
----@return BindingSpec
+---@param fn fun(mobileName: MobileNameWrapper)
+---@return BindingFactory
 function BindingFactory:onMobileName(fn)
-    return { event = Constants.DataEvents.OnUpdateMobileName, fn = fn, entity = true }
+    self._specs[#self._specs + 1] = { name = "OnUpdateMobileName", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateMobileName, entity = true }
+    return self
 end
 
----@param fn fun(self: View, mobileStatus: MobileStatusWrapper)
----@return BindingSpec
+---@param fn fun(mobileStatus: MobileStatusWrapper)
+---@return BindingFactory
 function BindingFactory:onMobileStatus(fn)
-    return { event = Constants.DataEvents.OnUpdateMobileStatus, fn = fn, entity = true }
+    self._specs[#self._specs + 1] = { name = "OnUpdateMobileStatus", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateMobileStatus, entity = true }
+    return self
 end
 
----@param fn fun(self: View, healthBarColor: HealthBarColorWrapper)
----@return BindingSpec
+---@param fn fun(healthBarColor: HealthBarColorWrapper)
+---@return BindingFactory
 function BindingFactory:onHealthBarColor(fn)
-    return { event = Constants.DataEvents.OnUpdateHealthBarColor, fn = fn, entity = true }
+    self._specs[#self._specs + 1] = { name = "OnUpdateHealthBarColor", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateHealthBarColor, entity = true }
+    return self
 end
 
----@param fn fun(self: View, paperdoll: PaperdollWrapper)
----@return BindingSpec
+---@param fn fun(paperdoll: PaperdollWrapper)
+---@return BindingFactory
 function BindingFactory:onPaperdoll(fn)
-    return { event = Constants.DataEvents.OnUpdatePaperdoll, fn = fn, entity = true }
+    self._specs[#self._specs + 1] = { name = "OnUpdatePaperdoll", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdatePaperdoll, entity = true }
+    return self
 end
 
----@param fn fun(self: View, instanceId: number, containerWindow: ContainerWindowData)
----@return BindingSpec
+---@param fn fun(instanceId: number, containerWindow: ContainerWindowData)
+---@return BindingFactory
 function BindingFactory:onContainerWindow(fn)
-    return { event = Constants.DataEvents.OnUpdateContainerWindow, fn = fn, entity = false }
+    self._specs[#self._specs + 1] = { name = "OnUpdateContainerWindow", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateContainerWindow, entity = false }
+    return self
 end
 
----@param fn fun(self: View, instanceId: number, objectInfo: ObjectInfoWrapper)
----@return BindingSpec
+---@param fn fun(instanceId: number, objectInfo: ObjectInfoWrapper)
+---@return BindingFactory
 function BindingFactory:onObjectInfo(fn)
-    return { event = Constants.DataEvents.OnUpdateObjectInfo, fn = fn, entity = false }
+    self._specs[#self._specs + 1] = { name = "OnUpdateObjectInfo", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateObjectInfo, entity = false }
+    return self
 end
 
----@param fn fun(self: View, instanceId: number, itemProperties: table)
----@return BindingSpec
+---@param fn fun(instanceId: number, itemProperties: table)
+---@return BindingFactory
 function BindingFactory:onItemProperties(fn)
-    return { event = Constants.DataEvents.OnUpdateItemProperties, fn = fn, entity = false }
+    self._specs[#self._specs + 1] = { name = "OnUpdateItemProperties", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateItemProperties, entity = false }
+    return self
+end
+
+---@param fn fun(data: WindowData.Radar)
+---@return BindingFactory
+function BindingFactory:onRadar(fn)
+    self._specs[#self._specs + 1] = { name = "OnUpdateRadar", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateRadar, entity = false }
+    return self
+end
+
+---@param fn fun(data: table)
+---@return BindingFactory
+function BindingFactory:onPlayerLocation(fn)
+    self._specs[#self._specs + 1] = { name = "OnUpdatePlayerLocation", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdatePlayerLocation, entity = false }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onShopData(fn)
+    self._specs[#self._specs + 1] = { name = "OnUpdateShopData", fn = fn, kind = "data", event = Constants.DataEvents.OnUpdateShopData, entity = false }
+    return self
+end
+
+-- Core Events
+
+---@param fn fun(timePassed: number)
+---@return BindingFactory
+function BindingFactory:onUpdate(fn)
+    self._specs[#self._specs + 1] = { name = "OnUpdate", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onShown(fn)
+    self._specs[#self._specs + 1] = { name = "OnShown", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onHidden(fn)
+    self._specs[#self._specs + 1] = { name = "OnHidden", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onMouseOver(fn)
+    self._specs[#self._specs + 1] = { name = "OnMouseOver", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onMouseOverEnd(fn)
+    self._specs[#self._specs + 1] = { name = "OnMouseOverEnd", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun(x: number, y: number, delta: number)
+---@return BindingFactory
+function BindingFactory:onMouseWheel(fn)
+    self._specs[#self._specs + 1] = { name = "OnMouseWheel", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun(flags: number, x: number, y: number)
+---@return BindingFactory
+function BindingFactory:onLButtonDown(fn)
+    self._specs[#self._specs + 1] = { name = "OnLButtonDown", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun(flags: number, x: number, y: number)
+---@return BindingFactory
+function BindingFactory:onLButtonUp(fn)
+    self._specs[#self._specs + 1] = { name = "OnLButtonUp", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun(flags: number, x: number, y: number)
+---@return BindingFactory
+function BindingFactory:onLButtonDblClk(fn)
+    self._specs[#self._specs + 1] = { name = "OnLButtonDblClk", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun(flags: number, x: number, y: number)
+---@return BindingFactory
+function BindingFactory:onRButtonUp(fn)
+    self._specs[#self._specs + 1] = { name = "OnRButtonUp", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun(flags: number, x: number, y: number)
+---@return BindingFactory
+function BindingFactory:onRButtonDown(fn)
+    self._specs[#self._specs + 1] = { name = "OnRButtonDown", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun(position: number)
+---@return BindingFactory
+function BindingFactory:onSlide(fn)
+    self._specs[#self._specs + 1] = { name = "OnSlide", fn = fn, kind = "core" }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onSelChanged(fn)
+    self._specs[#self._specs + 1] = { name = "OnSelChanged", fn = fn, kind = "core" }
+    return self
+end
+
+-- System Events
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onEndHealthBarDrag(fn)
+    self._specs[#self._specs + 1] = { name = "OnEndHealthBarDrag", fn = fn, kind = "system", event = Constants.SystemEvents.OnEndHealthBarDrag }
+    return self
+end
+
+-- Custom Events (framework-dispatched, no engine registration)
+
+---@param fn fun(text: wstring)
+---@return BindingFactory
+function BindingFactory:onTextChanged(fn)
+    self._specs[#self._specs + 1] = { name = "OnTextChanged", fn = fn }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onKeyEnter(fn)
+    self._specs[#self._specs + 1] = { name = "OnKeyEnter", fn = fn }
+    return self
+end
+
+---@param fn fun()
+---@return BindingFactory
+function BindingFactory:onKeyEscape(fn)
+    self._specs[#self._specs + 1] = { name = "OnKeyEscape", fn = fn }
+    return self
+end
+
+---@param fn fun(width: number, height: number)
+---@return BindingFactory
+function BindingFactory:onDimensionsChanged(fn)
+    self._specs[#self._specs + 1] = { name = "OnDimensionsChanged", fn = fn }
+    return self
 end
 
 ---@class View : Component
@@ -5781,8 +5957,8 @@ local function stopResize()
     resizingWindow = nil
     resizeState = nil
 
-    -- Restore the original OnUpdate handler
-    window._model.OnUpdate = resizeOriginalOnUpdate
+    -- Restore the original OnUpdate binding
+    window._bindings.OnUpdate = resizeOriginalOnUpdate
 
     -- If we dynamically registered OnUpdate, unregister it
     if resizeRegisteredOnUpdate then
@@ -5825,10 +6001,10 @@ local function startResize(window)
     -- Prevent the parent window from moving while resizing
     Api.Window.SetMoving(window.name, false)
 
-    -- Save the original OnUpdate and inject our resize handler
-    resizeOriginalOnUpdate = window._model.OnUpdate
+    -- Save the original OnUpdate binding and inject our resize handler
+    resizeOriginalOnUpdate = window._bindings.OnUpdate
 
-    window._model.OnUpdate = function(self, timePassed)
+    window._bindings.OnUpdate = function(timePassed)
         -- Perform resize calculations
         if resizingWindow ~= nil and resizeState ~= nil then
             local mPos = SystemData.MousePosition
@@ -5849,7 +6025,7 @@ local function startResize(window)
 
         -- Chain the original OnUpdate if it existed
         if resizeOriginalOnUpdate ~= nil then
-            resizeOriginalOnUpdate(self, timePassed)
+            resizeOriginalOnUpdate(timePassed)
         end
     end
 
@@ -6447,17 +6623,9 @@ function StatusBar:onInitialize()
 
     local label = self.label
     if label ~= nil then
-        label._model.OnLButtonDown = label._model.OnLButtonDown or
-            self._model.OnLButtonDown
-        label._model.OnLButtonUp = label._model.OnLButtonUp or
-            self._model.OnLButtonUp
-        label._model.OnRButtonDown = label._model.OnRButtonDown or
-            self._model.OnRButtonDown
-        label._model.OnRButtonUp = label._model.OnRButtonUp or
-            self._model.OnRButtonUp
-
         label:create(true)
         label:onInitialize()
+        label._parentWindow = self
         label.parent = self.parent
 
         local dimens = self.dimensions
@@ -6646,29 +6814,18 @@ function CheckBox:onInitialize()
     local label = self.label
     if label ~= nil then
         local checkBox = self
-        -- Always wrap OnLButtonDown so label clicks always toggle the checkbox
-        -- even when the labelModel already defined its own OnLButtonDown.
-        local existingLDown = label._model.OnLButtonDown
-        label._model.OnLButtonDown = function(labelSelf, flags, x, y)
-            checkBox.checked = not checkBox.checked
-            if existingLDown ~= nil then
-                existingLDown(labelSelf, flags, x, y)
-            end
-        end
-        -- Always wrap OnLButtonUp so label releases propagate to the checkbox
-        -- OnLButtonUp handler, chaining any handler the labelModel provided.
-        local existingLUp = label._model.OnLButtonUp
-        label._model.OnLButtonUp = function(labelSelf, flags, x, y)
-            if checkBox._model.OnLButtonUp ~= nil then
-                checkBox._model.OnLButtonUp(checkBox, flags, x, y)
-            end
-            if existingLUp ~= nil then
-                existingLUp(labelSelf, flags, x, y)
-            end
-        end
 
         label:create(true)
         label:onInitialize()
+        label._parentWindow = checkBox
+
+        -- Always toggle the checkbox when the label is clicked
+        label.bindings = BindingFactory:new()
+            :onLButtonDown(function()
+                checkBox.checked = not checkBox.checked
+            end)
+            :build()
+
         label.parent = self.parent
 
         local dims = self.dimensions
@@ -6843,34 +7000,38 @@ function ActionButtonGroup:onInitialize()
         local button = Components.ActionButton {
             Name = self.name .. "Button" .. i,
             Id = i,
-            OnLButtonDown = function(btn, flags, x, y)
-                if group._model.OnButtonLButtonDown then
-                    group._model.OnButtonLButtonDown(group, btn, i, flags, x, y)
-                end
-            end,
-            OnLButtonUp = function(btn, flags, x, y)
-                if group._model.OnButtonLButtonUp then
-                    group._model.OnButtonLButtonUp(group, btn, i, flags, x, y)
-                end
-            end,
-            OnRButtonUp = function(btn, flags, x, y)
-                if group._model.OnButtonRButtonUp then
-                    group._model.OnButtonRButtonUp(group, btn, i, flags, x, y)
-                end
-            end,
-            OnMouseOver = function(btn)
-                if group._model.OnButtonMouseOver then
-                    group._model.OnButtonMouseOver(group, btn, i)
-                end
-            end,
-            OnMouseOverEnd = function(btn)
-                if group._model.OnButtonMouseOverEnd then
-                    group._model.OnButtonMouseOverEnd(group, btn, i)
-                end
-            end,
         }
         button:create(true)
         button:onInitialize()
+
+        local specs = BindingFactory:new()
+            :onLButtonDown(function(flags, x, y)
+                if group._model.OnButtonLButtonDown then
+                    group._model.OnButtonLButtonDown(group, button, i, flags, x, y)
+                end
+            end)
+            :onLButtonUp(function(flags, x, y)
+                if group._model.OnButtonLButtonUp then
+                    group._model.OnButtonLButtonUp(group, button, i, flags, x, y)
+                end
+            end)
+        if group._model.OnButtonRButtonUp then
+            specs:onRButtonUp(function(flags, x, y)
+                group._model.OnButtonRButtonUp(group, button, i, flags, x, y)
+            end)
+        end
+        if group._model.OnButtonMouseOver then
+            specs:onMouseOver(function()
+                group._model.OnButtonMouseOver(group, button, i)
+            end)
+        end
+        if group._model.OnButtonMouseOverEnd then
+            specs:onMouseOverEnd(function()
+                group._model.OnButtonMouseOverEnd(group, button, i)
+            end)
+        end
+        button.bindings = specs:build()
+
         button.parent = self.name
         button.dimensions = { buttonSize, buttonSize }
         if i == 1 then
@@ -7065,6 +7226,7 @@ function View:new(model)
     instance._model = model
     instance._bindings = {}
     instance._entityBindings = {}
+    instance._bindingSpecs = {}
     return instance
 end
 
@@ -7084,24 +7246,6 @@ function View:onInitialize()
     self.id = id
 
     local prefix = "Mongbat.EventHandler."
-
-    for k, _ in pairs(self._model) do
-        local systemEvent = Constants.SystemEvents[k]
-        local isCore = Constants.CoreEvents[k] ~= nil
-        local dataEvent = Constants.DataEvents[k]
-        local skip = k == Constants.CoreEvents.OnInitialize or
-            k == Constants.CoreEvents.OnShutdown
-
-        local functionName = prefix .. k
-
-        if isCore and not skip then
-            self:registerCoreEventHandler(k, functionName)
-        elseif systemEvent ~= nil then
-            self:registerEventHandler(systemEvent.getEvent(), functionName)
-        elseif dataEvent ~= nil then
-            self:registerEventHandler(dataEvent.getEvent(), functionName)
-        end
-    end
 
     self:registerCoreEventHandler(
         Constants.CoreEvents.OnShutdown,
@@ -7136,99 +7280,106 @@ function View:onShutdown()
 
     self.id = 0
 
-    -- Unregister bindings-registered event handlers
-    for eventName, _ in pairs(self._bindings) do
-        local dataEvent = Constants.DataEvents[eventName]
-        if dataEvent then
-            self:unregisterEventHandler(dataEvent.getEvent())
+    -- Unregister all bindings
+    for i = 1, #self._bindingSpecs do
+        local spec = self._bindingSpecs[i]
+        if spec.kind == "core" then
+            self:unregisterCoreEventHandler(spec.name)
+        elseif spec.kind == "data" or spec.kind == "system" then
+            self:unregisterEventHandler(spec.event.getEvent())
         end
     end
+
     self._bindings = {}
     self._entityBindings = {}
-
-    for k, _ in pairs(self._model) do
-        local systemEvent = Constants.SystemEvents[k]
-        local dataEvent = Constants.DataEvents[k]
-        local isCore = k == Constants.CoreEvents.OnInitialize or
-            k == Constants.CoreEvents.OnShutdown
-
-        if isCore then
-            self:unregisterCoreEventHandler(k)
-        elseif systemEvent ~= nil then
-            self:unregisterEventHandler(systemEvent.getEvent())
-        elseif dataEvent ~= nil then
-            self:unregisterEventHandler(dataEvent.getEvent())
-        end
-    end
+    self._bindingSpecs = {}
 end
 
 function View:onLButtonUp(flags, x, y)
-    if self._model.OnLButtonUp ~= nil then
-        self._model.OnLButtonUp(self, flags, x, y)
+    local fn = self._bindings.OnLButtonUp
+    if fn then
+        fn(flags, x, y)
         return true
+    end
+    if self._parentWindow then
+        return self._parentWindow:onLButtonUp(flags, x, y)
     end
     return false
 end
 
 function View:onMouseWheel(x, y, delta)
-    if self._model.OnMouseWheel ~= nil then
-        self._model.OnMouseWheel(self, x, y, delta)
+    local fn = self._bindings.OnMouseWheel
+    if fn then
+        fn(x, y, delta)
         return true
     end
     return false
 end
 
 function View:onLButtonDown(flags, x, y)
-    if self._model.OnLButtonDown ~= nil then
-        self._model.OnLButtonDown(self, flags, x, y)
+    local fn = self._bindings.OnLButtonDown
+    if fn then
+        fn(flags, x, y)
         return true
+    end
+    if self._parentWindow then
+        return self._parentWindow:onLButtonDown(flags, x, y)
     end
     return false
 end
 
 function View:onRButtonUp(flags, x, y)
-    if self._model.OnRButtonUp ~= nil then
-        self._model.OnRButtonUp(self, flags, x, y)
+    local fn = self._bindings.OnRButtonUp
+    if fn then
+        fn(flags, x, y)
         return true
+    end
+    if self._parentWindow then
+        return self._parentWindow:onRButtonUp(flags, x, y)
     end
     return false
 end
 
 function View:onRButtonDown(flags, x, y)
-    if self._model.OnRButtonDown ~= nil then
-        self._model.OnRButtonDown(self, flags, x, y)
+    local fn = self._bindings.OnRButtonDown
+    if fn then
+        fn(flags, x, y)
         return true
     end
     return false
 end
 
 function View:onHidden()
-    if self._model.OnHidden ~= nil then
-        self._model.OnHidden(self)
+    local fn = self._bindings.OnHidden
+    if fn then
+        fn()
         return true
     end
     return false
 end
 
 function View:onShown()
-    if self._model.OnShown ~= nil then
-        self._model.OnShown(self)
+    local fn = self._bindings.OnShown
+    if fn then
+        fn()
         return true
     end
     return false
 end
 
 function View:onUpdate(timePassed, windowData)
-    if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed, windowData)
+    local fn = self._bindings.OnUpdate
+    if fn then
+        fn(timePassed, windowData)
+        return true
     end
-    return true
+    return false
 end
 
 function View:onUpdatePlayerStatus()
     local fn = self._bindings.OnUpdatePlayerStatus
     if fn then
-        fn(self, Data.PlayerStatus())
+        fn(Data.PlayerStatus())
         return true
     end
     return false
@@ -7237,7 +7388,7 @@ end
 function View:onUpdateMobileName()
     local fn = self._bindings.OnUpdateMobileName
     if fn then
-        fn(self, Data.MobileName(self.id))
+        fn(Data.MobileName(self.id))
         return true
     end
     return false
@@ -7246,7 +7397,7 @@ end
 function View:onUpdateHealthBarColor()
     local fn = self._bindings.OnUpdateHealthBarColor
     if fn then
-        fn(self, Data.HealthBarColor(self.id))
+        fn(Data.HealthBarColor(self.id))
         return true
     end
     return false
@@ -7255,7 +7406,7 @@ end
 function View:onUpdateMobileStatus()
     local fn = self._bindings.OnUpdateMobileStatus
     if fn then
-        fn(self, Data.MobileStatus(self.id))
+        fn(Data.MobileStatus(self.id))
         return true
     end
     return false
@@ -7264,7 +7415,7 @@ end
 function View:onUpdatePaperdoll()
     local fn = self._bindings.OnUpdatePaperdoll
     if fn then
-        fn(self, Data.Paperdoll(self.id))
+        fn(Data.Paperdoll(self.id))
         return true
     end
     return false
@@ -7274,7 +7425,7 @@ function View:onUpdateContainerWindow()
     local fn = self._bindings.OnUpdateContainerWindow
     if fn then
         local instanceId = Api.Window.GetUpdateInstanceId()
-        fn(self, instanceId, Data.ContainerWindow(instanceId))
+        fn(instanceId, Data.ContainerWindow(instanceId))
         return true
     end
     return false
@@ -7284,7 +7435,7 @@ function View:onUpdateObjectInfo()
     local fn = self._bindings.OnUpdateObjectInfo
     if fn then
         local instanceId = Api.Window.GetUpdateInstanceId()
-        fn(self, instanceId, Data.ObjectInfo(instanceId))
+        fn(instanceId, Data.ObjectInfo(instanceId))
         return true
     end
     return false
@@ -7294,39 +7445,52 @@ function View:onUpdateItemProperties()
     local fn = self._bindings.OnUpdateItemProperties
     if fn then
         local instanceId = Api.Window.GetUpdateInstanceId()
-        fn(self, instanceId, Data.ItemProperties(instanceId))
+        fn(instanceId, Data.ItemProperties(instanceId))
         return true
     end
     return false
 end
 
 function View:onLButtonDblClk(flags, x, y)
-    if self._model.OnLButtonDblClk ~= nil then
-        self._model.OnLButtonDblClk(self, flags, x, y)
+    local fn = self._bindings.OnLButtonDblClk
+    if fn then
+        fn(flags, x, y)
         return true
+    end
+    if self._parentWindow then
+        return self._parentWindow:onLButtonDblClk(flags, x, y)
     end
     return false
 end
 
 function View:onMouseOver()
-    if self._model.OnMouseOver ~= nil then
-        self._model.OnMouseOver(self)
+    local fn = self._bindings.OnMouseOver
+    if fn then
+        fn()
         return true
+    end
+    if self._parentWindow then
+        return self._parentWindow:onMouseOver()
     end
     return false
 end
 
 function View:onMouseOverEnd()
-    if self._model.OnMouseOverEnd ~= nil then
-        self._model.OnMouseOverEnd(self)
+    local fn = self._bindings.OnMouseOverEnd
+    if fn then
+        fn()
         return true
+    end
+    if self._parentWindow then
+        return self._parentWindow:onMouseOverEnd()
     end
     return false
 end
 
 function View:onEndHealthBarDrag()
-    if self._model.OnEndHealthBarDrag ~= nil then
-        self._model.OnEndHealthBarDrag(self)
+    local fn = self._bindings.OnEndHealthBarDrag
+    if fn then
+        fn()
         return true
     end
     return false
@@ -7334,24 +7498,27 @@ end
 
 ---@param data WindowData.Radar
 function View:onUpdateRadar(data)
-    if self._model.OnUpdateRadar ~= nil then
-        self._model.OnUpdateRadar(self, data)
+    local fn = self._bindings.OnUpdateRadar
+    if fn then
+        fn(data)
         return true
     end
     return false
 end
 
 function View:onUpdatePlayerLocation(data)
-    if self._model.OnUpdatePlayerLocation ~= nil then
-        self._model.OnUpdatePlayerLocation(self, data)
+    local fn = self._bindings.OnUpdatePlayerLocation
+    if fn then
+        fn(data)
         return true
     end
     return false
 end
 
 function View:onUpdateShopData()
-    if self._model.OnUpdateShopData ~= nil then
-        self._model.OnUpdateShopData(self)
+    local fn = self._bindings.OnUpdateShopData
+    if fn then
+        fn()
         return true
     end
     return false
@@ -7360,40 +7527,45 @@ end
 
 
 function View:onTextChanged(text)
-    if self._model.OnTextChanged ~= nil then
-        self._model.OnTextChanged(self, text)
+    local fn = self._bindings.OnTextChanged
+    if fn then
+        fn(text)
         return true
     end
     return false
 end
 
 function View:onKeyEnter()
-    if self._model.OnKeyEnter ~= nil then
-        self._model.OnKeyEnter(self)
+    local fn = self._bindings.OnKeyEnter
+    if fn then
+        fn()
         return true
     end
     return false
 end
 
 function View:onKeyEscape()
-    if self._model.OnKeyEscape ~= nil then
-        self._model.OnKeyEscape(self)
+    local fn = self._bindings.OnKeyEscape
+    if fn then
+        fn()
         return true
     end
     return false
 end
 
 function View:onSlide()
-    if self._model.OnSlide ~= nil then
-        self._model.OnSlide(self, Api.Slider.GetCurrentPosition(self.name))
+    local fn = self._bindings.OnSlide
+    if fn then
+        fn(Api.Slider.GetCurrentPosition(self.name))
         return true
     end
     return false
 end
 
 function View:onSelChanged()
-    if self._model.OnSelChanged ~= nil then
-        self._model.OnSelChanged(self)
+    local fn = self._bindings.OnSelChanged
+    if fn then
+        fn()
         return true
     end
     return false
@@ -7410,52 +7582,14 @@ function View:setId(id)
     end
 
     if oldId ~= 0 then
-        -- Unregister entity-specific bindings for old ID
         for _, dataEvent in pairs(self._entityBindings) do
             Api.Window.UnregisterData(dataEvent.getType(), oldId)
-        end
-
-        -- Unregister individual DataEvents from model for old ID
-        for k, _ in pairs(self._model) do
-            local dataEvent = Constants.DataEvents[k]
-            if dataEvent ~= nil then
-                local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
-                    dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
-                    dataEvent == Constants.DataEvents.OnUpdateShopData or
-                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
-                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
-                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
-
-                if not skip then
-                    Api.Window.UnregisterData(dataEvent.getType(), oldId)
-                end
-            end
         end
     end
 
     if id ~= 0 then
-        -- Register entity-specific bindings for new ID
         for _, dataEvent in pairs(self._entityBindings) do
             Api.Window.RegisterData(dataEvent.getType(), id)
-        end
-
-        -- Register individual DataEvents from model for new ID
-        for k, _ in pairs(self._model) do
-            local dataEvent = Constants.DataEvents[k]
-            if dataEvent ~= nil then
-                local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
-                    dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation or
-                    dataEvent == Constants.DataEvents.OnUpdateShopData or
-                    dataEvent == Constants.DataEvents.OnUpdateContainerWindow or
-                    dataEvent == Constants.DataEvents.OnUpdateObjectInfo or
-                    dataEvent == Constants.DataEvents.OnUpdateItemProperties
-
-                if not skip then
-                    Api.Window.RegisterData(dataEvent.getType(), id)
-                end
-            end
         end
     end
 
@@ -7489,8 +7623,9 @@ end
 ---@param width number
 ---@param height number
 function View:onDimensionsChanged(width, height)
-    if self._model.OnDimensionsChanged ~= nil then
-        self._model.OnDimensionsChanged(self, width, height)
+    local fn = self._bindings.OnDimensionsChanged
+    if fn then
+        fn(width, height)
     end
 end
 
@@ -7529,24 +7664,39 @@ function View:layerBuilder(fn)
     return fn(LayerFactory)
 end
 
---- Registers data event bindings via a callback that receives a BindingFactory.
----@param fn fun(bind: BindingFactory): BindingSpec[]
+--- Builds binding specs via a callback that receives a BindingFactory.
+--- Returns the specs array for assignment to `self.bindings`.
+---@param fn fun(bind: BindingFactory)
+---@return BindingSpec[]
 function View:bindingsBuilder(fn)
-    local specs = fn(BindingFactory)
-    for i = 1, #specs do
-        local spec = specs[i]
-        self._bindings[spec.event.name] = spec.fn
-        self:registerEventHandler(
-            spec.event.getEvent(),
-            "Mongbat.EventHandler." .. spec.event.name
-        )
-        if spec.entity then
-            self._entityBindings[spec.event.name] = spec.event
-        end
-    end
+    local factory = BindingFactory:new()
+    fn(factory)
+    return factory:build()
 end
 
 View._ownProperties = {
+    bindings = {
+        set = function(self, specs)
+            local prefix = "Mongbat.EventHandler."
+            for i = 1, #specs do
+                local spec = specs[i]
+                self._bindings[spec.name] = spec.fn
+                if spec.kind == "core" then
+                    self:registerCoreEventHandler(spec.name, prefix .. spec.name)
+                elseif spec.kind == "data" then
+                    self:registerEventHandler(spec.event.getEvent(), prefix .. spec.name)
+                    if spec.entity then
+                        self._entityBindings[spec.name] = spec.event
+                    end
+                elseif spec.kind == "system" then
+                    self:registerEventHandler(spec.event.getEvent(), prefix .. spec.name)
+                end
+            end
+            for i = 1, #specs do
+                self._bindingSpecs[#self._bindingSpecs + 1] = specs[i]
+            end
+        end,
+    },
     exists = {
         get = function(self) return Api.Window.DoesExist(self.name) end,
     },
@@ -7655,25 +7805,20 @@ function Window:new(model)
     instance._background = instance.name .. "Background"
     instance._startDrag = { x = -1, y = -1 }
 
-    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
-        if window.parentRoot then
-            window:destroy()
-        end
-    end
-
     instance._model.OnLayout = model.OnLayout or Layouts.StackAndFill
 
     return instance
 end
 
---- Wraps a child's model handlers to propagate events up to the parent Window.
---- Mutates child._model to chain parent dispatch before/after the original handler.
+--- Sets up a child view for event propagation and layout within a parent Window.
+--- Sets _parentWindow for event bubbling and wraps OnInitialize for parenting/layout.
 ---@param parent Window
 ---@param child View
 ---@param index integer
 local function wrapChildForParent(parent, child, index)
     if child._parentWrapped then return end
     child._parentWrapped = true
+    child._parentWindow = parent
 
     local onChildInitialize = child._model.OnInitialize
     child._model.OnInitialize = function(c)
@@ -7683,74 +7828,20 @@ local function wrapChildForParent(parent, child, index)
             onChildInitialize(c)
         end
     end
-
-    local onChildRButtonUp = child._model.OnRButtonUp
-    child._model.OnRButtonUp = function(c, flags, x, y)
-        if onChildRButtonUp ~= nil then
-            onChildRButtonUp(c, flags, x, y)
-        else
-            parent:onRButtonUp(flags, x, y)
-        end
-    end
-
-    local onChildLButtonDown = child._model.OnLButtonDown
-    child._model.OnLButtonDown = function(c, flags, x, y)
-        if onChildLButtonDown ~= nil then
-            onChildLButtonDown(c, flags, x, y)
-        else
-            parent:onLButtonDown(flags, x, y)
-        end
-    end
-
-    local onChildLButtonUp = child._model.OnLButtonUp
-    child._model.OnLButtonUp = function(c, flags, x, y)
-        if onChildLButtonUp ~= nil then
-            onChildLButtonUp(c, flags, x, y)
-        else
-            parent:onLButtonUp(flags, x, y)
-        end
-    end
-
-    local onChildLButtonDblClk = child._model.OnLButtonDblClk
-    child._model.OnLButtonDblClk = function(c, flags, x, y)
-        if onChildLButtonDblClk ~= nil then
-            onChildLButtonDblClk(c, flags, x, y)
-        else
-            parent:onLButtonDblClk(flags, x, y)
-        end
-    end
-
-    local onMouseOver = child._model.OnMouseOver
-    child._model.OnMouseOver = function(c)
-        if onMouseOver ~= nil then
-            onMouseOver(c)
-        else
-            parent:onMouseOver()
-        end
-    end
-
-    local onMouseOverEnd = child._model.OnMouseOverEnd
-    child._model.OnMouseOverEnd = function(c)
-        if onMouseOverEnd ~= nil then
-            onMouseOverEnd(c)
-        else
-            parent:onMouseOverEnd()
-        end
-    end
 end
 
 --- Creates and attaches a resize grip Button to the bottom-right corner of a Window.
 ---@param window Window
 ---@return Button
 local function createResizeGrip(window)
-    local grip = Components.Button {
-        Template = "MongbatResizeGrip",
-        OnLButtonDown = function()
-            startResize(window)
-        end,
-    }
+    local grip = Components.Button { Template = "MongbatResizeGrip" }
     grip:create()
     grip:onInitialize()
+    grip.bindings = BindingFactory:new()
+        :onLButtonDown(function()
+            startResize(window)
+        end)
+        :build()
     grip.parent = window.name
     grip.anchors = grip:anchorBuilder(function(a)
         return { a:add("bottomright", window.name, "bottomright", 0, 0) }
@@ -7766,7 +7857,7 @@ local function registerWindowSnap(window)
     SnappableWindows[window.name] = true
     window._wasMoving = false
     window._isSnapped = false
-    if window._model.OnUpdate == nil then
+    if not window._bindings.OnUpdate then
         window._snapRegisteredOnUpdate = true
         window:registerCoreEventHandler(
             Constants.CoreEvents.OnUpdate,
@@ -7865,6 +7956,17 @@ function Window:onInitialize()
     self:toggleFrame(isParentRoot)
     View.onInitialize(self)
 
+    -- Set default OnRButtonUp (close window) if not already bound
+    if not self._bindings.OnRButtonUp then
+        self.bindings = BindingFactory:new()
+            :onRButtonUp(function()
+                if self.parentRoot then
+                    self:destroy()
+                end
+            end)
+            :build()
+    end
+
     -- Re-check parent after View.onInitialize, which may reparent this window
     isParentRoot = self.parentRoot
 
@@ -7926,8 +8028,9 @@ function Window:onUpdate(timePassed)
         updateWindowSnap(self)
     end
 
-    if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed)
+    local fn = self._bindings.OnUpdate
+    if fn then
+        fn(timePassed)
     end
 end
 
@@ -8216,12 +8319,14 @@ function Mongbat.ModManager.Window()
                                     statusText = "Enabled"
                                 end
                                 button.text = "Enable " .. name .. " (" .. statusText .. ")"
+                                button.bindings = button:bindingsBuilder(function(bind)
+                                    bind:onLButtonUp(function()
+                                        local s = mod.enabled
+                                        mod.enabled = not s
+                                        Api.InterfaceCore.ReloadUI()
+                                    end)
+                                end)
                             end,
-                            OnLButtonUp = function(button)
-                                local status = mod.enabled
-                                mod.enabled = not status
-                                Api.InterfaceCore.ReloadUI()
-                            end
                         }
                     end
                 )

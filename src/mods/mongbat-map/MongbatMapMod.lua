@@ -129,66 +129,69 @@ Mongbat.Mod {
                     Api.Radar.SetWindowOffset(0, 0)
                     Api.Radar.SetCenterOnPlayer(true)
                     initializeZoom()
-                end,
-                OnUpdateRadar = function(self, data)
-                    self.texture = {"radar_texture", data.TexCoordX, data.TexCoordY}
-                    self.textureScale = data.TexScale
-                end,
-                OnDimensionsChanged = function(self, width, height)
-                    updateRadarSize(width, height)
-                end,
-                OnMouseWheel = function(self, _, _, delta)
-                    adjustZoom(-delta)
-                end,
-                OnLButtonDown = function(self, flags)
-                    if Data.IsShift(flags) then
-                        isPanning = true
-                        centerOnPlayer = false
-                        local pos = Data.MousePosition()
-                        lastMouseX = pos.x
-                        lastMouseY = pos.y
-                        Api.Radar.SetCenterOnPlayer(false)
-                    end
-                end,
-                OnLButtonUp = function(self)
-                    isPanning = false
-                end,
-                OnMouseOverEnd = function(self)
-                    if isPanning then
-                        isPanning = false
-                    end
-                end,
-                OnLButtonDblClk = function(self)
-                    isPanning = false
-                    centerOnPlayer = true
-                    Api.Radar.SetCenterOnPlayer(true)
-                end,
-                OnUpdate = function(self)
-                    if not isPanning then return end
 
-                    local pos = Data.MousePosition()
-                    local mouseX = pos.x
-                    local mouseY = pos.y
-                    local deltaX = mouseX - lastMouseX
-                    local deltaY = mouseY - lastMouseY
-                    lastMouseX = mouseX
-                    lastMouseY = mouseY
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onRadar(function(data)
+                            self.texture = {"radar_texture", data.TexCoordX, data.TexCoordY}
+                            self.textureScale = data.TexScale
+                        end)
+                        :onDimensionsChanged(function(width, height)
+                            updateRadarSize(width, height)
+                        end)
+                        :onMouseWheel(function(_, _, delta)
+                            adjustZoom(-delta)
+                        end)
+                        :onLButtonDown(function(flags)
+                            if Data.IsShift(flags) then
+                                isPanning = true
+                                centerOnPlayer = false
+                                local pos = Data.MousePosition()
+                                lastMouseX = pos.x
+                                lastMouseY = pos.y
+                                Api.Radar.SetCenterOnPlayer(false)
+                            end
+                        end)
+                        :onLButtonUp(function()
+                            isPanning = false
+                        end)
+                        :onMouseOverEnd(function()
+                            if isPanning then
+                                isPanning = false
+                            end
+                        end)
+                        :onLButtonDblClk(function()
+                            isPanning = false
+                            centerOnPlayer = true
+                            Api.Radar.SetCenterOnPlayer(true)
+                        end)
+                        :onUpdate(function()
+                            if not isPanning then return end
 
-                    if deltaX == 0 and deltaY == 0 then return end
+                            local pos = Data.MousePosition()
+                            local mouseX = pos.x
+                            local mouseY = pos.y
+                            local deltaX = mouseX - lastMouseX
+                            local deltaY = mouseY - lastMouseY
+                            lastMouseX = mouseX
+                            lastMouseY = mouseY
 
-                    local Radar = Api.Radar
-                    local facet = Radar.GetFacet()
-                    local area = Radar.GetArea()
-                    local mapCenterX, mapCenterY = Radar.GetCenter()
-                    local winCenterX, winCenterY =
-                        Radar.TranslateWorldPositionToRadarPosition(mapCenterX, mapCenterY)
+                            if deltaX == 0 and deltaY == 0 then return end
 
-                    local offsetX = winCenterX - deltaX
-                    local offsetY = winCenterY - deltaY
-                    local newCenterX, newCenterY =
-                        Radar.TranslateRadarPositionToWorldPosition(offsetX, offsetY, false)
+                            local Radar = Api.Radar
+                            local facet = Radar.GetFacet()
+                            local area = Radar.GetArea()
+                            local mapCenterX, mapCenterY = Radar.GetCenter()
+                            local winCenterX, winCenterY =
+                                Radar.TranslateWorldPositionToRadarPosition(mapCenterX, mapCenterY)
 
-                    Radar.CenterOnLocation(newCenterX, newCenterY, facet, area, false)
+                            local offsetX = winCenterX - deltaX
+                            local offsetY = winCenterY - deltaY
+                            local newCenterX, newCenterY =
+                                Radar.TranslateRadarPositionToWorldPosition(offsetX, offsetY, false)
+
+                            Radar.CenterOnLocation(newCenterX, newCenterY, facet, area, false)
+                        end)
+                    end)
                 end,
             }
         end
@@ -202,14 +205,16 @@ Mongbat.Mod {
                     self.dimensions = {WINDOW_SIZE, 16}
                     self.layer = self:layerBuilder(function(l) return l:overlay() end)
                     self.text = formatLocationText()
-                end,
-                OnUpdateRadar = function(self)
-                    self.text = formatLocationText()
-                end,
-                OnUpdatePlayerLocation = function(self)
-                    if centerOnPlayer then
-                        self.text = formatLocationText()
-                    end
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onRadar(function()
+                            self.text = formatLocationText()
+                        end)
+                        :onPlayerLocation(function()
+                            if centerOnPlayer then
+                                self.text = formatLocationText()
+                            end
+                        end)
+                    end)
                 end,
             }
         end
