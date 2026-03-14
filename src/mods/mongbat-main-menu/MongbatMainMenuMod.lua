@@ -22,7 +22,9 @@ Mongbat.Mod {
                 Resizable = false,
                 OnInitialize = function (self)
                     self.dimensions = {214, 440}
-                    self.anchor:toParentCenter()
+                    self.anchors = self:anchorBuilder(function(a)
+                        return { a:toParentCenter() }
+                    end)
                     self.children = {
                         Button(
                             3000128,

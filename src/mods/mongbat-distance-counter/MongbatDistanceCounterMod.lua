@@ -35,7 +35,7 @@ Mongbat.Mod {
             OnInitialize = function(self)
                 self.dimensions = {60, 20}
                 self.handleInput = false
-                self.layer:overlay()
+                self.layer = self:layerBuilder(function(l) return l:overlay() end)
             end,
             OnUpdate = function(self)
                 if not Data.Cursor().target then

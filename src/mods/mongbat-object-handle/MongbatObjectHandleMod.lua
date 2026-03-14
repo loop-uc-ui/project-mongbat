@@ -47,15 +47,17 @@ Mongbat.Mod {
                     end
                 end,
                 OnLayout = function (_, _, child, _)
-                    child.anchor:centerIn()
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:centerIn() }
+                    end)
                 end,
                 OnMouseOver = function(self)
                     self.alpha = 1.0
-                    self.layer:default()
+                    self.layer = self:layerBuilder(function(l) return l:default() end)
                 end,
                 OnMouseOverEnd = function(self)
                     self.alpha = 0.7
-                    self.layer:background()
+                    self.layer = self:layerBuilder(function(l) return l:background() end)
                 end,
                 OnLButtonDblClk = function(self)
                     Api.UserAction.UseItem(self.id)

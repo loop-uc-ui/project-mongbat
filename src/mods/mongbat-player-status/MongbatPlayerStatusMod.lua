@@ -15,22 +15,36 @@ local function OnInitialize()
 
     local function PlayerName()
         return Components.Label {
-            OnRenderData = function(self, state)
-                self.id = state.mobile.playerId
-                local name = state.mobile.name
-                if name then
-                    self.text = name
-                end
+            OnInitialize = function(self)
+                self:bindingsBuilder(function(bind)
+                    return {
+                        bind:onPlayerStatus(function(s, playerStatus)
+                            s.id = playerStatus.id
+                        end),
+                        bind:onMobileName(function(s, mobileName)
+                            s.text = mobileName.name
+                        end),
+                    }
+                end)
             end
         }
     end
 
-    ---@param onRenderData fun(self: StatusBar, state: ViewState)
+    ---@param onPlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
+    ---@param onHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
     ---@param label LabelModel
-    local function StatusBar(onRenderData, label)
+    local function StatusBar(onPlayerStatus, onHealthBarColor, label)
         return Components.StatusBar(
             {
-                OnRenderData = onRenderData
+                OnInitialize = function(self)
+                    self:bindingsBuilder(function(bind)
+                        local specs = { bind:onPlayerStatus(onPlayerStatus) }
+                        if onHealthBarColor then
+                            table.insert(specs, bind:onHealthBarColor(onHealthBarColor))
+                        end
+                        return specs
+                    end)
+                end
             },
             label
         )
@@ -38,27 +52,33 @@ local function OnInitialize()
 
     local function HealthStatusBar()
         return StatusBar(
-            function(self, state)
-                self.id = state.mobile.playerId
-                self.currentValue = state.mobile.currentHealth
-                self.maxValue = state.mobile.maxHealth
-                local hbColor = state.mobile.visualStateColor
-                if hbColor then
-                    self.color = hbColor
-                    self._colorSet = true
-                elseif not self._colorSet then
+            function(self, playerStatus)
+                self.id = playerStatus.id
+                self.currentValue = playerStatus.currentHealth
+                self.maxValue = playerStatus.maxHealth
+                if not self._colorSet then
                     self.color = Constants.Colors.HealhBar[1]
                     self._colorSet = true
                 end
             end,
+            function(self, healthBarColor)
+                self.color = healthBarColor.visualStateColor
+                self._colorSet = true
+            end,
             {
-                OnRenderData = function(self, state)
-                    self.text =
-                        string.format(
-                            "%d / %d",
-                            state.mobile.currentHealth,
-                            state.mobile.maxHealth
-                        )
+                OnInitialize = function(self)
+                    self:bindingsBuilder(function(bind)
+                        return {
+                            bind:onPlayerStatus(function(s, playerStatus)
+                                s.text =
+                                    string.format(
+                                        "%d / %d",
+                                        playerStatus.currentHealth,
+                                        playerStatus.maxHealth
+                                    )
+                            end),
+                        }
+                    end)
                 end
             }
         )
@@ -66,19 +86,26 @@ local function OnInitialize()
 
     local function ManaStatusBar()
         return StatusBar(
-            function(self, state)
+            function(self, playerStatus)
                 self.color = Constants.Colors.Blue
-                self.currentValue = state.mobile.currentMana
-                self.maxValue = state.mobile.maxMana
+                self.currentValue = playerStatus.currentMana
+                self.maxValue = playerStatus.maxMana
             end,
+            nil,
             {
-                OnRenderData = function(self, state)
-                    self.text =
-                        string.format(
-                            "%d / %d",
-                            state.mobile.currentMana,
-                            state.mobile.maxMana
-                        )
+                OnInitialize = function(self)
+                    self:bindingsBuilder(function(bind)
+                        return {
+                            bind:onPlayerStatus(function(s, playerStatus)
+                                s.text =
+                                    string.format(
+                                        "%d / %d",
+                                        playerStatus.currentMana,
+                                        playerStatus.maxMana
+                                    )
+                            end),
+                        }
+                    end)
                 end
             }
         )
@@ -86,19 +113,26 @@ local function OnInitialize()
 
     local function StaminaStatusBar()
         return StatusBar(
-            function(self, state)
+            function(self, playerStatus)
                 self.color = Constants.Colors.YellowDark
-                self.currentValue = state.mobile.currentStamina
-                self.maxValue = state.mobile.maxStamina
+                self.currentValue = playerStatus.currentStamina
+                self.maxValue = playerStatus.maxStamina
             end,
+            nil,
             {
-                OnRenderData = function(self, state)
-                    self.text =
-                        string.format(
-                            "%d / %d",
-                            state.mobile.currentStamina,
-                            state.mobile.maxStamina
-                        )
+                OnInitialize = function(self)
+                    self:bindingsBuilder(function(bind)
+                        return {
+                            bind:onPlayerStatus(function(s, playerStatus)
+                                s.text =
+                                    string.format(
+                                        "%d / %d",
+                                        playerStatus.currentStamina,
+                                        playerStatus.maxStamina
+                                    )
+                            end),
+                        }
+                    end)
                 end
             }
         )
@@ -115,17 +149,21 @@ local function OnInitialize()
                     ManaStatusBar(),
                     StaminaStatusBar()
                 }
+                self:bindingsBuilder(function(bind)
+                    return {
+                        bind:onPlayerStatus(function(s, playerStatus)
+                            local frame = s.frame
+                            s.id = playerStatus.id
+                            if playerStatus.inWarMode then
+                                frame.color = Constants.Colors.Notoriety[6]
+                            else
+                                frame.color = Constants.Colors.Notoriety[1]
+                            end
+                        end),
+                    }
+                end)
             end,
             OnRButtonUp = function() end,
-            OnRenderData = function(self, state)
-                local frame = self.frame
-                self.id = state.mobile.playerId
-                if state.mobile.inWarMode then
-                    frame.color = Constants.Colors.Notoriety[6]
-                else
-                    frame.color = Constants.Colors.Notoriety[1]
-                end
-            end,
             OnLButtonDblClk = function(self)
                 Api.UserAction.UseItem(self.id)
             end,

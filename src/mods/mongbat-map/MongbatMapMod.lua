@@ -148,7 +148,6 @@ Mongbat.Mod {
                         lastMouseX = pos.x
                         lastMouseY = pos.y
                         Api.Radar.SetCenterOnPlayer(false)
-                        Api.Window.SetMoving(self.parent, false)
                     end
                 end,
                 OnLButtonUp = function(self)
@@ -201,7 +200,7 @@ Mongbat.Mod {
                 Template = "MongbatLabelSmall",
                 OnInitialize = function(self)
                     self.dimensions = {WINDOW_SIZE, 16}
-                    self.layer:overlay()
+                    self.layer = self:layerBuilder(function(l) return l:overlay() end)
                     self.text = formatLocationText()
                 end,
                 OnUpdateRadar = function(self)
@@ -232,11 +231,15 @@ Mongbat.Mod {
                     if index == 1 then
                         -- Map image: fill the window minus margins
                         child.dimensions = {contentW, contentH}
-                        child.anchor:toParentCenter(0, 0)
+                        child.anchors = child:anchorBuilder(function(a)
+                            return { a:toParentCenter(0, 0) }
+                        end)
                     elseif index == 2 then
                         -- Coords/facet label: full width, bottom-left
                         child.dimensions = {contentW, 16}
-                        child.anchor:add("bottomleft", self.name, "bottomleft", MARGIN, -MARGIN)
+                        child.anchors = child:anchorBuilder(function(a)
+                            return { a:add("bottomleft", self.name, "bottomleft", MARGIN, -MARGIN) }
+                        end)
                     end
                 end,
             }

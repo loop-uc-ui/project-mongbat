@@ -448,40 +448,45 @@ local function OnInitialize()
             end
         }
         if not isSelling then
-            availModel.OnRenderData = function(_, state)
-                local instanceId = state.instanceId
-                if not instanceId then return end
-
-                -- Container update: reload all buy items when the sell container changes
-                if instanceId == sellContainerId then
-                    loadBuyItems()
-                    refreshAll()
-                    return
-                end
-
-                -- Per-item update: refresh individual item data
-                local itemData = Data.Item(instanceId)
-                local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
-                if found then
-                    -- ObjectInfo fields
-                    local newTotal = itemData.shopQuantity
-                    if newTotal > 0 then
-                        local oldCart = found.cartQty
-                        if oldCart > newTotal then oldCart = newTotal end
-                        found.totalQty = newTotal
-                        found.availQty = newTotal - oldCart
-                        found.cartQty  = oldCart
-                        found.price    = itemData.shopValue
-                        found.objType  = itemData.objectType
-                    end
-
-                    -- ItemProperties fields
-                    local propName = itemData.propertyName
-                    if propName then
-                        found.name = Utils.String.Replace(propName, "^%d+ ", "") ---@type wstring
-                    end
-                end
-                refreshAll()
+            local origAvailInit = availModel.OnInitialize
+            availModel.OnInitialize = function(self)
+                origAvailInit(self)
+                self:bindingsBuilder(function(bind)
+                    return {
+                        bind:onContainerWindow(function(_, instanceId)
+                            if instanceId == sellContainerId then
+                                loadBuyItems()
+                                refreshAll()
+                            end
+                        end),
+                        bind:onObjectInfo(function(_, instanceId, objInfo)
+                            local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                            if found then
+                                local newTotal = objInfo.shopQuantity
+                                if newTotal > 0 then
+                                    local oldCart = found.cartQty
+                                    if oldCart > newTotal then oldCart = newTotal end
+                                    found.totalQty = newTotal
+                                    found.availQty = newTotal - oldCart
+                                    found.cartQty  = oldCart
+                                    found.price    = objInfo.shopValue
+                                    found.objType  = objInfo.objectType
+                                end
+                            end
+                            refreshAll()
+                        end),
+                        bind:onItemProperties(function(_, instanceId, props)
+                            if props and props.PropertiesList and props.PropertiesList[1] then
+                                local name = Utils.String.Replace(props.PropertiesList[1], "^%d+ ", "") ---@type wstring
+                                local found = Utils.Array.Find(items, function(item) return item.id == instanceId end)
+                                if found then
+                                    found.name = name
+                                end
+                            end
+                            refreshAll()
+                        end),
+                    }
+                end)
             end
         end
         availList = Components.ScrollWindow(availModel)
@@ -495,15 +500,19 @@ local function OnInitialize()
         }
 
         -- Total gold label (shows cost/gold)
-        -- OnRenderData belongs here: this child displays the gold total.
+        -- onPlayerStatus belongs here: this child displays the gold total.
         totalLabel = Components.Label {
             OnInitialize = function(self)
                 self.dimensions = {200, 22}
-            end,
-            OnRenderData = function(self, state)
-                local total = computeTotal()
-                local gold  = state.mobile.gold
-                self.text = Utils.String.Concat(total, "/", gold)
+                self:bindingsBuilder(function(bind)
+                    return {
+                        bind:onPlayerStatus(function(s, playerStatus)
+                            local total = computeTotal()
+                            local gold  = playerStatus.gold
+                            s.text = Utils.String.Concat(total, "/", gold)
+                        end),
+                    }
+                end)
             end
         }
 
@@ -586,38 +595,60 @@ local function OnInitialize()
             OnLayout = function(win, _, child, idx)
                 local winName = win.name
                 if idx == IDX_TITLE then
-                    child.anchor:clear():add("topleft", winName, "topleft", MARGIN, MARGIN)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("topleft", winName, "topleft", MARGIN, MARGIN) }
+                    end)
                 elseif idx == IDX_SEARCH then
-                    child.anchor:clear():add("topleft", winName, "topleft",
-                        MARGIN, MARGIN + TITLE_H + MARGIN)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("topleft", winName, "topleft",
+                            MARGIN, MARGIN + TITLE_H + MARGIN) }
+                    end)
                 elseif idx == IDX_CLRFILTER then
-                    child.anchor:clear():add("topleft", winName, "topleft",
-                        MARGIN + (PANEL_W - 58) + 4,
-                        MARGIN + TITLE_H + MARGIN)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("topleft", winName, "topleft",
+                            MARGIN + (PANEL_W - 58) + 4,
+                            MARGIN + TITLE_H + MARGIN) }
+                    end)
                 elseif idx == IDX_AVAILHDR then
-                    child.anchor:clear():add("topleft", winName, "topleft",
-                        MARGIN, panelTop)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("topleft", winName, "topleft",
+                            MARGIN, panelTop) }
+                    end)
                 elseif idx == IDX_CARTHDR then
-                    child.anchor:clear():add("topleft", winName, "topleft",
-                        MARGIN + PANEL_W + MARGIN, panelTop)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("topleft", winName, "topleft",
+                            MARGIN + PANEL_W + MARGIN, panelTop) }
+                    end)
                 elseif idx == IDX_AVAIL then
-                    child.anchor:clear():add("topleft", winName, "topleft",
-                        MARGIN, panelTop + 22)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("topleft", winName, "topleft",
+                            MARGIN, panelTop + 22) }
+                    end)
                 elseif idx == IDX_CART then
-                    child.anchor:clear():add("topleft", winName, "topleft",
-                        MARGIN + PANEL_W + MARGIN, panelTop + 22)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("topleft", winName, "topleft",
+                            MARGIN + PANEL_W + MARGIN, panelTop + 22) }
+                    end)
                 elseif idx == IDX_TOTAL then
-                    child.anchor:clear():add("bottomleft", winName, "bottomleft",
-                        MARGIN, -MARGIN - BTN_H)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("bottomleft", winName, "bottomleft",
+                            MARGIN, -MARGIN - BTN_H) }
+                    end)
                 elseif idx == IDX_ACCEPT then
-                    child.anchor:clear():add("bottomright", winName, "bottomright",
-                        -MARGIN - BTN_W * 2 - 8, -MARGIN)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("bottomright", winName, "bottomright",
+                            -MARGIN - BTN_W * 2 - 8, -MARGIN) }
+                    end)
                 elseif idx == IDX_CANCEL then
-                    child.anchor:clear():add("bottomright", winName, "bottomright",
-                        -MARGIN - BTN_W - 4, -MARGIN)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("bottomright", winName, "bottomright",
+                            -MARGIN - BTN_W - 4, -MARGIN) }
+                    end)
                 elseif idx == IDX_CLOSE then
-                    child.anchor:clear():add("bottomright", winName, "bottomright",
-                        -MARGIN, -MARGIN)
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:add("bottomright", winName, "bottomright",
+                            -MARGIN, -MARGIN) }
+                    end)
                 end
             end,
             OnShutdown = function(_)

@@ -1,4 +1,4 @@
----@class Api
+﻿---@class Api
 local Api = {}
 
 ---@class Constants
@@ -3165,31 +3165,6 @@ Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWin
 Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
 Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemProperties, "OnUpdateItemProperties")
 
---- All data sub-events that OnRenderData registers handlers for.
---- When a model contains OnRenderData, the framework registers handlers
---- for every sub-event so ALL data updates route to a single callback.
-local RENDER_DATA_ALL_SUB_EVENTS = {
-    Constants.DataEvents.OnUpdatePlayerStatus,
-    Constants.DataEvents.OnUpdateMobileName,
-    Constants.DataEvents.OnUpdateMobileStatus,
-    Constants.DataEvents.OnUpdateHealthBarColor,
-    Constants.DataEvents.OnUpdatePaperdoll,
-    Constants.DataEvents.OnUpdateObjectInfo,
-    Constants.DataEvents.OnUpdateItemProperties,
-    Constants.DataEvents.OnUpdateContainerWindow,
-}
-
---- Entity-specific sub-events registered per-ID in setId().
---- PlayerStatus and ContainerWindow are global/broadcast-style and not here.
-local RENDER_DATA_ENTITY_SUB_EVENTS = {
-    Constants.DataEvents.OnUpdateMobileName,
-    Constants.DataEvents.OnUpdateMobileStatus,
-    Constants.DataEvents.OnUpdateHealthBarColor,
-    Constants.DataEvents.OnUpdatePaperdoll,
-    Constants.DataEvents.OnUpdateObjectInfo,
-    Constants.DataEvents.OnUpdateItemProperties,
-}
-
 ---@class SystemEvent
 ---@field getEvent fun(): integer
 ---@field name string
@@ -4308,214 +4283,6 @@ function Data.ItemProperties(id)
     return WindowData.ItemProperties[id]
 end
 
--- ========================================================================== --
--- Data - Mobile (Composite)
--- ========================================================================== --
-
---- Composite wrapper aggregating all mobile-related data for a given entity.
---- Provides nil-safe access to PlayerStatus, MobileName, MobileStatus,
---- HealthBarColor, and Paperdoll through a single object.
----@class MobileDataComposite
----@field _id number
----@field id number
----@field playerStatus PlayerStatusWrapper
----@field playerId number
----@field gold number
----@field name wstring|nil
----@field status MobileStatusWrapper|nil
----@field healthBarColor HealthBarColorWrapper|nil
----@field paperdoll PaperdollWrapper|nil
----@field currentHealth number
----@field maxHealth number
----@field currentMana number
----@field maxMana number
----@field currentStamina number
----@field maxStamina number
----@field inWarMode boolean
----@field notoriety number
----@field notorietyColor Color|nil
----@field visualStateColor Color|nil
-local MobileDataComposite = {}
-
----@param id number
----@return MobileDataComposite
-function MobileDataComposite:new(id)
-    return setmetatable({ _id = id }, getClassMetatable(self))
-end
-
-MobileDataComposite._ownProperties = {
-    id = {
-        get = function(self) return self._id end,
-    },
-    playerStatus = {
-        get = function(_) return Data.PlayerStatus() end,
-    },
-    playerId = {
-        get = function(self) return self.playerStatus.id end,
-    },
-    gold = {
-        get = function(self) return self.playerStatus.gold end,
-    },
-    name = {
-        get = function(self)
-            local d = WindowData.MobileName and WindowData.MobileName[self._id]
-            return d and d.MobName or nil
-        end,
-    },
-    status = {
-        get = function(self)
-            if not WindowData.MobileStatus or not WindowData.MobileStatus[self._id] then
-                return nil
-            end
-            return Data.MobileStatus(self._id)
-        end,
-    },
-    healthBarColor = {
-        get = function(self)
-            if not WindowData.HealthBarColor or not WindowData.HealthBarColor[self._id] then
-                return nil
-            end
-            return Data.HealthBarColor(self._id)
-        end,
-    },
-    paperdoll = {
-        get = function(self) return Data.Paperdoll(self._id) end,
-    },
-    currentHealth = {
-        get = function(self) return self.playerStatus.currentHealth end,
-    },
-    maxHealth = {
-        get = function(self) return self.playerStatus.maxHealth end,
-    },
-    currentMana = {
-        get = function(self) return self.playerStatus.currentMana end,
-    },
-    maxMana = {
-        get = function(self) return self.playerStatus.maxMana end,
-    },
-    currentStamina = {
-        get = function(self) return self.playerStatus.currentStamina end,
-    },
-    maxStamina = {
-        get = function(self) return self.playerStatus.maxStamina end,
-    },
-    inWarMode = {
-        get = function(self) return self.playerStatus.inWarMode end,
-    },
-    notoriety = {
-        get = function(self)
-            local s = self.status
-            return s and s.notoriety or 0
-        end,
-    },
-    notorietyColor = {
-        get = function(self)
-            local s = self.status
-            return s and s.notorietyColor or nil
-        end,
-    },
-    visualStateColor = {
-        get = function(self)
-            local hbc = self.healthBarColor
-            return hbc and hbc.visualStateColor or nil
-        end,
-    },
-}
-
---- Creates a composite mobile data wrapper for the given entity ID.
----@param id number
----@return MobileDataComposite
-function Data.Mobile(id)
-    return MobileDataComposite:new(id)
-end
-
--- ========================================================================== --
--- Data - Item (Composite)
--- ========================================================================== --
-
---- Composite wrapper aggregating all item-related data for a given entity.
---- Provides nil-safe access to ObjectInfo, ItemProperties, and ContainerWindow.
----@class ItemDataComposite
----@field _id number
----@field id number
----@field objectInfo ObjectInfoWrapper|nil
----@field itemProperties table|nil
----@field containerWindow table|nil
----@field objectType integer
----@field hueId integer
----@field shopValue integer
----@field shopQuantity integer
----@field propertyName wstring|nil
----@field containedItems table
-local ItemDataComposite = {}
-
----@param id number
----@return ItemDataComposite
-function ItemDataComposite:new(id)
-    return setmetatable({ _id = id }, getClassMetatable(self))
-end
-
-ItemDataComposite._ownProperties = {
-    id = {
-        get = function(self) return self._id end,
-    },
-    objectInfo = {
-        get = function(self) return Data.ObjectInfo(self._id) end,
-    },
-    itemProperties = {
-        get = function(self) return Data.ItemProperties(self._id) end,
-    },
-    containerWindow = {
-        get = function(self) return Data.ContainerWindow(self._id) end,
-    },
-    objectType = {
-        get = function(self)
-            local info = self.objectInfo
-            return info and info.objectType or 0
-        end,
-    },
-    hueId = {
-        get = function(self)
-            local info = self.objectInfo
-            return info and info.hueId or 0
-        end,
-    },
-    shopValue = {
-        get = function(self)
-            local info = self.objectInfo
-            return info and info.shopValue or 0
-        end,
-    },
-    shopQuantity = {
-        get = function(self)
-            local info = self.objectInfo
-            return info and info.shopQuantity or 0
-        end,
-    },
-    propertyName = {
-        get = function(self)
-            local props = self.itemProperties
-            if props and props.PropertiesList and props.PropertiesList[1] then
-                return props.PropertiesList[1]
-            end
-            return nil
-        end,
-    },
-    containedItems = {
-        get = function(self)
-            local cw = self.containerWindow
-            return cw and cw.ContainedItems or {}
-        end,
-    },
-}
-
---- Creates a composite item data wrapper for the given entity ID.
----@param id number
----@return ItemDataComposite
-function Data.Item(id)
-    return ItemDataComposite:new(id)
-end
-
 
 -- ========================================================================== --
 -- Components
@@ -4560,7 +4327,6 @@ local SNAP_THRESHOLD = 20
 ---@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: Button)?
 ---@field OnMouseOverEnd fun(self: Button)?
----@field OnRenderData fun(self: Button, state: ViewState)?
 
 ---@class Button: View
 ---@field text string|wstring
@@ -4577,7 +4343,6 @@ Button.__index = Button
 ---@field OnLButtonUp fun(self: CheckBox, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: CheckBox)?
 ---@field OnMouseOverEnd fun(self: CheckBox)?
----@field OnRenderData fun(self: CheckBox, state: ViewState)?
 
 ---@class CheckBox: View
 ---@field label Label?
@@ -4589,7 +4354,6 @@ CheckBox.__index = CheckBox
 ---@field OnInitialize fun(self: ComboBox)?
 ---@field OnShutdown fun(self: ComboBox)?
 ---@field OnSelChanged fun(self: ComboBox)?
----@field OnRenderData fun(self: ComboBox, state: ViewState)?
 
 ---@class ComboBox: View
 ---@field selectedItem wstring
@@ -4600,7 +4364,6 @@ ComboBox.__index = ComboBox
 ---@field OnInitialize fun(self: SliderBar)?
 ---@field OnShutdown fun(self: SliderBar)?
 ---@field OnSlide fun(self: SliderBar, position: number)?
----@field OnRenderData fun(self: SliderBar, state: ViewState)?
 
 ---@class SliderBar: View
 ---@field currentPosition number
@@ -4610,7 +4373,6 @@ SliderBar.__index = SliderBar
 ---@class AnimatedImageModel : ViewModel
 ---@field OnInitialize fun(self: AnimatedImage)?
 ---@field OnShutdown fun(self: AnimatedImage)?
----@field OnRenderData fun(self: AnimatedImage, state: ViewState)?
 
 ---@class AnimatedImage: View
 ---@field texture string
@@ -4626,7 +4388,6 @@ AnimatedImage.__index = AnimatedImage
 ---@field OnRButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: ActionButton)?
 ---@field OnMouseOverEnd fun(self: ActionButton)?
----@field OnRenderData fun(self: ActionButton, state: ViewState)?
 
 ---@class ActionButton: Button
 ---@field action any
@@ -4655,7 +4416,6 @@ ActionButtonGroup.__index = ActionButtonGroup
 ---@class CooldownDisplayModel : ViewModel
 ---@field OnInitialize fun(self: CooldownDisplay)?
 ---@field OnShutdown fun(self: CooldownDisplay)?
----@field OnRenderData fun(self: CooldownDisplay, state: ViewState)?
 
 ---@class CooldownDisplay: AnimatedImage
 local CooldownDisplay = {}
@@ -4672,7 +4432,6 @@ DockableWindow.__index = DockableWindow
 ---@class PageWindowModel : ViewModel
 ---@field OnInitialize fun(self: PageWindow)?
 ---@field OnShutdown fun(self: PageWindow)?
----@field OnRenderData fun(self: PageWindow, state: ViewState)?
 
 ---@class PageWindow: View
 ---@field activePage number
@@ -4881,7 +4640,6 @@ DefaultComponent.__index = DefaultComponent
 ---@field OnShutdown fun(self: CircleImage)?
 ---@field OnUpdate fun(self: CircleImage, timePassed: integer)?
 ---@field OnUpdateRadar fun(self: CircleImage, data: WindowData.Radar)?
----@field OnRenderData fun(self: CircleImage, state: ViewState)?
 
 ---@class CircleImage : View
 ---@field textureSlice string
@@ -4907,7 +4665,6 @@ Component.__index = Component
 ---@field OnMouseWheel fun(self: DynamicImage, x: number, y: number, delta: number)?
 ---@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
----@field OnRenderData fun(self: DynamicImage, state: ViewState)?
 
 ---@class DynamicImage: View
 ---@field texture {[1]: string, [2]: number, [3]: number}
@@ -4925,7 +4682,6 @@ DynamicImage.__index = DynamicImage
 ---@field OnTextChanged fun(self: EditTextBox, text: wstring)?
 ---@field OnKeyEnter fun(self: EditTextBox)?
 ---@field OnKeyEscape fun(self: EditTextBox)?
----@field OnRenderData fun(self: EditTextBox, state: ViewState)?
 
 ---@class EditTextBox: View
 ---@field text string|wstring
@@ -4967,7 +4723,6 @@ FilterInput.__index = FilterInput
 ---@field OnEndHealthBarDrag fun(self: Window)?
 ---@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
----@field OnRenderData fun(self: Window, state: ViewState)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4983,7 +4738,6 @@ FilterInput.__index = FilterInput
 ---@field OnMouseOverEnd fun(self: Label)?
 ---@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
----@field OnRenderData fun(self: Label, state: ViewState)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -5016,7 +4770,6 @@ Label.__index = Label
 ---@class LogDisplayModel : ViewModel
 ---@field OnInitialize fun(self: LogDisplay)?
 ---@field OnShutdown fun(self: LogDisplay)?
----@field OnRenderData fun(self: LogDisplay, state: ViewState)?
 
 ---@class LogDisplay: View
 ---@field timestampVisible boolean
@@ -5045,7 +4798,6 @@ LogDisplay.__index = LogDisplay
 ---@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
 ---@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
 ---@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
----@field OnRenderData fun(self: View, state: ViewState)?
 
 ---@class StatusBarModel : ViewModel
 ---@field OnInitialize fun(self: StatusBar)?
@@ -5055,7 +4807,6 @@ LogDisplay.__index = LogDisplay
 ---@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
 ---@field OnMouseOver fun(self: StatusBar)?
 ---@field OnMouseOverEnd fun(self: StatusBar)?
----@field OnRenderData fun(self: StatusBar, state: ViewState)?
 
 ---@class ScrollWindowModel : ViewModel
 ---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
@@ -5063,7 +4814,6 @@ LogDisplay.__index = LogDisplay
 ---@field Horizontal boolean? When true, the scroll window scrolls horizontally instead of vertically. Defaults to false.
 ---@field OnInitialize fun(self: ScrollWindow)?
 ---@field OnShutdown fun(self: ScrollWindow)?
----@field OnRenderData fun(self: ScrollWindow, state: ViewState)?
 
 ---@class ScrollWindow : View
 ---@field horizontal boolean
@@ -5082,8 +4832,83 @@ ScrollWindow.__index = ScrollWindow
 local StatusBar = {}
 StatusBar.__index = StatusBar
 
+-- ========================================================================== --
+-- BindingsBuilder
+-- ========================================================================== --
+
+--- Data events used for the initial fire after OnInitialize.
+--- Entity-specific mobile events + PlayerStatus. Instance-based events
+--- (ContainerWindow, ObjectInfo, ItemProperties) are NOT fired initially
+--- because they require an engine-pushed update with an instanceId.
+local INITIAL_FIRE_EVENTS = {
+    "OnUpdatePlayerStatus",
+    "OnUpdateMobileName",
+    "OnUpdateMobileStatus",
+    "OnUpdateHealthBarColor",
+    "OnUpdatePaperdoll",
+}
+
+---@class BindingSpec
+---@field event DataEvent
+---@field fn function
+---@field entity boolean
+
+---@class BindingFactory
+local BindingFactory = {}
+BindingFactory.__index = BindingFactory
+
+---@param fn fun(self: View, playerStatus: PlayerStatusWrapper)
+---@return BindingSpec
+function BindingFactory:onPlayerStatus(fn)
+    return { event = Constants.DataEvents.OnUpdatePlayerStatus, fn = fn, entity = false }
+end
+
+---@param fn fun(self: View, mobileName: MobileNameWrapper)
+---@return BindingSpec
+function BindingFactory:onMobileName(fn)
+    return { event = Constants.DataEvents.OnUpdateMobileName, fn = fn, entity = true }
+end
+
+---@param fn fun(self: View, mobileStatus: MobileStatusWrapper)
+---@return BindingSpec
+function BindingFactory:onMobileStatus(fn)
+    return { event = Constants.DataEvents.OnUpdateMobileStatus, fn = fn, entity = true }
+end
+
+---@param fn fun(self: View, healthBarColor: HealthBarColorWrapper)
+---@return BindingSpec
+function BindingFactory:onHealthBarColor(fn)
+    return { event = Constants.DataEvents.OnUpdateHealthBarColor, fn = fn, entity = true }
+end
+
+---@param fn fun(self: View, paperdoll: PaperdollWrapper)
+---@return BindingSpec
+function BindingFactory:onPaperdoll(fn)
+    return { event = Constants.DataEvents.OnUpdatePaperdoll, fn = fn, entity = true }
+end
+
+---@param fn fun(self: View, instanceId: number, containerWindow: ContainerWindowData)
+---@return BindingSpec
+function BindingFactory:onContainerWindow(fn)
+    return { event = Constants.DataEvents.OnUpdateContainerWindow, fn = fn, entity = false }
+end
+
+---@param fn fun(self: View, instanceId: number, objectInfo: ObjectInfoWrapper)
+---@return BindingSpec
+function BindingFactory:onObjectInfo(fn)
+    return { event = Constants.DataEvents.OnUpdateObjectInfo, fn = fn, entity = false }
+end
+
+---@param fn fun(self: View, instanceId: number, itemProperties: table)
+---@return BindingSpec
+function BindingFactory:onItemProperties(fn)
+    return { event = Constants.DataEvents.OnUpdateItemProperties, fn = fn, entity = false }
+end
+
 ---@class View : Component
 ---@field _model ViewModel
+---@field _bindings table<string, function>
+---@field _entityBindings table<string, DataEvent>
 ---@field alpha number
 ---@field scale number
 ---@field showing boolean
@@ -5101,8 +4926,6 @@ StatusBar.__index = StatusBar
 ---@field focused boolean
 ---@field relativeScale number
 ---@field sticky boolean
----@field anchor AnchorBuilder
----@field layer LayerBuilder
 local View = {}
 View.__index = View
 
@@ -5127,118 +4950,121 @@ Window.__index = Window
 -- Components - Internal Builders - Layer Builder
 -- ========================================================================== --
 
----@class LayerBuilder
----@field _view View
-local LayerBuilder = {}
-LayerBuilder.__index = LayerBuilder
+---@class LayerFactory
+local LayerFactory = {}
+LayerFactory.__index = LayerFactory
 
----@param view View
----@return LayerBuilder
-function LayerBuilder:new(view)
-    local instance = setmetatable({}, self)
-    instance._view = view
-    return instance
+---@return number
+function LayerFactory:default()
+    return Constants.WindowLayers.Default
 end
 
-function LayerBuilder:default()
-    Api.Window.SetLayer(self._view.name, Constants.WindowLayers.Default)
-    return self._view
+---@return number
+function LayerFactory:overlay()
+    return Constants.WindowLayers.Overlay
 end
 
-function LayerBuilder:overlay()
-    Api.Window.SetLayer(self._view.name, Constants.WindowLayers.Overlay)
-    return self._view
+---@return number
+function LayerFactory:popup()
+    return Constants.WindowLayers.Popup
 end
 
-function LayerBuilder:popup()
-    Api.Window.SetLayer(self._view.name, Constants.WindowLayers.Popup)
-    return self._view
-end
-
-function LayerBuilder:background()
-    Api.Window.SetLayer(self._view.name, Constants.WindowLayers.Background)
-    return self._view
+---@return number
+function LayerFactory:background()
+    return Constants.WindowLayers.Background
 end
 
 -- ========================================================================== --
 -- Components - Internal Builders - Anchor Builder
 -- ========================================================================== --
 
----@class AnchorBuilder
----@field _view View
-local AnchorBuilder = {}
-AnchorBuilder.__index = AnchorBuilder
+---@class AnchorFactory
+---@field _parent string
+local AnchorFactory = {}
+AnchorFactory.__index = AnchorFactory
 
----@param view View
----@return AnchorBuilder
-function AnchorBuilder:new(view)
+---@param parent string
+---@return AnchorFactory
+function AnchorFactory:new(parent)
     local instance = setmetatable({}, self)
-    instance._view = view
+    instance._parent = parent
     return instance
 end
 
---- Adds an anchor to the view.
+--- Returns an anchor spec.
 ---@param point string The anchor point on this view.
 ---@param relativeTo string The name of the window to anchor to.
 ---@param relativePoint string The anchor point on the relative window.
 ---@param x number? X offset (default 0).
 ---@param y number? Y offset (default 0).
----@return AnchorBuilder
-function AnchorBuilder:add(point, relativeTo, relativePoint, x, y)
-    Api.Window.AddAnchor(self._view.name, point, relativeTo, relativePoint, x or 0, y or 0)
-    return self
+---@return table
+function AnchorFactory:add(point, relativeTo, relativePoint, x, y)
+    return {point, relativeTo, relativePoint, x or 0, y or 0}
 end
 
---- Clears all anchors on the view.
----@return AnchorBuilder
-function AnchorBuilder:clear()
-    Api.Window.ClearAnchors(self._view.name)
-    return self
-end
-
---- Forces the engine to process pending anchors.
----@return AnchorBuilder
-function AnchorBuilder:forceProcess()
-    Api.Window.ForceProcessAnchors(self._view.name)
-    return self
-end
-
---- Convenience: clears anchors and centers the view in a target window.
+--- Convenience: centers the view in a target window.
 ---@param windowName string? The window to center in (defaults to parent).
 ---@param x number? X offset (default 0).
 ---@param y number? Y offset (default 0).
----@return AnchorBuilder
-function AnchorBuilder:centerIn(windowName, x, y)
-    return self:add("center", windowName or self._view.parent, "center", x, y)
+---@return table
+function AnchorFactory:centerIn(windowName, x, y)
+    return self:add("center", windowName or self._parent, "center", x, y)
 end
 
---- Convenience: clears anchors and centers the view in its parent.
+--- Convenience: centers the view in its parent.
 ---@param x number? X offset (default 0).
 ---@param y number? Y offset (default 0).
----@return AnchorBuilder
-function AnchorBuilder:toParentCenter(x, y)
-    return self:centerIn(self._view.parent, x, y)
+---@return table
+function AnchorFactory:toParentCenter(x, y)
+    return self:centerIn(self._parent, x, y)
 end
 
 --- Convenience: anchors to the top of the parent.
 ---@param x number? X offset (default 0).
 ---@param y number? Y offset (default 0).
----@return AnchorBuilder
-function AnchorBuilder:toParentTop(x, y)
-    return self:add("top", self._view.parent, "top", x, y)
+---@return table
+function AnchorFactory:toParentTop(x, y)
+    return self:add("top", self._parent, "top", x, y)
 end
 
---- Returns the number of anchors on the view.
----@return number
-function AnchorBuilder:count()
-    return Api.Window.GetAnchorCount(self._view.name)
+-- ========================================================================== --
+-- Components - Internal Builders - Log Display Builder
+-- ========================================================================== --
+
+---@class LogEntryBuilder
+---@field name string
+---@field displayPreviousEntry boolean
+---@field _filters table[]
+local LogEntryBuilder = {}
+LogEntryBuilder.__index = LogEntryBuilder
+
+---@param name string
+---@param displayPreviousEntry boolean?
+---@return LogEntryBuilder
+function LogEntryBuilder:new(name, displayPreviousEntry)
+    local instance = setmetatable({}, self)
+    instance.name = name
+    instance.displayPreviousEntry = displayPreviousEntry or false
+    instance._filters = {}
+    return instance
 end
 
---- Gets anchor data by index.
----@param id number The anchor index.
----@return any
-function AnchorBuilder:get(id)
-    return Api.Window.GetAnchor(self._view.name, id)
+--- Adds a filter color to this log entry.
+---@param filterId number
+---@param color Color
+---@return LogEntryBuilder
+function LogEntryBuilder:filterColor(filterId, color)
+    table.insert(self._filters, { filterId = filterId, color = color })
+    return self
+end
+
+--- Adds a filter state to this log entry.
+---@param filterId number
+---@param enabled boolean
+---@return LogEntryBuilder
+function LogEntryBuilder:filterState(filterId, enabled)
+    table.insert(self._filters, { filterId = filterId, enabled = enabled })
+    return self
 end
 
 -- ========================================================================== --
@@ -5249,21 +5075,13 @@ local Layouts = {}
 
 Layouts.StackAndFill = function(window, children, child, index)
     if index > 1 then
-        child.anchor:add(
-            "bottomleft",
-            children[index - 1].name,
-            "topleft",
-            0,
-            8
-        )
+        child.anchors = child:anchorBuilder(function(a)
+            return { a:add("bottomleft", children[index - 1].name, "topleft", 0, 8) }
+        end)
     else
-        child.anchor:add(
-            "topleft",
-            window.name,
-            "topleft",
-            12,
-            12
-        )
+        child.anchors = child:anchorBuilder(function(a)
+            return { a:add("topleft", window.name, "topleft", 12, 12) }
+        end)
     end
 
     local parentDimens = window.dimensions
@@ -5940,7 +5758,6 @@ local function stopResize()
     -- Re-layout children
     if window._model.OnLayout then
         Utils.Array.ForEach(window._children, function(child, index)
-            child.anchor:clear()
             window._model.OnLayout(window, window._children, child, index)
         end)
     end
@@ -5988,7 +5805,6 @@ local function startResize(window)
             -- Re-layout children each frame so content tracks the new size
             if resizingWindow._model.OnLayout then
                 Utils.Array.ForEach(resizingWindow._children, function(child, index)
-                    child.anchor:clear()
                     resizingWindow._model.OnLayout(resizingWindow, resizingWindow._children, child, index)
                 end)
             end
@@ -6071,31 +5887,31 @@ end
 
 function EventHandler.OnUpdatePlayerStatus()
     withActiveView("OnUpdatePlayerStatus", function(view)
-        view:onRenderData()
+        view:onUpdatePlayerStatus()
     end)
 end
 
 function EventHandler.OnUpdateMobileName()
     withActiveView("OnUpdateMobileName", function(view)
-        view:onRenderData()
+        view:onUpdateMobileName()
     end)
 end
 
 function EventHandler.OnUpdateHealthBarColor()
     withActiveView("OnUpdateHealthBarColor", function(view)
-        view:onRenderData()
+        view:onUpdateHealthBarColor()
     end)
 end
 
 function EventHandler.OnUpdateMobileStatus()
     withActiveView("OnUpdateMobileStatus", function(view)
-        view:onRenderData()
+        view:onUpdateMobileStatus()
     end)
 end
 
 function EventHandler.OnUpdatePaperdoll()
     withActiveView("OnUpdatePaperdoll", function(view)
-        view:onRenderData()
+        view:onUpdatePaperdoll()
     end)
 end
 
@@ -6149,25 +5965,19 @@ end
 
 function EventHandler.OnUpdateContainerWindow()
     withActiveView("OnUpdateContainerWindow", function(view)
-        view._state.instanceId = Api.Window.GetUpdateInstanceId()
-        view:onRenderData()
-        view._state.instanceId = nil
+        view:onUpdateContainerWindow()
     end)
 end
 
 function EventHandler.OnUpdateObjectInfo()
     withActiveView("OnUpdateObjectInfo", function(view)
-        view._state.instanceId = Api.Window.GetUpdateInstanceId()
-        view:onRenderData()
-        view._state.instanceId = nil
+        view:onUpdateObjectInfo()
     end)
 end
 
 function EventHandler.OnUpdateItemProperties()
     withActiveView("OnUpdateItemProperties", function(view)
-        view._state.instanceId = Api.Window.GetUpdateInstanceId()
-        view:onRenderData()
-        view._state.instanceId = nil
+        view:onUpdateItemProperties()
     end)
 end
 
@@ -6328,7 +6138,36 @@ function LogDisplay:new(model)
     return instance --[[@as LogDisplay]]
 end
 
+--- Builds log entries via a callback that receives a factory.
+--- The callback should return an array of LogEntryBuilder objects.
+---@param fn fun(log: { newLog: fun(self: any, name: string, displayPreviousEntry: boolean?): LogEntryBuilder }): LogEntryBuilder[]
+---@return LogEntryBuilder[]
+function LogDisplay:logBuilder(fn)
+    local factory = {}
+    function factory:newLog(name, displayPreviousEntry)
+        return LogEntryBuilder:new(name, displayPreviousEntry)
+    end
+    return fn(factory)
+end
+
 LogDisplay._ownProperties = {
+    logs = {
+        set = function(self, v)
+            for i = 1, #v do
+                local entry = v[i]
+                Api.LogDisplay.AddLog(self.name, entry.name, entry.displayPreviousEntry)
+                for j = 1, #entry._filters do
+                    local filter = entry._filters[j]
+                    if filter.color then
+                        Api.LogDisplay.SetFilterColor(self.name, entry.name, filter.filterId, filter.color)
+                    end
+                    if filter.enabled ~= nil then
+                        Api.LogDisplay.SetFilterState(self.name, entry.name, filter.filterId, filter.enabled)
+                    end
+                end
+            end
+        end,
+    },
     timestampVisible = {
         set = function(self, v) Api.LogDisplay.ShowTimestamp(self.name, v) end,
     },
@@ -6339,33 +6178,6 @@ LogDisplay._ownProperties = {
         set = function(self, v) Api.LogDisplay.ShowFilterName(self.name, v) end,
     },
 }
-
-function LogDisplay:setFilterState(logName, filterId, isEnabled)
-    Api.LogDisplay.SetFilterState(self.name, logName, filterId, isEnabled)
-    return self
-end
-
-function LogDisplay:setFilterColor(logName, filterId, color)
-    Api.LogDisplay.SetFilterColor(self.name, logName, filterId, color)
-    return self
-end
-
----Registers the log to the log display
----@param logName string
----@param displayPreviousEntries boolean?
----@return LogDisplay
-function LogDisplay:addLog(logName, displayPreviousEntries)
-    Api.LogDisplay.AddLog(self.name, logName, displayPreviousEntries)
-    return self
-end
-
----Removes a log from the log display
----@param logName string
----@return LogDisplay
-function LogDisplay:removeLog(logName)
-    Api.LogDisplay.RemoveLog(self.name, logName)
-    return self
-end
 
 ---@param model LogDisplayModel?
 ---@return LogDisplay
@@ -6432,11 +6244,15 @@ function ScrollWindow:addItem(view)
     if self.horizontal then
         local itemWidth = self:_getItemWidth()
         local xOffset = #self._items * itemWidth
-        view.anchor:clear():add("topleft", contName, "topleft", xOffset, 0)
+        view.anchors = view:anchorBuilder(function(a)
+            return { a:add("topleft", contName, "topleft", xOffset, 0) }
+        end)
     else
         local itemHeight = self:_getItemHeight()
         local yOffset = #self._items * itemHeight
-        view.anchor:clear():add("topleft", contName, "topleft", 0, yOffset)
+        view.anchors = view:anchorBuilder(function(a)
+            return { a:add("topleft", contName, "topleft", 0, yOffset) }
+        end)
     end
     Utils.Array.Add(self._items, view)
     self:_updateLayout()
@@ -6478,7 +6294,9 @@ function ScrollWindow:_updateLayout()
     if self.horizontal then
         local itemWidth = self:_getItemWidth()
         Utils.Array.ForEach(self._items, function(item, index)
-            item.anchor:clear():add("topleft", contName, "topleft", (index - 1) * itemWidth, 0)
+            item.anchors = item:anchorBuilder(function(a)
+                return { a:add("topleft", contName, "topleft", (index - 1) * itemWidth, 0) }
+            end)
         end)
         local dims = self.dimensions
         local totalWidth = #self._items * itemWidth
@@ -6488,9 +6306,12 @@ function ScrollWindow:_updateLayout()
         local itemHeight = self:_getItemHeight()
         Utils.Array.ForEach(self._items, function(item, index)
             local yOffset = (index - 1) * itemHeight
-            item.anchor:clear()
-                :add("topleft", contName, "topleft", 0, yOffset)
-                :add("topright", contName, "topright", 0, yOffset)
+            item.anchors = item:anchorBuilder(function(a)
+                return {
+                    a:add("topleft", contName, "topleft", 0, yOffset),
+                    a:add("topright", contName, "topright", 0, yOffset),
+                }
+            end)
         end)
         local childDims = Api.Window.GetDimensions(self.name .. "Child")
         local totalHeight = #self._items * itemHeight
@@ -6605,13 +6426,9 @@ function StatusBar:onInitialize()
         label.dimensions = dimens
         label:centerText()
 
-        label.anchor:clear():add(
-            "center",
-            self.name,
-            "center",
-            0,
-            0
-        )
+        label.anchors = label:anchorBuilder(function(a)
+            return { a:add("center", self.name, "center", 0, 0) }
+        end)
     end
 end
 
@@ -6817,7 +6634,9 @@ function CheckBox:onInitialize()
         label.parent = self.parent
 
         local dims = self.dimensions
-        label.anchor:clear():add("left", self.name, "right", 4, 0)
+        label.anchors = label:anchorBuilder(function(a)
+            return { a:add("left", self.name, "right", 4, 0) }
+        end)
         label.dimensions = { label.dimensions.x, dims.y }
         label:centerText()
     end
@@ -7017,9 +6836,13 @@ function ActionButtonGroup:onInitialize()
         button.parent = self.name
         button.dimensions = { buttonSize, buttonSize }
         if i == 1 then
-            button.anchor:clear():add("topleft", self.name, "topleft", 0, 0)
+            button.anchors = button:anchorBuilder(function(a)
+                return { a:add("topleft", self.name, "topleft", 0, 0) }
+            end)
         else
-            button.anchor:clear():add("topleft", self._buttons[i - 1].name, "topright", spacing, 0)
+            button.anchors = button:anchorBuilder(function(a)
+                return { a:add("topleft", self._buttons[i - 1].name, "topright", spacing, 0) }
+            end)
         end
         self._buttons[i] = button
     end
@@ -7196,34 +7019,28 @@ function Components.PageWindow(model)
 end
 
 
----@class ViewState
----@field mobile MobileDataComposite|nil Composite mobile data for the view's entity ID
----@field item ItemDataComposite|nil Composite item data for the view's entity ID
----@field instanceId number|nil Instance ID from the most recent item data event (nil for mobile events)
-
 ---@param model ViewModel
 ---@return View
 function View:new(model)
     local name = model.Name or Utils.String.Random()
     local instance = Component.new(self, name) --[[@as View]]
     instance._model = model
-    instance._state = {}
+    instance._bindings = {}
+    instance._entityBindings = {}
     return instance
 end
 
---- Creates or updates all composite state objects for the given entity ID.
---- Populates _state.mobile and _state.item in one call.
----@param id number The entity ID
-function View:_reduceState(id)
-    self._state.mobile = Data.Mobile(id)
-    self._state.item = Data.Item(id)
-end
-
---- Calls OnRenderData with the current _state for initial rendering.
-function View:_notifyRenderData()
-    if self._model.OnRenderData then
-        self._model.OnRenderData(self, self._state)
-    end
+--- Fires initial data for all registered bindings.
+--- Called at the end of onInitialize, after the model's OnInitialize has
+--- set up bindings via the BindingsBuilder.
+function View:_notifyBindings()
+    pcall(function()
+        Utils.Table.ForEach(INITIAL_FIRE_EVENTS, function(_, eventName)
+            if self._bindings[eventName] then
+                self["on" .. eventName:sub(3)](self)
+            end
+        end)
+    end)
 end
 
 function View:onInitialize()
@@ -7247,16 +7064,6 @@ function View:onInitialize()
             self:registerEventHandler(systemEvent.getEvent(), functionName)
         elseif dataEvent ~= nil then
             self:registerEventHandler(dataEvent.getEvent(), functionName)
-        elseif k == "OnRenderData" then
-            -- Register handlers for ALL data sub-events
-            Utils.Table.ForEach(RENDER_DATA_ALL_SUB_EVENTS, function(_, subEvent)
-                self:registerEventHandler(
-                    subEvent.getEvent(),
-                    prefix .. subEvent.name
-                )
-            end)
-            -- Initialize state with both mobile and item composites
-            self:_reduceState(id)
         end
     end
 
@@ -7282,8 +7089,8 @@ function View:onInitialize()
         self._model.OnInitialize(self)
     end
 
-    -- Fire initial OnRenderData so views render with current data
-    self:_notifyRenderData()
+    -- Fire initial data for all registered bindings
+    self:_notifyBindings()
 end
 
 function View:onShutdown()
@@ -7292,7 +7099,16 @@ function View:onShutdown()
     end
 
     self.id = 0
-    self._state = {}
+
+    -- Unregister bindings-registered event handlers
+    for eventName, _ in pairs(self._bindings) do
+        local dataEvent = Constants.DataEvents[eventName]
+        if dataEvent then
+            self:unregisterEventHandler(dataEvent.getEvent())
+        end
+    end
+    self._bindings = {}
+    self._entityBindings = {}
 
     for k, _ in pairs(self._model) do
         local systemEvent = Constants.SystemEvents[k]
@@ -7306,10 +7122,6 @@ function View:onShutdown()
             self:unregisterEventHandler(systemEvent.getEvent())
         elseif dataEvent ~= nil then
             self:unregisterEventHandler(dataEvent.getEvent())
-        elseif k == "OnRenderData" then
-            Utils.Table.ForEach(RENDER_DATA_ALL_SUB_EVENTS, function(_, subEvent)
-                self:unregisterEventHandler(subEvent.getEvent())
-            end)
         end
     end
 end
@@ -7377,9 +7189,76 @@ function View:onUpdate(timePassed, windowData)
     return true
 end
 
-function View:onRenderData()
-    if self._model.OnRenderData then
-        self._model.OnRenderData(self, self._state)
+function View:onUpdatePlayerStatus()
+    local fn = self._bindings.OnUpdatePlayerStatus
+    if fn then
+        fn(self, Data.PlayerStatus())
+        return true
+    end
+    return false
+end
+
+function View:onUpdateMobileName()
+    local fn = self._bindings.OnUpdateMobileName
+    if fn then
+        fn(self, Data.MobileName(self.id))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateHealthBarColor()
+    local fn = self._bindings.OnUpdateHealthBarColor
+    if fn then
+        fn(self, Data.HealthBarColor(self.id))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateMobileStatus()
+    local fn = self._bindings.OnUpdateMobileStatus
+    if fn then
+        fn(self, Data.MobileStatus(self.id))
+        return true
+    end
+    return false
+end
+
+function View:onUpdatePaperdoll()
+    local fn = self._bindings.OnUpdatePaperdoll
+    if fn then
+        fn(self, Data.Paperdoll(self.id))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateContainerWindow()
+    local fn = self._bindings.OnUpdateContainerWindow
+    if fn then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        fn(self, instanceId, Data.ContainerWindow(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateObjectInfo()
+    local fn = self._bindings.OnUpdateObjectInfo
+    if fn then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        fn(self, instanceId, Data.ObjectInfo(instanceId))
+        return true
+    end
+    return false
+end
+
+function View:onUpdateItemProperties()
+    local fn = self._bindings.OnUpdateItemProperties
+    if fn then
+        local instanceId = Api.Window.GetUpdateInstanceId()
+        fn(self, instanceId, Data.ItemProperties(instanceId))
         return true
     end
     return false
@@ -7484,13 +7363,7 @@ function View:onSelChanged()
     return false
 end
 
---- Returns the view's composite state table.
---- Contains `mobile` (MobileDataComposite) and/or `item` (ItemDataComposite)
---- when the corresponding composite event handler is present in the model.
----@return table
-function View:getState()
-    return self._state
-end
+
 
 function View:setId(id)
     id = id or 0
@@ -7501,14 +7374,12 @@ function View:setId(id)
     end
 
     if oldId ~= 0 then
-        -- Unregister OnRenderData entity sub-events for old ID
-        if self._model.OnRenderData then
-            Utils.Table.ForEach(RENDER_DATA_ENTITY_SUB_EVENTS, function(_, subEvent)
-                Api.Window.UnregisterData(subEvent.getType(), oldId)
-            end)
+        -- Unregister entity-specific bindings for old ID
+        for _, dataEvent in pairs(self._entityBindings) do
+            Api.Window.UnregisterData(dataEvent.getType(), oldId)
         end
 
-        -- Unregister individual DataEvents for old ID
+        -- Unregister individual DataEvents from model for old ID
         for k, _ in pairs(self._model) do
             local dataEvent = Constants.DataEvents[k]
             if dataEvent ~= nil then
@@ -7528,16 +7399,12 @@ function View:setId(id)
     end
 
     if id ~= 0 then
-        -- Register OnRenderData entity sub-events for new ID
-        if self._model.OnRenderData then
-            Utils.Table.ForEach(RENDER_DATA_ENTITY_SUB_EVENTS, function(_, subEvent)
-                Api.Window.RegisterData(subEvent.getType(), id)
-            end)
-            -- Update state with new ID
-            self:_reduceState(id)
+        -- Register entity-specific bindings for new ID
+        for _, dataEvent in pairs(self._entityBindings) do
+            Api.Window.RegisterData(dataEvent.getType(), id)
         end
 
-        -- Register individual DataEvents for new ID
+        -- Register individual DataEvents from model for new ID
         for k, _ in pairs(self._model) do
             local dataEvent = Constants.DataEvents[k]
             if dataEvent ~= nil then
@@ -7553,13 +7420,6 @@ function View:setId(id)
                     Api.Window.RegisterData(dataEvent.getType(), id)
                 end
             end
-        end
-    else
-        -- Clear composite state when id is set to 0
-        if self._model.OnRenderData then
-            self._state.mobile = nil
-            self._state.item = nil
-            self._state.instanceId = nil
         end
     end
 
@@ -7625,6 +7485,37 @@ end
 
 function View:isParentRoot()
     return self.parent == "Root"
+end
+
+--- Builds anchor specs via a callback that receives an AnchorFactory.
+---@param fn fun(anchor: AnchorFactory): table[]
+---@return table[]
+function View:anchorBuilder(fn)
+    return fn(AnchorFactory:new(self.parent))
+end
+
+--- Builds a layer value via a callback that receives a LayerFactory.
+---@param fn fun(layer: LayerFactory): number
+---@return number
+function View:layerBuilder(fn)
+    return fn(LayerFactory)
+end
+
+--- Registers data event bindings via a callback that receives a BindingFactory.
+---@param fn fun(bind: BindingFactory): BindingSpec[]
+function View:bindingsBuilder(fn)
+    local specs = fn(BindingFactory)
+    for i = 1, #specs do
+        local spec = specs[i]
+        self._bindings[spec.event.name] = spec.fn
+        self:registerEventHandler(
+            spec.event.getEvent(),
+            "Mongbat.EventHandler." .. spec.event.name
+        )
+        if spec.entity then
+            self._entityBindings[spec.event.name] = spec.event
+        end
+    end
 end
 
 View._ownProperties = {
@@ -7701,15 +7592,16 @@ View._ownProperties = {
     sticky = {
         get = function(self) return Api.Window.IsSticky(self.name) end,
     },
-    anchor = {
-        get = function(self) return AnchorBuilder:new(self) end,
+    anchors = {
         set = function(self, v)
             Api.Window.ClearAnchors(self.name)
-            Api.Window.AddAnchor(self.name, v[1], v[2], v[3], v[4] or 0, v[5] or 0)
+            for i = 1, #v do
+                local a = v[i]
+                Api.Window.AddAnchor(self.name, a[1], a[2], a[3], a[4] or 0, a[5] or 0)
+            end
         end,
     },
     layer = {
-        get = function(self) return LayerBuilder:new(self) end,
         set = function(self, v) Api.Window.SetLayer(self.name, v) end,
     },
 }
@@ -7752,7 +7644,6 @@ local function wrapChildForParent(parent, child, index)
     local onChildInitialize = child._model.OnInitialize
     child._model.OnInitialize = function(c)
         c.parent = parent.name
-        c.anchor:clear()
         parent._model.OnLayout(parent, parent._children, c, index)
         if onChildInitialize ~= nil then
             onChildInitialize(c)
@@ -7761,9 +7652,10 @@ local function wrapChildForParent(parent, child, index)
 
     local onChildRButtonUp = child._model.OnRButtonUp
     child._model.OnRButtonUp = function(c, flags, x, y)
-        parent:onRButtonUp(flags, x, y)
         if onChildRButtonUp ~= nil then
             onChildRButtonUp(c, flags, x, y)
+        else
+            parent:onRButtonUp(flags, x, y)
         end
     end
 
@@ -7771,23 +7663,26 @@ local function wrapChildForParent(parent, child, index)
     child._model.OnLButtonDown = function(c, flags, x, y)
         if onChildLButtonDown ~= nil then
             onChildLButtonDown(c, flags, x, y)
+        else
+            parent:onLButtonDown(flags, x, y)
         end
-        parent:onLButtonDown(flags, x, y)
     end
 
     local onChildLButtonUp = child._model.OnLButtonUp
     child._model.OnLButtonUp = function(c, flags, x, y)
         if onChildLButtonUp ~= nil then
             onChildLButtonUp(c, flags, x, y)
+        else
+            parent:onLButtonUp(flags, x, y)
         end
-        parent:onLButtonUp(flags, x, y)
     end
 
     local onChildLButtonDblClk = child._model.OnLButtonDblClk
     child._model.OnLButtonDblClk = function(c, flags, x, y)
-        parent:onLButtonDblClk(flags, x, y)
         if onChildLButtonDblClk ~= nil then
             onChildLButtonDblClk(c, flags, x, y)
+        else
+            parent:onLButtonDblClk(flags, x, y)
         end
     end
 
@@ -7795,15 +7690,17 @@ local function wrapChildForParent(parent, child, index)
     child._model.OnMouseOver = function(c)
         if onMouseOver ~= nil then
             onMouseOver(c)
+        else
+            parent:onMouseOver()
         end
-        parent:onMouseOver()
     end
 
     local onMouseOverEnd = child._model.OnMouseOverEnd
     child._model.OnMouseOverEnd = function(c)
-        parent:onMouseOverEnd()
         if onMouseOverEnd ~= nil then
             onMouseOverEnd(c)
+        else
+            parent:onMouseOverEnd()
         end
     end
 end
@@ -7821,8 +7718,10 @@ local function createResizeGrip(window)
     grip:create()
     grip:onInitialize()
     grip.parent = window.name
-    grip.anchor:clear():add("bottomright", window.name, "bottomright", 0, 0)
-    grip.layer:overlay()
+    grip.anchors = grip:anchorBuilder(function(a)
+        return { a:add("bottomright", window.name, "bottomright", 0, 0) }
+    end)
+    grip.layer = grip:layerBuilder(function(l) return l:overlay() end)
     return grip
 end
 
@@ -8125,6 +8024,7 @@ mergeProperties(View)
 mergeProperties(Window)
 mergeProperties(Button)
 mergeProperties(EditTextBox)
+mergeProperties(FilterInput)
 mergeProperties(Label)
 mergeProperties(LogDisplay)
 mergeProperties(ScrollWindow)
@@ -8159,8 +8059,6 @@ mergeProperties(PaperdollData)
 mergeProperties(PaperdollTexture)
 mergeProperties(ShopData)
 mergeProperties(ObjectInfoData)
-mergeProperties(MobileDataComposite)
-mergeProperties(ItemDataComposite)
 
 Components.Defaults.Actions = DefaultComponent.create("Actions", "Actions", Actions)
 Components.Defaults.MainMenuWindow = DefaultComponent.create("MainMenuWindow", "MainMenuWindow", MainMenuWindow)

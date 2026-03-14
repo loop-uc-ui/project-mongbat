@@ -62,12 +62,13 @@ local function OnInitialize()
             self.timestampVisible = false
             self.logNameVisible = true
             self.filterNameVisible = true
-            self:addLog("UiLog", true)
-            self:addLog("DebugPrint", true)
-
-            for id, color in pairs(FilterColors) do
-                self:setFilterColor("UiLog", id, color)
-            end
+            self.logs = self:logBuilder(function(log)
+                local uiLog = log:newLog("UiLog", true)
+                for id, color in pairs(FilterColors) do
+                    uiLog:filterColor(id, color)
+                end
+                return { uiLog, log:newLog("DebugPrint", true) }
+            end)
         end,
     }
 
@@ -76,11 +77,13 @@ local function OnInitialize()
             self.timestampVisible = false
             self.logNameVisible = false
             self.filterNameVisible = true
-            self:addLog(FILTERED_LOG, true)
-
-            for id, color in pairs(FilterColors) do
-                self:setFilterColor(FILTERED_LOG, id, color)
-            end
+            self.logs = self:logBuilder(function(log)
+                local filteredLog = log:newLog(FILTERED_LOG, true)
+                for id, color in pairs(FilterColors) do
+                    filteredLog:filterColor(id, color)
+                end
+                return { filteredLog }
+            end)
 
             self.showing = false
         end,
@@ -108,11 +111,15 @@ local function OnInitialize()
 
             if index == 1 then
                 -- FilterInput
-                child.anchor:add("topleft", window.name, "topleft", padding, padding)
+                child.anchors = child:anchorBuilder(function(a)
+                    return { a:add("topleft", window.name, "topleft", padding, padding) }
+                end)
                 child.dimensions = {contentWidth, filterHeight}
             else
                 -- Both LogDisplays occupy the same space below the filter
-                child.anchor:add("bottomleft", children[1].name, "topleft", 0, spacing)
+                child.anchors = child:anchorBuilder(function(a)
+                    return { a:add("bottomleft", children[1].name, "topleft", 0, spacing) }
+                end)
                 child.dimensions = {contentWidth, logHeight}
             end
         end,
