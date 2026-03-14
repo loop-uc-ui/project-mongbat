@@ -8128,7 +8128,7 @@ function Mod:loadResources()
 end
 
 function Mod:onInitialize()
-    if self.enabled ~= nil and self.enabled == false then
+    if not self.enabled then
         return
     end
 
@@ -8170,7 +8170,7 @@ function Mongbat.ModManager.Window()
                     function(name, mod)
                         return Components.Button {
                             OnInitialize = function(button)
-                                local status = mod.enabled == nil or mod.enabled
+                                local status = mod.enabled
                                 local statusText = "Disabled"
                                 if status then
                                     statusText = "Enabled"
@@ -8178,7 +8178,7 @@ function Mongbat.ModManager.Window()
                                 button.text = "Enable " .. name .. " (" .. statusText .. ")"
                             end,
                             OnLButtonUp = function(button)
-                                local status = mod.enabled == nil or mod.enabled
+                                local status = mod.enabled
                                 mod.enabled = not status
                                 Api.InterfaceCore.ReloadUI()
                             end
@@ -8196,9 +8196,6 @@ Mongbat.EventHandler = EventHandler
 function Mongbat.Mod(model)
     local mod = Mod:new(model)
     Mods[model.Name] = mod
-    if mod.enabled == nil then
-        mod.enabled = true
-    end
     Mongbat.ModManager[mod.Name] = {
         OnInitialize = function()
             mod:onInitialize()
