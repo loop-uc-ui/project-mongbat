@@ -3135,35 +3135,35 @@ end
 ---@type table<string, DataEvent>
 Constants.DataEvents = {}
 
----@param windowData table The WindowData table (e.g. WindowData.PlayerStatus)
+---@param key string The key into WindowData (e.g. "PlayerStatus")
 ---@param name string The event name
 ---@return table DataEvent with lazy-cached getType/getEvent
-local function DataEvent(windowData, name)
+local function DataEvent(key, name)
     local cachedType, cachedEvent
     return {
         getType = function()
-            if not cachedType then cachedType = windowData.Type end
+            if not cachedType then cachedType = WindowData[key].Type end
             return cachedType
         end,
         getEvent = function()
-            if not cachedEvent then cachedEvent = windowData.Event end
+            if not cachedEvent then cachedEvent = WindowData[key].Event end
             return cachedEvent
         end,
         name = name
     }
 end
 
-Constants.DataEvents.OnUpdatePlayerStatus = DataEvent(WindowData.PlayerStatus, "OnUpdatePlayerStatus")
-Constants.DataEvents.OnUpdateMobileName = DataEvent(WindowData.MobileName, "OnUpdateMobileName")
-Constants.DataEvents.OnUpdateHealthBarColor = DataEvent(WindowData.HealthBarColor, "OnUpdateHealthBarColor")
-Constants.DataEvents.OnUpdateMobileStatus = DataEvent(WindowData.MobileStatus, "OnUpdateMobileStatus")
-Constants.DataEvents.OnUpdateRadar = DataEvent(WindowData.Radar, "OnUpdateRadar")
-Constants.DataEvents.OnUpdatePlayerLocation = DataEvent(WindowData.PlayerLocation, "OnUpdatePlayerLocation")
-Constants.DataEvents.OnUpdatePaperdoll = DataEvent(WindowData.Paperdoll, "OnUpdatePaperdoll")
-Constants.DataEvents.OnUpdateShopData = DataEvent(WindowData.ShopData, "OnUpdateShopData")
-Constants.DataEvents.OnUpdateContainerWindow = DataEvent(WindowData.ContainerWindow, "OnUpdateContainerWindow")
-Constants.DataEvents.OnUpdateObjectInfo = DataEvent(WindowData.ObjectInfo, "OnUpdateObjectInfo")
-Constants.DataEvents.OnUpdateItemProperties = DataEvent(WindowData.ItemProperties, "OnUpdateItemProperties")
+Constants.DataEvents.OnUpdatePlayerStatus = DataEvent("PlayerStatus", "OnUpdatePlayerStatus")
+Constants.DataEvents.OnUpdateMobileName = DataEvent("MobileName", "OnUpdateMobileName")
+Constants.DataEvents.OnUpdateHealthBarColor = DataEvent("HealthBarColor", "OnUpdateHealthBarColor")
+Constants.DataEvents.OnUpdateMobileStatus = DataEvent("MobileStatus", "OnUpdateMobileStatus")
+Constants.DataEvents.OnUpdateRadar = DataEvent("Radar", "OnUpdateRadar")
+Constants.DataEvents.OnUpdatePlayerLocation = DataEvent("PlayerLocation", "OnUpdatePlayerLocation")
+Constants.DataEvents.OnUpdatePaperdoll = DataEvent("Paperdoll", "OnUpdatePaperdoll")
+Constants.DataEvents.OnUpdateShopData = DataEvent("ShopData", "OnUpdateShopData")
+Constants.DataEvents.OnUpdateContainerWindow = DataEvent("ContainerWindow", "OnUpdateContainerWindow")
+Constants.DataEvents.OnUpdateObjectInfo = DataEvent("ObjectInfo", "OnUpdateObjectInfo")
+Constants.DataEvents.OnUpdateItemProperties = DataEvent("ItemProperties", "OnUpdateItemProperties")
 
 ---@class SystemEvent
 ---@field getEvent fun(): integer
@@ -4812,18 +4812,6 @@ StatusBar.__index = StatusBar
 -- Components - Internal Builders - Binding Factory
 -- ========================================================================== --
 
---- Data events used for the initial fire after OnInitialize.
---- Entity-specific mobile events + PlayerStatus. Instance-based events
---- (ContainerWindow, ObjectInfo, ItemProperties) are NOT fired initially
---- because they require an engine-pushed update with an instanceId.
-local INITIAL_FIRE_EVENTS = {
-    "OnUpdatePlayerStatus",
-    "OnUpdateMobileName",
-    "OnUpdateMobileStatus",
-    "OnUpdateHealthBarColor",
-    "OnUpdatePaperdoll",
-}
-
 ---@class BindingSpec
 ---@field name string
 ---@field fn function
@@ -6091,20 +6079,20 @@ function EventHandler.OnEndHealthBarDrag()
 end
 
 function EventHandler.OnUpdateRadar()
-    withActiveView("OnUpdateRadar", function(window)
-        window:onUpdateRadar(WindowData.Radar)
+    withActiveView("OnUpdateRadar", function(view)
+        view:onUpdateRadar(WindowData.Radar)
     end)
 end
 
 function EventHandler.OnUpdatePlayerLocation()
-    withActiveView("OnUpdatePlayerLocation", function(window)
-        window:onUpdatePlayerLocation(WindowData.PlayerLocation)
+    withActiveView("OnUpdatePlayerLocation", function(view)
+        view:onUpdatePlayerLocation(WindowData.PlayerLocation)
     end)
 end
 
 function EventHandler.OnUpdateShopData()
-    withActiveView("OnUpdateShopData", function(window)
-        window:onUpdateShopData()
+    withActiveView("OnUpdateShopData", function(view)
+        view:onUpdateShopData()
     end)
 end
 
@@ -7162,17 +7150,6 @@ function View:new(model)
     return instance
 end
 
---- Fires initial data for all registered bindings.
---- Called at the end of onInitialize, after the model's OnInitialize has
---- set up bindings via bindingsBuilder().
-function View:_notifyBindings()
-    Utils.Table.ForEach(INITIAL_FIRE_EVENTS, function(_, eventName)
-        if self._bindings[eventName] then
-            self["on" .. eventName:sub(3)](self)
-        end
-    end)
-end
-
 function View:onInitialize()
     local id = self._model.Id or Utils.String.ExtractNumber(self.name)
     self.id = id
@@ -7200,9 +7177,6 @@ function View:onInitialize()
     if self._model.OnInitialize ~= nil then
         self._model.OnInitialize(self)
     end
-
-    -- Fire initial data for all registered bindings
-    self:_notifyBindings()
 end
 
 function View:onShutdown()
@@ -7217,7 +7191,9 @@ function View:onShutdown()
         local spec = self._bindingSpecs[i]
         if spec.kind == "core" then
             self:unregisterCoreEventHandler(spec.name)
-        elseif spec.kind == "data" or spec.kind == "system" then
+        elseif spec.kind == "data" then
+            self:unregisterEventHandler(spec.event.getEvent())
+        elseif spec.kind == "system" then
             self:unregisterEventHandler(spec.event.getEvent())
         end
     end

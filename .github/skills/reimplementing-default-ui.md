@@ -67,7 +67,6 @@ For each `WindowData.*` type the window needs, check if `Mongbat.lua` already ha
 | Data wrapper class | `Data.*()` factory function | Wrapper with `:getData()`, `:getId()`, plus typed accessors |
 | EventHandler dispatcher | `EventHandler.OnUpdate*` | `withActiveView` dispatch function |
 | View lifecycle method | `View:onUpdate*()` | Method that calls `model.OnUpdate*` with wrapper |
-| Initial data call | `View:onInitialize` pcall block | Add `self:onUpdate*()` call |
 | Type annotations | `WindowModel`, `LabelModel`, etc. | `OnUpdate*` field on all model types |
 | DefaultComponent | `Components.Defaults.*` | New `Default*Component` class + proxy + instantiation |
 
