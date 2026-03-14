@@ -4833,7 +4833,7 @@ local StatusBar = {}
 StatusBar.__index = StatusBar
 
 -- ========================================================================== --
--- BindingsBuilder
+-- Components - Internal Builders - Binding Factory
 -- ========================================================================== --
 
 --- Data events used for the initial fire after OnInitialize.
@@ -7032,14 +7032,12 @@ end
 
 --- Fires initial data for all registered bindings.
 --- Called at the end of onInitialize, after the model's OnInitialize has
---- set up bindings via the BindingsBuilder.
+--- set up bindings via bindingsBuilder().
 function View:_notifyBindings()
-    pcall(function()
-        Utils.Table.ForEach(INITIAL_FIRE_EVENTS, function(_, eventName)
-            if self._bindings[eventName] then
-                self["on" .. eventName:sub(3)](self)
-            end
-        end)
+    Utils.Table.ForEach(INITIAL_FIRE_EVENTS, function(_, eventName)
+        if self._bindings[eventName] then
+            self["on" .. eventName:sub(3)](self)
+        end
     end)
 end
 
