@@ -8037,9 +8037,6 @@ mergeProperties(PaperdollTexture)
 mergeProperties(ShopData)
 mergeProperties(ObjectInfoData)
 
--- Build merged property tables for Mod class.
-mergeProperties(Mod)
-
 Components.Defaults.Actions = DefaultComponent.create("Actions", "Actions", Actions)
 Components.Defaults.MainMenuWindow = DefaultComponent.create("MainMenuWindow", "MainMenuWindow", MainMenuWindow)
 Components.Defaults.StatusWindow = DefaultComponent.create("StatusWindow", "StatusWindow", StatusWindow)
@@ -8113,6 +8110,8 @@ Mod._ownProperties = {
         set = function(self, v) Api.Interface.SaveBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", v) end,
     },
 }
+
+mergeProperties(Mod)
 
 function Mod:loadResources()
     Utils.Array.ForEach(
