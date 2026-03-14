@@ -4127,12 +4127,15 @@ end
 ---@field hue integer
 
 ---@class ShopDataSellEntry
----@field objectId integer
----@field objectType integer
----@field hue integer
+---@field id integer
+---@field name wstring
+---@field price integer
+---@field quantity integer
+---@field objType integer
 
 ---@class ShopDataWrapper
 ---@field _id number
+---@field selling boolean
 ---@field buyCount integer
 ---@field sellCount integer
 ---@field buyNames table
@@ -4160,6 +4163,9 @@ function ShopData:getData()
 end
 
 ShopData._ownProperties = {
+    selling = {
+        get = function(self) local d = self:getData() return d and d.IsSelling == true end,
+    },
     buyCount = {
         get = function(self) local d = self:getData() return d and d.BuyListCount or 0 end,
     },
@@ -4206,6 +4212,40 @@ ShopData._ownProperties = {
         get = function(self) local d = self:getData() return d and d.SellContainerId or 0 end,
     },
 }
+
+--- Returns all sell items as an array, skipping entries with zero quantity.
+---@return ShopDataSellEntry[]
+function ShopData:getSellItems()
+    local d = self:getData()
+    local sell = d and d.Sell
+    if not sell then return {} end
+    local count = d.SellListCount or 0
+    local result = {}
+    for i = 1, count do
+        if sell.Quantities[i] ~= 0 then
+            Utils.Array.Add(result, {
+                id       = sell.Ids[i],
+                name     = sell.Names[i],
+                price    = sell.Prices[i],
+                quantity = sell.Quantities[i],
+                objType  = sell.Types[i]
+            })
+        end
+    end
+    return result
+end
+
+--- Writes the buy/sell offer into ShopData for the engine to process.
+---@param offerIds integer[]
+---@param offerQuantities integer[]
+function ShopData:setOffer(offerIds, offerQuantities)
+    local d = self:getData()
+    if not d then return end
+    Utils.Array.ForEach(offerIds, function(id, i)
+        d.OfferIds[i] = id
+        d.OfferQuantities[i] = offerQuantities[i]
+    end)
+end
 
 ---@return ShopDataWrapper
 function Data.ShopData()

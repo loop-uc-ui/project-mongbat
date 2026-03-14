@@ -718,7 +718,7 @@ local function OnInitialize()
         -- Destroy any leftover Mongbat shopkeeper window
         Api.Window.Destroy("MongbatShopkeeperWindow")
 
-        local isSell = Data.ShopData():isSelling()
+        local isSell = Data.ShopData().selling
 
         -- For buy mode: read sellContainerId from ObjectInfo and register
         -- per-entity data so the engine populates ContainerWindow and
