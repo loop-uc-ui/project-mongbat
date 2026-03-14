@@ -4353,7 +4353,7 @@ local resizingWindow = nil
 ---@type { startMouseX: number, startMouseY: number, startWidth: number, startHeight: number, minWidth: number, minHeight: number }?
 local resizeState = nil
 --- The original OnUpdate handler saved before resize injected its own
----@type fun(self: Window, timePassed: integer)?
+---@type fun(timePassed: integer)?
 local resizeOriginalOnUpdate = nil
 --- Whether we dynamically registered OnUpdate (it wasn't already present)
 local resizeRegisteredOnUpdate = false
@@ -4365,9 +4365,6 @@ local SNAP_THRESHOLD = 20
 
 ---@class ButtonModel : ViewModel
 ---@field OnInitialize fun(self: Button)?
----@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Button)?
----@field OnMouseOverEnd fun(self: Button)?
 
 ---@class Button: View
 ---@field text string|wstring
@@ -4381,9 +4378,6 @@ Button.__index = Button
 ---@class CheckBoxModel : ViewModel
 ---@field OnInitialize fun(self: CheckBox)?
 ---@field OnShutdown fun(self: CheckBox)?
----@field OnLButtonUp fun(self: CheckBox, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: CheckBox)?
----@field OnMouseOverEnd fun(self: CheckBox)?
 
 ---@class CheckBox: View
 ---@field label Label?
@@ -4394,7 +4388,6 @@ CheckBox.__index = CheckBox
 ---@class ComboBoxModel : ViewModel
 ---@field OnInitialize fun(self: ComboBox)?
 ---@field OnShutdown fun(self: ComboBox)?
----@field OnSelChanged fun(self: ComboBox)?
 
 ---@class ComboBox: View
 ---@field selectedItem wstring
@@ -4404,7 +4397,6 @@ ComboBox.__index = ComboBox
 ---@class SliderBarModel : ViewModel
 ---@field OnInitialize fun(self: SliderBar)?
 ---@field OnShutdown fun(self: SliderBar)?
----@field OnSlide fun(self: SliderBar, position: number)?
 
 ---@class SliderBar: View
 ---@field currentPosition number
@@ -4424,11 +4416,6 @@ AnimatedImage.__index = AnimatedImage
 ---@class ActionButtonModel : ViewModel
 ---@field OnInitialize fun(self: ActionButton)?
 ---@field OnShutdown fun(self: ActionButton)?
----@field OnLButtonDown fun(self: ActionButton, flags: integer, x: integer, y: integer)?
----@field OnLButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: ActionButton)?
----@field OnMouseOverEnd fun(self: ActionButton)?
 
 ---@class ActionButton: Button
 ---@field action any
@@ -4679,8 +4666,6 @@ DefaultComponent.__index = DefaultComponent
 ---@class CircleImageModel : ViewModel
 ---@field OnInitialize fun(self: CircleImage)?
 ---@field OnShutdown fun(self: CircleImage)?
----@field OnUpdate fun(self: CircleImage, timePassed: integer)?
----@field OnUpdateRadar fun(self: CircleImage, data: WindowData.Radar)?
 
 ---@class CircleImage : View
 ---@field textureSlice string
@@ -4697,15 +4682,6 @@ Component.__index = Component
 ---@class DynamicImageModel : ViewModel
 ---@field OnInitialize fun(self: DynamicImage)?
 ---@field OnShutdown fun(self: DynamicImage)?
----@field OnUpdate fun(self: DynamicImage, timePassed: integer)?
----@field OnLButtonUp fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
----@field OnLButtonDown fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
----@field OnLButtonDblClk fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: DynamicImage)?
----@field OnMouseOverEnd fun(self: DynamicImage)?
----@field OnMouseWheel fun(self: DynamicImage, x: number, y: number, delta: number)?
----@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
 
 ---@class DynamicImage: View
 ---@field hasTexture boolean
@@ -4721,9 +4697,6 @@ DynamicImage.__index = DynamicImage
 ---@class EditTextBoxModel : ViewModel
 ---@field OnInitialize fun(self: EditTextBox)?
 ---@field OnShutdown fun(self: EditTextBox)?
----@field OnTextChanged fun(self: EditTextBox, text: wstring)?
----@field OnKeyEnter fun(self: EditTextBox)?
----@field OnKeyEscape fun(self: EditTextBox)?
 
 ---@class EditTextBox: View
 ---@field text string|wstring
@@ -4735,9 +4708,6 @@ EditTextBox.__index = EditTextBox
 ---@class FilterInputModel : EditTextBoxModel
 ---@field OnInitialize fun(self: FilterInput)?
 ---@field OnShutdown fun(self: FilterInput)?
----@field OnTextChanged fun(self: FilterInput, text: wstring)?
----@field OnKeyEnter fun(self: FilterInput)?
----@field OnKeyEscape fun(self: FilterInput)?
 
 ---@class FilterInput: EditTextBox
 ---@field filterText wstring
@@ -4752,19 +4722,6 @@ FilterInput.__index = FilterInput
 ---@field Template string? The template to use for the window. Defaults to "MongbatWindow"
 ---@field OnInitialize fun(self: Window)?
 ---@field OnShutdown fun(self: Window)?
----@field OnUpdate fun(self: Window, timePassed: integer)?
----@field OnShown fun(self: Window)?
----@field OnHidden fun(self: Window)?
----@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnLButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnLButtonDblClk fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Window)?
----@field OnMouseOverEnd fun(self: Window)?
----@field OnMouseWheel fun(self: Window, x: number, y: number, delta: number)?
----@field OnEndHealthBarDrag fun(self: Window)?
----@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
@@ -4774,12 +4731,6 @@ FilterInput.__index = FilterInput
 ---@class LabelModel : ViewModel
 ---@field OnInitialize fun(self: Label)?
 ---@field OnShutdown fun(self: Label)?
----@field OnUpdate fun(self: Label, timePassed: integer)?
----@field OnLButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Label)?
----@field OnMouseOverEnd fun(self: Label)?
----@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
 
 ---@class GumpItem
 ---@field tid integer
@@ -4827,30 +4778,11 @@ LogDisplay.__index = LogDisplay
 ---@field Template string?
 ---@field Id integer?
 ---@field OnInitialize fun(self: View)?
----@field OnLButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
 ---@field OnShutdown fun(self: View)?
----@field OnHidden fun(self: View)?
----@field OnShown fun(self: View)?
----@field OnLButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: View, timePassed: integer)?
----@field OnLButtonDblClk fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: View)?
----@field OnMouseOverEnd fun(self: View)?
----@field OnEndHealthBarDrag fun(self: View)?
----@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
----@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
 
 ---@class StatusBarModel : ViewModel
 ---@field OnInitialize fun(self: StatusBar)?
 ---@field OnShutdown fun(self: StatusBar)?
----@field OnUpdate fun(self: StatusBar, timePassed: integer)?
----@field OnLButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: StatusBar)?
----@field OnMouseOverEnd fun(self: StatusBar)?
 
 ---@class ScrollWindowModel : ViewModel
 ---@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
