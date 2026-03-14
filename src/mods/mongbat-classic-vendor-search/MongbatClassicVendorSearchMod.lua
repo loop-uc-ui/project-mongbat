@@ -15,7 +15,7 @@ Mongbat.Mod {
         genericGump.OnShown = function()
             onShown()
             local gump = Components.Gump()
-            if gump ~= nil and gump:isVendorSearch() then
+            if gump ~= nil and gump.vendorSearch then
                 Utils.Array.ForEach(
                     gump.textEntries,
                     function (textEntry)

@@ -4667,6 +4667,7 @@ Component.__index = Component
 ---@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
 
 ---@class DynamicImage: View
+---@field hasTexture boolean
 ---@field texture {[1]: string, [2]: number, [3]: number}
 ---@field textureSlice string
 ---@field textureScale number
@@ -4756,6 +4757,8 @@ FilterInput.__index = FilterInput
 ---@class Gump : Window
 ---@field buttons Button[]
 ---@field textEntries EditTextBox[]
+---@field vendorSearch boolean
+---@field jewelryBox boolean
 ---@field _id integer The unique ID of the gump window.
 local Gump = {}
 Gump.__index = Gump
@@ -4909,6 +4912,8 @@ end
 ---@field _model ViewModel
 ---@field _bindings table<string, function>
 ---@field _entityBindings table<string, DataEvent>
+---@field exists boolean
+---@field parentRoot boolean
 ---@field alpha number
 ---@field scale number
 ---@field showing boolean
@@ -5238,14 +5243,6 @@ function DefaultComponent:restore()
     end
 end
 
---- Returns the original global table directly.
---- When disabled, functions on this table are no-ops; mod overrides written
---- here replace the no-ops and execute normally.
----@return table
-function DefaultComponent:getDefault()
-    return self._original
-end
-
 DefaultComponent._ownProperties = {
     default = {
         get = function(self) return self._original end,
@@ -5369,10 +5366,6 @@ function DynamicImage:new(model)
     return instance --[[@as DynamicImage]]
 end
 
-function DynamicImage:hasTexture()
-    return Api.DynamicImage.HasTexture(self.name)
-end
-
 ---@param model DynamicImageModel?
 ---@return DynamicImage
 function Components.DynamicImage(model)
@@ -5382,6 +5375,9 @@ function Components.DynamicImage(model)
 end
 
 DynamicImage._ownProperties = {
+    hasTexture = {
+        get = function(self) return Api.DynamicImage.HasTexture(self.name) end,
+    },
     texture = {
         set = function(self, v)
             Api.DynamicImage.SetTexture(self.name, v[1], v[2], v[3])
@@ -6052,13 +6048,14 @@ function Gump:new(gump, id)
     return instance --[[@as Gump]]
 end
 
-function Gump:isVendorSearch()
-    return self._id == 999112
-end
-
-function Gump:isJewelryBox()
-    return self._id == 999143
-end
+Gump._ownProperties = {
+    vendorSearch = {
+        get = function(self) return self._id == 999112 end,
+    },
+    jewelryBox = {
+        get = function(self) return self._id == 999143 end,
+    },
+}
 
 ---@param name string?
 ---@return Gump?
@@ -7456,10 +7453,6 @@ function View:onDimensionsChanged(width, height)
     end
 end
 
-function View:doesExist()
-    return Api.Window.DoesExist(self.name)
-end
-
 function View:destroy()
     return Api.Window.Destroy(self.name)
 end
@@ -7479,10 +7472,6 @@ end
 
 function View:unregisterData(type)
     Api.Window.UnregisterData(type, self.id)
-end
-
-function View:isParentRoot()
-    return self.parent == "Root"
 end
 
 --- Builds anchor specs via a callback that receives an AnchorFactory.
@@ -7517,6 +7506,12 @@ function View:bindingsBuilder(fn)
 end
 
 View._ownProperties = {
+    exists = {
+        get = function(self) return Api.Window.DoesExist(self.name) end,
+    },
+    parentRoot = {
+        get = function(self) return self.parent == "Root" end,
+    },
     alpha = {
         get = function(self) return Api.Window.GetAlpha(self.name) end,
         set = function(self, v) Api.Window.SetAlpha(self.name, v) end,
@@ -7620,7 +7615,7 @@ function Window:new(model)
     instance._startDrag = { x = -1, y = -1 }
 
     instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
-        if window:isParentRoot() then
+        if window.parentRoot then
             window:destroy()
         end
     end
@@ -7824,13 +7819,13 @@ local function updateWindowSnap(window)
 end
 
 function Window:onInitialize()
-    local isParentRoot = self:isParentRoot()
+    local isParentRoot = self.parentRoot
     self:toggleBackground(isParentRoot)
     self:toggleFrame(isParentRoot)
     View.onInitialize(self)
 
     -- Re-check parent after View.onInitialize, which may reparent this window
-    isParentRoot = self:isParentRoot()
+    isParentRoot = self.parentRoot
 
     if isParentRoot then
         Api.Window.RestorePosition(self.name)
@@ -7869,7 +7864,7 @@ function Window:onLButtonDown(flags, x, y)
 
     -- Registering OnLButtonDown as a CoreEvent prevents the engine from
     -- auto-starting movement for movable MaskWindows.  Explicitly start it.
-    if self:isParentRoot() then
+    if self.parentRoot then
         Api.Window.SetMoving(self.name, true)
     end
 end
@@ -7907,7 +7902,7 @@ function Window:onShutdown()
 
     unregisterWindowSnap(self)
 
-    if self:isParentRoot() then
+    if self.parentRoot then
         Api.Window.SavePosition(self.name)
     end
 
@@ -7915,22 +7910,6 @@ function Window:onShutdown()
         item:destroy()
     end)
     View.onShutdown(self)
-end
-
----@return Window
-function Window:getFrame()
-    if self._frameWindow == nil then
-        self._frameWindow = Window:new { Name = self._frame }
-    end
-    return self._frameWindow
-end
-
----@return Window
-function Window:getBackground()
-    if self._backgroundWindow == nil then
-        self._backgroundWindow = Window:new { Name = self._background }
-    end
-    return self._backgroundWindow
 end
 
 Window._ownProperties = {
@@ -8058,6 +8037,9 @@ mergeProperties(PaperdollTexture)
 mergeProperties(ShopData)
 mergeProperties(ObjectInfoData)
 
+-- Build merged property tables for Mod class.
+mergeProperties(Mod)
+
 Components.Defaults.Actions = DefaultComponent.create("Actions", "Actions", Actions)
 Components.Defaults.MainMenuWindow = DefaultComponent.create("MainMenuWindow", "MainMenuWindow", MainMenuWindow)
 Components.Defaults.StatusWindow = DefaultComponent.create("StatusWindow", "StatusWindow", StatusWindow)
@@ -8094,6 +8076,7 @@ Components.Defaults.DebugWindow = DefaultComponent.create("DebugWindow", "DebugW
 ---@field Name string Name of the mod
 ---@field Path string Path to the mod resources
 ---@field Files string[]? list of files to load
+---@field enabled boolean Whether the mod is enabled
 ---@field _onInitialize fun() Initializes the mod
 ---@field _onShutdown fun() Shutdown the mod
 ---@field _onUpdate fun(timePassed: number)? Updates the mod
@@ -8110,13 +8093,13 @@ Mod.__index = Mod
 
 ---@param model ModModel
 function Mod:new(model)
-    local mod = setmetatable({}, self)
-    mod.Name = model.Name
-    mod.Path = model.Path
-    mod.Files = model.Files or {}
-    mod._onInitialize = model.OnInitialize or function() end
-    mod._onShutdown = model.OnShutdown or function() end
-    mod._onUpdate = model.OnUpdate
+    local mod = setmetatable({}, getClassMetatable(self))
+    rawset(mod, 'Name', model.Name)
+    rawset(mod, 'Path', model.Path)
+    rawset(mod, 'Files', model.Files or {})
+    rawset(mod, '_onInitialize', model.OnInitialize or function() end)
+    rawset(mod, '_onShutdown', model.OnShutdown or function() end)
+    rawset(mod, '_onUpdate', model.OnUpdate)
     return mod
 end
 
@@ -8124,13 +8107,12 @@ function Mod:initialize()
     Api.Mod.Initialize(self.Name)
 end
 
-function Mod:setEnabled(isEnabled)
-    Api.Interface.SaveBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", isEnabled)
-end
-
-function Mod:isEnabled()
-    return Api.Interface.LoadBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", true)
-end
+Mod._ownProperties = {
+    enabled = {
+        get = function(self) return Api.Interface.LoadBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", true) end,
+        set = function(self, v) Api.Interface.SaveBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", v) end,
+    },
+}
 
 function Mod:loadResources()
     Utils.Array.ForEach(
@@ -8146,7 +8128,7 @@ function Mod:loadResources()
 end
 
 function Mod:onInitialize()
-    if self:isEnabled() ~= nil and self:isEnabled() == false then
+    if self.enabled ~= nil and self.enabled == false then
         return
     end
 
@@ -8188,7 +8170,7 @@ function Mongbat.ModManager.Window()
                     function(name, mod)
                         return Components.Button {
                             OnInitialize = function(button)
-                                local status = mod:isEnabled() == nil or mod:isEnabled()
+                                local status = mod.enabled == nil or mod.enabled
                                 local statusText = "Disabled"
                                 if status then
                                     statusText = "Enabled"
@@ -8196,8 +8178,8 @@ function Mongbat.ModManager.Window()
                                 button.text = "Enable " .. name .. " (" .. statusText .. ")"
                             end,
                             OnLButtonUp = function(button)
-                                local status = mod:isEnabled() == nil or mod:isEnabled()
-                                mod:setEnabled(not status)
+                                local status = mod.enabled == nil or mod.enabled
+                                mod.enabled = not status
                                 Api.InterfaceCore.ReloadUI()
                             end
                         }
@@ -8214,8 +8196,8 @@ Mongbat.EventHandler = EventHandler
 function Mongbat.Mod(model)
     local mod = Mod:new(model)
     Mods[model.Name] = mod
-    if mod:isEnabled() == nil then
-        mod:setEnabled(true)
+    if mod.enabled == nil then
+        mod.enabled = true
     end
     Mongbat.ModManager[mod.Name] = {
         OnInitialize = function()
