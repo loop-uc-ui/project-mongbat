@@ -3334,7 +3334,8 @@ local function getClassMetatable(class)
             if properties then
                 local prop = properties[k]
                 if prop then
-                    return prop.get and prop.get(_) or nil
+                    if prop.get then return prop.get(_) end
+                    return nil
                 end
             end
             return class[k]
