@@ -4839,16 +4839,13 @@ LogDisplay.__index = LogDisplay
 ---@field OnShutdown fun(self: StatusBar)?
 
 ---@class ScrollWindowModel : WindowModel
----@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
----@field ItemWidth number? Width per item column used for horizontal stacking (only when Horizontal is true). Defaults to 50.
----@field Horizontal boolean? When true, the scroll window scrolls horizontally instead of vertically. Defaults to false.
+---@field ItemHeight number? Height per item row used for vertical stacking. Defaults to 50.
+---@field ItemWidth number? Width per item column used for horizontal stacking. Defaults to 50.
+---@field Horizontal boolean? When true, the scroll window scrolls horizontally. Defaults to false.
 ---@field OnInitialize fun(self: ScrollWindow)?
 ---@field OnShutdown fun(self: ScrollWindow)?
 
 ---@class ScrollWindow : Window
----@field horizontal boolean
----@field itemCount number
----@field offset number
 ---@field _scrollContainer Window The immutable scroll container child.
 local ScrollWindow = {}
 ScrollWindow.__index = ScrollWindow
@@ -6347,174 +6344,83 @@ end
 ---@return ScrollWindow
 function ScrollWindow:new(model)
     model = model or {}
-    if model.Horizontal then
+    local isHorizontal = model.Horizontal == true
+    if isHorizontal then
         model.Template = model.Template or "MongbatHorizontalScrollWindow"
     else
         model.Template = model.Template or "MongbatScrollWindow"
     end
     local instance = Window.new(self, model) --[[@as ScrollWindow]]
+    local itemHeight = model.ItemHeight or 50
+    local itemWidth = model.ItemWidth or 50
     instance._scrollContainer = Window:new({
         Name = instance.name .. "ChildCont",
+        OnLayout = function(window, _, child, index)
+            if isHorizontal then
+                local xOffset = (index - 1) * itemWidth
+                child.anchors = child:anchorBuilder(function(a)
+                    return { a:add("topleft", window.name, "topleft", xOffset, 0) }
+                end)
+            else
+                local yOffset = (index - 1) * itemHeight
+                child.anchors = child:anchorBuilder(function(a)
+                    return {
+                        a:add("topleft", window.name, "topleft", 0, yOffset),
+                        a:add("topright", window.name, "topright", 0, yOffset),
+                    }
+                end)
+            end
+        end,
     })
     return instance
 end
 
----@return string
-function ScrollWindow:_getContainerName()
-    return self._scrollContainer.name
-end
-
 function ScrollWindow:onInitialize()
     Window.onInitialize(self)
+    self._scrollContainer._parentWindow = self
     Cache[self._scrollContainer.name] = self._scrollContainer
 end
 
 function ScrollWindow:onShutdown()
-    self:clearItems()
-    Cache[self._scrollContainer.name] = nil
-    Window.onShutdown(self)
-end
-
-function ScrollWindow:onDimensionsChanged(width, height)
-    self:_updateLayout()
-    Window.onDimensionsChanged(self, width, height)
-end
-
---- Adds a view as the next item in the scroll area. The view is created,
---- initialised, re-parented into the content container, and the scroll rect
---- is updated automatically.
----
---- In vertical mode (default), items are stacked top-to-bottom.
---- In horizontal mode (Horizontal = true), items are stacked left-to-right.
----
---- The view must be a freshly-constructed, not-yet-created component
---- (e.g. returned directly from a Components.* factory call).
----@param view View
----@return View
-function ScrollWindow:addItem(view)
-    local contName = self:_getContainerName()
-    view:create(true)
-    view:onInitialize()
-    view.parent = contName
-    if self.horizontal then
-        local itemWidth = self:_getItemWidth()
-        local xOffset = #self._scrollContainer._children * itemWidth
-        view.anchors = view:anchorBuilder(function(a)
-            return { a:add("topleft", contName, "topleft", xOffset, 0) }
-        end)
-    else
-        local itemHeight = self:_getItemHeight()
-        local yOffset = #self._scrollContainer._children * itemHeight
-        view.anchors = view:anchorBuilder(function(a)
-            return { a:add("topleft", contName, "topleft", 0, yOffset) }
-        end)
-    end
-    Utils.Array.Add(self._scrollContainer._children, view)
-    self:_updateLayout()
-    return view
-end
-
---- Removes a previously added view from the scroll area. The view is
---- destroyed and the remaining items are re-laid-out.
----@param view View
-function ScrollWindow:removeItem(view)
-    local idx = Utils.Array.IndexOf(self._scrollContainer._children, function(v) return v == view end)
-    if idx == -1 then return end
-    view:destroy()
-    Utils.Array.Remove(self._scrollContainer._children, idx)
-    self:_updateLayout()
-end
-
---- Destroys all items and resets the scroll offset.
-function ScrollWindow:clearItems()
     Utils.Array.ForEach(self._scrollContainer._children, function(item)
         item:destroy()
     end)
     self._scrollContainer._children = {}
-    self:_updateLayout()
-    self.offset = 0
+    Cache[self._scrollContainer.name] = nil
+    Window.onShutdown(self)
 end
 
---- Iterates all items in the scroll area.
----@param fn fun(view: View, index: number)
-function ScrollWindow:forEachItem(fn)
-    Utils.Array.ForEach(self._scrollContainer._children, fn)
-end
-
---- Re-anchors all remaining items so they are stacked contiguously, then
---- resizes the content container and updates the engine scroll rect.
-function ScrollWindow:_updateLayout()
-    local contName = self:_getContainerName()
+--- Updates the scroll container dimensions and scroll rect after children
+--- change. Called automatically by the `children` setter.
+function ScrollWindow:_updateScrollRect()
+    local contName = self._scrollContainer.name
     if not Api.Window.DoesExist(contName) then return end
     local items = self._scrollContainer._children
-    if self.horizontal then
-        local itemWidth = self:_getItemWidth()
-        Utils.Array.ForEach(items, function(item, index)
-            item.anchors = item:anchorBuilder(function(a)
-                return { a:add("topleft", contName, "topleft", (index - 1) * itemWidth, 0) }
-            end)
-        end)
+    if self._model.Horizontal then
+        local itemWidth = self._model.ItemWidth or 50
         local dims = self.dimensions
-        local totalWidth = #items * itemWidth
-        Api.Window.SetDimensions(contName, totalWidth, dims.y)
+        Api.Window.SetDimensions(contName, #items * itemWidth, dims.y)
         Api.HorizontalScrollWindow.UpdateScrollRect(self.name)
     else
-        local itemHeight = self:_getItemHeight()
-        Utils.Array.ForEach(items, function(item, index)
-            local yOffset = (index - 1) * itemHeight
-            item.anchors = item:anchorBuilder(function(a)
-                return {
-                    a:add("topleft", contName, "topleft", 0, yOffset),
-                    a:add("topright", contName, "topright", 0, yOffset),
-                }
-            end)
-        end)
+        local itemHeight = self._model.ItemHeight or 50
         local childDims = Api.Window.GetDimensions(self.name .. "Child")
-        local totalHeight = #items * itemHeight
-        Api.Window.SetDimensions(contName, childDims.x, totalHeight)
+        Api.Window.SetDimensions(contName, childDims.x, #items * itemHeight)
         Api.ScrollWindow.UpdateScrollRect(self.name)
     end
-end
-
----@return number
-function ScrollWindow:_getItemHeight()
-    return self._model.ItemHeight or 50
-end
-
----@return number
-function ScrollWindow:_getItemWidth()
-    return self._model.ItemWidth or 50
 end
 
 ScrollWindow._ownProperties = {
-    horizontal = {
-        get = function(self) return self._model.Horizontal == true end,
-    },
-    itemCount = {
-        get = function(self) return #self._scrollContainer._children end,
-    },
-    offset = {
+    children = {
         set = function(self, v)
-            if self.horizontal then
-                Api.HorizontalScrollWindow.SetOffset(self.name, v)
-            else
-                Api.ScrollWindow.SetOffset(self.name, v)
-            end
+            Utils.Array.ForEach(self._scrollContainer._children, function(item)
+                item:destroy()
+            end)
+            self._scrollContainer._children = v
+            self._scrollContainer:_createChildren()
+            self:_updateScrollRect()
         end,
     },
 }
-
---- Manually triggers a scroll rect update. Call this if the items in the
---- scroll area are resized externally.
----@return ScrollWindow
-function ScrollWindow:updateScrollRect()
-    if self.horizontal then
-        Api.HorizontalScrollWindow.UpdateScrollRect(self.name)
-    else
-        Api.ScrollWindow.UpdateScrollRect(self.name)
-    end
-    return self
-end
 
 ---@param model ScrollWindowModel?
 ---@return ScrollWindow
@@ -7875,14 +7781,20 @@ local function updateWindowSnap(window)
     window._wasMoving = isMoving
 end
 
-function Window:onInitialize()
-    View.onInitialize(self)
-
+--- Creates and initializes all pending children for this window.
+--- Wraps each child for event propagation, creates its engine window,
+--- and fires its onInitialize.
+function Window:_createChildren()
     Utils.Array.ForEach(self._children, function(child, index)
         wrapChildForParent(self, child, index)
         child:create()
         child:onInitialize()
     end)
+end
+
+function Window:onInitialize()
+    View.onInitialize(self)
+    self:_createChildren()
 end
 
 function Window:onLButtonDown(flags, x, y)

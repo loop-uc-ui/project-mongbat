@@ -297,18 +297,20 @@ local function OnInitialize()
     --- Rebuilds scroll rows and updates total cost in the UI.
     refreshAll = function()
         if availList then
-            availList:clearItems()
+            local rows = {}
             Utils.Array.ForEach(getFilteredAvail(), function(itemIdx)
                 local item = items[itemIdx]
-                availList:addItem(createRow(item, itemIdx, item.availQty, addToCart))
+                Utils.Array.Add(rows, createRow(item, itemIdx, item.availQty, addToCart))
             end)
+            availList.children = rows
         end
         if cartList then
-            cartList:clearItems()
+            local rows = {}
             Utils.Array.ForEach(getFilteredCart(), function(itemIdx)
                 local item = items[itemIdx]
-                cartList:addItem(createRow(item, itemIdx, item.cartQty, removeFromCart))
+                Utils.Array.Add(rows, createRow(item, itemIdx, item.cartQty, removeFromCart))
             end)
+            cartList.children = rows
         end
         if totalLabel then
             local total = computeTotal()
