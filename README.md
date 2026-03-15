@@ -118,6 +118,7 @@ Component                  -- Base: name, type, xml-template support
             │    ├─ Scaffold          -- Root window (frame, background, resize, snap, attach-to-object)
             │    │    ├─ DockableWindow    -- Scaffold with automatic position save/restore
             │    │    └─ Gump             -- Server-sent generic gump wrapper
+            │    ├─ ScrollWindow      -- Scrollable container (immutable scroll container child, vertical or horizontal item layout)
             │    └─ ActionButtonGroup -- Row of ActionButton slots with event delegation
             ├─ Button      -- Pressable button with text and textures
             │    └─ ActionButton      -- Button bound to a game action (spell, ability, macro)
@@ -129,7 +130,6 @@ Component                  -- Base: name, type, xml-template support
             │    └─ CooldownDisplay   -- Cooldown animation overlay (inherits CooldownEffect)
             ├─ EditTextBox -- Text input field
             ├─ LogDisplay  -- Multi-line scrolling text area
-            ├─ ScrollWindow-- Scrollable container (vertical or horizontal item layout)
             ├─ SliderBar   -- Horizontal slider with OnSlide event
             ├─ ComboBox    -- Dropdown selector with OnSelChanged event
             ├─ ListBox     -- Data-driven list with row templates
