@@ -1,153 +1,166 @@
-# Skill: Reimplementing a Default UO UI Window in Mongbat
+# Skill: Reimplementing a Default UI Window
 
-Use this when replacing a vanilla EC window with a Mongbat mod.
+This is a **step-by-step procedure** for replacing any default UI window with a Mongbat mod. Follow every step in order. Do not skip steps or start coding before the research phase is complete. The paperdoll reimplementation taught us that skipping research causes cascading bugs.
 
-## Goal
+## Phase 1: Research the Default Implementation
 
-Match default behavior with simpler architecture, not invented behavior.
+**Goal:** Build a complete mental model of the window BEFORE writing any code.
 
-## Required Pre-Build Gates
+### Step 1.1 — Fetch Both Lua AND XML
 
-No implementation until all pass:
+Use `github_repo` on `loop-uc-ui/enhanced-client-default` to retrieve:
+- `<WindowName>.lua` — the full Lua file
+- `<WindowName>.xml` — the full XML file
 
-1. Baseline Lua and XML for target window collected.
-2. Recreation/suppression inventory completed.
-3. Behavior inventory completed.
-4. Mongbat capability mapping completed.
-5. Symmetry plan written (init action -> shutdown reverse).
+Read both completely. The XML defines structure, templates, and creation-time attributes. The Lua defines behavior, data registration, and lifecycle.
 
-If any gate fails, continue research and do not write code.
+### Step 1.2 — Map the Data Model
 
-## Phase 1: Baseline Research (Required)
+From the Lua file, extract:
+- **Which `WindowData.*` tables** the window uses (search for `RegisterWindowData` calls).
+- **How many data entries** exist (e.g., paperdoll has 19 `BlankSlot` entries, not the `ArmorSlots=12` constant that only counts visible buttons). Look at the actual indexed data arrays, not named constants.
+- **What fields** each data entry has (search for how the code reads from `WindowData.*[id]`).
+- **When data is registered** — at Initialize time? On demand? Per-entity?
 
-Do not write code in this phase.
+**Anti-pattern learned:** We hardcoded `NUM_SLOTS = 12` because we looked at `ArmorSlots` instead of counting the actual `BlankSlot[1]` through `BlankSlot[19]` array. Always count the real data entries.
 
-### 1.1 Gather Source of Truth
+### Step 1.3 — Map the Full Lifecycle
 
-From loop-uc-ui/enhanced-client-default, retrieve:
+Trace how the window gets created, shown, and destroyed:
 
-- target window Lua file
-- target window XML file
-- all direct creation call sites
-- periodic check functions in Interface.lua
+1. **What triggers creation?** Search the default UI repo for all call sites that create or show this window. Common patterns:
+   - `CreateWindowFromTemplate(name, template, "Root")` in an Initialize function
+   - Engine-triggered creation via `UserAction*` calls (e.g., `UserActionUseItem` triggers the engine to create `"PaperdollWindow"..id` from the XML template AND call `PaperdollWindow.Initialize()`)
+   - `Interface.Toggle*Window()` functions
 
-### 1.2 Build Behavior Inventory
+2. **What periodic checks exist?** Search the `Interface.lua` file for `*Check` functions related to this window (e.g., `Interface.PaperdollCheck`). These run in the main update loop and will **re-create** the default window if certain state flags are true.
 
-Document:
+3. **What global state flags** track the window? (e.g., `Interface.PaperdollOpen`, `Interface.StatusWindowOpen`). These must be managed.
 
-- data tables used
-- registration timing and id model
-- event handlers used
-- interaction behavior (click, dbl-click, right-click, drag, tooltip, targeting)
-- shutdown cleanup behavior
+4. **What does Shutdown do?** What cleanup happens when the default window is destroyed?
 
-### 1.3 Build Suppression Inventory
+**Anti-pattern learned:** We called `UserActionUseItem(playerId, true)` thinking it would "request paperdoll data" — but it actually triggers the engine to create the default XML window. We didn't know this because we didn't trace all creation paths. Additionally, we didn't discover `Interface.PaperdollCheck` which kept re-creating the default window every frame.
 
-Document every mechanism that can recreate the default window:
+### Step 1.4 — Map Interactions
 
-- explicit CreateWindow calls
-- UserAction triggers
-- Interface periodic checks
-- open-state flags
+For each user interaction the default window supports:
+- **Mouse handlers** — What engine functions are called on click, double-click, right-click, drag, drop?
+- **Tooltips** — How does `ItemProperties.SetActiveItem` get called? What fields are required?
+- **Context menus** — What calls `RequestContextMenu`?
+- **Drag & drop** — What `DragSlot*` functions are used? What source types?
+- **Targeting** — Does the window handle `WindowData.Cursor.target` for targeting mode?
 
-Do not proceed if any recreation vector is still unknown.
+### Step 1.5 — Map Data-to-Display Logic
 
-## Phase 2: Framework Capability Map
+Find the function(s) that translate raw data into visual state:
+- What helper functions exist? (e.g., `EquipmentData.UpdateItemIcon` for paperdoll items)
+- What texture/shader/hue calls are made?
+- Are there shared utility functions in the default UI that our mod can reuse? (These are global functions that remain available even when we replace the window.)
 
-For each needed behavior, map to Mongbat:
+## Phase 2: Check Framework Support
 
-- DataEvent constant
-- Data wrapper
-- EventHandler route
-- View callback method
-- model annotation
-- Component/DefaultComponent wrapper
+For each `WindowData.*` type the window needs, check if `Mongbat.lua` already has:
 
-If missing, add the smallest framework addition first.
+| What | Where to search | What to add if missing |
+|---|---|---|
+| DataEvent constant | `Constants.DataEvents.OnUpdate*` | `DataEvent(WindowData.*, "OnUpdate*")` |
+| Data wrapper class | `Data.*()` factory function | Wrapper with `:getData()`, `:getId()`, plus typed accessors |
+| EventHandler dispatcher | `EventHandler.OnUpdate*` | `withActiveView` dispatch function |
+| View lifecycle method | `View:onUpdate*()` | Method that calls `model.OnUpdate*` with wrapper |
+| Type annotations | `WindowModel`, `LabelModel`, etc. | `OnUpdate*` field on all model types |
+| DefaultComponent | `Components.Defaults.*` | New `Default*Component` class + proxy + instantiation |
 
-## Phase 3: Implementation Plan
+## Phase 3: Implement the Mod
 
-Plan in five blocks:
+### Step 3.1 — Suppression Strategy
 
-1. suppress default safely
-2. create replacement window tree
-3. bind data via setId on consuming child views
-4. implement interactions by mirroring default semantics
-5. restore symmetry on shutdown
+Disabling the DefaultComponent proxy **only makes Lua functions no-ops**. The engine's C++ layer can still create the XML window. A complete suppression strategy requires ALL of:
 
-## Phase 4: Build
+1. `paperdollDefault:disable()` — no-op the Lua Initialize/Shutdown
+2. Set relevant `Interface.*Open` flags to `false` — prevent periodic recreation checks
+3. Destroy any already-existing engine window: `if DoesWindowNameExist(defaultName) then DestroyWindow(defaultName) end`
+4. Do NOT call engine actions that trigger default window creation (e.g., `UserActionUseItem` for paperdoll, `UserActionOpenPaperdoll`, etc.)
 
-### 4.1 Suppress Default
+**Anti-pattern learned:** We relied solely on `disable()` and didn't know about `Interface.PaperdollCheck`. The proxy disabled `Initialize` but the engine still created the XML window. The check function then kept re-opening it.
 
-At minimum:
+### Step 3.2 — Data Registration
 
-- default:disable()
-- neutralize recreation flags/check paths as needed
-- destroy existing default instance if present
+Mongbat's `View:setId(entityId)` automatically calls `RegisterWindowData(dataType, entityId)` for each DataEvent in the model. This is how you subscribe to entity-specific data. You do NOT need to call any engine action to "request" data — `setId` does it.
 
-### 4.2 Create Replacement
+For data types that are registered once globally (PlayerStatus, Radar, PlayerLocation), the framework handles this at startup. For entity-specific types (Paperdoll, MobileName, MobileStatus, HealthBarColor), `setId()` handles it.
 
-- top-level scaffold/window
-- child components and layout
-- event handlers via model keys
+### Step 3.3 — Window Construction Pattern
 
-### 4.3 Bind Data Correctly
+```lua
+local function OnInitialize()
+    -- 1. Disable default
+    local default = Components.Defaults.<WindowName>
+    default:disable()
 
-- call setId(entityId) on child that consumes entity-specific data
-- avoid manual registration in mod unless unavoidable
+    -- 2. Suppress periodic recreation
+    Interface.<WindowName>Open = false  -- if applicable
 
-### 4.4 Interaction Parity
+    -- 3. Destroy existing default window
+    local defaultName = "<WindowName>" .. id  -- or just "<WindowName>" if not per-entity
+    if DoesWindowNameExist(defaultName) then
+        DestroyWindow(defaultName)
+    end
 
-Mirror default UI intent, including:
+    -- 4. Build replacement
+    -- ... create Components, children, layout ...
 
-- tooltips and active item behavior
-- drag/drop semantics
-- context menus
-- targeting mode paths
+    -- 5. Create window with setId for data binding
+    Components.Window {
+        Name = NAME,
+        OnInitialize = function(self)
+            self:setId(entityId)  -- triggers RegisterWindowData for all DataEvents in model
+            self.children = children
+        end,
+        OnUpdate<DataType> = function(self, wrapper)
+            -- update display from data
+        end,
+    }:create(true)
+end
 
-## Phase 5: Shutdown Symmetry
+local function OnShutdown()
+    -- 1. Destroy replacement
+    Api.Window.Destroy(NAME)
 
-For every init action, define exact reverse action.
+    -- 2. Restore periodic recreation flag
+    Interface.<WindowName>Open = true  -- if applicable
 
-Required:
+    -- 3. Restore default
+    local default = Components.Defaults.<WindowName>
+    default:restore()
+end
+```
 
-- destroy replacement windows
-- restore default component
-- restore flags/check state
+### Step 3.4 — Interaction Handlers
 
-## Completion Output Contract
+Copy interaction patterns directly from the default UI Lua, translating raw engine calls to Mongbat model keys:
 
-Report must include:
+| Default UI pattern | Mongbat model key |
+|---|---|
+| `WindowRegisterCoreEventHandler(name, "OnLButtonDblClk", ...)` | `OnLButtonDblClk = function(self) ... end` |
+| `RegisterEventHandler(SystemData.Events.L_BUTTON_DOWN_PROCESSED, ...)` | `OnLButtonDown = function(self, flags) ... end` |
+| Inside handlers: `DragSlot*`, `RequestContextMenu`, `UserActionUseItem`, `ItemProperties.SetActiveItem`, `HandleSingleLeftClkTarget` | Same engine globals — call them directly in the handler body |
 
-1. Baseline files used (Lua + XML).
-2. Suppression vectors handled.
-3. Data-binding ownership (which child calls setId and why).
-4. Interaction parity checklist result.
-5. Symmetry checklist result.
-6. Known deviations (if any).
+## Phase 4: Shutdown Symmetry
 
-## Verification Checklist
+Every action in `OnInitialize` must have a reverse in `OnShutdown`:
 
-- default window never ghost-reappears during mod runtime
-- all expected data updates arrive
-- all baseline interactions match default behavior
-- no raw engine global usage in mod file
-- no extra speculative mechanisms introduced
+| OnInitialize | OnShutdown |
+|---|---|
+| `default:disable()` | `default:restore()` |
+| `Interface.XOpen = false` | `Interface.XOpen = true` |
+| `DestroyWindow(defaultName)` | *(engine will recreate on restore)* |
+| `Window():create(true)` | `Api.Window.Destroy(NAME)` |
 
-## Anti-Patterns to Avoid
+## Post-Implementation Checklist
 
-- relying on disable() alone for suppression
-- calling UserAction that re-creates the default window unintentionally
-- binding data to parent container instead of consuming child
-- guessing XML attributes instead of checking default template
-- adding complexity after one failed fix instead of re-diagnosing
-
-## Completion Criteria
-
-Task is complete only when:
-
-- behavior parity is verified
-- suppression is stable
-- lifecycle symmetry is clean
-- framework/docs reflect any new reusable patterns
-- completion output contract is satisfied
+- [ ] Default window is fully suppressed (no ghost window appearing)
+- [ ] All data entries are accounted for (count from actual data arrays, not named constants)
+- [ ] All interaction types work (click, double-click, right-click, drag, drop, tooltip, context menu, targeting)
+- [ ] `OnShutdown` cleanly reverses everything `OnInitialize` did
+- [ ] No calls to engine functions that trigger default window creation
+- [ ] Data binding works via `setId()`, not manual engine action calls

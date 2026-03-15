@@ -1,172 +1,161 @@
-# Skill: Mongbat Bugfixing Protocol
+# Skill: Debugging and Fixing Bugs in Mongbat
 
-Use this for any debugging or bugfix task.
-This protocol is mandatory, sequential, and gate-based.
+This is a **mandatory step-by-step procedure** for diagnosing and fixing any bug in the Mongbat framework or its mods. Follow every step in order. **Do not write or change ANY code until Phase 2 is complete.** The history of this project proves that skipping diagnosis and jumping to code changes wastes enormous effort and money.
 
-## Objective
+---
 
-Arrive at one well-supported root cause, then apply one minimal fix.
+## Ground Rules
 
-## Required Artifacts (Before Any Edit)
+These rules are non-negotiable. They exist because every one of them was violated in the past, causing crashes, wasted tokens, and user frustration.
 
-All four must exist before code changes:
+1. **ONE fix attempt per theory.** If a fix doesn't work, do not iterate on it. Go back to Phase 1.
+2. **Removal before addition.** When framework code causes problems, first ask: "do we need this at all?" Deleting broken code is a valid fix. It is often THE fix.
+3. **Never layer complexity on complexity.** If the existing pattern is simple and the proposed fix is complex, the fix is almost certainly wrong. The Mongbat codebase follows simple patterns. A correct fix fits those patterns.
+4. **Never contradict the existing architecture.** If the framework dispatches events via `withActiveView`, do not invent a broadcast mechanism. If the engine delivers data events asynchronously, do not force-fire them synchronously. Work WITH the existing design.
+5. **Trust the engine's event delivery.** If data isn't arriving, the problem is registration or dispatch routing — not timing. Do not add synthetic event firing, polling loops, or "initial data" mechanisms.
+6. **Present findings before coding.** After Phase 1, summarize what you found in 3-5 sentences. State your proposed fix. Wait for user confirmation if the fix is non-trivial or touches framework internals. If the fix is a simple removal or one-line change, proceed.
 
-1. First failing log entry from lua.log.
-2. Exact call path to first failure (entry -> throw point).
-3. One-sentence root cause.
-4. Selected fix category (see Phase 3).
+---
 
-If any artifact is missing, stop and continue diagnosis.
+## Phase 1: Diagnose (NO CODE CHANGES)
 
-## Phase 1: Collect Facts (No Code Changes)
+### Step 1.1 — Read the Error
 
-### 1.1 Read the Runtime Log First
+Read the error message. This is the ONLY source of truth. Not your theory, not your intuition — the error.
 
-1. Open .env and get loglocation.
-2. Read lua.log.
-3. Extract only [Error] entries first.
+- **If the user provides a screenshot or log output**, read every line. Extract:
+  - Which window names appear (random strings = auto-generated child names)
+  - Which engine functions failed (`WindowGetDimensions`, `WindowSetDimensions`, `WindowAddAnchor`, etc.)
+  - The exact error pattern (e.g., "Window X does not exist" = X was never created)
+  - Which mod name appears in parentheses (e.g., `(MongbatPlayerStatus)`)
 
-Capture:
+- **If `lua.log` is available** (path from `.env`), read it. Search for `[Error]` entries.
 
-- failing function name
-- window names involved
-- template names involved
-- first error and cascade errors separately
+- **Common error cascades to recognize immediately:**
+  - `"Window <randomName> does not exist"` for multiple random names → **children were never created**. The parent's `onInitialize` threw an exception before reaching the child-creation loop. Find what threw.
+  - `"Unable to create window: X, from template Y"` → XML template Y wasn't loaded. Check `.mod` file dependencies and XML file paths.
+  - `"Script Call failed - No Lua State"` → benign shutdown noise. Ignore.
+  - `"attempt to index global 'Mongbat' (a nil value)"` → Mongbat.lua failed to load. Check for UTF-8 BOM or syntax error.
 
-### 1.2 Build an Error Timeline
+### Step 1.2 — Trace the Code Path
 
-Write a short timeline:
+Starting from the error, trace backwards through the code to find the root cause. Read the actual code — do not guess.
 
-1. first failing line
-2. immediate consequence
-3. downstream noise
+1. **Identify the entry point.** Which function was executing when the error occurred? (e.g., `Window:onInitialize`, `View:onInitialize`, `StatusBar:onInitialize`, a model's `OnInitialize` callback)
+2. **Read that function line by line.** What runs before the failing line? What runs after it? If an exception at line N prevents lines N+1 through end from executing, what are those lines?
+3. **Check the call chain.** If `Window:onInitialize` calls `View.onInitialize(self)`, and `View:onInitialize` calls `self._model.OnInitialize(self)`, and the model's `OnInitialize` sets bindings that trigger a data handler that throws — the root cause is in the data handler, but the SYMPTOM is "children not created" because the child-creation loop comes after `View.onInitialize` in `Window:onInitialize`.
 
-Do not fix downstream noise first.
+**Critical principle:** Exceptions in Lua are NOT caught unless explicitly wrapped in `pcall`. An uncaught exception in `View:onInitialize` will abort the entire `Window:onInitialize` call, including all subsequent child creation.
 
-### 1.3 Trace the Exact Call Path
+### Step 1.3 — Compare to the Default UI
 
-Trace from entry to throw point.
-State:
+If the bug involves a component type that exists in the default UI:
 
-- entry function
-- each key call in order
-- first unsafe assumption
+1. Search `loop-uc-ui/enhanced-client-default` for both the **Lua AND XML** files.
+2. Compare how the default UI registers data, creates windows, and handles events.
+3. Note concrete differences — not abstract theories. "The default UI calls X with argument Y; we call X with argument Z" is useful. "Maybe the engine doesn't support this" is not.
 
-If you cannot point to a concrete line, diagnosis is incomplete.
+### Step 1.4 — Identify the Root Cause
 
-### 1.4 Compare with Default UI
+By now you should have ONE specific root cause. State it as a concrete fact:
 
-Fetch both files from default UI for equivalent window/component:
+- "The `_notifyBindings` call in `View:onInitialize` invokes `onUpdatePlayerStatus` before children exist, throwing an exception that aborts `Window:onInitialize` before the child-creation loop."
+- "The `withMouseOverView` dispatcher uses `MouseOverWindow.name` which returns sub-element names not in Cache, so the lookup fails and the handler is never called."
+- "`mergeProperties(NewClass)` was not added, so property access returns nil and crashes `wrapChildForParent`."
 
-- Lua behavior file
-- XML template file
+If you cannot state the root cause as a concrete fact with a specific line of code, **you are not done diagnosing**. Go back to Step 1.2.
 
-Compare:
+---
 
-- registration calls
-- argument values
-- initialization order
-- XML attributes
+## Phase 2: Plan the Fix
 
-If parity comparison is incomplete, diagnosis is incomplete.
+### Step 2.1 — Choose the Simplest Fix
 
-## Phase 2: Root Cause Statement
+Rank these fix categories from most to least preferred:
 
-Write one sentence in this form:
+1. **Delete the broken code.** If the code isn't needed, remove it. (e.g., `_notifyBindings` was removed entirely — 15 lines deleted, bug fixed.)
+2. **Fix the specific broken line.** Change one value, one argument, one condition. (e.g., change `withMouseOverView` back to `withActiveView` — one function reference changed.)
+3. **Add a missing piece.** If something was forgotten (e.g., `mergeProperties` call), add just that. One line.
+4. **Restructure a small section.** If the code path is wrong, rearrange it. Move the child-creation loop, reorder init steps, etc.
+5. **Add new framework code.** LAST RESORT. Only if the framework genuinely lacks a capability that the default UI has. This requires understanding both the framework and the default UI deeply.
 
-Root cause: <specific code path> fails because <concrete mismatch>, which causes <observed error>.
+**If your proposed fix is category 5, stop and present it to the user before proceeding.**
 
-Bad root cause examples:
+### Step 2.2 — Verify the Fix Doesn't Contradict Existing Patterns
 
-- maybe timing issue
-- likely event dispatch issue
-- might be race condition
+Before writing code, check:
 
-Good root cause examples:
+- Does this fix work WITH the existing dispatch model (`withActiveView`, `Cache` lookup, per-view event registration)?
+- Does this fix work WITH the existing initialization order (`View:onInitialize` → model `OnInitialize` → child creation)?
+- Does this fix introduce any new concepts (new tables, new dispatch mechanisms, new lifecycle hooks)? If yes, is that truly necessary, or can the existing mechanisms handle it?
+- Have similar fixes been tried AND FAILED before? Check the anti-patterns memory.
 
-- View:onInitialize throws in model OnInitialize before child creation loop runs, causing child windows to never exist.
-- Template attribute movable is missing in XML, so drag behavior never activates regardless of Lua handlers.
+### Step 2.3 — Check the Anti-Pattern List
 
-Only one root cause is allowed per fix.
+Before implementing, verify your fix does NOT match any of these known-bad patterns:
 
-## Phase 3: Choose Fix Category
+| Anti-Pattern | What Happened | Why It Failed |
+|---|---|---|
+| Broadcasting events to all Cache entries | `broadcastToBindings` iterated all views on each data event | Stack overflow from re-entrant event dispatch |
+| Force-firing events during init | `_notifyBindings` called handlers before engine data was ready | Exceptions aborted init, preventing child creation |
+| Using `withMouseOverView` for CoreEvents | Changed `OnLButtonUp` dispatcher | `MouseOverWindow.name` returns sub-element names not in Cache |
+| Adding `mergeProperties` out of order | New class properties returned nil | Cascading failures in `wrapChildForParent` |
+| Guessing at XML attributes | Assumed Lua could configure everything | Many behaviors are XML-only; no Lua setter exists |
+| Multiple speculative fixes without diagnosis | Layered broadcast on top of force-fire on top of guard clauses | Each layer hid the real problem and added new failure modes |
 
-Pick the smallest valid category:
+---
 
-1. Delete broken/unneeded logic
-2. Correct one bad call/value
-3. Add one missing registration
-4. Small local reorder
-5. New mechanism (requires explicit justification)
+## Phase 3: Implement
 
-If category 5, pause and justify before implementation.
+### Step 3.1 — Make the Minimal Change
 
-## Phase 4: Implement Minimally
+Implement exactly what you planned in Phase 2. Nothing more.
 
-Rules:
+- Do not "clean up" surrounding code.
+- Do not add error handling "just in case."
+- Do not refactor adjacent functions.
+- Do not add debug print statements.
 
-- change only lines needed for proven root cause
-- no opportunistic cleanup
-- no speculative booleans/flags
-- no debug print scaffolding
-- no second speculative change in the same pass
+### Step 3.2 — Verify Symmetry
 
-## Phase 5: Verify
+If the fix touches initialization, verify shutdown still reverses it. If the fix adds registration, verify unregistration exists. Check the `onShutdown` counterpart of any `onInitialize` change.
 
-### 5.1 Symmetry Check
+### Step 3.3 — Update Documentation
 
-For each init action, confirm shutdown counterpart.
+If the fix changes framework behavior that is documented in:
+- `.github/copilot-instructions.md`
+- `.github/skills/*.md`
+- `README.md`
 
-### 5.2 Regression Check
+Update those documents. Remove references to deleted concepts. Do not leave stale documentation that describes code that no longer exists.
 
-Verify related event/data paths still align with architecture.
+---
 
-### 5.3 Documentation Check
+## Phase 4: If the Fix Doesn't Work
 
-If behavior contract changed, update:
+**STOP. Do not attempt a second fix on the same theory.**
 
-- README.md
-- .github/copilot-instructions.md
-- relevant skill files
+1. Re-read the error output after your fix.
+2. Is it the SAME error? → Your fix didn't address the root cause. Go back to Phase 1, Step 1.2.
+3. Is it a DIFFERENT error? → Your fix may have been partially correct but exposed a second issue. Diagnose the new error from scratch (Phase 1).
+4. Is it a CRASH? → Your fix introduced a worse problem. **Revert immediately.** Then go back to Phase 1.
 
-### 5.4 Completion Output Contract
+**The maximum number of fix attempts before asking the user is TWO.** If two fixes fail, present your findings:
+- "Here is the error. Here is what I traced. Here is what I tried and why it didn't work. Here is what I think the remaining possibilities are."
 
-Report must include:
+Let the user guide the next step. They know the runtime behavior; you know the code. Combine both.
 
-1. Failing path: <entry -> throw line>
-2. Root cause: <single sentence>
-3. Fix category: <1-5>
-4. Changed lines summary: <what changed and why minimal>
-5. Symmetry check: <pass/fail + note>
-6. Regression risks: <short list or none>
+---
 
-## Failed Fix Rule
+## Quick Reference: Common Root Causes
 
-If the first fix fails:
-
-1. stop
-2. re-read new error
-3. re-run Phase 1 from scratch
-
-No second fix on the same theory.
-
-## Fast Triage Table
-
-| Symptom | Primary Check |
-|---|---|
-| Window X does not exist | Upstream init failure before creation |
-| Unable to create from template | XML not loaded / wrong template name |
-| Click handlers not firing | Core event registration and Cache lookup |
-| Data not updating | setId/data registration on correct child |
-| Visual wrong but callbacks fire | XML creation-time attribute mismatch |
-| Stack overflow | re-entrant dispatch or recursion loop |
-
-## Completion Criteria
-
-Bugfix is complete only when all are true:
-
-- root cause sentence is concrete
-- fix category is minimal
-- symmetry is preserved
-- no speculative mechanisms added
-- completion output contract is satisfied
+| Symptom | Likely Root Cause | Fix |
+|---|---|---|
+| "Window <random> does not exist" (multiple) | Exception in `onInitialize` before child-creation loop | Find and fix the throwing code, or remove it |
+| Component renders but no data | Event handler not registered, or registered on wrong window | Check `bindings` assignment and `setId()` call |
+| Click events don't fire | Wrong dispatcher function, or `Cache` lookup fails | Verify `withActiveView` for CoreEvents, check window name in Cache |
+| Stack overflow / crash | Re-entrant event dispatch, infinite recursion | Remove the re-entrant call; never iterate Cache during event dispatch |
+| "attempt to index nil value" on property | Missing `mergeProperties(Class)` call | Add the call at end of Mongbat.lua, in parent-before-child order |
+| XML template not found | `.mod` file missing dependency or XML file not listed | Check `.mod` XML for `<Dependency>` and `<File>` entries |
+| `'Mongbat' is a nil value` in mod | Mongbat.lua failed to parse | Check for UTF-8 BOM or Lua syntax error |
+| Visual wrong despite correct Lua | Missing XML attribute with no Lua setter | Fetch default UI XML, compare attributes, create custom template |
