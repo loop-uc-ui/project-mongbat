@@ -154,12 +154,13 @@ Mongbat uses **three distinct dispatch mechanisms**. Knowing which mechanism an 
 
 | Mechanism | How it works | Examples |
 |---|---|---|
-| **CoreEvents** | Registered per-window via `WindowRegisterCoreEventHandler`. The engine fires the callback only on the specific window that registered it. Requires the window name. | `OnUpdate`, `OnMouseWheel`, `OnMouseOver`, `OnMouseOverEnd`, `OnShown`, `OnHidden`, `OnRButtonDown`, `OnRButtonUp`, `OnLButtonDblClk` |
-| **SystemEvents** | Registered globally via `RegisterEventHandler`. The engine broadcasts to all listeners. The framework uses `SystemData.MouseOverWindow.name` to find the target view. | `OnLButtonDown`, `OnLButtonUp` (via `L_BUTTON_DOWN_PROCESSED` / `L_BUTTON_UP_PROCESSED`) |
+| **CoreEvents** | Registered per-window via `WindowRegisterCoreEventHandler`. The engine fires the callback only on the specific window that registered it. Requires the window name. | `OnUpdate`, `OnMouseWheel`, `OnMouseOver`, `OnMouseOverEnd`, `OnShown`, `OnHidden`, `OnRButtonDown`, `OnRButtonUp`, `OnLButtonDown`, `OnLButtonUp`, `OnLButtonDblClk` |
+| **SystemEvents** | Registered globally via `RegisterEventHandler`. The engine broadcasts to all listeners. The framework uses `SystemData.MouseOverWindow.name` to find the target view. | Not currently used by the framework for click events. Constants like `L_BUTTON_DOWN_PROCESSED` / `L_BUTTON_UP_PROCESSED` exist for mods that need global listeners. |
 | **Synthesized** | Not engine-dispatched. The framework polls state each frame and invokes the handler directly. | `OnMouseDrag` (synthesized via `UPDATE_PROCESSED` tick + `SystemData.MousePosition` polling) |
 
 **Why this matters:**
-- The engine's `OnMouseDrag` CoreEvent exists but **never fires** for Mongbat views. This is because the engine's internal drag tracker only activates when `OnLButtonDown` is registered as a CoreEvent on the same window -- but Mongbat routes button events through SystemEvents instead.
+- `OnLButtonDown` and `OnLButtonUp` are registered as **CoreEvents** on every view. The engine fires them on the specific window the mouse is over. If a child has no click handler, the event bubbles to its parent Window via `_parentWindow`.
+- Registering `OnLButtonDown` as a CoreEvent **suppresses** the engine's built-in `movable="true"` auto-movement. The framework compensates by calling `WindowSetMoving(name, true)` in `Window:onLButtonDown` and `WindowSetMoving(name, false)` in `Window:onLButtonUp`, mirroring the default UI pattern (e.g., `StatusWindow.OnLButtonDown` / `StatusWindow.OnLButtonUp`).
 - If framework-level logic needs to run **every frame regardless of which views exist**, it must use `UPDATE_PROCESSED` (system event), not `OnUpdate` (CoreEvent). CoreEvents only fire on windows that explicitly registered them.
 - `Constants.CoreEvents`, `Constants.SystemEvents`, and `Constants.DataEvents` control what `View:onInitialize` registers. An event must appear in **exactly one** of these tables (or none, if synthesized). Placing an event in the wrong table causes silent registration of a callback string that doesn't exist, or registration of a callback that the engine will never invoke.
 
@@ -523,4 +524,4 @@ After one failed fix, stop and reassess. Go back to first principles: what does 
 
 #### 7.5 Misplacing Events in Constants Tables
 
-The `Constants.CoreEvents`, `Constants.SystemEvents`, and `Constants.DataEvents` tables drive automatic registration in `View:onInitialize`. If an event is handled by the framework through a different mechanism (e.g., `OnLButtonDown` via SystemEvent, `OnMouseDrag` via synthesis), it must **not** appear in `Constants.CoreEvents`. Leaving it there causes the framework to register a CoreEvent callback string (e.g., `Mongbat.EventHandler.OnMouseDrag`) that doesn't exist as a function, producing a runtime error when the engine tries to call it.
+The `Constants.CoreEvents`, `Constants.SystemEvents`, and `Constants.DataEvents` tables drive automatic registration in `View:onInitialize`. `OnLButtonDown` and `OnLButtonUp` are CoreEvents — they are registered on every view and dispatched via `withActiveView`. Events handled through a different mechanism (e.g., `OnMouseDrag` via synthesis) must **not** appear in `Constants.CoreEvents`. Leaving a synthesized event there causes the framework to register a CoreEvent callback string (e.g., `Mongbat.EventHandler.OnMouseDrag`) that doesn't exist as a function, producing a runtime error when the engine tries to call it.

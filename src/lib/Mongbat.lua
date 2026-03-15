@@ -4388,11 +4388,6 @@ local EventHandler = {}
 ---@type table<string, View>
 local Cache = {}
 
---- Per-frame marker: the view name that already handled OnLButtonUp via
---- CoreEvent this frame.  Prevents the SystemEvent fallback from double-firing.
----@type string?
-local lbuttonUpHandledView = nil
-
 --- Module-level resize tracking
 ---@type Window?
 local resizingWindow = nil
@@ -5010,10 +5005,12 @@ function BindingFactory:onLButtonDown(fn)
     return self
 end
 
+--- No kind needed — OnLButtonUp is already registered as a CoreEvent in View:onInitialize.
+--- This binding only stores the callback; routing is already wired up.
 ---@param fn fun(flags: number, x: number, y: number)
 ---@return BindingFactory
 function BindingFactory:onLButtonUp(fn)
-    self._specs[#self._specs + 1] = { name = "OnLButtonUp", fn = fn, kind = "core" }
+    self._specs[#self._specs + 1] = { name = "OnLButtonUp", fn = fn }
     return self
 end
 
@@ -5122,8 +5119,7 @@ View.__index = View
 ---@field _children Window[] A list of child windows.
 ---@field _frame string The name of the window's frame component.
 ---@field _background string The name of the window's background component.
----@field _startDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
----@field _endDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
+
 ---@field frame Window The frame sub-window (read-only, lazy)
 ---@field background Window The background sub-window (read-only, lazy)
 ---@field children Window[] Set the children array
@@ -5883,22 +5879,7 @@ end
 ---@param callback fun(window: View)
 local function withActiveView(_, callback)
     local window = Cache[Active.window()]
-    if window == nil then return end
-    callback(window)
-end
-
---- Dispatches an event to the mouse-over window.
----@param callback fun(window: View)
-local function withMouseOverView(_, callback)
-    local mouseOverWindow = SystemData.MouseOverWindow
-    if mouseOverWindow == nil then return end
-
-    local name = mouseOverWindow.name
-    if name == nil or name == "" then return end
-
-    local window = Cache[name]
-    if window == nil then return end
-
+    assert(window ~= nil, "Active window '" .. Active.window() .. "' not found in cache")
     callback(window)
 end
 
@@ -5911,8 +5892,8 @@ end
 function EventHandler.OnShutdown()
     local activeWindowName = Active.window()
     local window = Cache[activeWindowName]
+    assert(window ~= nil, "Active window '" .. activeWindowName .. "' not found in cache")
     Cache[activeWindowName] = nil
-    if window == nil then return end
     window:onShutdown()
 end
 
@@ -6009,29 +5990,11 @@ end
 function EventHandler.OnLButtonUp(flags, x, y)
     if resizingWindow ~= nil then
         stopResize()
+        return
     end
     withActiveView("OnLButtonUp", function(window)
-        lbuttonUpHandledView = window.name
         window:onLButtonUp(flags, x, y)
     end)
-end
-
---- SystemEvent fallback for L_BUTTON_UP_PROCESSED.  Handles two cases:
---- 1) Resize termination when the cursor is not over any Mongbat view.
---- 2) Cross-window drag-and-drop: the drop target (MouseOverWindow) differs
----    from the CoreEvent's ActiveWindow, so the CoreEvent handler above
----    never dispatches to it.
-function EventHandler.OnLButtonUpProcessed(flags, x, y)
-    if resizingWindow ~= nil then
-        stopResize()
-    end
-    withMouseOverView("OnLButtonUp", function(window)
-        -- Skip if the CoreEvent already dispatched to this exact view
-        if window.name ~= lbuttonUpHandledView then
-            window:onLButtonUp(flags, x, y)
-        end
-    end)
-    lbuttonUpHandledView = nil
 end
 
 function EventHandler.OnLButtonDown(flags, x, y)
@@ -7208,10 +7171,8 @@ function View:onInitialize()
         prefix .. Constants.CoreEvents.OnShutdown
     )
 
-    -- Always register OnLButtonDown and OnLButtonUp as CoreEvents so the
-    -- engine tracks input state per-window.  This is required for buttons,
-    -- resize grips, and to prevent movable MaskWindows from auto-starting
-    -- movement without going through the framework's handler.
+    -- Register OnLButtonDown and OnLButtonUp as CoreEvents so the engine
+    -- fires them on the window the mouse is over.
     self:registerCoreEventHandler(
         Constants.CoreEvents.OnLButtonDown,
         prefix .. Constants.CoreEvents.OnLButtonDown
@@ -7758,7 +7719,6 @@ function Window:new(model)
     instance._children = {}
     instance._frame = instance.name .. "Frame"
     instance._background = instance.name .. "Background"
-    instance._startDrag = { x = -1, y = -1 }
 
     instance._model.OnLayout = model.OnLayout or Layouts.StackAndFill
 
@@ -7958,24 +7918,17 @@ function Window:onLButtonDown(flags, x, y)
     end
 
     View.onLButtonDown(self, flags, x, y)
-    self._startDrag = { x = x, y = y }
 
-    -- Registering OnLButtonDown as a CoreEvent prevents the engine from
-    -- auto-starting movement for movable MaskWindows.  Explicitly start it.
     if self.parentRoot then
         Api.Window.SetMoving(self.name, true)
     end
 end
 
 function Window:onLButtonUp(flags, x, y)
-    local moved = (self._startDrag.x >= 0 and self._startDrag.x ~= x) or
-        (self._startDrag.y >= 0 and self._startDrag.y ~= y)
-    local isDraggingItem = Data.Drag().draggingItem
-    local shouldFire = (not moved) or isDraggingItem
-    if shouldFire then
-        View.onLButtonUp(self, flags, x, y)
+    if self.parentRoot then
+        Api.Window.SetMoving(self.name, false)
     end
-    self._startDrag = { x = -1, y = -1 }
+    View.onLButtonUp(self, flags, x, y)
 end
 
 function Window:onUpdate(timePassed)
@@ -8333,16 +8286,9 @@ local mod = Mod:new {
             end
         )
 
-        --- SystemEvent fallbacks for cross-window drag-and-drop.  CoreEvents
-        --- fire on the window that originated the click; the drop *target*
-        --- (a different Mongbat window) only receives L_BUTTON_UP_PROCESSED.
-        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonUpProcessed")
     end,
     OnShutdown = function()
         Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
-        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonUpProcessed")
         SnappableWindows = {}
         destroySnapPreview()
         Cache = {}
