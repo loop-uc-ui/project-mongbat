@@ -59,7 +59,7 @@ Fonts/                   # Font definitions
    Mongbat.Mod {
        Name = "MongbatMyMod",
        OnInitialize = function()
-           local window = Components.Window {
+           local window = Components.Scaffold {
                Name = "MongbatMyModWindow",
                Title = L"My Mod",
                OnInitialize = function(self)
@@ -92,7 +92,7 @@ local Components = Mongbat.Components
 | `Data` | Typed data wrappers (e.g., `Data.PlayerStatus():getCurrentHealth()`) |
 | `Utils` | Array/Table/String utility libraries |
 | `Constants` | Enumerations (events, anchor points, layers, colors, etc.) |
-| `Components` | Factory functions for UI elements (Window, Button, Label, etc.) |
+| `Components` | Factory functions for UI elements (Scaffold, Window, Button, Label, etc.) |
 
 ### Builder Pattern
 
@@ -114,11 +114,13 @@ Components.StatusBar {
 Component                  -- Base: name, type, xml-template support
   └─ EventReceiver         -- Adds event handler registration/dispatch
        └─ View             -- Dimensions, anchors, alpha, tint, input handling
-            ├─ Window      -- Top-level container (layer, movable, popable, resizable)
-            │    ├─ DockableWindow    -- Window with automatic position save/restore
+            ├─ Window      -- Child container (layout manager for nested views)
+            │    ├─ Scaffold          -- Root window (frame, background, resize, snap, attach-to-object)
+            │    │    ├─ DockableWindow    -- Scaffold with automatic position save/restore
+            │    │    └─ Gump             -- Server-sent generic gump wrapper
             │    └─ ActionButtonGroup -- Row of ActionButton slots with event delegation
             ├─ Button      -- Pressable button with text and textures
-            ├─ ActionButton -- Button bound to a game action (spell, ability, macro)
+            │    └─ ActionButton      -- Button bound to a game action (spell, ability, macro)
             ├─ Label       -- Text display (font, color, alignment)
             ├─ StatusBar   -- Progress bar (current/max values, tints)
             ├─ CircleImage -- Circular texture
@@ -132,9 +134,10 @@ Component                  -- Base: name, type, xml-template support
             ├─ ComboBox    -- Dropdown selector with OnSelChanged event
             ├─ ListBox     -- Data-driven list with row templates
             ├─ CheckBox    -- Toggle button with optional label
-            ├─ PageWindow  -- Multi-page container with page navigation
-            └─ Gump        -- Server-sent generic gump wrapper
+            └─ PageWindow  -- Multi-page container with page navigation
 ```
+
+**Window vs Scaffold**: `Window` is a lightweight child container — it manages layout for nested views but has no frame, background, or root-level affordances. `Scaffold` extends `Window` with frame/background chrome, a resize grip, edge-snapping, position persistence, right-click-close, dragging, and `attachToObject()`. All top-level mod windows should use `Components.Scaffold` (or a subclass like `DockableWindow`). Use `Components.Window` only for child containers within a Scaffold.
 
 ## Environment
 
