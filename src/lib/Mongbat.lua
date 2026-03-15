@@ -5898,7 +5898,7 @@ end
 function EventHandler.OnShutdown()
     local activeWindowName = Active.window()
     local window = Cache[activeWindowName]
-    assert(window ~= nil, "Active window '" .. activeWindowName .. "' not found in cache")
+    if window == nil then return end
     Cache[activeWindowName] = nil
     window:onShutdown()
 end
@@ -6353,7 +6353,7 @@ function ScrollWindow:new(model)
     local instance = Window.new(self, model) --[[@as ScrollWindow]]
     local itemHeight = model.ItemHeight or 50
     local itemWidth = model.ItemWidth or 50
-    instance._scrollContainer = Window:new({
+    instance._scrollContainer = Components.Window({
         Name = instance.name .. "ChildCont",
         OnLayout = function(window, _, child, index)
             if isHorizontal then
@@ -6372,26 +6372,26 @@ function ScrollWindow:new(model)
             end
         end,
     })
+    instance._scrollContainer._parentWindow = instance
     return instance
 end
 
-function ScrollWindow:onInitialize()
-    Window.onInitialize(self)
-    self._scrollContainer._parentWindow = self
-    Cache[self._scrollContainer.name] = self._scrollContainer
-end
-
 function ScrollWindow:onShutdown()
-    Utils.Array.ForEach(self._scrollContainer._children, function(item)
-        item:destroy()
-    end)
-    self._scrollContainer._children = {}
+    self._scrollContainer:onShutdown()
     Cache[self._scrollContainer.name] = nil
     Window.onShutdown(self)
 end
 
+--- Creates and initializes the scroll container's children. Called by
+--- Window.onInitialize after the consumer's OnInitialize has set children.
+function ScrollWindow:_createChildren()
+    self._scrollContainer:onInitialize()
+    self._scrollContainer._containerReady = true
+    self:_updateScrollRect()
+end
+
 --- Updates the scroll container dimensions and scroll rect after children
---- change. Called automatically by the `children` setter.
+--- change.
 function ScrollWindow:_updateScrollRect()
     local contName = self._scrollContainer.name
     if not Api.Window.DoesExist(contName) then return end
@@ -6412,12 +6412,20 @@ end
 ScrollWindow._ownProperties = {
     children = {
         set = function(self, v)
-            Utils.Array.ForEach(self._scrollContainer._children, function(item)
+            local container = self._scrollContainer
+            -- Destroy old children
+            Utils.Array.ForEach(container._children, function(item)
                 item:destroy()
             end)
-            self._scrollContainer._children = v
-            self._scrollContainer:_createChildren()
-            self:_updateScrollRect()
+            -- Assign new children to the scroll container
+            container._children = v
+            -- After first initialization, create children immediately
+            -- (runtime update). During initialization, Window._createChildren
+            -- handles creation via the ScrollWindow override.
+            if container._containerReady then
+                container:_createChildren()
+                self:_updateScrollRect()
+            end
         end,
     },
 }
