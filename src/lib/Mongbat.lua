@@ -6355,9 +6355,7 @@ function ScrollWindow:new(model)
     local instance = Window.new(self, model) --[[@as ScrollWindow]]
     local itemHeight = model.ItemHeight or 50
     local itemWidth = model.ItemWidth or 50
-    --- Components.Window ensures the container goes to Cache automatically,
-    --- enabling proper event dispatch and bubbling for its children.
-    instance._scrollContainer = Components.Window({
+    local container = Components.Window({
         Name = instance.name .. "ChildCont",
         OnLayout = function(window, _, child, index)
             if isHorizontal then
@@ -6376,25 +6374,16 @@ function ScrollWindow:new(model)
             end
         end,
     })
-    instance._scrollContainer._parentWindow = instance
+    container._parentWrapped = true
+    container._parentWindow = instance
+    instance._scrollContainer = container
+    instance._children = { container }
     return instance
 end
 
-function ScrollWindow:onShutdown()
-    self._scrollContainer:onShutdown()
-    Cache[self._scrollContainer.name] = nil
-    Window.onShutdown(self)
-end
-
---- Creates and initializes the scroll container's children. Called by
---- Window.onInitialize after the consumer's OnInitialize has set children.
 function ScrollWindow:_createChildren()
-    if not self._scrollContainer._containerReady then
-        self._scrollContainer:onInitialize()
-        self._scrollContainer._containerReady = true
-    else
-        self._scrollContainer:_createChildren()
-    end
+    Window._createChildren(self)
+    self._containerReady = true
     self:_updateScrollRect()
 end
 
@@ -6421,16 +6410,11 @@ ScrollWindow._ownProperties = {
     children = {
         set = function(self, v)
             local container = self._scrollContainer
-            -- Destroy old children
             Utils.Array.ForEach(container._children, function(item)
                 item:destroy()
             end)
-            -- Assign new children to the scroll container
             container._children = v
-            -- After first initialization, create children immediately
-            -- (runtime update). During initialization, Window._createChildren
-            -- handles creation via the ScrollWindow override.
-            if container._containerReady then
+            if self._containerReady then
                 container:_createChildren()
                 self:_updateScrollRect()
             end
