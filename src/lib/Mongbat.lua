@@ -5898,6 +5898,8 @@ end
 function EventHandler.OnShutdown()
     local activeWindowName = Active.window()
     local window = Cache[activeWindowName]
+    -- Guard: during cascading destruction (e.g. ScrollWindow shutting down
+    -- its container), a child may already have been removed from Cache.
     if window == nil then return end
     Cache[activeWindowName] = nil
     window:onShutdown()
@@ -6353,6 +6355,8 @@ function ScrollWindow:new(model)
     local instance = Window.new(self, model) --[[@as ScrollWindow]]
     local itemHeight = model.ItemHeight or 50
     local itemWidth = model.ItemWidth or 50
+    --- Components.Window ensures the container goes to Cache automatically,
+    --- enabling proper event dispatch and bubbling for its children.
     instance._scrollContainer = Components.Window({
         Name = instance.name .. "ChildCont",
         OnLayout = function(window, _, child, index)
@@ -6385,8 +6389,12 @@ end
 --- Creates and initializes the scroll container's children. Called by
 --- Window.onInitialize after the consumer's OnInitialize has set children.
 function ScrollWindow:_createChildren()
-    self._scrollContainer:onInitialize()
-    self._scrollContainer._containerReady = true
+    if not self._scrollContainer._containerReady then
+        self._scrollContainer:onInitialize()
+        self._scrollContainer._containerReady = true
+    else
+        self._scrollContainer:_createChildren()
+    end
     self:_updateScrollRect()
 end
 
