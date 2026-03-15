@@ -220,7 +220,7 @@ Mongbat.Mod {
         end
 
         local function Window()
-            return Components.Window {
+            return Components.Scaffold {
                 Name = "MongbatMapWindow",
                 MinWidth = 100 + MARGIN * 2,
                 MinHeight = 100 + MARGIN * 2,

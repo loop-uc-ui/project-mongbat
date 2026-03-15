@@ -697,7 +697,7 @@ local function OnInitialize()
             end
         }
 
-        windowView = Components.Window(windowModel)
+        windowView = Components.Scaffold(windowModel)
         windowView:create(true)
 
         -- Initial refresh

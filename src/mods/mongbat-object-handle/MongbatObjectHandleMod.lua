@@ -30,9 +30,11 @@ Mongbat.Mod {
 
         ---@param handle ObjectHandle
         local function Window(handle)
-            return Components.Window {
+            return Components.Scaffold {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
+                Resizable = false,
+                Snappable = false,
                 OnInitialize = function(self)
                     self.dimensions = {#handle.name * 12 + 16, 32}
                     self:attachToObject()

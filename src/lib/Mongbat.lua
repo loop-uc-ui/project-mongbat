@@ -4490,11 +4490,27 @@ ActionButtonGroup.__index = ActionButtonGroup
 local CooldownDisplay = {}
 CooldownDisplay.__index = CooldownDisplay
 
----@class DockableWindowModel : WindowModel
+---@class ScaffoldModel : WindowModel
+---@field OnInitialize fun(self: Scaffold)?
+---@field OnShutdown fun(self: Scaffold)?
+---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true.
+---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true.
+---@field MinWidth number? Minimum width when resizing. Defaults to 100.
+---@field MinHeight number? Minimum height when resizing. Defaults to 100.
+
+---@class Scaffold : Window
+---@field _frame string The name of the scaffold's frame component.
+---@field _background string The name of the scaffold's background component.
+---@field frame Window The frame sub-window (read-only, lazy)
+---@field background Window The background sub-window (read-only, lazy)
+local Scaffold = {}
+Scaffold.__index = Scaffold
+
+---@class DockableWindowModel : ScaffoldModel
 ---@field OnInitialize fun(self: DockableWindow)?
 ---@field OnShutdown fun(self: DockableWindow)?
 
----@class DockableWindow: Window
+---@class DockableWindow: Scaffold
 local DockableWindow = {}
 DockableWindow.__index = DockableWindow
 
@@ -4764,10 +4780,6 @@ FilterInput.__index = FilterInput
 ---@field OnInitialize fun(self: Window)?
 ---@field OnShutdown fun(self: Window)?
 ---@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
----@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
----@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
----@field MinWidth number? Minimum width when resizing. Defaults to 100.
----@field MinHeight number? Minimum height when resizing. Defaults to 100.
 
 ---@class LabelModel : ViewModel
 ---@field OnInitialize fun(self: Label)?
@@ -4778,7 +4790,7 @@ FilterInput.__index = FilterInput
 ---@field windowName string
 ---@field id integer
 
----@class GumpWModel : WindowModel
+---@class GumpWModel : ScaffoldModel
 ---@field windowName string
 ---@field TextEntry string[]?
 ---@field Labels GumpItem[]?
@@ -4787,7 +4799,7 @@ FilterInput.__index = FilterInput
 ---@field OnInitialize fun(self: Gump)?
 ---@field OnShutdown fun(self: Gump)?
 
----@class Gump : Window
+---@class Gump : Scaffold
 ---@field buttons Button[]
 ---@field textEntries EditTextBox[]
 ---@field vendorSearch boolean
@@ -5117,11 +5129,7 @@ View.__index = View
 ---@class Window : View
 ---@field _model WindowModel?
 ---@field _children Window[] A list of child windows.
----@field _frame string The name of the window's frame component.
----@field _background string The name of the window's background component.
 
----@field frame Window The frame sub-window (read-only, lazy)
----@field background Window The background sub-window (read-only, lazy)
 ---@field children Window[] Set the children array
 local Window = {}
 Window.__index = Window
@@ -6169,7 +6177,7 @@ end
 ---@param id integer
 ---@return Gump
 function Gump:new(gump, id)
-    local instance = Window.new(self, { Name = gump.windowName }) --[[@as Gump]]
+    local instance = Scaffold.new(self, { Name = gump.windowName }) --[[@as Gump]]
 
     instance.buttons = Utils.Array.MapToArray(
         gump.Buttons,
@@ -7052,18 +7060,18 @@ end
 function DockableWindow:new(model)
     model = model or {}
     model.Template = model.Template or "MongbatWindow"
-    local instance = Window.new(self, model) --[[@as DockableWindow]]
+    local instance = Scaffold.new(self, model) --[[@as DockableWindow]]
     return instance
 end
 
 function DockableWindow:onInitialize()
-    Window.onInitialize(self)
+    Scaffold.onInitialize(self)
     self:restorePosition(false)
 end
 
 function DockableWindow:onShutdown()
     Api.Window.SavePosition(self.name, true, self.name)
-    Window.onShutdown(self)
+    Scaffold.onShutdown(self)
 end
 
 --- Restores a previously saved position.
@@ -7717,8 +7725,6 @@ function Window:new(model)
     local instance = View.new(self, model) --[[@as Window]]
 
     instance._children = {}
-    instance._frame = instance.name .. "Frame"
-    instance._background = instance.name .. "Background"
 
     instance._model.OnLayout = model.OnLayout or Layouts.StackAndFill
 
@@ -7866,36 +7872,9 @@ local function updateWindowSnap(window)
 end
 
 function Window:onInitialize()
-    local isParentRoot = self.parentRoot
-    self:toggleBackground(isParentRoot)
-    self:toggleFrame(isParentRoot)
+    Api.Window.SetShowing(self.name .. "Background", false)
+    Api.Window.SetShowing(self.name .. "Frame", false)
     View.onInitialize(self)
-
-    -- Set default OnRButtonUp (close window) if not already bound
-    if not self._bindings.OnRButtonUp then
-        self.bindings = BindingFactory:new()
-            :onRButtonUp(function()
-                if self.parentRoot then
-                    self:destroy()
-                end
-            end)
-            :build()
-    end
-
-    -- Re-check parent after View.onInitialize, which may reparent this window
-    isParentRoot = self.parentRoot
-
-    if isParentRoot then
-        Api.Window.RestorePosition(self.name)
-    end
-
-    if isParentRoot and self._model.Resizable ~= false then
-        self._resizeGrip = createResizeGrip(self)
-    end
-
-    if isParentRoot and self._model.Snappable ~= false then
-        registerWindowSnap(self)
-    end
 
     Utils.Array.ForEach(self._children, function(child, index)
         wrapChildForParent(self, child, index)
@@ -7904,9 +7883,86 @@ function Window:onInitialize()
     end)
 end
 
+function Window:onLButtonDown(flags, x, y)
+    View.onLButtonDown(self, flags, x, y)
+end
+
+function Window:onLButtonUp(flags, x, y)
+    View.onLButtonUp(self, flags, x, y)
+end
+
+function Window:onUpdate(timePassed)
+    local fn = self._bindings.OnUpdate
+    if fn then
+        fn(timePassed)
+    end
+end
+
+function Window:onShutdown()
+    Utils.Array.ForEach(self._children, function(item)
+        item:destroy()
+    end)
+    View.onShutdown(self)
+end
+
+Window._ownProperties = {
+    children = {
+        set = function(self, v) self._children = v end,
+    },
+}
+
+---@param model WindowModel?
+---@return Window
+function Components.Window(model)
+    local window = Window:new(model)
+    Cache[window.name] = window
+    return window
+end
+
+-- ========================================================================== --
+-- Components - Scaffold
+-- ========================================================================== --
+
+--- Creates a new Scaffold instance. Scaffold is a Window intended to be a
+--- direct child of Root. It owns frame/background visibility, position
+--- persistence, resize grip, edge-snapping, right-click-close, and dragging.
+---@param model ScaffoldModel?
+---@return Scaffold
+function Scaffold:new(model)
+    local instance = Window.new(self, model) --[[@as Scaffold]]
+    instance._frame = instance.name .. "Frame"
+    instance._background = instance.name .. "Background"
+    return instance
+end
+
+function Scaffold:onInitialize()
+    Window.onInitialize(self)
+    self:toggleBackground(true)
+    self:toggleFrame(true)
+
+    -- Set default OnRButtonUp (close window) if not already bound
+    if not self._bindings.OnRButtonUp then
+        self.bindings = BindingFactory:new()
+            :onRButtonUp(function()
+                self:destroy()
+            end)
+            :build()
+    end
+
+    Api.Window.RestorePosition(self.name)
+
+    if self._model.Resizable ~= false then
+        self._resizeGrip = createResizeGrip(self)
+    end
+
+    if self._model.Snappable ~= false then
+        registerWindowSnap(self)
+    end
+end
+
 local DETACH_NUDGE = 5
 
-function Window:onLButtonDown(flags, x, y)
+function Scaffold:onLButtonDown(flags, x, y)
     -- Ctrl + left-click: detach this window from its snap group
     if self._isSnapped and flags == Constants.ButtonFlags.Control then
         local ox, oy = WindowGetOffsetFromParent(self.name)
@@ -7918,20 +7974,15 @@ function Window:onLButtonDown(flags, x, y)
     end
 
     View.onLButtonDown(self, flags, x, y)
-
-    if self.parentRoot then
-        Api.Window.SetMoving(self.name, true)
-    end
+    Api.Window.SetMoving(self.name, true)
 end
 
-function Window:onLButtonUp(flags, x, y)
-    if self.parentRoot then
-        Api.Window.SetMoving(self.name, false)
-    end
+function Scaffold:onLButtonUp(flags, x, y)
+    Api.Window.SetMoving(self.name, false)
     View.onLButtonUp(self, flags, x, y)
 end
 
-function Window:onUpdate(timePassed)
+function Scaffold:onUpdate(timePassed)
     if self._wasMoving ~= nil then
         updateWindowSnap(self)
     end
@@ -7942,7 +7993,7 @@ function Window:onUpdate(timePassed)
     end
 end
 
-function Window:onShutdown()
+function Scaffold:onShutdown()
     if resizingWindow == self then
         stopResize()
     end
@@ -7954,17 +8005,12 @@ function Window:onShutdown()
 
     unregisterWindowSnap(self)
 
-    if self.parentRoot then
-        Api.Window.SavePosition(self.name)
-    end
+    Api.Window.SavePosition(self.name)
 
-    Utils.Array.ForEach(self._children, function(item)
-        item:destroy()
-    end)
-    View.onShutdown(self)
+    Window.onShutdown(self)
 end
 
-Window._ownProperties = {
+Scaffold._ownProperties = {
     frame = {
         get = function(self)
             if self._frameWindow == nil then
@@ -7981,34 +8027,27 @@ Window._ownProperties = {
             return self._backgroundWindow
         end,
     },
-    children = {
-        set = function(self, v) self._children = v end,
-    },
 }
 
-function Window:toggleFrame(doShow)
-    if Api.Window.DoesExist(self._frame) then
-        Api.Window.SetShowing(self._frame, doShow)
-    end
+function Scaffold:toggleFrame(doShow)
+    Api.Window.SetShowing(self._frame, doShow)
 end
 
-function Window:toggleBackground(doShow)
-    if Api.Window.DoesExist(self._background) then
-        Api.Window.SetShowing(self._background, doShow)
-    end
+function Scaffold:toggleBackground(doShow)
+    Api.Window.SetShowing(self._background, doShow)
 end
 
-function Window:attachToObject()
+function Scaffold:attachToObject()
     Api.Window.AttachToWorldObject(self.id, self.name)
     return self
 end
 
----@param model WindowModel?
----@return Window
-function Components.Window(model)
-    local window = Window:new(model)
-    Cache[window.name] = window
-    return window
+---@param model ScaffoldModel?
+---@return Scaffold
+function Components.Scaffold(model)
+    local scaffold = Scaffold:new(model)
+    Cache[scaffold.name] = scaffold
+    return scaffold
 end
 
 --- Creates a generic View from a model table. Use this for lightweight
@@ -8026,13 +8065,14 @@ end
 
 setmetatable(View, { __index = Component })
 setmetatable(Window, { __index = View })
+setmetatable(Scaffold, { __index = Window })
 setmetatable(Button, { __index = View })
 setmetatable(EditTextBox, { __index = View })
 setmetatable(Label, { __index = View })
 setmetatable(LogDisplay, { __index = View })
 setmetatable(ScrollWindow, { __index = View })
 setmetatable(StatusBar, { __index = View })
-setmetatable(Gump, { __index = Window })
+setmetatable(Gump, { __index = Scaffold })
 setmetatable(CircleImage, { __index = View })
 setmetatable(DynamicImage, { __index = View })
 setmetatable(DefaultComponent, { __index = Component })
@@ -8043,7 +8083,7 @@ setmetatable(AnimatedImage, { __index = View })
 setmetatable(ActionButton, { __index = Button })
 setmetatable(ActionButtonGroup, { __index = Window })
 setmetatable(CooldownDisplay, { __index = AnimatedImage })
-setmetatable(DockableWindow, { __index = Window })
+setmetatable(DockableWindow, { __index = Scaffold })
 setmetatable(PageWindow, { __index = View })
 
 -- Build merged property tables for all classes with _ownProperties.
@@ -8051,6 +8091,7 @@ setmetatable(PageWindow, { __index = View })
 mergeProperties(Component)
 mergeProperties(View)
 mergeProperties(Window)
+mergeProperties(Scaffold)
 mergeProperties(Button)
 mergeProperties(EditTextBox)
 mergeProperties(FilterInput)
@@ -8212,7 +8253,7 @@ Mongbat.ModManager = {}
 Mongbat.ModManager.Mods = {}
 
 function Mongbat.ModManager.Window()
-    return Components.Window {
+    return Components.Scaffold {
         Name = "MongbatModManagerWindow",
         OnInitialize = function(self)
             self.dimensions = { 400, 300 }
