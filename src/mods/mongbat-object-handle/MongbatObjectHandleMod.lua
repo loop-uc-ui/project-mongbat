@@ -19,65 +19,75 @@ Mongbat.Mod {
                 Name = "ObjectHandleLabel" .. handle.id,
                 Id = handle.id,
                 OnInitialize = function(self)
-                    self:setDimensions(#handle.name * 12, 32)
-                    self:setText(handle.name)
+                    self.dimensions = {#handle.name * 12, 32}
+                    self.text = handle.name
                     self:centerText()
                     local color = Constants.Colors.Notoriety[handle.notoriety]
-                    self:setTextColor(color)
+                    self.textColor = color
                 end
             }
         end
 
         ---@param handle ObjectHandle
         local function Window(handle)
-            return Components.Window {
+            return Components.Scaffold {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
+                Resizable = false,
+                Movable = false,
+                Snappable = false,
                 OnInitialize = function(self)
-                    self:setDimensions(#handle.name * 12 + 16, 32)
+                    self.dimensions = {#handle.name * 12 + 16, 32}
                     self:attachToObject()
-                    self:setChildren {
+                    self.children = {
                         Label(handle)
                     }
                     self:onMouseOverEnd()
 
                     if handle.isMobile then
                         local color = Constants.Colors.Notoriety[handle.notoriety]
-                        self:getFrame():setColor(color)
+                        self.frame.color = color
                     end
+
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onMouseOver(function()
+                            self.alpha = 1.0
+                            self.layer = self:layerBuilder(function(l) return l:default() end)
+                        end)
+                        :onMouseOverEnd(function()
+                            self.alpha = 0.7
+                            self.layer = self:layerBuilder(function(l) return l:background() end)
+                        end)
+                        :onLButtonDblClk(function()
+                            Api.UserAction.UseItem(self.id)
+                        end)
+                        :onLButtonUp(function()
+                            if Data.Drag().draggingItem then
+                                Api.Drag.DragToObject(self.id)
+                            else
+                                Api.Target.LeftClick(self.id)
+                            end
+                        end)
+                        :onLButtonDown(function()
+                            if handle.isMobile then
+                                Components.Defaults.HealthBarManager
+                                    .default
+                                    .OnBeginDragHealthBar(handle.id)
+                            end
+                        end)
+                    end)
                 end,
                 OnLayout = function (_, _, child, _)
-                    child:centerInWindow()
+                    child.anchors = child:anchorBuilder(function(a)
+                        return { a:centerIn() }
+                    end)
                 end,
-                OnMouseOver = function(self)
-                    self:setAlpha(1.0):setLayer():default()
-                end,
-                OnMouseOverEnd = function(self)
-                    self:setAlpha(0.7):setLayer():background()
-                end,
-                OnLButtonDblClk = function(self)
-                    Api.UserAction.UseItem(self:getId())
-                end,
-                OnLButtonUp = function(self)
-                    if Data.Drag():isDraggingItem() then
-                        Api.Drag.DragToObject(self:getId())
-                    else
-                        Api.Target.LeftClick(self:getId())
-                    end
-                end,
-                OnLButtonDown = function(self)
-                    if handle.isMobile then
-                        Components.Defaults.HealthBarManager
-                            :getDefault()
-                            .OnBeginDragHealthBar(self:getId())
-                    end
-                end
             }
         end
 
-        default:getDefault().CreateObjectHandles = function()
+        default.default.CreateObjectHandles = function()
             handles = Utils.Table.MapToArray(
-                Data.ObjectHandles():getHandles(),
+                Data.ObjectHandles().handles,
                 function (_, v)
                     local window = Window(v)
                     window:create(true)
@@ -86,7 +96,7 @@ Mongbat.Mod {
             )
         end
 
-        default:getDefault().DestroyObjectHandles = function()
+        default.default.DestroyObjectHandles = function()
             Utils.Array.ForEach(
                 handles,
                 function (window)

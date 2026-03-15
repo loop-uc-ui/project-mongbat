@@ -7,31 +7,45 @@ local Components = Mongbat.Components
 
 local function OnInitialize()
     local original = Components.Defaults.StatusWindow
-    original:asComponent():setShowing(false)
+    original:asComponent().showing = false
     original:disable()
     local warShield = Components.Defaults.WarShield
-    warShield:asComponent():setShowing(false)
+    warShield:asComponent().showing = false
     warShield:disable()
 
     local function PlayerName()
         return Components.Label {
-            OnUpdatePlayerStatus = function(self, playerStatus)
-                self:setId(playerStatus:getId())
-            end,
-            OnUpdateMobileStatus = function(self, mobileStatus)
-                self:setText(mobileStatus:getName())
+            OnInitialize = function(self)
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onPlayerStatus(function(playerStatus)
+                        self.id = playerStatus.id
+                    end)
+                    :onMobileName(function(mobileName)
+                        self.text = mobileName.name
+                    end)
+                end)
             end
         }
     end
 
-    ---@param onUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
-    ---@param onUpdateHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
+    ---@param onPlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)
+    ---@param onHealthBarColor? fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)
     ---@param label LabelModel
-    local function StatusBar(onUpdatePlayerStatus, onUpdateHealthBarColor, label)
+    local function StatusBar(onPlayerStatus, onHealthBarColor, label)
         return Components.StatusBar(
             {
-                OnUpdatePlayerStatus = onUpdatePlayerStatus,
-                OnUpdateHealthBarColor = onUpdateHealthBarColor
+                OnInitialize = function(self)
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            onPlayerStatus(self, playerStatus)
+                        end)
+                        if onHealthBarColor then
+                            bind:onHealthBarColor(function(healthBarColor)
+                                onHealthBarColor(self, healthBarColor)
+                            end)
+                        end
+                    end)
+                end
             },
             label
         )
@@ -40,27 +54,30 @@ local function OnInitialize()
     local function HealthStatusBar()
         return StatusBar(
             function(self, playerStatus)
-                self:setId(playerStatus:getId())
-                self:setCurrentValue(playerStatus:getCurrentHealth())
-                self:setMaxValue(playerStatus:getMaxHealth())
+                self.id = playerStatus.id
+                self.currentValue = playerStatus.currentHealth
+                self.maxValue = playerStatus.maxHealth
                 if not self._colorSet then
-                    self:setColor(Constants.Colors.HealhBar[1])
+                    self.color = Constants.Colors.HealhBar[1]
                     self._colorSet = true
                 end
             end,
             function(self, healthBarColor)
-                self:setColor(healthBarColor:getVisualStateColor())
+                self.color = healthBarColor.visualStateColor
                 self._colorSet = true
             end,
             {
-                OnUpdatePlayerStatus = function(self, playerStatus)
-                    self:setText(
-                        string.format(
-                            "%d / %d",
-                            playerStatus:getCurrentHealth(),
-                            playerStatus:getMaxHealth()
-                        )
-                    )
+                OnInitialize = function(self)
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            self.text =
+                                string.format(
+                                    "%d / %d",
+                                    playerStatus.currentHealth,
+                                    playerStatus.maxHealth
+                                )
+                        end)
+                    end)
                 end
             }
         )
@@ -69,20 +86,23 @@ local function OnInitialize()
     local function ManaStatusBar()
         return StatusBar(
             function(self, playerStatus)
-                self:setColor(Constants.Colors.Blue)
-                self:setCurrentValue(playerStatus:getCurrentMana())
-                self:setMaxValue(playerStatus:getMaxMana())
+                self.color = Constants.Colors.Blue
+                self.currentValue = playerStatus.currentMana
+                self.maxValue = playerStatus.maxMana
             end,
             nil,
             {
-                OnUpdatePlayerStatus = function(self, playerStatus)
-                    self:setText(
-                        string.format(
-                            "%d / %d",
-                            playerStatus:getCurrentMana(),
-                            playerStatus:getMaxMana()
-                        )
-                    )
+                OnInitialize = function(self)
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            self.text =
+                                string.format(
+                                    "%d / %d",
+                                    playerStatus.currentMana,
+                                    playerStatus.maxMana
+                                )
+                        end)
+                    end)
                 end
             }
         )
@@ -91,57 +111,62 @@ local function OnInitialize()
     local function StaminaStatusBar()
         return StatusBar(
             function(self, playerStatus)
-                self:setColor(Constants.Colors.YellowDark)
-                self:setCurrentValue(playerStatus:getCurrentStamina())
-                self:setMaxValue(playerStatus:getMaxStamina())
+                self.color = Constants.Colors.YellowDark
+                self.currentValue = playerStatus.currentStamina
+                self.maxValue = playerStatus.maxStamina
             end,
             nil,
             {
-                OnUpdatePlayerStatus = function(self, playerStatus)
-                    self:setText(
-                        string.format(
-                            "%d / %d",
-                            playerStatus:getCurrentStamina(),
-                            playerStatus:getMaxStamina()
-                        )
-                    )
+                OnInitialize = function(self)
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onPlayerStatus(function(playerStatus)
+                            self.text =
+                                string.format(
+                                    "%d / %d",
+                                    playerStatus.currentStamina,
+                                    playerStatus.maxStamina
+                                )
+                        end)
+                    end)
                 end
             }
         )
     end
 
     local function Window()
-        return Components.Window {
+        return Components.Scaffold {
             Name = NAME,
             OnInitialize = function(self)
-                self:setDimensions(200, 150)
-                self:setChildren {
+                self.dimensions = {200, 150}
+                self.children = {
                     PlayerName(),
                     HealthStatusBar(),
                     ManaStatusBar(),
                     StaminaStatusBar()
                 }
+                self.bindings = self:bindingsBuilder(function(bind)
+                    bind:onPlayerStatus(function(playerStatus)
+                        local frame = self.frame
+                        self.id = playerStatus.id
+                        if playerStatus.inWarMode then
+                            frame.color = Constants.Colors.Notoriety[6]
+                        else
+                            frame.color = Constants.Colors.Notoriety[1]
+                        end
+                    end)
+                    :onRButtonUp(function() end)
+                    :onLButtonDblClk(function()
+                        Api.UserAction.UseItem(self.id)
+                    end)
+                    :onLButtonUp(function()
+                        if Data.Drag().draggingItem then
+                            Api.Drag.DragToObject(self.id)
+                        else
+                            Api.Target.LeftClick(self.id)
+                        end
+                    end)
+                end)
             end,
-            OnRButtonUp = function() end,
-            OnUpdatePlayerStatus = function(self, playerStatus)
-                local frame = self:getFrame()
-                self:setId(playerStatus:getId())
-                if playerStatus:isInWarMode() then
-                    frame:setColor(Constants.Colors.Notoriety[6])
-                else
-                    frame:setColor(Constants.Colors.Notoriety[1])
-                end
-            end,
-            OnLButtonDblClk = function(self)
-                Api.UserAction.UseItem(self:getId())
-            end,
-            OnLButtonUp = function(self)
-                if Data.Drag():isDraggingItem() then
-                    Api.Drag.DragToObject(self:getId())
-                else
-                    Api.Target.LeftClick(self:getId())
-                end
-            end
         }
     end
 
@@ -152,10 +177,10 @@ local function OnShutdown()
     Api.Window.Destroy(NAME)
     local original = Components.Defaults.StatusWindow
     original:restore()
-    original:asComponent():setShowing(true)
+    original:asComponent().showing = true
     local warShield = Components.Defaults.WarShield
     warShield:restore()
-    warShield:asComponent():setShowing(true)
+    warShield:asComponent().showing = true
 end
 
 Mongbat.Mod {
@@ -164,4 +189,3 @@ Mongbat.Mod {
     OnInitialize = OnInitialize,
     OnShutdown = OnShutdown
 }
-

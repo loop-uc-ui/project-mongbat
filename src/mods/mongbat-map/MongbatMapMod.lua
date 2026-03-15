@@ -14,7 +14,7 @@ Mongbat.Mod {
     Path = "/src/mods/mongbat-map",
     OnInitialize = function()
         local mapWindow = Components.Defaults.MapWindow
-        mapWindow:asComponent():setShowing(false)
+        mapWindow:asComponent().showing = false
         mapWindow:disable()
 
         local mapCommon = Components.Defaults.MapCommon
@@ -83,8 +83,8 @@ Mongbat.Mod {
             local x, y
             if centerOnPlayer then
                 local loc = Data.PlayerLocation()
-                x = loc:getX()
-                y = loc:getY()
+                x = loc.x
+                y = loc.y
             else
                 x, y = Radar.GetCenter()
             end
@@ -123,73 +123,75 @@ Mongbat.Mod {
             return Components.DynamicImage {
                 OnInitialize = function(self)
                     -- Activate the radar (mirrors MapWindow.ActivateMap)
-                    local dims = self:getDimensions()
+                    local dims = self.dimensions
                     updateRadarSize(dims.x, dims.y)
                     Api.Radar.SetRotation(0)
                     Api.Radar.SetWindowOffset(0, 0)
                     Api.Radar.SetCenterOnPlayer(true)
                     initializeZoom()
-                end,
-                OnUpdateRadar = function(self, data)
-                    self:setTexture("radar_texture", data.TexCoordX, data.TexCoordY)
-                    self:setTextureScale(data.TexScale)
-                end,
-                OnDimensionsChanged = function(self, width, height)
-                    updateRadarSize(width, height)
-                end,
-                OnMouseWheel = function(self, _, _, delta)
-                    adjustZoom(-delta)
-                end,
-                OnLButtonDown = function(self, flags)
-                    if Data.IsShift(flags) then
-                        isPanning = true
-                        centerOnPlayer = false
-                        local pos = Data.MousePosition()
-                        lastMouseX = pos.x
-                        lastMouseY = pos.y
-                        Api.Radar.SetCenterOnPlayer(false)
-                        Api.Window.SetMoving(self:getParent(), false)
-                    end
-                end,
-                OnLButtonUp = function(self)
-                    isPanning = false
-                end,
-                OnMouseOverEnd = function(self)
-                    if isPanning then
-                        isPanning = false
-                    end
-                end,
-                OnLButtonDblClk = function(self)
-                    isPanning = false
-                    centerOnPlayer = true
-                    Api.Radar.SetCenterOnPlayer(true)
-                end,
-                OnUpdate = function(self)
-                    if not isPanning then return end
 
-                    local pos = Data.MousePosition()
-                    local mouseX = pos.x
-                    local mouseY = pos.y
-                    local deltaX = mouseX - lastMouseX
-                    local deltaY = mouseY - lastMouseY
-                    lastMouseX = mouseX
-                    lastMouseY = mouseY
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onRadar(function(data)
+                            self.texture = {"radar_texture", data.TexCoordX, data.TexCoordY}
+                            self.textureScale = data.TexScale
+                        end)
+                        :onDimensionsChanged(function(width, height)
+                            updateRadarSize(width, height)
+                        end)
+                        :onMouseWheel(function(_, _, delta)
+                            adjustZoom(-delta)
+                        end)
+                        :onLButtonDown(function(flags)
+                            if Data.IsShift(flags) then
+                                isPanning = true
+                                centerOnPlayer = false
+                                local pos = Data.MousePosition()
+                                lastMouseX = pos.x
+                                lastMouseY = pos.y
+                                Api.Radar.SetCenterOnPlayer(false)
+                            end
+                        end)
+                        :onLButtonUp(function()
+                            isPanning = false
+                        end)
+                        :onMouseOverEnd(function()
+                            if isPanning then
+                                isPanning = false
+                            end
+                        end)
+                        :onLButtonDblClk(function()
+                            isPanning = false
+                            centerOnPlayer = true
+                            Api.Radar.SetCenterOnPlayer(true)
+                        end)
+                        :onUpdate(function()
+                            if not isPanning then return end
 
-                    if deltaX == 0 and deltaY == 0 then return end
+                            local pos = Data.MousePosition()
+                            local mouseX = pos.x
+                            local mouseY = pos.y
+                            local deltaX = mouseX - lastMouseX
+                            local deltaY = mouseY - lastMouseY
+                            lastMouseX = mouseX
+                            lastMouseY = mouseY
 
-                    local Radar = Api.Radar
-                    local facet = Radar.GetFacet()
-                    local area = Radar.GetArea()
-                    local mapCenterX, mapCenterY = Radar.GetCenter()
-                    local winCenterX, winCenterY =
-                        Radar.TranslateWorldPositionToRadarPosition(mapCenterX, mapCenterY)
+                            if deltaX == 0 and deltaY == 0 then return end
 
-                    local offsetX = winCenterX - deltaX
-                    local offsetY = winCenterY - deltaY
-                    local newCenterX, newCenterY =
-                        Radar.TranslateRadarPositionToWorldPosition(offsetX, offsetY, false)
+                            local Radar = Api.Radar
+                            local facet = Radar.GetFacet()
+                            local area = Radar.GetArea()
+                            local mapCenterX, mapCenterY = Radar.GetCenter()
+                            local winCenterX, winCenterY =
+                                Radar.TranslateWorldPositionToRadarPosition(mapCenterX, mapCenterY)
 
-                    Radar.CenterOnLocation(newCenterX, newCenterY, facet, area, false)
+                            local offsetX = winCenterX - deltaX
+                            local offsetY = winCenterY - deltaY
+                            local newCenterX, newCenterY =
+                                Radar.TranslateRadarPositionToWorldPosition(offsetX, offsetY, false)
+
+                            Radar.CenterOnLocation(newCenterX, newCenterY, facet, area, false)
+                        end)
+                    end)
                 end,
             }
         end
@@ -200,43 +202,49 @@ Mongbat.Mod {
             return Components.Label {
                 Template = "MongbatLabelSmall",
                 OnInitialize = function(self)
-                    self:setDimensions(WINDOW_SIZE, 16)
-                    self:setLayer():overlay()
-                    self:setText(formatLocationText())
-                end,
-                OnUpdateRadar = function(self)
-                    self:setText(formatLocationText())
-                end,
-                OnUpdatePlayerLocation = function(self)
-                    if centerOnPlayer then
-                        self:setText(formatLocationText())
-                    end
+                    self.dimensions = {WINDOW_SIZE, 16}
+                    self.layer = self:layerBuilder(function(l) return l:overlay() end)
+                    self.text = formatLocationText()
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onRadar(function()
+                            self.text = formatLocationText()
+                        end)
+                        :onPlayerLocation(function()
+                            if centerOnPlayer then
+                                self.text = formatLocationText()
+                            end
+                        end)
+                    end)
                 end,
             }
         end
 
         local function Window()
-            return Components.Window {
+            return Components.Scaffold {
                 Name = "MongbatMapWindow",
                 MinWidth = 100 + MARGIN * 2,
                 MinHeight = 100 + MARGIN * 2,
                 OnInitialize = function(self)
-                    self:setDimensions(WINDOW_SIZE + MARGIN * 2, WINDOW_SIZE + MARGIN * 2)
-                    self:setChildren { Map(), CoordsLabel() }
+                    self.dimensions = {WINDOW_SIZE + MARGIN * 2, WINDOW_SIZE + MARGIN * 2}
+                    self.children = { Map(), CoordsLabel() }
                 end,
                 OnLayout = function(self, children, child, index)
-                    local dimens = self:getDimensions()
+                    local dimens = self.dimensions
                     local contentW = dimens.x - MARGIN * 2
                     local contentH = dimens.y - MARGIN * 2
 
                     if index == 1 then
                         -- Map image: fill the window minus margins
-                        child:setDimensions(contentW, contentH)
-                        child:anchorToParentCenter(0, 0)
+                        child.dimensions = {contentW, contentH}
+                        child.anchors = child:anchorBuilder(function(a)
+                            return { a:toParentCenter(0, 0) }
+                        end)
                     elseif index == 2 then
                         -- Coords/facet label: full width, bottom-left
-                        child:setDimensions(contentW, 16)
-                        child:addAnchor("bottomleft", self:getName(), "bottomleft", MARGIN, -MARGIN)
+                        child.dimensions = {contentW, 16}
+                        child.anchors = child:anchorBuilder(function(a)
+                            return { a:add("bottomleft", self.name, "bottomleft", MARGIN, -MARGIN) }
+                        end)
                     end
                 end,
             }
@@ -256,6 +264,6 @@ Mongbat.Mod {
 
         local mapWindow = Components.Defaults.MapWindow
         mapWindow:restore()
-        mapWindow:asComponent():setShowing(true)
+        mapWindow:asComponent().showing = true
     end,
 }

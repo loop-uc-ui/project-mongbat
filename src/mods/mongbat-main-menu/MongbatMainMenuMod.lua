@@ -10,20 +10,29 @@ Mongbat.Mod {
         local function Button(text, onLButtonUp)
             return Components.Button {
                 OnInitialize = function (self)
-                    self:setText(text)
+                    self.text = text
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onLButtonUp(onLButtonUp)
+                    end)
                 end,
-                OnLButtonUp = onLButtonUp,
             }
         end
 
         local function Window ()
-            return Components.Window {
-                Name = default:getName(),
+            return Components.Scaffold {
+                Name = default.name,
                 Resizable = false,
                 OnInitialize = function (self)
-                    self:setDimensions(214, 440)
-                    self:anchorToParentCenter()
-                    self:setChildren {
+                    self.dimensions = {214, 440}
+                    self.anchors = self:anchorBuilder(function(a)
+                        return { a:toParentCenter() }
+                    end)
+                    self.bindings = self:bindingsBuilder(function(bind)
+                        bind:onRButtonUp(function()
+                            self.showing = false
+                        end)
+                    end)
+                    self.children = {
                         Button(
                             3000128,
                             function ()
@@ -40,35 +49,35 @@ Mongbat.Mod {
                             L"Settings",
                             function ()
                                 Api.Window.ToggleWindow("SettingsWindow")
-                                self:setShowing(false)
+                                self.showing = false
                             end
                         ),
                         Button(
                             L"Store",
                             function ()
                                 Api.Event.OpenStore()
-                                self:setShowing(false)
+                                self.showing = false
                             end
                         ),
                         Button(
                             L"Agents",
                             function ()
                                 Api.Window.ToggleWindow("OrganizerWindow")
-                                self:setShowing(false)
+                                self.showing = false
                             end
                         ),
                         Button(
                             3000172,
                             function ()
                                 Api.Window.ToggleWindow("MacroWindow")
-                                self:setShowing(false)
+                                self.showing = false
                             end
                         ),
                         Button(
                             1079812,
                             function ()
                                 Api.Window.ToggleWindow("ActionsWindow")
-                                self:setShowing(false)
+                                self.showing = false
                             end
                         ),
                         Button(
@@ -81,14 +90,11 @@ Mongbat.Mod {
                             L"Debug",
                             function ()
                                 Api.Window.ToggleWindow("MongbatDebugWindow")
-                                self:setShowing(false)
+                                self.showing = false
                             end
                         )
                     }
                 end,
-                OnRButtonUp = function (self)
-                    self:setShowing(false)
-                end
             }
         end
 
