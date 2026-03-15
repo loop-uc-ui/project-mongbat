@@ -140,16 +140,16 @@
               <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
           </EventHandlers>
           <Windows>
-              <!-- Body background -->
-              <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
+              <!-- Body background (hidden by default; Scaffold shows it) -->
+              <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background" showing="false">
                   <Anchors>
                       <Anchor point="topleft" relativePoint="topleft" relativeTo="$parent"/>
                       <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent"/>
                   </Anchors>
               </FullResizeImage>
 
-              <!-- Inner Frame Boilerplate -->
-              <FullResizeImage name="$parentFrame" inherits="UO_Simple_Frame" layer="background" frameonly="true">
+              <!-- Inner Frame Boilerplate (hidden by default; Scaffold shows it) -->
+              <FullResizeImage name="$parentFrame" inherits="UO_Simple_Frame" layer="background" frameonly="true" showing="false">
                   <Anchors>
                       <Anchor point="topleft" relativePoint="topleft" relativeTo="$parentBackground"/>
                       <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parentBackground" />

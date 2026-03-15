@@ -34,6 +34,7 @@ Mongbat.Mod {
                 Name = "ObjectHandleWindow" .. handle.id,
                 Id = handle.id,
                 Resizable = false,
+                Movable = false,
                 Snappable = false,
                 OnInitialize = function(self)
                     self.dimensions = {#handle.name * 12 + 16, 32}

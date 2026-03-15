@@ -4494,6 +4494,7 @@ CooldownDisplay.__index = CooldownDisplay
 ---@field OnInitialize fun(self: Scaffold)?
 ---@field OnShutdown fun(self: Scaffold)?
 ---@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true.
+---@field Movable boolean? Whether the window can be moved by dragging. Defaults to true.
 ---@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true.
 ---@field MinWidth number? Minimum width when resizing. Defaults to 100.
 ---@field MinHeight number? Minimum height when resizing. Defaults to 100.
@@ -7872,8 +7873,6 @@ local function updateWindowSnap(window)
 end
 
 function Window:onInitialize()
-    Api.Window.SetShowing(self.name .. "Background", false)
-    Api.Window.SetShowing(self.name .. "Frame", false)
     View.onInitialize(self)
 
     Utils.Array.ForEach(self._children, function(child, index)
@@ -7963,22 +7962,27 @@ end
 local DETACH_NUDGE = 5
 
 function Scaffold:onLButtonDown(flags, x, y)
-    -- Ctrl + left-click: detach this window from its snap group
-    if self._isSnapped and flags == Constants.ButtonFlags.Control then
-        local ox, oy = WindowGetOffsetFromParent(self.name)
-        WindowClearAnchors(self.name)
-        WindowAddAnchor(self.name, "topleft", "Root", "topleft",
-            ox + DETACH_NUDGE, oy + DETACH_NUDGE)
-        self._isSnapped = false
-        return
+    if self._model.Movable ~= false then
+        -- Ctrl + left-click: detach this window from its snap group
+        if self._isSnapped and flags == Constants.ButtonFlags.Control then
+            local ox, oy = WindowGetOffsetFromParent(self.name)
+            WindowClearAnchors(self.name)
+            WindowAddAnchor(self.name, "topleft", "Root", "topleft",
+                ox + DETACH_NUDGE, oy + DETACH_NUDGE)
+            self._isSnapped = false
+            return
+        end
+
+        Api.Window.SetMoving(self.name, true)
     end
 
     View.onLButtonDown(self, flags, x, y)
-    Api.Window.SetMoving(self.name, true)
 end
 
 function Scaffold:onLButtonUp(flags, x, y)
-    Api.Window.SetMoving(self.name, false)
+    if self._model.Movable ~= false then
+        Api.Window.SetMoving(self.name, false)
+    end
     View.onLButtonUp(self, flags, x, y)
 end
 
