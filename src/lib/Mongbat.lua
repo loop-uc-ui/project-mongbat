@@ -859,11 +859,8 @@ Api.Label = {}
 function Api.Label.SetText(name, text)
     if text == nil then
         return
-    elseif type(text) == "number" then
-        text = StringFormatter.fromTid(text)
-    elseif type(text) == "string" then
-        text = StringFormatter.toWString(text)
     end
+    text = Utils.String.ToWString(text)
     LabelSetText(name, text)
 end
 
@@ -4256,14 +4253,59 @@ end
 -- Data - Container Window
 -- ========================================================================== --
 
---- Returns the raw ContainerWindow data for the given container ID, or nil.
----@param id integer
+---@class ContainerWindowWrapper
+---@field _id number
+---@field numItems integer
+---@field containerName wstring
+---@field gumpNum integer
+---@field containedItems table[] Array of {objectId, gridIndex, name}
+local ContainerWindowData = {}
+
+function ContainerWindowData:new(id)
+    return setmetatable({ _id = id }, getClassMetatable(self))
+end
+
 ---@return table|nil
+function ContainerWindowData:getData()
+    if not WindowData.ContainerWindow or not WindowData.ContainerWindow[self._id] then
+        return nil
+    end
+    return WindowData.ContainerWindow[self._id]
+end
+
+ContainerWindowData._ownProperties = {
+    numItems = {
+        get = function(self) local d = self:getData() return d and d.numItems or 0 end,
+    },
+    containerName = {
+        get = function(self) local d = self:getData() return d and d.containerName or L"" end,
+    },
+    gumpNum = {
+        get = function(self) local d = self:getData() return d and d.gumpNum or 0 end,
+    },
+    containedItems = {
+        get = function(self)
+            local d = self:getData()
+            if not d or not d.ContainedItems then return {} end
+            local count = d.numItems or 0
+            local result = {}
+            for i = 1, count do
+                result[i] = d.ContainedItems[i]
+            end
+            return result
+        end,
+    },
+}
+
+--- Returns a ContainerWindow data wrapper for the given container ID, or nil
+--- if the data is not registered.
+---@param id integer
+---@return ContainerWindowWrapper|nil
 function Data.ContainerWindow(id)
     if not WindowData.ContainerWindow or not WindowData.ContainerWindow[id] then
         return nil
     end
-    return WindowData.ContainerWindow[id]
+    return ContainerWindowData:new(id)
 end
 
 -- ========================================================================== --
@@ -4276,6 +4318,7 @@ end
 ---@field hueId integer
 ---@field shopValue integer
 ---@field shopQuantity integer
+---@field sellContainerId integer
 local ObjectInfoData = {}
 
 function ObjectInfoData:new(id)
@@ -4302,6 +4345,9 @@ ObjectInfoData._ownProperties = {
     },
     shopQuantity = {
         get = function(self) local d = self:getData() return d and d.shopQuantity or 0 end,
+    },
+    sellContainerId = {
+        get = function(self) local d = self:getData() return d and d.sellContainerId or 0 end,
     },
 }
 
@@ -6341,8 +6387,9 @@ end
 
 ---@return string
 function ScrollWindow:_getContainerName()
-    -- Must be "Cont" to match XML template's $parentCont variable expansion
-    return self.name .. "Cont"
+    -- The XML template nests $parentCont inside $parentChild, so $parent
+    -- resolves to the Child window name, giving us <name>ChildCont.
+    return self.name .. "ChildCont"
 end
 
 function ScrollWindow:onInitialize()
@@ -8087,6 +8134,7 @@ mergeProperties(PlayerStatus)
 mergeProperties(PaperdollData)
 mergeProperties(PaperdollTexture)
 mergeProperties(ShopData)
+mergeProperties(ContainerWindowData)
 mergeProperties(ObjectInfoData)
 
 Components.Defaults.Actions = DefaultComponent.create("Actions", "Actions", Actions)

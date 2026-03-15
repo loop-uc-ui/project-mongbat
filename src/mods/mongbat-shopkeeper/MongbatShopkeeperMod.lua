@@ -190,7 +190,7 @@ local function OnInitialize()
 
         -- Rebuild items list from container
         local newItems = {}
-        Utils.Array.ForEach(data.ContainedItems, function(slot)
+        Utils.Array.ForEach(data.containedItems, function(slot)
             -- Register per-item data so the engine populates ObjectInfo
             -- and ItemProperties for each contained item.
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), slot.objectId)
@@ -298,14 +298,14 @@ local function OnInitialize()
     refreshAll = function()
         if availList then
             availList:clearItems()
-            Utils.Array.ForEach(getFilteredAvail(), function(_, itemIdx)
+            Utils.Array.ForEach(getFilteredAvail(), function(itemIdx)
                 local item = items[itemIdx]
                 availList:addItem(createRow(item, itemIdx, item.availQty, addToCart))
             end)
         end
         if cartList then
             cartList:clearItems()
-            Utils.Array.ForEach(getFilteredCart(), function(_, itemIdx)
+            Utils.Array.ForEach(getFilteredCart(), function(itemIdx)
                 local item = items[itemIdx]
                 cartList:addItem(createRow(item, itemIdx, item.cartQty, removeFromCart))
             end)
@@ -734,7 +734,7 @@ local function OnInitialize()
         -- the engine requires explicit RegisterWindowData per entity.
         if not isSell then
             Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), mId)
-            sellContainerId = Data.ObjectInfo(mId):getSellContainerId()
+            sellContainerId = Data.ObjectInfo(mId).sellContainerId
             if sellContainerId ~= 0 then
                 Api.Window.RegisterData(
                     Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
