@@ -7418,6 +7418,8 @@ local function createResizeGrip(window)
     return grip
 end
 
+local updateWindowSnap
+
 --- Registers a Window for edge-snapping with other snappable windows.
 --- Sets up snap tracking state and ensures OnUpdate is registered.
 ---@param window Window
@@ -7466,7 +7468,7 @@ end
 --- Per-frame snap + group-drag logic. Called from Window:onUpdate when the
 --- window is registered for snapping (_wasMoving ~= nil).
 ---@param window Window
-local function updateWindowSnap(window)
+updateWindowSnap = function(window)
     local isMoving = window.moving
 
     -- Drag start: compute the joined group and save offsets
