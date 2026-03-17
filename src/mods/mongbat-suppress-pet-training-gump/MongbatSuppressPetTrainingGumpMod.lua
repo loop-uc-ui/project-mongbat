@@ -5,7 +5,7 @@ Mongbat.Mod {
     Name = "MongbatSuppressPetTrainingGump",
     Path = "/src/mods/mongbat-suppress-pet-training-gump",
     OnInitialize = function()
-        local gumpsParsing = Components.Defaults.GumpsParsing:getDefault()
+        local gumpsParsing = Components.Defaults.GumpsParsing.default
         local parsingCheck = gumpsParsing.MainParsingCheck
         gumpsParsing.MainParsingCheck = function(timePassed)
             parsingCheck(timePassed)

@@ -9,17 +9,17 @@ Mongbat.Mod {
         local gumpsParsing = Components.Defaults.GumpsParsing
         gumpsParsing:getVendorSearch().name = "MONGBAT_OVERRIDE_VENDOR_SEARCH"
 
-        local genericGump = Components.Defaults.GenericGump:getDefault()
+        local genericGump = Components.Defaults.GenericGump.default
         local onShown = genericGump.OnShown
 
         genericGump.OnShown = function()
             onShown()
             local gump = Components.Gump()
-            if gump ~= nil and gump:isVendorSearch() then
+            if gump ~= nil and gump.vendorSearch then
                 Utils.Array.ForEach(
                     gump.textEntries,
                     function (textEntry)
-                        textEntry:setTextColor(Constants.Colors.OffBlack)
+                        textEntry.textColor = Constants.Colors.OffBlack
                     end
                 )
             end
