@@ -5,7 +5,10 @@ description: 'Research UO Enhanced Client engine behavior and default UI pattern
 
 # Code Research
 
-Mongbat is a wrapper around the Enhanced Client's default UI. When you need to understand engine fundamentals or default behavior, consult these external sources.
+Mongbat is a wrapper around the Enhanced Client's default UI. When you need to understand engine fundamentals or default behavior, consult the default UI's source code and documentation.
+
+First look in the workspace for enhanced-client-default and enhanced-client-default-docs. If that fails, they may be viewed
+externally here:
 
 - **Documentation**: https://loop-uc-ui.github.io/enhanced-client-default-docs/files3/Introduction-txt.html
 - **Default UI source**: https://github.com/loop-uc-ui/enhanced-client-default
