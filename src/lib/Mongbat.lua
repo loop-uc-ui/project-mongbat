@@ -6416,6 +6416,10 @@ function ScrollWindow:new(model)
     return instance
 end
 
+function ScrollWindow:addChild(child)
+    self._scrollContainer:addChild(child)
+end
+
 function ScrollWindow:_createChildren()
     Window._createChildren(self)
     self._containerReady = true

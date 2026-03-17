@@ -100,16 +100,8 @@ local function OnInitialize()
         if objType and objType > 0 then
             local texName, x, y, _, newW, newH =
                 Api.Icon.RequestTileArt(objType, 300, 300)
-            local s = 10
-            if newW * s > ICON_SIZE or newH * s > ICON_SIZE then
-                for j = s * 10, 1, -1 do
-                    local t = j * 0.1
-                    if newW * t <= ICON_SIZE and newH * t <= ICON_SIZE then
-                        s = t
-                        break
-                    end
-                end
-            end
+            local maxDim = math.max(newW, newH)
+            local s = math.min(math.floor(ICON_SIZE / maxDim * 10) / 10, 10)
             Api.DynamicImage.SetTextureDimensions(iconWin, newW * s, newH * s)
             Api.Window.SetDimensions(iconWin, newW * s, newH * s)
             Api.DynamicImage.SetTexture(iconWin, texName, x, y)
@@ -169,6 +161,15 @@ local function OnInitialize()
         }
     end
 
+    --- Unregisters ObjectInfo and ItemProperties data for each item.
+    --- @param itemList table[]
+    local function unregisterItemData(itemList)
+        Utils.Array.ForEach(itemList, function(item)
+            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
+            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
+        end)
+    end
+
     -- Forward declaration: refreshAll is defined after addToCart/removeFromCart
     -- to resolve the circular dependency (refreshAll passes them to createRow,
     -- and they call refreshAll after mutating state).
@@ -183,10 +184,7 @@ local function OnInitialize()
         if not data then return end
 
         -- Unregister per-item data for old items before rebuilding
-        Utils.Array.ForEach(items, function(item)
-            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
-            Api.Window.UnregisterData(Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
-        end)
+        unregisterItemData(items)
 
         -- Rebuild items list from container
         local newItems = {}
@@ -367,9 +365,10 @@ local function OnInitialize()
         end
 
         -- Title text
+        ---@type wstring
         local titleText
         if isSelling then
-            titleText = "Sellable Items"
+            titleText = L"Sellable Items"
         else
             -- Try to get the merchant's name
             local mobileName = Data.MobileName(mId)
@@ -377,13 +376,13 @@ local function OnInitialize()
             if name and not Utils.String.IsEmpty(name) then
                 titleText = name
             else
-                titleText = "NPC Store"
+                titleText = L"NPC Store"
             end
         end
 
         -- Panel headers
-        local availHdr = isSelling and "Sellable" or "Available"
-        local cartHdr  = isSelling and "Sell List" or "Cart"
+        local availHdr = isSelling and L"Sellable" or L"Available"
+        local cartHdr  = isSelling and L"Sell List" or L"Cart"
 
         -- Title label
         local titleLabel = Components.Label {
@@ -415,12 +414,12 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self.dimensions = {52, SEARCH_H}
-                self.text = "Clear"
+                self.text = L"Clear"
                 self.bindings = self:bindingsBuilder(function(bind)
                     bind:onLButtonUp(function()
                         filterPatterns = {}
                         if searchBox then
-                            searchBox.text = ""
+                            searchBox.text = L""
                         end
                         refreshAll()
                     end)
@@ -525,7 +524,7 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self.dimensions = {BTN_W, BTN_H}
-                self.text = isSelling and "Sell" or "Buy"
+                self.text = isSelling and L"Sell" or L"Buy"
                 self.bindings = self:bindingsBuilder(function(bind)
                     bind:onLButtonUp(function()
                         acceptOffer()
@@ -539,7 +538,7 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self.dimensions = {BTN_W, BTN_H}
-                self.text = "Clear"
+                self.text = L"Clear"
                 self.bindings = self:bindingsBuilder(function(bind)
                     bind:onLButtonUp(function()
                         clearCart()
@@ -553,7 +552,7 @@ local function OnInitialize()
             Template = "MongbatButton18",
             OnInitialize = function(self)
                 self.dimensions = {BTN_W, BTN_H}
-                self.text = "Close"
+                self.text = L"Close"
                 self.bindings = self:bindingsBuilder(function(bind)
                     bind:onLButtonUp(function()
                         cancelOffer()
@@ -664,12 +663,7 @@ local function OnInitialize()
             OnShutdown = function(_)
                 -- Unregister per-item data for buy-mode items
                 if not isSelling then
-                    Utils.Array.ForEach(items, function(item)
-                        Api.Window.UnregisterData(
-                            Constants.DataEvents.OnUpdateObjectInfo.getType(), item.id)
-                        Api.Window.UnregisterData(
-                            Constants.DataEvents.OnUpdateItemProperties.getType(), item.id)
-                    end)
+                    unregisterItemData(items)
                     -- Unregister session-level data
                     Api.Window.UnregisterData(
                         Constants.DataEvents.OnUpdateObjectInfo.getType(), merchantId)
@@ -715,62 +709,37 @@ local function OnInitialize()
     shopkeeperDefault:disable()
 
     shopkeeperDefault.default.Initialize = function()
-        local defaultWin = Api.Window.GetActiveWindowName()
-        local mId        = Api.Window.GetDynamicWindowId()
-
-        -- Hide the default Shopkeeper XML window instead of destroying it.
-        -- The engine expects this window to exist for the shop session;
-        -- destroying it may trigger a deferred Shutdown callback or cause
-        -- the engine to close the shop session internally.
-        Api.Window.SetShowing(defaultWin, false)
-        defaultWindowName = defaultWin
-
-        -- Destroy any leftover Mongbat shopkeeper window
-        Api.Window.Destroy("MongbatShopkeeperWindow")
-
-        local isSell = Data.ShopData().selling
-
-        -- For buy mode: read sellContainerId from ObjectInfo and register
-        -- per-entity data so the engine populates ContainerWindow and
-        -- fires update events.  These data types are NOT broadcast-style;
-        -- the engine requires explicit RegisterWindowData per entity.
-        if not isSell then
-            Api.Window.RegisterData(Constants.DataEvents.OnUpdateObjectInfo.getType(), mId)
-            sellContainerId = Data.ObjectInfo(mId).sellContainerId
-            if sellContainerId ~= 0 then
-                Api.Window.RegisterData(
-                    Constants.DataEvents.OnUpdateContainerWindow.getType(), sellContainerId)
+        local scrollWinow = Components.ScrollWindow {
+            OnInitialize = function (self)
+                self._bindings = self:bindingsBuilder(function(bind)
+                    bind:onObjectInfo(function(instanceId, objInfo)
+                        if objInfo.shopValue and objInfo.shopValue > 0 then
+                            local itemData = {
+                                windowName = self.name,
+                                itemId     = instanceId,
+                                itemType   = Constants.ItemPropertyType.Item,
+                                detail     = Constants.ItemPropertyDetail.Long
+                            }
+                            Api.ItemProperties.SetActiveItem(itemData)
+                        end
+                    end)
+                end)
             end
-        end
+        }
+        local scaffold = Components.Scaffold {
+            Name = "Shopkeeper" .. Api.Window.GetUpdateInstanceId(),
+            OnInitialize = function(self)
+                self.dimensions = { 400, 400 }
+                self._children = {
 
-        createShopWindow(mId, isSell)
-    end
-
-    -- Override Shopkeeper.Shutdown -- called when the default XML window is torn
-    -- down (e.g. server closes shop).  Broadcast cancel and destroy our window
-    -- if it is still open; our window's OnShutdown handles data cleanup.
-    shopkeeperDefault.default.Shutdown = function()
-        -- Prevent MongbatShopkeeperWindow OnShutdown from trying to
-        -- destroy the default window again (it's already being destroyed
-        -- by the engine right now).
-        defaultWindowName = nil
-        if windowView ~= nil then
-            Api.Event.Broadcast(Constants.Broadcasts.ShopCancelOffer())
-            Api.Window.Destroy("MongbatShopkeeperWindow")
-        end
+                }
+            end
+        }
+        scaffold:create(true)
     end
 end
 
 local function OnShutdown()
-    Api.Window.Destroy("MongbatShopkeeperWindow")
-
-    -- Destroy the hidden default window if it's still alive (e.g. shop
-    -- was open when the mod was unloaded).
-    if defaultWindowName then
-        Api.Window.Destroy(defaultWindowName)
-        defaultWindowName = nil
-    end
-
     -- restore() puts back all original Shopkeeper functions.
     local shopkeeperDefault = Components.Defaults.Shopkeeper
     shopkeeperDefault:restore()
