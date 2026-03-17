@@ -42,7 +42,8 @@ Mongbat.Mod {
                     self.children = {
                         Label(handle)
                     }
-                    self:onMouseOverEnd()
+                    self.alpha = 0.7
+                    self.layer = self:layerBuilder(function(l) return l:background() end)
 
                     if handle.isMobile then
                         local color = Constants.Colors.Notoriety[handle.notoriety]
