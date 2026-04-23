@@ -14,11 +14,7 @@ local Data = {}
 local Utils = {}
 
 local State = {}
-State.ClickTargets = {}
-State.TopLevelWindows = {}
-State.Updatables = {}
-State.LayoutPending = {}
-State.CreateQueue = {}
+State.Components = {}
 
 ---@type table<number, string[]>
 State.Entities = {}
@@ -26,40 +22,37 @@ State.Systems = {}
 State.DragOrigin = nil
 
 ---@param window Window
----@return table
-local function createStateProxy(window)
-    local values = {}
-    local order = {}
-    local queued = {}
-    local head = 1
+---@param timePassed number
+---@param windowData WindowDataWrapper
+function State.Systems.SyncState(window, timePassed, windowData)
+    if not window._isInitialized then
+        local parent = window._parent or "Root"
+        if parent ~= "Root" and not Api.Window.DoesExist(parent) then return false end
+        if not Api.Window.CreateFromTemplate(window:name(), window:template(), parent, window._initialShowing) then return false end
+        window._isInitialized = true
+        if window._isTopLevel then
+            window._registrations.OnShown = { Api.Window.RegisterCoreEventHandler, "OnShown", "_Mongbat.OnShown" }
+            window._registrations.OnHidden = { Api.Window.RegisterCoreEventHandler, "OnHidden", "_Mongbat.OnHidden" }
+        end
+        window:onInitialize()
+        local id = window:getId()
+        if not State.Entities[id] then
+            State.Entities[id] = {}
+        end
+        table.insert(State.Entities[id], window:name())
+        for _, dataEvent in pairs(Constants.DataEvents) do
+            Api.Window.RegisterData(dataEvent.getType(), id)
+        end
+    end
 
-    window._stateValues = values
-    window._stateOrder = order
-    window._stateQueued = queued
-    window._stateHead = head
+    if window._onUpdate then
+        window._onUpdate(window, timePassed, windowData)
+    end
 
-    return setmetatable({}, {
-        __index = values,
-        __newindex = function(_, key, value)
-            values[key] = value
+    for _, entry in pairs(window._state) do
+        entry[1](window._name, unpack(entry, 2))
+    end
 
-            if window._isInitialized then
-                value[1](window._name, unpack(value, 2))
-                values[key] = nil
-                queued[key] = nil
-                return
-            end
-
-            if not queued[key] then
-                queued[key] = true
-                order[#order + 1] = key
-            end
-        end,
-    })
-end
-
----@param window Window
-local function registerPendingHandlers(window)
     local registered = window._registered
     for key, entry in pairs(window._registrations) do
         if not registered[key] then
@@ -67,135 +60,28 @@ local function registerPendingHandlers(window)
             registered[key] = true
         end
     end
-end
 
----@param window Window
----@param key string
----@param entry table
-local function queueRegistration(window, key, entry)
-    window._registrations[key] = entry
-    if window._isInitialized and not window._registered[key] then
-        entry[1](window._name, unpack(entry, 2))
-        window._registered[key] = true
-    end
-end
-
----@param window Window
-local function trackClickTarget(window)
-    State.ClickTargets[window:name()] = window
-end
-
----@param window Window
----@return boolean
-local function processWindowLayout(window)
-    if not window._layout then
-        return true
-    end
-
-    local layout = window._layout
-    for _, child in ipairs(layout.children) do
-        if not child._isInitialized then
-            return false
+    if window._layout then
+        local layout = window._layout
+        local ready = true
+        for _, child in ipairs(layout.children) do
+            if not child._isInitialized then
+                ready = false
+                break
+            end
         end
-    end
-
-    local y = layout.offsetY
-    for _, child in ipairs(layout.children) do
-        child._state.setOffsetFromParent = { Api.Window.SetOffsetFromParent, layout.offsetX, y }
-        local dims = Api.Window.GetDimensions(child._name)
-        y = y + dims.y + layout.spacing
-    end
-
-    window._layout = nil
-    State.LayoutPending[window._name] = nil
-    return true
-end
-
----@param window Window
-function State.Systems.TrackWindow(window)
-    if window._onUpdate then
-        State.Updatables[window:name()] = window
-    end
-end
-
----@param window Window
-local function dispatchWindowMessages(window)
-    local order = window._stateOrder
-    local values = window._stateValues
-    local queued = window._stateQueued
-    local head = window._stateHead
-
-    while head <= #order do
-        local key = order[head]
-        order[head] = nil
-        queued[key] = nil
-
-        local entry = values[key]
-        values[key] = nil
-        if entry then
-            entry[1](window._name, unpack(entry, 2))
+        if ready then
+            local y = layout.offsetY
+            for _, child in ipairs(layout.children) do
+                child._state.setOffsetFromParent = { Api.Window.SetOffsetFromParent, layout.offsetX, y }
+                local dims = Api.Window.GetDimensions(child._name)
+                y = y + dims.y + layout.spacing
+            end
+            window._layout = nil
         end
-
-        head = head + 1
-    end
-
-    window._stateHead = 1
-    window._stateOrder = {}
-end
-
----@param window Window
-local function initializeWindow(window)
-    local parent = window._parent or "Root"
-    if parent ~= "Root" and not Api.Window.DoesExist(parent) then return false end
-    if not Api.Window.CreateFromTemplate(window:name(), window:template(), parent, window._initialShowing) then return false end
-
-    window._isInitialized = true
-    window._createQueued = false
-
-    if window._isTopLevel then
-        State.TopLevelWindows[window._name] = true
-        queueRegistration(window, "OnShown", { Api.Window.RegisterCoreEventHandler, "OnShown", "_Mongbat.OnShown" })
-        queueRegistration(window, "OnHidden", { Api.Window.RegisterCoreEventHandler, "OnHidden", "_Mongbat.OnHidden" })
-    end
-
-    window:onInitialize()
-    registerPendingHandlers(window)
-    dispatchWindowMessages(window)
-    processWindowLayout(window)
-
-    local id = window:getId()
-    if not State.Entities[id] then
-        State.Entities[id] = {}
-    end
-    table.insert(State.Entities[id], window:name())
-
-    for _, dataEvent in pairs(Constants.DataEvents) do
-        Api.Window.RegisterData(dataEvent.getType(), id)
     end
 
     return true
-end
-
----@param window Window
-function State.Systems.EnqueueCreate(window)
-    if window._createQueued or window._isInitialized then return end
-    window._createQueued = true
-    State.CreateQueue[#State.CreateQueue + 1] = window
-end
-
-function State.Systems.ProcessCreateQueue()
-    if #State.CreateQueue == 0 then return end
-
-    local pending = State.CreateQueue
-    State.CreateQueue = {}
-
-    for _, window in ipairs(pending) do
-        -- This item is now being processed; allow retry enqueue if creation fails.
-        window._createQueued = false
-        if not window._isInitialized and not initializeWindow(window) then
-            State.Systems.EnqueueCreate(window)
-        end
-    end
 end
 
 ---@param window Window
@@ -210,15 +96,11 @@ function State.Systems.DestroyWindow(window)
     local id = window:getId()
     window:onShutdown()
     window._isInitialized = false
-    window._createQueued = false
-    window._state = createStateProxy(window)
+    window._state = {}
     window._registrations = {}
     window._registered = {}
     window._handlers = {}
-    State.ClickTargets[name] = nil
-    State.TopLevelWindows[name] = nil
-    State.Updatables[name] = nil
-    State.LayoutPending[name] = nil
+    State.Components[name] = nil
     if State.Entities[id] then
         local entity = State.Entities[id]
         for i = #entity, 1, -1 do
@@ -237,40 +119,23 @@ function State.Systems.DestroyWindow(window)
 end
 
 function State.Systems.OnUpdate(timePassed)
-    State.Systems.ProcessCreateQueue()
-
     local windowData = Data.WindowData()
     local keys = {}
-    for k in pairs(State.Updatables) do
+    for k in pairs(State.Components) do
         keys[#keys + 1] = k
     end
     for _, name in ipairs(keys) do
-        local component = State.Updatables[name]
-        if component and component._isInitialized then
-            component._onUpdate(component, timePassed, windowData)
-        elseif component then
-            State.Systems.EnqueueCreate(component)
+        local component = State.Components[name]
+        if component then
+            State.Systems.SyncState(component, timePassed, windowData)
         end
     end
-
-    local layoutKeys = {}
-    for k in pairs(State.LayoutPending) do
-        layoutKeys[#layoutKeys + 1] = k
-    end
-    for _, name in ipairs(layoutKeys) do
-        local component = State.LayoutPending[name]
-        if component and component._isInitialized then
-            processWindowLayout(component)
-        end
-    end
-
-    State.Systems.ProcessCreateQueue()
 end
 
 function State.Systems.OnClick(handlerKey, flags, x, y)
     local windowName = Data.MouseOverWindow()
     while windowName and windowName ~= "" and windowName ~= "Root" do
-        local component = State.ClickTargets[windowName]
+        local component = State.Components[windowName]
         if component and component._handlers[handlerKey] then
             component._handlers[handlerKey](component, flags, x, y)
             return
@@ -282,9 +147,8 @@ end
 local function findTopLevelWindow(windowName)
     local current = windowName
     while current and current ~= "" and current ~= "Root" do
-        if State.TopLevelWindows[current] then
-            return current
-        end
+        local component = State.Components[current]
+        if component then return component._topLevel end
         current = Api.Window.GetParent(current)
     end
     return nil
@@ -295,9 +159,9 @@ function State.Systems.OnLButtonDown(flags, x, y)
     if not windowName or windowName == "" then return end
     local topLevel = findTopLevelWindow(windowName)
     if topLevel then
-        local sx, sy = Api.Window.GetPosition(topLevel)
-        State.DragOrigin = { window = topLevel, x = sx, y = sy }
-        Api.Window.SetMoving(topLevel, true)
+        local sx, sy = Api.Window.GetPosition(topLevel._name)
+        State.DragOrigin = { window = topLevel._name, x = sx, y = sy }
+        Api.Window.SetMoving(topLevel._name, true)
     end
     State.Systems.OnClick("onLButtonDown", flags, x, y)
 end
@@ -4243,12 +4107,7 @@ function Data.WindowData() return WindowDataWrapper:new() end
 ---@field _isTopLevel boolean
 ---@field _topLevel Window
 ---@field _initialShowing boolean
----@field _createQueued boolean
 ---@field _state table<string, table>
----@field _stateValues table<string, table>
----@field _stateOrder string[]
----@field _stateQueued table<string, boolean>
----@field _stateHead integer
 ---@field _registrations table<string, table>
 ---@field _registered table<string, boolean>
 ---@field _handlers table<string, fun(self: Window, flags: number, x: number, y: number)>
@@ -4268,9 +4127,8 @@ function Window:new(model)
     window._isInitialized = window:exists()
     window._isTopLevel = true
     window._initialShowing = false
-    window._createQueued = false
     window._children = {}
-    window._state = createStateProxy(window)
+    window._state = {}
     window._registrations = {}
     window._registered = {}
     window._handlers = {}
@@ -4296,7 +4154,6 @@ function Window:create(doShow, parent)
     local show = doShow ~= false
     self._initialShowing = show
     self._state.setShowing = { Api.Window.SetShowing, show }
-    State.Systems.EnqueueCreate(self)
 end
 
 function Window:onInitialize() if self._onInitialize then self._onInitialize(self) end end
@@ -4304,13 +4161,11 @@ function Window:onInitialize() if self._onInitialize then self._onInitialize(sel
 function Window:onShutdown() if self._onShutdown then self._onShutdown(self) end end
 
 function Window:addChild(child)
-    State.TopLevelWindows[child._name] = nil
     child._parent = self._name
     child._isTopLevel = false
     child._topLevel = self._topLevel
     child._initialShowing = true
     child._state.setShowing = { Api.Window.SetShowing, true }
-    State.Systems.EnqueueCreate(child)
     table.insert(self._children, child)
 end
 
@@ -4325,7 +4180,6 @@ function Window:addChildren(children, layout)
             offsetY = layout.offsetY or 0,
             spacing = layout.spacing or 0,
         }
-        State.LayoutPending[self._name] = self
     end
 end
 
@@ -4445,37 +4299,24 @@ function Window:unregisterCoreEventHandler(event)
     if self._isInitialized then Api.Window.UnregisterCoreEventHandler(self._name, event) end
 end
 
-function Window:onLButtonUp(fn)
-    self._handlers.onLButtonUp = fn
-    trackClickTarget(self)
-end
+function Window:onLButtonUp(fn) self._handlers.onLButtonUp = fn end
 
-function Window:onLButtonDown(fn)
-    self._handlers.onLButtonDown = fn
-    trackClickTarget(self)
-end
+function Window:onLButtonDown(fn) self._handlers.onLButtonDown = fn end
 
-function Window:onRButtonUp(fn)
-    self._handlers.onRButtonUp = fn
-    trackClickTarget(self)
-end
+function Window:onRButtonUp(fn) self._handlers.onRButtonUp = fn end
 
-function Window:onRButtonDown(fn)
-    self._handlers.onRButtonDown = fn
-    trackClickTarget(self)
-end
+function Window:onRButtonDown(fn) self._handlers.onRButtonDown = fn end
 
 function Window:onLButtonDblClk(fn)
     self._handlers.onLButtonDblClk = fn
-    trackClickTarget(self)
-    queueRegistration(self, "OnLButtonDblClk", { Api.Window.RegisterCoreEventHandler, "OnLButtonDblClk", "_Mongbat.OnLButtonDblClk" })
+    self._registrations.OnLButtonDblClk = { Api.Window.RegisterCoreEventHandler, "OnLButtonDblClk", "_Mongbat.OnLButtonDblClk" }
 end
 
-function Window:onMouseOver(fn) queueRegistration(self, "OnMouseOver", { Api.Window.RegisterCoreEventHandler, "OnMouseOver", fn }) end
+function Window:onMouseOver(fn) self._registrations.OnMouseOver = { Api.Window.RegisterCoreEventHandler, "OnMouseOver", fn } end
 
-function Window:onMouseOverEnd(fn) queueRegistration(self, "OnMouseOverEnd", { Api.Window.RegisterCoreEventHandler, "OnMouseOverEnd", fn }) end
+function Window:onMouseOverEnd(fn) self._registrations.OnMouseOverEnd = { Api.Window.RegisterCoreEventHandler, "OnMouseOverEnd", fn } end
 
-function Window:onMouseWheel(fn) queueRegistration(self, "OnMouseWheel", { Api.Window.RegisterCoreEventHandler, "OnMouseWheel", fn }) end
+function Window:onMouseWheel(fn) self._registrations.OnMouseWheel = { Api.Window.RegisterCoreEventHandler, "OnMouseWheel", fn } end
 
 function Window:setParent(parentId) self._state.setParent = { Api.Window.SetParent, parentId } end
 
@@ -4528,7 +4369,7 @@ end
 ---@param model WindowModel?
 Components.Window = function(model)
     local window = Window:new(model)
-    State.Systems.TrackWindow(window)
+    State.Components[window:name()] = window
     return window
 end
 
@@ -4563,7 +4404,7 @@ function Label:setWordWrap(wordWrap) self._state.setWordWrap = { Api.Label.SetWo
 ---@param model LabelModel?
 Components.Label = function(model)
     local label = Label:new(model)
-    State.Systems.TrackWindow(label)
+    State.Components[label:name()] = label
     return label
 end
 
@@ -4605,7 +4446,7 @@ function DynamicImage:setCustomShader(shader, hue) self._state.setCustomShader =
 ---@param model DynamicImageModel?
 Components.DynamicImage = function(model)
     local image = DynamicImage:new(model)
-    State.Systems.TrackWindow(image)
+    State.Components[image:name()] = image
     return image
 end
 
@@ -4697,9 +4538,9 @@ end
 ---@param model StatusBarModel?
 Components.StatusBar = function(model)
     local statusBar = StatusBar:new(model)
-    State.Systems.TrackWindow(statusBar)
-    State.Systems.TrackWindow(statusBar._background)
-    State.Systems.TrackWindow(statusBar._fill)
+    State.Components[statusBar:name()] = statusBar
+    State.Components[statusBar._background:name()] = statusBar._background
+    State.Components[statusBar._fill:name()] = statusBar._fill
     return statusBar
 end
 
@@ -4751,7 +4592,7 @@ function Button:setTextColor(r, g, b, a) self._state.setTextColor = { Api.Button
 ---@return Button
 Components.Button = function(model)
     local button = Button:new(model)
-    State.Systems.TrackWindow(button)
+    State.Components[button:name()] = button
     return button --[[@as Button]]
 end
 
@@ -5007,21 +4848,23 @@ end
 
 function _Mongbat.OnShown()
     local name = SystemData.ActiveWindow.name
-    if State.TopLevelWindows[name] then
-        Api.Window.SetShowing(name, true)
+    local component = State.Components[name]
+    if component and component._isTopLevel then
+        component._state.setShowing = { Api.Window.SetShowing, true }
     end
 end
 
 function _Mongbat.OnHidden()
     local name = SystemData.ActiveWindow.name
-    if State.TopLevelWindows[name] then
-        Api.Window.SetShowing(name, false)
+    local component = State.Components[name]
+    if component and component._isTopLevel then
+        component._state.setShowing = { Api.Window.SetShowing, false }
     end
 end
 
 function _Mongbat.OnLButtonDblClk(flags, x, y)
     local name = SystemData.ActiveWindow.name
-    local component = State.ClickTargets[name]
+    local component = State.Components[name]
     if component then
         local fn = component._handlers.onLButtonDblClk
         if fn then fn(component, flags, x, y) end
