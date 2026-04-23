@@ -13,6 +13,10 @@
 			<CallFunction name="_Mongbat.OnInitialize"/>
 		</OnInitialize>
 
+        <OnUpdate>
+			<CallFunction name="_Mongbat.OnUpdate"/>
+		</OnUpdate>
+
 		<OnShutdown>
 			<CallFunction name="_Mongbat.OnShutdown"/>
 		</OnShutdown>

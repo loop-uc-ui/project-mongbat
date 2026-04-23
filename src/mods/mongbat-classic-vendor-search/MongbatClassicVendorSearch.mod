@@ -13,11 +13,11 @@
 			<File name="MongbatClassicVendorSearchMod.lua" />
 		</Files>
 
-		<OnInitialize>
+		<!-- <OnInitialize>
 			<CallFunction name="Mongbat.ModManager.MongbatClassicVendorSearch.OnInitialize" />
 		</OnInitialize>
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatClassicVendorSearch.OnShutdown" />
-		</OnShutdown>
+		</OnShutdown> -->
 	</UiMod>
 </ModuleFile>

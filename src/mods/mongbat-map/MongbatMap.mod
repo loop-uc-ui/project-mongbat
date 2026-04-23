@@ -13,11 +13,11 @@
 			<File name="MongbatMapMod.lua" />
 		</Files>
 
-		<OnInitialize>
+		<!-- <OnInitialize>
 			<CallFunction name="Mongbat.ModManager.MongbatMap.OnInitialize" />
 		</OnInitialize>
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatMap.OnShutdown" />
-		</OnShutdown>
+		</OnShutdown> -->
 	</UiMod>
 </ModuleFile>

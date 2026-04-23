@@ -394,6 +394,18 @@
 ---@field ObjectInfo table<number, WindowData.ObjectInfo>
 ---@field ContainerWindow table<number, WindowData.Container>
 ---@field ObjectHandle WindowData.ObjectHandle
+---@field ShopData WindowData.ShopData
+
+---@class WindowData.ShopData
+---@field IsSelling boolean
+---@field Sell Sell
+
+---@class Sell
+---@field Quantities number[]
+---@field Names string[]
+---@field Ids number[]
+---@field Prices number[]
+---@field Types number[]
 
 
 -- ========================================================================== --

@@ -13,6 +13,171 @@ local Data = {}
 ---@class Utils
 local Utils = {}
 
+local State = {}
+State.Components = {}
+
+---@type table<number, string[]>
+State.Entities = {}
+State.Systems = {}
+State.DragOrigin = nil
+
+---@param window Window
+---@param timePassed number
+---@param windowData WindowDataWrapper
+function State.Systems.SyncState(window, timePassed, windowData)
+    if not window._isInitialized then
+        local parent = window._parent or "Root"
+        if parent ~= "Root" and not Api.Window.DoesExist(parent) then return false end
+        if not Api.Window.CreateFromTemplate(window:name(), window:template(), parent, window._initialShowing) then return false end
+        window._isInitialized = true
+        if window._isTopLevel then
+            window._registrations.OnShown = { Api.Window.RegisterCoreEventHandler, "OnShown", "_Mongbat.OnShown" }
+            window._registrations.OnHidden = { Api.Window.RegisterCoreEventHandler, "OnHidden", "_Mongbat.OnHidden" }
+        end
+        window:onInitialize()
+        local id = window:getId()
+        if not State.Entities[id] then
+            State.Entities[id] = {}
+        end
+        table.insert(State.Entities[id], window:name())
+        for _, dataEvent in pairs(Constants.DataEvents) do
+            Api.Window.RegisterData(dataEvent.getType(), id)
+        end
+    end
+
+    if window._onUpdate then
+        window._onUpdate(window, timePassed, windowData)
+    end
+
+    for _, entry in pairs(window._state) do
+        entry[1](window._name, unpack(entry, 2))
+    end
+
+    local registered = window._registered
+    for key, entry in pairs(window._registrations) do
+        if not registered[key] then
+            entry[1](window._name, unpack(entry, 2))
+            registered[key] = true
+        end
+    end
+
+    if window._layout then
+        local layout = window._layout
+        local ready = true
+        for _, child in ipairs(layout.children) do
+            if not child._isInitialized then
+                ready = false
+                break
+            end
+        end
+        if ready then
+            local y = layout.offsetY
+            for _, child in ipairs(layout.children) do
+                child._state.setOffsetFromParent = { Api.Window.SetOffsetFromParent, layout.offsetX, y }
+                local dims = Api.Window.GetDimensions(child._name)
+                y = y + dims.y + layout.spacing
+            end
+            window._layout = nil
+        end
+    end
+
+    return true
+end
+
+---@param window Window
+function State.Systems.DestroyWindow(window)
+    if not window:exists() then return false end
+    local name = window:name()
+    Debug.Print("Attempting to destroy window: " .. name)
+    for i = #window._children, 1, -1 do
+        State.Systems.DestroyWindow(window._children[i])
+    end
+    window._children = {}
+    local id = window:getId()
+    window:onShutdown()
+    window._isInitialized = false
+    window._state = {}
+    window._registrations = {}
+    window._registered = {}
+    window._handlers = {}
+    State.Components[name] = nil
+    if State.Entities[id] then
+        local entity = State.Entities[id]
+        for i = #entity, 1, -1 do
+            if entity[i] == name then
+                table.remove(entity, i)
+            end
+        end
+        if #entity == 0 then
+            for _, dataEvent in pairs(Constants.DataEvents) do
+                Api.Window.UnregisterData(dataEvent.getType(), id)
+            end
+            State.Entities[id] = nil
+        end
+    end
+    return Api.Window.Destroy(name)
+end
+
+function State.Systems.OnUpdate(timePassed)
+    local windowData = Data.WindowData()
+    local keys = {}
+    for k in pairs(State.Components) do
+        keys[#keys + 1] = k
+    end
+    for _, name in ipairs(keys) do
+        local component = State.Components[name]
+        if component then
+            State.Systems.SyncState(component, timePassed, windowData)
+        end
+    end
+end
+
+function State.Systems.OnClick(handlerKey, flags, x, y)
+    local windowName = Data.MouseOverWindow()
+    while windowName and windowName ~= "" and windowName ~= "Root" do
+        local component = State.Components[windowName]
+        if component and component._handlers[handlerKey] then
+            component._handlers[handlerKey](component, flags, x, y)
+            return
+        end
+        windowName = Api.Window.GetParent(windowName)
+    end
+end
+
+local function findTopLevelWindow(windowName)
+    local current = windowName
+    while current and current ~= "" and current ~= "Root" do
+        local component = State.Components[current]
+        if component then return component._topLevel end
+        current = Api.Window.GetParent(current)
+    end
+    return nil
+end
+
+function State.Systems.OnLButtonDown(flags, x, y)
+    local windowName = Data.MouseOverWindow()
+    if not windowName or windowName == "" then return end
+    local topLevel = findTopLevelWindow(windowName)
+    if topLevel then
+        local sx, sy = Api.Window.GetPosition(topLevel._name)
+        State.DragOrigin = { window = topLevel._name, x = sx, y = sy }
+        Api.Window.SetMoving(topLevel._name, true)
+    end
+    State.Systems.OnClick("onLButtonDown", flags, x, y)
+end
+
+function State.Systems.OnLButtonUp(flags, x, y)
+    if State.DragOrigin then
+        local topLevel = State.DragOrigin.window
+        Api.Window.SetMoving(topLevel, false)
+        local sx, sy = Api.Window.GetPosition(topLevel)
+        local dragged = sx ~= State.DragOrigin.x or sy ~= State.DragOrigin.y
+        State.DragOrigin = nil
+        if dragged then return end
+    end
+    State.Systems.OnClick("onLButtonUp", flags, x, y)
+end
+
 -- ========================================================================== --
 -- Global Overrides
 -- ========================================================================== --
@@ -197,7 +362,7 @@ Api.ActionButton = {}
 ---@param actionType number The action type.
 ---@param actionId number The action ID.
 function Api.ActionButton.SetAction(windowName, actionType, actionId)
-    WindowSetGameActionData(windowName, actionType, actionId, L"")
+    WindowSetGameActionData(windowName, actionType, actionId, L "")
 end
 
 ---
@@ -859,12 +1024,8 @@ Api.Label = {}
 function Api.Label.SetText(name, text)
     if text == nil then
         return
-    elseif type(text) == "number" then
-        text = StringFormatter.fromTid(text)
-    elseif type(text) == "string" then
-        text = StringFormatter.toWString(text)
     end
-    LabelSetText(name, text)
+    LabelSetText(name, Utils.String.ToWString(text))
 end
 
 ---
@@ -1242,6 +1403,7 @@ end
 function Api.Radar.SetWindowOffset(x, y)
     UORadarSetWindowOffset(x, y)
 end
+
 ---
 --- Gets the facet for the radar.
 ---@return any The facet for the radar.
@@ -1598,7 +1760,7 @@ end
 ---@param filterId number The unique ID number for this filter type.
 ---@param prefix wstring? The text to be prepended to entries of this type. Defaults to L"".
 function Api.TextLog.AddFilterType(name, filterId, prefix)
-    TextLogAddFilterType(name, filterId, prefix or L"")
+    TextLogAddFilterType(name, filterId, prefix or L "")
 end
 
 ---
@@ -2222,7 +2384,7 @@ end
 --- Registers a core event handler for a window.
 ---@param windowName string The name of the window.
 ---@param event string The event to register.
----@param callback function The callback function.
+---@param callback string The callback function.
 function Api.Window.RegisterCoreEventHandler(windowName, event, callback)
     WindowRegisterCoreEventHandler(windowName, event, callback)
 end
@@ -2709,8 +2871,6 @@ function Utils.Table.ForEach(table, forEach)
     end
 end
 
-
-
 ---@generic K
 ---@generic V
 ---@param table table<K, V>?
@@ -2908,7 +3068,7 @@ function Utils.String.FromWString(text)
 end
 
 function Utils.String.ToWString(text)
-    if text == nil then return L"" end
+    if text == nil then return L "" end
     if type(text) == "number" then
         return Api.String.GetStringFromTid(text)
     elseif type(text) == "wstring" then
@@ -3051,6 +3211,20 @@ Constants.SystemEvents.OnLButtonDownProcessed = {
         return SystemData.Events["L_BUTTON_DOWN_PROCESSED"]
     end,
     name = "OnLButtonDownProcessed"
+}
+
+Constants.SystemEvents.OnRButtonUpProcessed = {
+    getEvent = function()
+        return SystemData.Events["R_BUTTON_UP_PROCESSED"]
+    end,
+    name = "OnRButtonUpProcessed"
+}
+
+Constants.SystemEvents.OnRButtonDownProcessed = {
+    getEvent = function()
+        return SystemData.Events["R_BUTTON_DOWN_PROCESSED"]
+    end,
+    name = "OnRButtonDownProcessed"
 }
 
 Constants.SystemEvents.OnUpdateProcessed = {
@@ -3875,3862 +4049,574 @@ end
 ---@field TexCoordY integer
 ---@field TexScale number
 
+-- ========================================================================== --
+-- Data - WindowData (composite)
+-- ========================================================================== --
+
+---@class WindowDataWrapper
+local WindowDataWrapper = {}
+WindowDataWrapper.__index = WindowDataWrapper
+
+function WindowDataWrapper:new() return setmetatable({}, self) end
+
+function WindowDataWrapper:activeMobile() return Data.ActiveMobile() end
+function WindowDataWrapper:currentTarget() return Data.CurrentTarget() end
+function WindowDataWrapper:cursor() return Data.Cursor() end
+function WindowDataWrapper:drag() return Data.Drag() end
+function WindowDataWrapper:playerStatus() return Data.PlayerStatus() end
+function WindowDataWrapper:playerLocation() return Data.PlayerLocation() end
+function WindowDataWrapper:objectHandles() return Data.ObjectHandles() end
+---@param id integer
+function WindowDataWrapper:healthBarColor(id) return Data.HealthBarColor(id) end
+---@param id integer
+function WindowDataWrapper:mobileName(id) return Data.MobileName(id) end
+---@param id integer
+function WindowDataWrapper:mobileStatus(id) return Data.MobileStatus(id) end
+---@param id integer
+function WindowDataWrapper:paperdoll(id) return Data.Paperdoll(id) end
+---@param id integer
+function WindowDataWrapper:paperdollTexture(id) return Data.PaperdollTexture(id) end
+---@param id integer
+function WindowDataWrapper:object(id) return Data.Object(id) end
+
+---@return WindowDataWrapper
+function Data.WindowData() return WindowDataWrapper:new() end
+
 
 -- ========================================================================== --
 -- Components
 -- ========================================================================== --
 
-local Active = {}
+-- Window (base class) --------------------------------------------------------
 
-function Active.window()
-    return SystemData.ActiveWindow.name
-end
-
-Components.Defaults = {}
-
-local EventHandler = {}
-
----@type table<string, View>
-local Cache = {}
-
---- Module-level resize tracking
----@type Window?
-local resizingWindow = nil
----@type { startMouseX: number, startMouseY: number, startWidth: number, startHeight: number, minWidth: number, minHeight: number }?
-local resizeState = nil
---- The original OnUpdate handler saved before resize injected its own
----@type fun(self: Window, timePassed: integer)?
-local resizeOriginalOnUpdate = nil
---- Whether we dynamically registered OnUpdate (it wasn't already present)
-local resizeRegisteredOnUpdate = false
-
---- Window snapping: registry of snappable window names for edge detection
----@type table<string, boolean>
-local SnappableWindows = {}
-local SNAP_THRESHOLD = 20
-
----@class ButtonModel : WindowModel
----@field OnInitialize fun(self: Button)?
----@field OnLButtonUp fun(self: Button, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Button)?
----@field OnMouseOverEnd fun(self: Button)?
-
----@class Button: Window
-local Button = {}
-Button.__index = Button
-
----@class CheckBoxModel : ViewModel
----@field OnInitialize fun(self: CheckBox)?
----@field OnShutdown fun(self: CheckBox)?
----@field OnLButtonUp fun(self: CheckBox, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: CheckBox)?
----@field OnMouseOverEnd fun(self: CheckBox)?
-
----@class CheckBox: View
----@field label Label?
-local CheckBox = {}
-CheckBox.__index = CheckBox
-
----@class ComboBoxModel : ViewModel
----@field OnInitialize fun(self: ComboBox)?
----@field OnShutdown fun(self: ComboBox)?
----@field OnSelChanged fun(self: ComboBox)?
-
----@class ComboBox: View
-local ComboBox = {}
-ComboBox.__index = ComboBox
-
----@class ListBoxModel : ViewModel
----@field OnInitialize fun(self: ListBox)?
----@field OnShutdown fun(self: ListBox)?
----@field OnMouseWheel fun(self: ListBox, x: number, y: number, delta: number)?
-
----@class ListBox: View
-local ListBox = {}
-ListBox.__index = ListBox
-
----@class SliderBarModel : ViewModel
----@field OnInitialize fun(self: SliderBar)?
----@field OnShutdown fun(self: SliderBar)?
----@field OnSlide fun(self: SliderBar, position: number)?
-
----@class SliderBar: View
-local SliderBar = {}
-SliderBar.__index = SliderBar
-
----@class AnimatedImageModel : ViewModel
----@field OnInitialize fun(self: AnimatedImage)?
----@field OnShutdown fun(self: AnimatedImage)?
-
----@class AnimatedImage: View
-local AnimatedImage = {}
-AnimatedImage.__index = AnimatedImage
-
----@class ActionButtonModel : ViewModel
----@field OnInitialize fun(self: ActionButton)?
----@field OnShutdown fun(self: ActionButton)?
----@field OnLButtonDown fun(self: ActionButton, flags: integer, x: integer, y: integer)?
----@field OnLButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: ActionButton, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: ActionButton)?
----@field OnMouseOverEnd fun(self: ActionButton)?
-
----@class ActionButton: Button
-local ActionButton = {}
-ActionButton.__index = ActionButton
-
----@class ActionButtonGroupModel : WindowModel
----@field Count number? The number of action button slots (default 12).
----@field ButtonSize number? The pixel size of each button (default 50).
----@field Spacing number? The pixel gap between buttons (default 0).
----@field OnInitialize fun(self: ActionButtonGroup)?
----@field OnShutdown fun(self: ActionButtonGroup)?
----@field OnButtonLButtonDown fun(self: ActionButtonGroup, button: ActionButton, index: number, flags: integer, x: integer, y: integer)?
----@field OnButtonLButtonUp fun(self: ActionButtonGroup, button: ActionButton, index: number, flags: integer, x: integer, y: integer)?
----@field OnButtonRButtonUp fun(self: ActionButtonGroup, button: ActionButton, index: number, flags: integer, x: integer, y: integer)?
----@field OnButtonMouseOver fun(self: ActionButtonGroup, button: ActionButton, index: number)?
----@field OnButtonMouseOverEnd fun(self: ActionButtonGroup, button: ActionButton, index: number)?
-
----@class ActionButtonGroup: Window
----@field _buttons ActionButton[] The group's action button slots.
-local ActionButtonGroup = {}
-ActionButtonGroup.__index = ActionButtonGroup
-
----@class CooldownDisplayModel : ViewModel
----@field OnInitialize fun(self: CooldownDisplay)?
----@field OnShutdown fun(self: CooldownDisplay)?
-
----@class CooldownDisplay: AnimatedImage
-local CooldownDisplay = {}
-CooldownDisplay.__index = CooldownDisplay
-
----@class DockableWindowModel : WindowModel
----@field OnInitialize fun(self: DockableWindow)?
----@field OnShutdown fun(self: DockableWindow)?
-
----@class DockableWindow: Window
-local DockableWindow = {}
-DockableWindow.__index = DockableWindow
-
----@class PageWindowModel : ViewModel
----@field OnInitialize fun(self: PageWindow)?
----@field OnShutdown fun(self: PageWindow)?
-
----@class PageWindow: View
-local PageWindow = {}
-PageWindow.__index = PageWindow
-
----@class DefaultComponentProxy
----@field _disabled boolean Whether the proxy is disabled (function calls become no-ops)
----@field _original table The original global table being proxied
-
----@class DefaultComponent : Component
----@field _proxy DefaultComponentProxy? The metatable proxy wrapping the original global
-local DefaultComponent = {}
-DefaultComponent.__index = DefaultComponent
-
---- @class DefaultActions
---- @field WarMode integer
---- @field nxt integer
---- @field MassOrganize boolean
---- @field VacuumObjects table|nil
---- @field AutoLoadShurikens boolean
---- @field BeltMenuRequest any
---- @field Nextshuri number
---- @field DefaultRecordID integer|nil
---- @field itemQuantities table|nil
---- @field AllItems table|nil
---- @field Undress boolean|nil
---- @field OrganizeBag integer|nil
---- @field OrganizeParent integer|nil
---- @field UndressItems table|nil
---- @field ToggleMainMenu fun()
---- @field ToggleWarMode fun()
---- @field ToggleInventoryWindow fun()
---- @field ToggleMapWindow fun()
---- @field ToggleGuildWindow fun()
---- @field ToggleChatWindow fun()
---- @field ToggleSkillsWindow fun()
---- @field ToggleVirtuesWindow fun()
---- @field ToggleQuestWindow fun()
---- @field ToggleHelpWindow fun()
---- @field ToggleUOStoreWindow fun()
---- @field TogglePaperdollWindow fun()
---- @field ToggleFoliage fun()
---- @field ToggleSound fun()
---- @field ToggleSoundEffects fun()
---- @field ToggleMusic fun()
---- @field ToggleFootsteps fun()
---- @field ToggleCharacterSheet fun(noloyalty:any)
---- @field ToggleCharacterAbilities fun()
---- @field IgnorePlayer fun()
---- @field Ignore fun()
---- @field ToggleUserSettings fun()
---- @field ToggleActions fun()
---- @field ToggleMacros fun()
---- @field PrevTarget fun()
---- @field SearchValidPrevTarget fun():table|nil
---- @field NextTarget fun()
---- @field TargetAllowed fun(mobileId:integer):boolean
---- @field IsMobileVisible fun(mobileId:integer):boolean
---- @field NearTarget fun()
---- @field InjuredFollower fun()
---- @field InjuredParty fun()
---- @field InjuredMobile fun()
---- @field TargetFirstContainerObject fun()
---- @field TargetType fun()
---- @field TypeRequestTargetInfoReceived fun()
---- @field TargetByType fun(type:integer, hue:integer)
---- @field ScanQuantities fun()
---- @field ScanSubCont fun(id:integer):boolean
---- @field TargetDefaultPet fun(id:integer)
---- @field SetDefaultPet fun()
---- @field TargetDefaultItem fun(id:integer)
---- @field SetDefaultItem fun()
---- @field TargetPetball fun()
---- @field PetballRequestTargetInfoReceived fun()
---- @field TargetMount fun()
---- @field MountRequestTargetInfoReceived fun()
---- @field ToggleLegacyContainers fun()
---- @field IgnoreActionSelf fun()
---- @field EnablePVPWarning fun()
---- @field ReleaseCoownership fun()
---- @field LeaveHouse fun()
---- @field QuestConversation fun()
---- @field ViewQuestLog fun()
---- @field CancelQuest fun()
---- @field QuestItem fun()
---- @field InsuranceMenu fun()
---- @field ToggleItemInsurance fun()
---- @field TitlesMenu fun()
---- @field LoyaltyRating fun()
---- @field CancelProtection fun()
---- @field VoidPool fun()
---- @field ToggleTrades fun()
---- @field SiegeBlessItem fun()
---- @field ExportContainerItems fun()
---- @field RequestContItems fun()
---- @field ToggleEnglishNames fun()
---- @field CloseAllContainers fun()
---- @field CloseAllCorpses fun()
---- @field MassOrganizerStart fun()
---- @field MassOrganizer fun(timePassed:number)
---- @field LoadShuri fun()
---- @field Shuriken fun(timePassed:number)
---- @field AutoLoadShuri fun()
---- @field DressHolding fun()
---- @field DropHolding fun()
---- @field ToggleTrapBox fun()
---- @field TrapboxTargetReceived fun()
---- @field ToggleLootbag fun()
---- @field LootbagTargetReceived fun()
---- @field ToggleAlphaMode fun()
---- @field ToggleScaleMode fun()
---- @field ObjectHandleContextMenu fun()
---- @field ObjectHandleContextMenuCallback fun(returnCode:any, param:any)
---- @field ObjectHandleSetFilter fun(j:integer, newval:any)
---- @field GetHealthbar fun()
---- @field GetTypeID fun()
---- @field ItemIDRequestTargetInfoReceived fun()
---- @field GetHueID fun()
---- @field ColorRequestTargetInfoReceived fun()
---- @field IgnoreTargettedItem fun()
---- @field IgnoreItemRequestTargetInfoReceived fun()
---- @field ClearIgnoreList fun()
---- @field ToggleBlockPaperdolls fun()
---- @field UndressMe fun()
---- @field UndressTargetInfoReceived fun()
---- @field UndressAgent fun(timePassed:number)
---- @field ImbueLast fun()
---- @field UnravelItem fun()
---- @field EnhanceItem fun()
---- @field SmeltItem fun()
---- @field AlterItem fun()
---- @field MakeLast fun()
---- @field RepairItem fun()
-
----@class DefaultActionsComponent : DefaultComponent
-local DefaultActionsComponent = {}
-DefaultActionsComponent.__index = DefaultActionsComponent
-
----@class DefaultInterfaceComponent : DefaultComponent
-local DefaultInterfaceComponent = {}
-DefaultInterfaceComponent.__index = DefaultInterfaceComponent
-
---- @class DefaultStatusWindow
---- @field CurPlayerId integer
---- @field Skills table
---- @field Notoriety table
---- @field TextColors table
---- @field Locked boolean
---- @field HPLocked boolean
---- @field MANALocked boolean
---- @field STAMLocked boolean
---- @field DisableDelta number
---- @field TempDisabled boolean
---- @field TCToolsHandle boolean
---- @field MPHeight integer
---- @field MPWidth integer
---- @field LastMPHeight integer
---- @field HPHeight integer
---- @field HPWidth integer
---- @field LastHPHeight integer
---- @field Initialize fun(reinit:any)
---- @field Shutdown fun()
---- @field Latency_OnMouseOver fun()
---- @field LockTooltip fun()
---- @field Lock fun()
---- @field LockTooltipHP fun()
---- @field LockHP fun()
---- @field LockTooltipMANA fun()
---- @field LockMANA fun()
---- @field LockTooltipSTAM fun()
---- @field LockSTAM fun()
---- @field MenuTooltip fun()
---- @field Menu fun()
---- @field UpdateLatency fun()
---- @field ClickOutside fun()
---- @field EnableInput fun(timePassed:number)
---- @field UpdateStatus fun()
---- @field OnLButtonUp fun()
---- @field OnLButtonDown fun()
---- @field OnHPLButtonUp fun()
---- @field OnHPLButtonDown fun()
---- @field OnMLANAButtonUp fun()
---- @field OnMANALButtonDown fun()
---- @field OnSTAMLButtonUp fun()
---- @field OnSTAMLButtonDown fun()
---- @field GuardsButton_OnLButtonUp fun()
---- @field GuardsButton_OnMouseOver fun()
---- @field OnRButtonUp fun()
---- @field UpdateLabelContent fun()
---- @field OnMouseOver fun()
---- @field OnMouseOverEnd fun()
---- @field ToggleStrLabel fun()
---- @field OnMouseDlbClk fun()
---- @field TCTools fun()
---- @field TCContextMenuCallback fun(returnCode:any, param:any)
---- @field EditSkill fun(id:any, value:any, max:any, min:any)
---- @field EditStr fun(id:any, value:any, max:any, min:any)
---- @field TCToolsTooltip fun()
---- @field TCToolsOver fun()
---- @field TCToolsOnLButtonDown fun()
---- @field TCToolsOverend fun()
---- @field SetMana fun(current:number, maximum:number)
---- @field SetHealth fun(current:number, maximum:number)
---- @field ChangeStyle fun(style:any)
---- @field ToggleButtons fun()
-
----@class DefaultStatusWindowComponent : DefaultComponent
-local DefaultStatusWindowComponent = {}
-DefaultStatusWindowComponent.__index = DefaultStatusWindowComponent
-
----@class DefaultWarShield
-
----@class DefaultWarShieldComponent : DefaultComponent
-local DefaultWarShieldComponent = {}
-DefaultWarShieldComponent.__index = DefaultWarShieldComponent
-
----@class DefaultPaperdollWindow
----@field Initialize fun()
----@field Shutdown fun()
----@field UpdatePaperdoll fun(windowName: string, paperdollId: integer)
----@field HandleUpdatePaperdollEvent fun()
-
----@class DefaultPaperdollWindowComponent : DefaultComponent
-local DefaultPaperdollWindowComponent = {}
-DefaultPaperdollWindowComponent.__index = DefaultPaperdollWindowComponent
-
----@class DefaultObjectHandle
----@field CreateObjectHandles fun()
----@field DestroyObjectHandles fun()
-
----@class DefaultObjectHandleComponent : DefaultComponent
-local DefaultObjectHandleComponent = {}
-DefaultObjectHandleComponent.__index = DefaultObjectHandleComponent
-
-
----@class CircleImageModel : ViewModel
----@field OnInitialize fun(self: CircleImage)?
----@field OnShutdown fun(self: CircleImage)?
----@field OnUpdate fun(self: CircleImage, timePassed: integer)?
----@field OnUpdateRadar fun(self: CircleImage, data: WindowData.Radar)?
-
----@class CircleImage : View
-local CircleImage = {}
-CircleImage.__index = CircleImage
-
----@class Component
----@field name string
-local Component = {}
-Component.__index = Component
-
----@class DynamicImageModel : ViewModel
----@field OnInitialize fun(self: DynamicImage)?
----@field OnShutdown fun(self: DynamicImage)?
----@field OnUpdate fun(self: DynamicImage, timePassed: integer)?
----@field OnLButtonUp fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
----@field OnLButtonDown fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
----@field OnLButtonDblClk fun(self: DynamicImage, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: DynamicImage)?
----@field OnMouseOverEnd fun(self: DynamicImage)?
----@field OnMouseWheel fun(self: DynamicImage, x: number, y: number, delta: number)?
----@field OnUpdateRadar fun(self: DynamicImage, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: DynamicImage, data: WindowData.PlayerLocation)?
----@field OnUpdatePaperdoll fun(self: DynamicImage, paperdoll: PaperdollWrapper)?
-
----@class DynamicImage: View
-local DynamicImage = {}
-DynamicImage.__index = DynamicImage
-
----@class EditTextBoxModel : ViewModel
----@field OnInitialize fun(self: EditTextBox)?
----@field OnShutdown fun(self: EditTextBox)?
----@field OnTextChanged fun(self: EditTextBox, text: wstring)?
----@field OnKeyEnter fun(self: EditTextBox)?
----@field OnKeyEscape fun(self: EditTextBox)?
-
----@class EditTextBox: View
-local EditTextBox = {}
-EditTextBox.__index = EditTextBox
-
----@class FilterInputModel : EditTextBoxModel
----@field OnInitialize fun(self: FilterInput)?
----@field OnShutdown fun(self: FilterInput)?
----@field OnTextChanged fun(self: FilterInput, text: wstring)?
----@field OnKeyEnter fun(self: FilterInput)?
----@field OnKeyEscape fun(self: FilterInput)?
-
----@class FilterInput: EditTextBox
-local FilterInput = {}
-FilterInput.__index = FilterInput
-
-
-
----@class WindowModel : ViewModel
----@field Name string? The name of the window. If not provided, a random name will be generated.
----@field Id integer?
----@field Template string? The template to use for the window. Defaults to "MongbatWindow"
----@field OnInitialize fun(self: Window)?
----@field OnShutdown fun(self: Window)?
----@field OnUpdate fun(self: Window, timePassed: integer)?
----@field OnShown fun(self: Window)?
----@field OnHidden fun(self: Window)?
----@field OnLButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnLButtonDown fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnLButtonDblClk fun(self: Window, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Window)?
----@field OnMouseOverEnd fun(self: Window)?
----@field OnMouseWheel fun(self: Window, x: number, y: number, delta: number)?
----@field OnEndHealthBarDrag fun(self: Window)?
----@field OnUpdatePlayerStatus fun(self: Window, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileName fun(self: Window, mobileName: MobileNameWrapper)?
----@field OnUpdateHealthBarColor fun(self: Window, healthBarColor: HealthBarColorWrapper)?
----@field OnUpdateMobileStatus fun(self: Window, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateRadar fun(self: Window, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: Window, data: WindowData.PlayerLocation)?
----@field OnUpdatePaperdoll fun(self: Window, paperdoll: PaperdollWrapper)?
----@field OnLayout fun(self: Window, children: View[], child: View, index: integer)?
----@field Resizable boolean? Whether the window can be resized by dragging the corner grip. Defaults to true for root windows.
----@field Snappable boolean? Whether the window snaps to edges of other windows and the screen. Defaults to true for root windows.
----@field MinWidth number? Minimum width when resizing. Defaults to 100.
----@field MinHeight number? Minimum height when resizing. Defaults to 100.
-
----@class LabelModel : ViewModel
----@field OnInitialize fun(self: Label)?
----@field OnShutdown fun(self: Label)?
----@field OnUpdate fun(self: Label, timePassed: integer)?
----@field OnLButtonUp fun(self: Label, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: Label)?
----@field OnMouseOverEnd fun(self: Label)?
----@field OnUpdatePlayerStatus fun(self: Label, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileName fun(self: Label, mobileName: MobileNameWrapper)?
----@field OnUpdateHealthBarColor fun(self: Label, healthBarColor: HealthBarColorWrapper)?
----@field OnUpdateMobileStatus fun(self: Label, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateRadar fun(self: Label, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: Label, data: WindowData.PlayerLocation)?
-
----@class GumpItem
----@field tid integer
----@field windowName string
----@field id integer
-
----@class GumpWModel : WindowModel
----@field windowName string
----@field TextEntry string[]?
----@field Labels GumpItem[]?
----@field Images string[]?
----@field Buttons string[]?
----@field OnInitialize fun(self: Gump)?
----@field OnShutdown fun(self: Gump)?
-
----@class Gump : Window
----@field buttons Button[]
----@field textEntries EditTextBox[]
----@field _id integer The unique ID of the gump window.
-local Gump = {}
-Gump.__index = Gump
-
----@class Label: View
-local Label = {}
-Label.__index = Label
-
----@class LogDisplayModel : ViewModel
----@field OnInitialize fun(self: LogDisplay)?
----@field OnShutdown fun(self: LogDisplay)?
-
----@class LogDisplay: View
-local LogDisplay = {}
-LogDisplay.__index = LogDisplay
-
----@class ViewModel
+---@class WindowModel
 ---@field Name string?
 ---@field Template string?
----@field Id integer?
----@field OnInitialize fun(self: View)?
----@field OnLButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnRButtonUp fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnShutdown fun(self: View)?
----@field OnHidden fun(self: View)?
----@field OnShown fun(self: View)?
----@field OnLButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnRButtonDown fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnUpdate fun(self: View, timePassed: integer)?
----@field OnLButtonDblClk fun(self: View, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: View)?
----@field OnMouseOverEnd fun(self: View)?
----@field OnEndHealthBarDrag fun(self: View)?
----@field OnUpdatePlayerStatus fun(self: View, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileName fun(self: View, mobileName: MobileNameWrapper)?
----@field OnUpdateHealthBarColor fun(self: View, healthBarColor: HealthBarColorWrapper)?
----@field OnUpdateMobileStatus fun(self: View, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateRadar fun(self: View, data: WindowData.Radar)?
----@field OnUpdatePlayerLocation fun(self: View, data: WindowData.PlayerLocation)?
----@field OnUpdatePaperdoll fun(self: View, paperdoll: PaperdollWrapper)?
----@field OnMouseWheel fun(self: View, x: number, y: number, delta: number)?
+---@field Parent string?
+---@field OnInitialize fun(self: Window)?
+---@field OnUpdate fun(self: Window, timePassed: number, windowData: WindowDataWrapper)?
+---@field OnShutdown fun(self: Window)?
 
----@class StatusBarModel : ViewModel
----@field OnInitialize fun(self: StatusBar)?
----@field OnShutdown fun(self: StatusBar)?
----@field OnUpdate fun(self: StatusBar, timePassed: integer)?
----@field OnLButtonUp fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnLButtonDblClk fun(self: StatusBar, flags: integer, x: integer, y: integer)?
----@field OnMouseOver fun(self: StatusBar)?
----@field OnMouseOverEnd fun(self: StatusBar)?
----@field OnUpdatePlayerStatus fun(self: StatusBar, playerStatus: PlayerStatusWrapper)?
----@field OnUpdateMobileStatus fun(self: StatusBar, mobileStatus: MobileStatusWrapper)?
----@field OnUpdateHealthBarColor fun(self: StatusBar, healthBarColor: HealthBarColorWrapper)?
-
----@class ScrollWindowModel : ViewModel
----@field ItemHeight number? Height per item row used for vertical stacking and content container sizing. Defaults to 50.
----@field ItemWidth number? Width per item column used for horizontal stacking (only when Horizontal is true). Defaults to 50.
----@field Horizontal boolean? When true, the scroll window scrolls horizontally instead of vertically. Defaults to false.
----@field OnInitialize fun(self: ScrollWindow)?
----@field OnShutdown fun(self: ScrollWindow)?
-
----@class ScrollWindow : View
----@field _items View[] Views added as rows into the scroll content area.
-local ScrollWindow = {}
-ScrollWindow.__index = ScrollWindow
-
----@class StatusBar: View
----@field label Label?
-local StatusBar = {}
-StatusBar.__index = StatusBar
-
----@class View : Component
----@field _model ViewModel
-local View = {}
-View.__index = View
-
----@class Window : View
----@field _model WindowModel?
----@field _children Window[] A list of child windows.
----@field _frame string The name of the window's frame component.
----@field _background string The name of the window's background component.
----@field _startDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
----@field _endDrag SystemData.Position x, y coordinates for tracking how far the window was dragged
+---@class Window
+---@field _name string
+---@field _template string
+---@field _parent string?
+---@field _children Window[]
+---@field _layout table?
+---@field _isInitialized boolean
+---@field _isTopLevel boolean
+---@field _topLevel Window
+---@field _initialShowing boolean
+---@field _state table<string, table>
+---@field _registrations table<string, table>
+---@field _registered table<string, boolean>
+---@field _handlers table<string, fun(self: Window, flags: number, x: number, y: number)>
+---@field _onInitialize fun(self: Window)?
+---@field _onUpdate fun(self: Window, timePassed: number, windowData: WindowDataWrapper)?
+---@field _onShutdown fun(self: Window)?
 local Window = {}
 Window.__index = Window
+Window._defaultTemplate = "MongbatWindow"
 
--- ========================================================================== --
--- Components - Internal Builders
--- ========================================================================== --
-
--- ========================================================================== --
--- Components - Internal Builders - Layer Builder
--- ========================================================================== --
-
----@class LayerBuilder
----@field _getView fun(): View
-local LayerBuilder = {}
-LayerBuilder.__index = LayerBuilder
-
----@param getView fun(): View
----@return LayerBuilder
-function LayerBuilder:new(getView)
-    local instance = setmetatable({}, self)
-    instance._getView = getView
-    return instance
-end
-
-function LayerBuilder:default()
-    local view = self._getView()
-    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Default)
-    return view
-end
-
-function LayerBuilder:overlay()
-    local view = self._getView()
-    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Overlay)
-    return view
-end
-
-function LayerBuilder:popup()
-    local view = self._getView()
-    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Popup)
-    return view
-end
-
-function LayerBuilder:background()
-    local view = self._getView()
-    Api.Window.SetLayer(view:getName(), Constants.WindowLayers.Background)
-    return view
-end
-
--- ========================================================================== --
--- Components - Internal Builders - Layout Builder
--- ========================================================================== --
-
-local Layouts = {}
-
-Layouts.StackAndFill = function(window, children, child, index)
-    if index > 1 then
-        child:addAnchor(
-            "bottomleft",
-            children[index - 1]:getName(),
-            "topleft",
-            0,
-            8
-        )
-    else
-        child:addAnchor(
-            "topleft",
-            window:getName(),
-            "topleft",
-            12,
-            12
-        )
-    end
-
-    local parentDimens = window:getDimensions()
-    local parentX = parentDimens.x
-    local parentY = parentDimens.y
-
-    local childWidth = parentX - 24
-    if childWidth < 0 then
-        childWidth = parentX
-    end
-
-    local childSpaceOffset = (#children - 1) * 8
-
-    local childHeight = (parentY - 24 - childSpaceOffset) / #children
-    if childHeight < 0 then
-        childHeight = parentY
-    end
-
-    child:setDimensions(childWidth, childHeight)
-end
-
--- ========================================================================== --
--- Components - Button
--- ========================================================================== --
-
----@param model ButtonModel?
----@return Button
-function Button:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatButton"
-    local instance = Window.new(self, model)
-    return instance --[[@as Button]]
-end
-
-function Button:getTextDimensions()
-    Api.Button.GetTextDimensions(self:getName())
-end
-
-function Button:setText(text)
-    if text == nil then return end
-    Api.Button.SetText(self:getName(), Utils.String.ToWString(text))
-end
-
-function Button:getText()
-    return Api.Button.GetText(self:getName())
-end
-
-function Button:setTexture(state, texture, x, y)
-    Api.Button.SetTexture(self:getName(), state, texture, x, y)
-end
-
-function Button:setTextColor(state, color)
-    Api.Button.SetTextColor(self:getName(), state, color.r, color.g, color.b)
-end
-
-function Button:setChecked(isChecked)
-    Api.Button.SetChecked(self:getName(), isChecked)
-    return self
-end
-
-function Button:isChecked()
-    return Api.Button.IsChecked(self:getName())
-end
-
-function Button:setStayDown(stayDown)
-    Api.Button.SetStayDown(self:getName(), stayDown)
-    return self
-end
-
-function Button:setCheckButton(enabled)
-    Api.Button.SetEnabled(self:getName(), enabled)
-    return self
-end
-
----@param model ButtonModel?
----@return Button
-function Components.Button(model)
-    local button = Button:new(model)
-    Cache[button:getName()] = button
-    return button
-end
-
--- ========================================================================== --
--- Components - Circle Image
--- ========================================================================== --
-
----@param model CircleImageModel?
----@return CircleImage
-function CircleImage:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatCircleImage"
-    local instance = View.new(CircleImage, model)
-    return instance --[[@as CircleImage]]
-end
-
-function CircleImage:setTexture(texture, x, y)
-    Api.CircleImage.SetTexture(self:getName(), texture, x, y)
-end
-
-function CircleImage:SetFillParams(startAngle, fillAngle)
-    Api.CircleImage.SetFillParams(self:getName(), startAngle, fillAngle)
-end
-
-function CircleImage:setTextureSlice(sliceName)
-    Api.CircleImage.SetTextureSlice(self:getName(), sliceName)
-end
-
-function CircleImage:setTextureScale(scale)
-    Api.CircleImage.SetTextureScale(self:getName(), scale)
-end
-
-function CircleImage:setRotation(rotation)
-    Api.CircleImage.SetRotation(self:getName(), rotation)
-end
-
----@param model CircleImageModel?
----@return CircleImage
-function Components.CircleImage(model)
-    local circleImage = CircleImage:new(model)
-    Cache[circleImage:getName()] = circleImage
-    return circleImage
-end
-
--- ========================================================================== --
--- Components - Component
--- ========================================================================== --
-
----@param name string
----@return Component
-function Component:new(name)
-    local instance = setmetatable({}, self)
-    instance.name = name
-    return instance
-end
-
-function Component:getName()
-    return self.name
-end
-
--- ========================================================================== --
--- Components - Default
--- ========================================================================== --
-
----@param name string
----@return DefaultComponent
-function DefaultComponent:new(name)
-    local instance = Component.new(self, name) --[[@as DefaultComponent]]
-    return instance
-end
-
-function DefaultComponent:getDefault()
-    return Component:new(self.name)
-end
-
-function DefaultComponent:asComponent()
-    return Component:new(self.name)
-end
-
---- Creates a proxy table that wraps the original global table.
---- When disabled, all function calls become no-ops.
----@param original table The original global table to wrap
----@return table proxy The proxy table
-function DefaultComponent:_createProxy(original)
-    local proxy = {
-        _disabled = false,
-        _original = original
-    }
-
-    setmetatable(proxy, {
-        __index = function(self, key)
-            -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" then
-                return rawget(self, key)
-            end
-
-            local value = rawget(self, "_original")[key]
-
-            -- If disabled and it's a function, return a no-op
-            if rawget(self, "_disabled") and type(value) == "function" then
-                return function() end
-            end
-
-            return value
-        end,
-        __newindex = function(self, key, value)
-            -- Don't intercept internal keys
-            if key == "_disabled" or key == "_original" then
-                rawset(self, key, value)
-                return
-            end
-            -- Forward writes to the original
-            rawget(self, "_original")[key] = value
-        end
-    })
-
-    return proxy
-end
-
---- Disables the default component. All function calls become no-ops.
-function DefaultComponent:disable()
-    local proxy = self._proxy
-    if proxy then
-        proxy._disabled = true
-    end
-end
-
---- Restores the default component. Function calls work normally again.
-function DefaultComponent:restore()
-    local proxy = self._proxy
-    if proxy then
-        proxy._disabled = false
-    end
-end
-
---- Restores the original global table that was replaced by the proxy.
---- Called during framework shutdown to leave no traces.
-function DefaultComponent:restoreGlobal()
-    if self._proxy and self._globalKey then
-        _G[self._globalKey] = self._proxy._original
-    end
-end
-
--- ========================================================================== --
--- Components - Default - Actions
--- ========================================================================== --
-
----@return DefaultActionsComponent
-function DefaultActionsComponent:new()
-    local instance = DefaultComponent.new(self, "Actions") --[[@as DefaultActionsComponent]]
-    instance._proxy = instance:_createProxy(Actions)
-    instance._globalKey = "Actions"
-    _G.Actions = instance._proxy
-    return instance
-end
-
----@return DefaultActions
-function DefaultActionsComponent:getDefault()
-    return self._proxy or Actions --[[@as DefaultActions]]
-end
-
--- ========================================================================== --
--- Components - Default - Generic Gump
--- ========================================================================== --
-
----@class DefaultGenericGump
----@field LastGump string Name of the last gump window
----@field LastGumpLabels table Table of last gump labels
----@field GumpsList table Table of gumps list
----@field Initialize fun() Initializes the generic gump
----@field OnLabelInit fun() Handles label initialization
----@field Shutdown fun() Shuts down the generic gump
----@field OnClicked fun() Handles gump click
----@field OnDoubleClicked fun() Handles gump double click
----@field OnRClicked fun() Handles gump right click
----@field OnMouseOver fun() Handles mouse over on gump
----@field OnHyperLinkClicked fun(link: any) Handles hyperlink click
----@field OnShown fun() Handles gump shown event
-
----@class DefaultGenericGumpComponent : DefaultComponent
-local DefaultGenericGumpComponent = {}
-DefaultGenericGumpComponent.__index = DefaultGenericGumpComponent
-
----@return DefaultGenericGumpComponent
-function DefaultGenericGumpComponent:new()
-    local instance = DefaultComponent.new(self, "GenericGump") --[[@as DefaultGenericGumpComponent]]
-    instance._proxy = instance:_createProxy(GenericGump)
-    instance._proxy.OnShown = function () end
-    instance._globalKey = "GenericGump"
-    _G.GenericGump = instance._proxy
-    return instance
-end
-
----@return DefaultGenericGump
-function DefaultGenericGumpComponent:getDefault()
-    return self._proxy or GenericGump --[[@as DefaultGenericGump]]
-end
-
-
--- ========================================================================== --
--- Components - Default - Gumps Parsing
--- ========================================================================== --
-
----@class DefaultGumpMapItem
----@field name string
----@field show integer
-
----@class DefaultGumpsParsing
----@field ParsedGumps table Table of parsed gumps
----@field ToShow table Table of gumps to show/hide
----@field SOSTids table Table of SOS TIDs
----@field GumpMaps table<integer, DefaultGumpMapItem> Table of gump mappings
----@field CheckGumpType fun(timePassed: any) Checks the gump type and processes gumps
----@field MainParsingCheck fun(timePassed: any) Main parsing check for gumps
----@field DestroyGump fun(gumpID: integer) Destroys a gump window
----@field PressButton fun(gumpID: integer, buttonID: integer) Presses a button on a gump
----@field TextentryGetText fun(gumpID: integer, TextentryID: integer): any Gets text from a text entry
----@field ShowHide fun(timePassed: any) Shows or hides gumps based on ToShow
----@field SixMonthsRewardGump fun() Handles the six months reward gump
----@field SOSGump fun(data: table) Handles SOS gump logic
----@field CreateSOSWaypoint fun(sosID: any, map: any, x: any, y: any) Creates a SOS waypoint
----@field GetSOSCoords fun(coords: any): number, any, number, any Gets SOS coordinates from a string
-
----@class DefaultGumpsParsingComponent : DefaultComponent
-local DefaultGumpsParsingComponent = {}
-DefaultGumpsParsingComponent.__index = DefaultGumpsParsingComponent
-
----@return DefaultGumpsParsingComponent
-function DefaultGumpsParsingComponent:new()
-    local instance = DefaultComponent.new(self, "GumpsParsing") --[[@as DefaultGumpsParsingComponent]]
-    instance._proxy = instance:_createProxy(GumpsParsing)
-    instance._globalKey = "GumpsParsing"
-    _G.GumpsParsing = instance._proxy
-    return instance
-end
-
----@return DefaultGumpsParsing
-function DefaultGumpsParsingComponent:getDefault()
-    return self._proxy or GumpsParsing --[[@as DefaultGumpsParsing]]
-end
-
-function DefaultGumpsParsingComponent:getVendorSearch()
-    return self:getDefault().GumpMaps[Constants.GumpIds.VendorSearch]
-end
-
--- ========================================================================== --
--- Components - Default - Health Bar Manager
--- ========================================================================== --
-
----@class DefaultHealthBarManager
----@field OnBeginDragHealthBar fun(objectId: integer)
-
----@class DefaultHealthBarManagerComponent : DefaultComponent
-local DefaultHealthBarManagerComponent = {}
-DefaultHealthBarManagerComponent.__index = DefaultHealthBarManagerComponent
-
----@return DefaultHealthBarManagerComponent
-function DefaultHealthBarManagerComponent:new()
-    local instance = DefaultComponent.new(self, "HealthBarManager") --[[@as DefaultHealthBarManagerComponent]]
-    instance._proxy = instance:_createProxy(HealthBarManager)
-    instance._globalKey = "HealthBarManager"
-    _G.HealthBarManager = instance._proxy
-    return instance
-end
-
----@return DefaultHealthBarManager
-function DefaultHealthBarManagerComponent:getDefault()
-    return self._proxy or HealthBarManager --[[@as DefaultHealthBarManager]]
-end
-
-
--- ========================================================================= --
--- Components - Default - Interface
--- ========================================================================= --
-
----@return DefaultInterfaceComponent
-function DefaultInterfaceComponent:new()
-    local instance = DefaultComponent.new(self, "Interface") --[[@as DefaultInterfaceComponent]]
-    instance._proxy = instance:_createProxy(Interface)
-    instance._globalKey = "Interface"
-    _G.Interface = instance._proxy
-    return instance
-end
-
----@return Interface
-function DefaultInterfaceComponent:getDefault()
-    return self._proxy or Interface --[[@as Interface]]
-end
-
--- ========================================================================== --
--- Components - Default - Main Menu Window
--- ========================================================================== --
-
---- @class DefaultMainMenuWindow
---- @field TID table
---- @field Initialize fun()
---- @field Shutdown fun()
---- @field OnLogOut fun()
---- @field OnOpenUserSettings fun()
---- @field OnOpenMacros fun()
---- @field OnOpenActions fun()
---- @field OnOpenBugReportItem fun()
---- @field OnOpenHelp fun()
---- @field OnOpenUOStore fun()
---- @field ToggleSettingsWindow fun()
---- @field ToggleBugReportWindow fun()
---- @field OnToggleAgentsSettings fun()
-
----@class DefaultMainMenuWindowComponent : DefaultComponent
-local DefaultMainMenuWindowComponent = {}
-DefaultMainMenuWindowComponent.__index = DefaultMainMenuWindowComponent
-
----@return DefaultMainMenuWindowComponent
-function DefaultMainMenuWindowComponent:new()
-    local instance = DefaultComponent.new(self, "MainMenuWindow") --[[@as DefaultMainMenuWindowComponent]]
-    instance._proxy = instance:_createProxy(MainMenuWindow)
-    instance._globalKey = "MainMenuWindow"
-    _G.MainMenuWindow = instance._proxy
-    return instance
-end
-
----@return DefaultMainMenuWindow
-function DefaultMainMenuWindowComponent:getDefault()
-    return self._proxy or MainMenuWindow --[[@as DefaultMainMenuWindow]]
-end
-
----@return Window
-function DefaultMainMenuWindowComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
--- ========================================================================== --
--- Components - Default - Map Common
--- ========================================================================== --
-
----@class DefaultMapCommon
-
----@class DefaultMapCommonComponent : DefaultComponent
-local DefaultMapCommonComponent = {}
-DefaultMapCommonComponent.__index = DefaultMapCommonComponent
-
----@return DefaultMapCommonComponent
-function DefaultMapCommonComponent:new()
-    local instance = DefaultComponent.new(self, "MapCommon") --[[@as DefaultMapCommonComponent]]
-    instance._proxy = instance:_createProxy(MapCommon)
-    instance._globalKey = "MapCommon"
-    _G.MapCommon = instance._proxy
-    return instance
-end
-
----@return DefaultMapCommon
-function DefaultMapCommonComponent:getDefault()
-    return self._proxy or MapCommon --[[@as DefaultMapCommon]]
-end
-
-
--- ========================================================================== --
--- Components - Default - Map Window
--- ========================================================================== --
-
----@class DefaultMapWindow
-
----@class DefaultMapWindowComponent : DefaultComponent
-local DefaultMapWindowComponent = {}
-DefaultMapWindowComponent.__index = DefaultMapWindowComponent
-
----@return DefaultMapWindowComponent
-function DefaultMapWindowComponent:new()
-    local instance = DefaultComponent.new(self, "MapWindow") --[[@as DefaultMapWindowComponent]]
-    instance._proxy = instance:_createProxy(MapWindow)
-    instance._globalKey = "MapWindow"
-    _G.MapWindow = instance._proxy
-    return instance
-end
-
----@return DefaultMapWindow
-function DefaultMapWindowComponent:getDefault()
-    return self._proxy or MapWindow --[[@as DefaultMapWindow]]
-end
-
-function DefaultMapWindowComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
--- ========================================================================== --
--- Components - Default - Debug Window
--- ========================================================================== --
-
----@class DefaultDebugWindowComponent : DefaultComponent
-local DefaultDebugWindowComponent = {}
-DefaultDebugWindowComponent.__index = DefaultDebugWindowComponent
-
----@return DefaultDebugWindowComponent
-function DefaultDebugWindowComponent:new()
-    local instance = DefaultComponent.new(self, "DebugWindow") --[[@as DefaultDebugWindowComponent]]
-    instance._proxy = instance:_createProxy(DebugWindow)
-    instance._globalKey = "DebugWindow"
-    _G.DebugWindow = instance._proxy
-    return instance
-end
-
----@return table
-function DefaultDebugWindowComponent:getDefault()
-    return self._proxy or DebugWindow
-end
-
----@return Window
-function DefaultDebugWindowComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
--- ========================================================================== --
--- Components - Default - Object Handle
--- ========================================================================== --
-
----@return DefaultObjectHandleComponent
-function DefaultObjectHandleComponent:new()
-    local instance = DefaultComponent.new(self, "ObjectHandle") --[[@as DefaultObjectHandleComponent]]
-    instance._proxy = instance:_createProxy(ObjectHandleWindow)
-    instance._globalKey = "ObjectHandleWindow"
-    _G.ObjectHandleWindow = instance._proxy
-    return instance
-end
-
----@return DefaultObjectHandle
-function DefaultObjectHandleComponent:getDefault()
-    return self._proxy or ObjectHandleWindow --[[@as DefaultObjectHandle]]
-end
-
----@return Window
-function DefaultObjectHandleComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
--- ========================================================================== --
--- Components - Default - Status Window
--- ========================================================================== --
-
----@return DefaultStatusWindowComponent
-function DefaultStatusWindowComponent:new()
-    local instance = DefaultComponent.new(self, "StatusWindow") --[[@as DefaultStatusWindowComponent]]
-    -- Create proxy and replace global
-    instance._proxy = instance:_createProxy(StatusWindow)
-    instance._globalKey = "StatusWindow"
-    _G.StatusWindow = instance._proxy
-    return instance
-end
-
----@return DefaultStatusWindow
-function DefaultStatusWindowComponent:getDefault()
-    return self._proxy or StatusWindow --[[@as DefaultStatusWindow]]
-end
-
----@return Window
-function DefaultStatusWindowComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
--- ========================================================================== --
--- Components - Default - War Shield
--- ========================================================================== --
-
----@return DefaultWarShieldComponent
-function DefaultWarShieldComponent:new()
-    local instance = DefaultComponent.new(self, "WarShield") --[[@as DefaultWarShieldComponent]]
-    instance._proxy = instance:_createProxy(WarShield)
-    instance._globalKey = "WarShield"
-    _G.WarShield = instance._proxy
-    return instance
-end
-
----@return Window
-function DefaultWarShieldComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
----@return DefaultWarShield
-function DefaultWarShieldComponent:getDefault()
-    return self._proxy or WarShield --[[@as DefaultWarShield]]
-end
-
--- ========================================================================== --
--- Components - Default - Paperdoll Window
--- ========================================================================== --
-
----@return DefaultPaperdollWindowComponent
-function DefaultPaperdollWindowComponent:new()
-    local instance = DefaultComponent.new(self, "PaperdollWindow") --[[@as DefaultPaperdollWindowComponent]]
-    instance._proxy = instance:_createProxy(PaperdollWindow)
-    instance._globalKey = "PaperdollWindow"
-    _G.PaperdollWindow = instance._proxy
-    return instance
-end
-
----@return DefaultPaperdollWindow
-function DefaultPaperdollWindowComponent:getDefault()
-    return self._proxy or PaperdollWindow --[[@as DefaultPaperdollWindow]]
-end
-
----@return Window
-function DefaultPaperdollWindowComponent:asComponent()
-    return Window:new { Name = self.name }
-end
-
--- ========================================================================== --
--- Components - Dynamic Image
--- ========================================================================== --
-
----@param model DynamicImageModel?
----@return DynamicImage
-function DynamicImage:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatDynamicImage"
-    local instance = View.new(self, model)
-    return instance --[[@as DynamicImage]]
-end
-
-function DynamicImage:setTexture(texture, x, y)
-    Api.DynamicImage.SetTexture(self:getName(), texture, x, y)
-end
-
-function DynamicImage:setTextureSlice(sliceName)
-    Api.DynamicImage.SetTextureSlice(self:getName(), sliceName)
-end
-
-function DynamicImage:setTextureScale(scale)
-    Api.DynamicImage.SetTextureScale(self:getName(), scale)
-end
-
-function DynamicImage:setRotation(rotation)
-    Api.DynamicImage.SetRotation(self:getName(), rotation)
-end
-
-function DynamicImage:setTextureDimensions(width, height)
-    Api.DynamicImage.SetTextureDimensions(self:getName(), width, height)
-end
-
-function DynamicImage:setTextureOrientation(isMirrored)
-    Api.DynamicImage.SetTextureOrientation(self:getName(), isMirrored)
-end
-
-function DynamicImage:hasTexture()
-    return Api.DynamicImage.HasTexture(self:getName())
-end
-
----@param model DynamicImageModel?
----@return DynamicImage
-function Components.DynamicImage(model)
-    local dynamicImage = DynamicImage:new(model)
-    Cache[dynamicImage:getName()] = dynamicImage
-    return dynamicImage
-end
-
--- ========================================================================== --
--- Components - Edit Text Box
--- ========================================================================== --
-
----@param model EditTextBoxModel?
----@return EditTextBox
-function EditTextBox:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatEditTextBox"
-    local instance = View.new(self, model)
-    return instance --[[@as EditTextBox]]
-end
-
-function EditTextBox:setText(text)
-    if text == nil then return end
-    Api.EditTextBox.SetText(self:getName(), Utils.String.ToWString(text))
-end
-
-function EditTextBox:getText()
-    return Api.EditTextBox.GetText(self:getName())
-end
-
----@param color Color
-function EditTextBox:setTextColor(color)
-    Api.EditTextBox.SetTextColor(self:getName(), color.r, color.g, color.b)
-end
-
-function EditTextBox:selectAll()
-    Api.EditTextBox.SelectAll(self:getName())
-end
-
----@param focus boolean
-function EditTextBox:setFocus(focus)
-    Api.Window.AssignFocus(self:getName(), focus)
-end
-
-function EditTextBox:clear()
-    Api.EditTextBox.SetText(self:getName(), L"")
-end
-
----@param font string
-function EditTextBox:setFont(font)
-    Api.EditTextBox.SetFont(self:getName(), font)
-end
-
----@param model EditTextBoxModel?
----@return EditTextBox
-function Components.EditTextBox(model)
-    local editTextBox = EditTextBox:new(model)
-    Cache[editTextBox:getName()] = editTextBox
-    return editTextBox
-end
-
--- ========================================================================== --
--- Components - FilterInput
--- ========================================================================== --
-
-setmetatable(FilterInput, { __index = EditTextBox })
-
----@param model FilterInputModel?
----@return FilterInput
-function FilterInput:new(model)
-    model = model or {}
-    local instance = EditTextBox.new(self, model) --[[@as FilterInput]]
-    return instance
-end
-
----@return wstring
-function FilterInput:getFilterText()
-    return self:getText()
-end
-
----@param model FilterInputModel?
----@return FilterInput
-function Components.FilterInput(model)
-    local filterInput = FilterInput:new(model)
-    Cache[filterInput:getName()] = filterInput
-    return filterInput
-end
-
--- ========================================================================== --
--- Components - Window Snapping
--- ========================================================================== --
-
---- Gets the rectangle of a snappable window in offset space (unscaled Root coordinates).
---- Returns nil if the window does not exist or is not showing.
----@param name string
----@return { x: number, y: number, w: number, h: number }?
-local function getWindowRect(name)
-    if not DoesWindowNameExist(name) then return nil end
-    if not WindowGetShowing(name) then return nil end
-    if WindowGetParent(name) ~= "Root" then return nil end
-    local ox, oy = WindowGetOffsetFromParent(name)
-    local w, h = WindowGetDimensions(name)
-    return { x = ox, y = oy, w = w, h = h }
-end
-
---- Finds the best snap adjustment for a window against all other snappable windows
---- and screen edges. An optional exclusion set skips listed window names.
----@param windowName string
----@param exclude table<string, boolean>?
----@param skipScreenEdges boolean?
----@return number, number  dx, dy adjustment in offset space
-local function findSnap(windowName, exclude, skipScreenEdges)
-    local rect = getWindowRect(windowName)
-    if rect == nil then return 0, 0 end
-
-    local left = rect.x
-    local top = rect.y
-    local right = rect.x + rect.w
-    local bottom = rect.y + rect.h
-
-    local bestDx = 0
-    local bestDy = 0
-    local bestDistX = SNAP_THRESHOLD + 1
-    local bestDistY = SNAP_THRESHOLD + 1
-
-    local d
-
-    if not skipScreenEdges then
-        -- Screen edges in offset space
-        local scale = InterfaceCore.scale
-        local screenW = SystemData.screenResolution.x / scale
-        local screenH = SystemData.screenResolution.y / scale
-
-        -- Snap to screen left
-        d = math.abs(left)
-        if d < bestDistX then bestDistX = d; bestDx = -left end
-        -- Snap to screen right
-        d = math.abs(right - screenW)
-        if d < bestDistX then bestDistX = d; bestDx = screenW - right end
-        -- Snap to screen top
-        d = math.abs(top)
-        if d < bestDistY then bestDistY = d; bestDy = -top end
-        -- Snap to screen bottom
-        d = math.abs(bottom - screenH)
-        if d < bestDistY then bestDistY = d; bestDy = screenH - bottom end
-    end
-
-    -- Snap to other windows (only when nearby on the perpendicular axis)
-    for otherName, _ in pairs(SnappableWindows) do
-        if otherName ~= windowName and (exclude == nil or not exclude[otherName]) then
-            local other = getWindowRect(otherName)
-            if other ~= nil then
-                local oLeft = other.x
-                local oTop = other.y
-                local oRight = other.x + other.w
-                local oBottom = other.y + other.h
-
-                -- Check perpendicular proximity: are the two windows close
-                -- enough vertically to justify a horizontal snap (and vice versa)?
-                local nearV = (top < oBottom + SNAP_THRESHOLD) and (bottom > oTop - SNAP_THRESHOLD)
-                local nearH = (left < oRight + SNAP_THRESHOLD) and (right > oLeft - SNAP_THRESHOLD)
-
-                if nearV then
-                    -- Horizontal: our left to their right
-                    d = math.abs(left - oRight)
-                    if d < bestDistX then bestDistX = d; bestDx = oRight - left end
-                    -- Horizontal: our right to their left
-                    d = math.abs(right - oLeft)
-                    if d < bestDistX then bestDistX = d; bestDx = oLeft - right end
-                    -- Horizontal: align left edges
-                    d = math.abs(left - oLeft)
-                    if d < bestDistX then bestDistX = d; bestDx = oLeft - left end
-                    -- Horizontal: align right edges
-                    d = math.abs(right - oRight)
-                    if d < bestDistX then bestDistX = d; bestDx = oRight - right end
-                end
-
-                if nearH then
-                    -- Vertical: our top to their bottom
-                    d = math.abs(top - oBottom)
-                    if d < bestDistY then bestDistY = d; bestDy = oBottom - top end
-                    -- Vertical: our bottom to their top
-                    d = math.abs(bottom - oTop)
-                    if d < bestDistY then bestDistY = d; bestDy = oTop - bottom end
-                    -- Vertical: align top edges
-                    d = math.abs(top - oTop)
-                    if d < bestDistY then bestDistY = d; bestDy = oTop - top end
-                    -- Vertical: align bottom edges
-                    d = math.abs(bottom - oBottom)
-                    if d < bestDistY then bestDistY = d; bestDy = oBottom - bottom end
-                end
-            end
-        end
-    end
-
-    if bestDistX > SNAP_THRESHOLD then bestDx = 0 end
-    if bestDistY > SNAP_THRESHOLD then bestDy = 0 end
-
-    return bestDx, bestDy
-end
-
---- Applies a snap offset to a window by adjusting its anchor.
----@param windowName string
----@param dx number
----@param dy number
-local function applySnap(windowName, dx, dy)
-    if dx == 0 and dy == 0 then return end
-    local ox, oy = WindowGetOffsetFromParent(windowName)
-    WindowClearAnchors(windowName)
-    WindowAddAnchor(windowName, "topleft", "Root", "topleft", ox + dx, oy + dy)
-end
-
-local ADJACENT_TOLERANCE = 2
-
---- Returns true if two rectangles share an edge (within tolerance) and overlap
---- on the perpendicular axis.
-local function areAdjacent(a, b)
-    local aRight = a.x + a.w
-    local aBottom = a.y + a.h
-    local bRight = b.x + b.w
-    local bBottom = b.y + b.h
-
-    local hOverlap = a.x < bRight and aRight > b.x
-    local vOverlap = a.y < bBottom and aBottom > b.y
-
-    if vOverlap and math.abs(aRight - b.x) <= ADJACENT_TOLERANCE then return true end
-    if vOverlap and math.abs(a.x - bRight) <= ADJACENT_TOLERANCE then return true end
-    if hOverlap and math.abs(aBottom - b.y) <= ADJACENT_TOLERANCE then return true end
-    if hOverlap and math.abs(a.y - bBottom) <= ADJACENT_TOLERANCE then return true end
-
-    return false
-end
-
---- Finds all snappable windows transitively adjacent to the given window (BFS).
---- Returns a list of window names (including the given window).
----@param windowName string
----@return string[]
-local function findJoinedGroup(windowName)
-    local group = {}
-    local visited = {}
-    local queue = { windowName }
-
-    while #queue > 0 do
-        local current = table.remove(queue, 1)
-        if not visited[current] then
-            visited[current] = true
-            table.insert(group, current)
-            local currentRect = getWindowRect(current)
-            if currentRect then
-                for otherName, _ in pairs(SnappableWindows) do
-                    if not visited[otherName] then
-                        local otherRect = getWindowRect(otherName)
-                        if otherRect and areAdjacent(currentRect, otherRect) then
-                            table.insert(queue, otherName)
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    return group
-end
-
--- Snap preview ghost window (created lazily)
-local SNAP_PREVIEW_NAME = "MongbatSnapPreviewWindow"
-local snapPreviewCreated = false
-
---- Ensures the snap preview window exists (lazy creation).
-local function ensureSnapPreview()
-    if snapPreviewCreated then return end
-    CreateWindowFromTemplate(SNAP_PREVIEW_NAME, "MongbatSnapPreview", "Root")
-    WindowSetShowing(SNAP_PREVIEW_NAME, false)
-    WindowSetAlpha(SNAP_PREVIEW_NAME, 0.35)
-    snapPreviewCreated = true
-end
-
---- Shows the snap preview ghost at the given position and size.
----@param x number
----@param y number
----@param w number
----@param h number
-local function showSnapPreview(x, y, w, h)
-    ensureSnapPreview()
-    WindowSetDimensions(SNAP_PREVIEW_NAME, w, h)
-    WindowClearAnchors(SNAP_PREVIEW_NAME)
-    WindowAddAnchor(SNAP_PREVIEW_NAME, "topleft", "Root", "topleft", x, y)
-    WindowSetShowing(SNAP_PREVIEW_NAME, true)
-end
-
---- Hides the snap preview ghost.
-local function hideSnapPreview()
-    if snapPreviewCreated and DoesWindowNameExist(SNAP_PREVIEW_NAME) then
-        WindowSetShowing(SNAP_PREVIEW_NAME, false)
-    end
-end
-
---- Destroys the snap preview ghost window.
-local function destroySnapPreview()
-    if snapPreviewCreated and DoesWindowNameExist(SNAP_PREVIEW_NAME) then
-        DestroyWindow(SNAP_PREVIEW_NAME)
-    end
-    snapPreviewCreated = false
-end
-
--- ========================================================================== --
--- Components - Event Handler
--- ========================================================================== --
-
---- Safely dispatches an event to the active window via Active.window().
---- If the window is nil or the callback errors, it is caught and logged.
----@param eventName string The name of the event (for error logging)
----@param callback fun(window: View)
-local function withActiveView(eventName, callback)
-    local success, err = pcall(function()
-        local window = Cache[Active.window()]
-        if window == nil then return end
-        callback(window)
-    end)
-    if not success then
-        Debug.Print("[Mongbat] Error in " .. eventName .. ": " .. tostring(err))
-    end
-end
-
---- Safely dispatches an event to the mouse-over window.
----@param eventName string The name of the event (for error logging)
----@param callback fun(window: View)
-local function withMouseOverView(eventName, callback)
-    local success, err = pcall(function()
-        local mouseOverWindow = SystemData.MouseOverWindow
-        if mouseOverWindow == nil then return end
-
-        local name = mouseOverWindow.name
-        if name == nil or name == "" then return end
-
-        local window = Cache[name]
-        if window == nil then return end
-
-        callback(window)
-    end)
-    if not success then
-        Debug.Print("[Mongbat] Error in " .. eventName .. ": " .. tostring(err))
-    end
-end
-
-function EventHandler.OnInitialize()
-    withActiveView("OnInitialize", function(window)
-        window:onInitialize()
-    end)
-end
-
-function EventHandler.OnShutdown()
-    local success, err = pcall(function()
-        local activeWindowName = Active.window()
-        local window = Cache[activeWindowName]
-        Cache[activeWindowName] = nil
-        if window == nil then return end
-        window:onShutdown()
-    end)
-    if not success then
-        Debug.Print("[Mongbat] Error in OnShutdown: " .. tostring(err))
-    end
-end
-
---- Stops an active resize and re-layouts children.
-local function stopResize()
-    if resizingWindow == nil then return end
-    local window = resizingWindow
-    resizingWindow = nil
-    resizeState = nil
-
-    -- Restore the original OnUpdate handler
-    window._model.OnUpdate = resizeOriginalOnUpdate
-
-    -- If we dynamically registered OnUpdate, unregister it
-    if resizeRegisteredOnUpdate then
-        window:unregisterCoreEventHandler(Constants.CoreEvents.OnUpdate)
-        resizeRegisteredOnUpdate = false
-    end
-
-    resizeOriginalOnUpdate = nil
-
-    -- Re-layout children
-    if window._model.OnLayout then
-        Utils.Array.ForEach(window._children, function(child, index)
-            child:clearAnchors()
-            window._model.OnLayout(window, window._children, child, index)
-        end)
-    end
-end
-
---- Begins a live resize for the given window. Injects a per-frame OnUpdate
---- handler on the window itself, chaining any existing OnUpdate.
----@param window Window
-local function startResize(window)
-    -- Cancel any in-progress resize first
-    if resizingWindow ~= nil then stopResize() end
-
-    resizingWindow = window
-    local mousePos = SystemData.MousePosition
-    local dimens = window:getDimensions()
-    resizeState = {
-        startMouseX = mousePos.x,
-        startMouseY = mousePos.y,
-        startWidth = dimens.x,
-        startHeight = dimens.y,
-        minWidth = window._model.MinWidth or 100,
-        minHeight = window._model.MinHeight or 100,
-    }
-
-    -- Prevent the parent window from moving while resizing
-    Api.Window.SetMoving(window.name, false)
-
-    -- Save the original OnUpdate and inject our resize handler
-    resizeOriginalOnUpdate = window._model.OnUpdate
-
-    window._model.OnUpdate = function(self, timePassed)
-        -- Perform resize calculations
-        if resizingWindow ~= nil and resizeState ~= nil then
-            local mPos = SystemData.MousePosition
-            local scale = InterfaceCore.scale
-            local dx = (mPos.x - resizeState.startMouseX) / scale
-            local dy = (mPos.y - resizeState.startMouseY) / scale
-            local newW = math.max(resizeState.startWidth + dx, resizeState.minWidth)
-            local newH = math.max(resizeState.startHeight + dy, resizeState.minHeight)
-            resizingWindow:setDimensions(newW, newH)
-
-            -- Re-layout children each frame so content tracks the new size
-            if resizingWindow._model.OnLayout then
-                Utils.Array.ForEach(resizingWindow._children, function(child, index)
-                    child:clearAnchors()
-                    resizingWindow._model.OnLayout(resizingWindow, resizingWindow._children, child, index)
-                end)
-            end
-        end
-
-        -- Chain the original OnUpdate if it existed
-        if resizeOriginalOnUpdate ~= nil then
-            resizeOriginalOnUpdate(self, timePassed)
-        end
-    end
-
-    -- If the window didn't already have OnUpdate registered, register the CoreEvent now.
-    -- Snapping may have already registered it, so check _snapRegisteredOnUpdate too.
-    if resizeOriginalOnUpdate == nil and not window._snapRegisteredOnUpdate then
-        resizeRegisteredOnUpdate = true
-        window:registerCoreEventHandler(
-            Constants.CoreEvents.OnUpdate,
-            "Mongbat.EventHandler.OnUpdate"
-        )
-    end
-end
-
-function EventHandler.OnLButtonUp(flags, x, y)
-    if resizingWindow ~= nil then
-        stopResize()
-    end
-    withMouseOverView("OnLButtonUp", function(window)
-        window:onLButtonUp(flags, x, y)
-    end)
-end
-
-function EventHandler.OnLButtonDown(flags, x, y)
-    withMouseOverView("OnLButtonDown", function(window)
-        window:onLButtonDown(flags, x, y)
-    end)
-end
-
-function EventHandler.OnRButtonDown(flags, x, y)
-    withActiveView("OnRButtonDown", function(window)
-        window:onRButtonDown(flags, x, y)
-    end)
-end
-
-function EventHandler.OnRButtonUp(flags, x, y)
-    withActiveView("OnRButtonUp", function(window)
-        window:onRButtonUp(flags, x, y)
-    end)
-end
-
-function EventHandler.OnHidden()
-    withActiveView("OnHidden", function(window)
-        window:onHidden()
-    end)
-end
-
-function EventHandler.OnShown()
-    withActiveView("OnShown", function(window)
-        window:onShown()
-    end)
-end
-
-function EventHandler.OnUpdatePlayerStatus()
-    withActiveView("OnUpdatePlayerStatus", function(window)
-        window:onUpdatePlayerStatus()
-    end)
-end
-
-function EventHandler.OnUpdateMobileName()
-    withActiveView("OnUpdateMobileName", function(window)
-        window:onUpdateMobileName()
-    end)
-end
-
-function EventHandler.OnUpdateHealthBarColor()
-    withActiveView("OnUpdateHealthBarColor", function(window)
-        window:onUpdateHealthBarColor()
-    end)
-end
-
-function EventHandler.OnUpdateMobileStatus()
-    withActiveView("OnUpdateMobileStatus", function(window)
-        window:onUpdateMobileStatus()
-    end)
-end
-
-function EventHandler.OnUpdatePaperdoll()
-    withActiveView("OnUpdatePaperdoll", function(window)
-        window:onUpdatePaperdoll()
-    end)
-end
-
-function EventHandler.OnUpdate(timePassed)
-    withActiveView("OnUpdate", function(window)
-        window:onUpdate(timePassed)
-    end)
-end
-
-function EventHandler.OnLButtonDblClk(flags, x, y)
-    withActiveView("OnLButtonDblClk", function(window)
-        window:onLButtonDblClk(flags, x, y)
-    end)
-end
-
-function EventHandler.OnMouseOver()
-    withActiveView("OnMouseOver", function(window)
-        window:onMouseOver()
-    end)
-end
-
-function EventHandler.OnMouseOverEnd()
-    withActiveView("OnMouseOverEnd", function(window)
-        window:onMouseOverEnd()
-    end)
-end
-
-function EventHandler.OnEndHealthBarDrag()
-    withActiveView("OnEndHealthBarDrag", function(window)
-        window:onEndHealthBarDrag()
-    end)
-end
-
-function EventHandler.OnUpdateRadar()
-    withActiveView("OnUpdateRadar", function(window)
-        window:onUpdateRadar(WindowData.Radar)
-    end)
-end
-
-function EventHandler.OnUpdatePlayerLocation()
-    withActiveView("OnUpdatePlayerLocation", function(window)
-        window:onUpdatePlayerLocation(WindowData.PlayerLocation)
-    end)
-end
-
-function EventHandler.OnMouseWheel(x, y, delta)
-    withActiveView("OnMouseWheel", function(window)
-        window:onMouseWheel(x, y, delta)
-    end)
-end
-
-function EventHandler.OnTextChanged(text)
-    withActiveView("OnTextChanged", function(window)
-        window:onTextChanged(text)
-    end)
-end
-
-function EventHandler.OnKeyEnter()
-    withActiveView("OnKeyEnter", function(window)
-        window:onKeyEnter()
-    end)
-end
-
-function EventHandler.OnKeyEscape()
-    withActiveView("OnKeyEscape", function(window)
-        window:onKeyEscape()
-    end)
-end
-
-function EventHandler.OnSlide()
-    withActiveView("OnSlide", function(view)
-        view:onSlide()
-    end)
-end
-
-function EventHandler.OnSelChanged()
-    withActiveView("OnSelChanged", function(view)
-        view:onSelChanged()
-    end)
-end
-
-
-
--- ========================================================================== --
--- Components - Gump
--- ========================================================================== --
-
----@param gump GumpWModel
----@param id integer
----@return Gump
-function Gump:new(gump, id)
-    local instance = Window.new(self, { Name = gump.windowName }) --[[@as Gump]]
-
-    instance.buttons = Utils.Array.MapToArray(
-        gump.Buttons,
-        function(buttonName)
-            return Button:new({ Name = buttonName })
-        end
-    )
-
-    instance.textEntries = Utils.Array.MapToArray(
-        gump.TextEntry,
-        function(textEntryName)
-            return EditTextBox:new({ Name = textEntryName })
-        end
-    )
-
-    instance._children = Utils.Array.Concat {
-        instance.buttons,
-        instance.textEntries
-    }
-
-    instance._id = id
-    return instance --[[@as Gump]]
-end
-
-function Gump:isVendorSearch()
-    return self._id == 999112
-end
-
-function Gump:isJewelryBox()
-    return self._id == 999143
-end
-
----@param name string?
----@return Gump?
-function Components.Gump(name)
-    name = name or Active.window()
-    if not GumpData then
-        return nil
-    end
-
-    local id = -1
-
-    local gump = Utils.Table.Find(
-        GumpData.Gumps,
-        function(k, v)
-            id = k
-            return v.windowName == name
-        end
-    )
-
-    if not gump then
-        return nil
-    else
-        return Gump:new(gump, id)
-    end
-end
-
--- ========================================================================== --
--- Components - Label
--- ========================================================================== --
-
----@param model LabelModel?
----@return Label
-function Label:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatLabel"
-    local instance = View.new(self, model)
-    return instance --[[@as Label]]
-end
-
-function Label:setText(text)
-    if text == nil then return end
-    Api.Label.SetText(self:getName(), Utils.String.ToWString(text))
-end
-
-function Label:setTextColor(color)
-    Api.Label.SetTextColor(self:getName(), color)
-end
-
-function Label:setTextAlignment(alignment)
-    Api.Label.SetTextAlignment(self:getName(), alignment)
-end
-
-function Label:centerText()
-    self:setTextAlignment(Constants.TextAlignment.Center)
-end
-
----@param model LabelModel?
----@return Label
-function Components.Label(model)
-    local label = Label:new(model)
-    Cache[label:getName()] = label
-    return label
-end
-
--- ========================================================================== --
--- Components - Log Display
--- ========================================================================== --
-
----@param model LogDisplayModel?
----@return LogDisplay
-function LogDisplay:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatLogDisplay"
-    local instance = View.new(self, model)
-    return instance --[[@as LogDisplay]]
-end
-
-function LogDisplay:showTimestamp(showTimestamp)
-    Api.LogDisplay.ShowTimestamp(self:getName(), showTimestamp)
-    return self
-end
-
-function LogDisplay:showLogName(showLogName)
-    Api.LogDisplay.ShowLogName(self:getName(), showLogName)
-    return self
-end
-
-function LogDisplay:showFilterName(showFilterName)
-    Api.LogDisplay.ShowFilterName(self:getName(), showFilterName)
-    return self
-end
-
-function LogDisplay:setFilterState(logName, filterId, isEnabled)
-    Api.LogDisplay.SetFilterState(self:getName(), logName, filterId, isEnabled)
-    return self
-end
-
-function LogDisplay:setFilterColor(logName, filterId, color)
-    Api.LogDisplay.SetFilterColor(self:getName(), logName, filterId, color)
-    return self
-end
-
----Registers the log to the log display
----@param logName string
----@param displayPreviousEntries boolean?
----@return LogDisplay
-function LogDisplay:addLog(logName, displayPreviousEntries)
-    Api.LogDisplay.AddLog(self:getName(), logName, displayPreviousEntries)
-    return self
-end
-
----Removes a log from the log display
----@param logName string
----@return LogDisplay
-function LogDisplay:removeLog(logName)
-    Api.LogDisplay.RemoveLog(self:getName(), logName)
-    return self
-end
-
----@param model LogDisplayModel?
----@return LogDisplay
-function Components.LogDisplay(model)
-    local logDisplay = LogDisplay:new(model)
-    Cache[logDisplay:getName()] = logDisplay
-    return logDisplay
-end
-
--- ========================================================================== --
--- Components - Scroll Window
--- ========================================================================== --
-
----@param model ScrollWindowModel?
----@return ScrollWindow
-function ScrollWindow:new(model)
-    model = model or {}
-    if model.Horizontal then
-        model.Template = model.Template or "MongbatHorizontalScrollWindow"
-    else
-        model.Template = model.Template or "MongbatScrollWindow"
-    end
-    local instance = View.new(self, model) --[[@as ScrollWindow]]
-    instance._items = {}
-    return instance
-end
-
----@return string
-function ScrollWindow:_getContainerName()
-    return self.name .. "Cont"
-end
-
----@return boolean
-function ScrollWindow:isHorizontal()
-    return self._model.Horizontal == true
-end
-
-function ScrollWindow:onInitialize()
-    View.onInitialize(self)
-end
-
-function ScrollWindow:onShutdown()
-    self:clearItems()
-    View.onShutdown(self)
-end
-
-function ScrollWindow:onDimensionsChanged(width, height)
-    self:_updateLayout()
-    View.onDimensionsChanged(self, width, height)
-end
-
---- Adds a view as the next item in the scroll area. The view is created,
---- initialised, re-parented into the content container, and the scroll rect
---- is updated automatically.
----
---- In vertical mode (default), items are stacked top-to-bottom.
---- In horizontal mode (Horizontal = true), items are stacked left-to-right.
----
---- The view must be a freshly-constructed, not-yet-created component
---- (e.g. returned directly from a Components.* factory call).
----@param view View
----@return View
-function ScrollWindow:addItem(view)
-    local contName = self:_getContainerName()
-    view:create(true)
-    view:onInitialize()
-    view:setParent(contName)
-    if self:isHorizontal() then
-        local itemWidth = self:_getItemWidth()
-        local xOffset = #self._items * itemWidth
-        view:clearAnchors()
-        view:addAnchor("topleft", contName, "topleft", xOffset, 0)
-    else
-        local itemHeight = self:_getItemHeight()
-        local yOffset = #self._items * itemHeight
-        view:clearAnchors()
-        view:addAnchor("topleft", contName, "topleft", 0, yOffset)
-    end
-    Utils.Array.Add(self._items, view)
-    self:_updateLayout()
-    return view
-end
-
---- Removes a previously added view from the scroll area. The view is
---- destroyed and the remaining items are re-laid-out.
----@param view View
-function ScrollWindow:removeItem(view)
-    local idx = Utils.Array.IndexOf(self._items, function(v) return v == view end)
-    if idx == -1 then return end
-    view:destroy()
-    Utils.Array.Remove(self._items, idx)
-    self:_updateLayout()
-end
-
---- Destroys all items and resets the scroll offset.
-function ScrollWindow:clearItems()
-    Utils.Array.ForEach(self._items, function(item)
-        item:destroy()
-    end)
-    self._items = {}
-    self:_updateLayout()
-    self:setOffset(0)
-end
-
---- Re-anchors all remaining items so they are stacked contiguously, then
---- resizes the content container and updates the engine scroll rect.
-function ScrollWindow:_updateLayout()
-    local contName = self:_getContainerName()
-    if not Api.Window.DoesExist(contName) then return end
-    if self:isHorizontal() then
-        local itemWidth = self:_getItemWidth()
-        Utils.Array.ForEach(self._items, function(item, index)
-            item:clearAnchors()
-            item:addAnchor("topleft", contName, "topleft", (index - 1) * itemWidth, 0)
-        end)
-        local dims = self:getDimensions()
-        local totalWidth = #self._items * itemWidth
-        Api.Window.SetDimensions(contName, totalWidth, dims.y)
-        Api.HorizontalScrollWindow.UpdateScrollRect(self.name)
-    else
-        local itemHeight = self:_getItemHeight()
-        Utils.Array.ForEach(self._items, function(item, index)
-            item:clearAnchors()
-            item:addAnchor("topleft", contName, "topleft", 0, (index - 1) * itemHeight)
-        end)
-        local dims = self:getDimensions()
-        local totalHeight = #self._items * itemHeight
-        Api.Window.SetDimensions(contName, dims.x, totalHeight)
-        Api.ScrollWindow.UpdateScrollRect(self.name)
-    end
-end
-
----@return number
-function ScrollWindow:_getItemHeight()
-    return self._model.ItemHeight or 50
-end
-
----@return number
-function ScrollWindow:_getItemWidth()
-    return self._model.ItemWidth or 50
-end
-
---- Sets the scroll offset (in pixels from the start of the content area).
----@param offset number
----@return ScrollWindow
-function ScrollWindow:setOffset(offset)
-    if self:isHorizontal() then
-        Api.HorizontalScrollWindow.SetOffset(self.name, offset)
-    else
-        Api.ScrollWindow.SetOffset(self.name, offset)
-    end
-    return self
-end
-
---- Manually triggers a scroll rect update. Call this if the items in the
---- scroll area are resized externally.
----@return ScrollWindow
-function ScrollWindow:updateScrollRect()
-    if self:isHorizontal() then
-        Api.HorizontalScrollWindow.UpdateScrollRect(self.name)
-    else
-        Api.ScrollWindow.UpdateScrollRect(self.name)
-    end
-    return self
-end
-
----@param model ScrollWindowModel?
----@return ScrollWindow
-function Components.ScrollWindow(model)
-    local scrollWindow = ScrollWindow:new(model)
-    Cache[scrollWindow:getName()] = scrollWindow
-    return scrollWindow
-end
-
--- ========================================================================== --
--- Components - Status Bar
--- ========================================================================== --
-
----@param model StatusBarModel?
----@param label Label?
----@return StatusBar
-function StatusBar:new(model, label)
-    model = model or {}
-    model.Template = model.Template or "MongbatStatusBar"
-    local instance = View.new(self, model) --[[@as StatusBar]]
-    instance.label = label
-    return instance
-end
-
-function StatusBar:onInitialize()
-    View.onInitialize(self)
-
-    -- Create a manual fill child from the FullResizeImage template.
-    -- The engine's built-in StatusBar foreground is rendered internally
-    -- at the template's fixed height and cannot grow vertically.  By
-    -- managing the fill image ourselves we get full resize support.
-    local name = self:getName()
-    local fillName = name .. "Fill"
-    Api.Window.CreateFromTemplate(fillName, "MongbatStatusBarFill", name, true)
-    Api.Window.ClearAnchors(fillName)
-    Api.Window.AddAnchor(fillName, "topleft", name, "topleft", 0, 0)
-
-    -- Point the DynamicImage at a small solid region of the bar texture.
-    -- The engine stretches this to fill the element's dimensions.
-    -- Tinting via SetColor will color it.
-    Api.DynamicImage.SetTexture(fillName, "StatusBar", 1, 25)
-    Api.DynamicImage.SetTextureDimensions(fillName, 1, 1)
-
-    -- Start with zero width; the first value update will size it.
-    local dims = self:getDimensions()
-    Api.Window.SetDimensions(fillName, 0, dims.y)
-    self._fillChild = fillName
-
-    local label = self.label
-    if label ~= nil then
-        label._model.OnLButtonDown = label._model.OnLButtonDown or
-            self._model.OnLButtonDown
-        label._model.OnLButtonUp = label._model.OnLButtonUp or
-            self._model.OnLButtonUp
-        label._model.OnRButtonDown = label._model.OnRButtonDown or
-            self._model.OnRButtonDown
-        label._model.OnRButtonUp = label._model.OnRButtonUp or
-            self._model.OnRButtonUp
-
-        label:create(true)
-        label:onInitialize()
-        label:setParent(self:getParent())
-
-        local dimens = self:getDimensions()
-        label:setDimensions(dimens.x, dimens.y)
-        label:centerText()
-
-        label:clearAnchors()
-        label:addAnchor(
-            "center",
-            self:getName(),
-            "center",
-            0,
-            0
-        )
-    end
-end
-
-function StatusBar:_updateFill()
-    if not self._fillChild then return end
-    local maxVal = self._maxValue or 0
-    local curVal = self._currentValue or 0
-    local dims = self:getDimensions()
-    local barWidth = dims.x
-    local barHeight = dims.y
-    if maxVal > 0 and curVal > 0 then
-        local fillWidth = math.floor(barWidth * math.min(curVal, maxVal) / maxVal)
-        fillWidth = math.max(fillWidth, 1)
-        Api.Window.SetDimensions(self._fillChild, fillWidth, barHeight)
-        Api.Window.SetShowing(self._fillChild, true)
-    else
-        Api.Window.SetShowing(self._fillChild, false)
-    end
-end
-
-function StatusBar:onDimensionsChanged(width, height)
-    if self.label ~= nil then
-        self.label:setDimensions(width, height)
-    end
-    self:_updateFill()
-end
-
-function StatusBar:onShutdown()
-    if self._fillChild and Api.Window.DoesExist(self._fillChild) then
-        Api.Window.Destroy(self._fillChild)
-    end
-    if self.label ~= nil then
-        self.label:destroy()
-    end
-    View.onShutdown(self)
-end
-
-function StatusBar:setMaxValue(maxValue)
-    self._maxValue = maxValue
-    Api.StatusBar.SetMaxValue(self:getName(), maxValue)
-    self:_updateFill()
-end
-
-function StatusBar:setCurrentValue(currentValue)
-    self._currentValue = currentValue
-    Api.StatusBar.SetCurrentValue(self:getName(), currentValue)
-    self:_updateFill()
-end
-
-function StatusBar:setColor(color)
-    if self._fillChild then
-        Api.Window.SetColor(self._fillChild, color)
-    end
-end
-
-function StatusBar:setBackgroundTint(tint)
-    Api.StatusBar.SetBackgroundTint(self:getName(), tint)
-end
-
-function StatusBar:setForegroundTint(tint)
-    if self._fillChild then
-        Api.Window.SetColor(self._fillChild, tint)
-    end
-end
-
----@param model StatusBarModel?
----@param labelModel LabelModel?
----@return StatusBar
-function Components.StatusBar(model, labelModel)
-    local label
-
-    if labelModel ~= nil then
-        label = Components.Label(labelModel)
-    end
-
-    local statusBar = StatusBar:new(model, label)
-    Cache[statusBar:getName()] = statusBar
-    return statusBar
-end
-
--- ========================================================================== --
--- Components - Slider Bar
--- ========================================================================== --
-
----@param model SliderBarModel?
----@return SliderBar
-function SliderBar:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatSliderBar"
-    local instance = View.new(self, model)
-    return instance --[[@as SliderBar]]
-end
-
----@param position number A value between 0 and 1 representing the slider position.
----@return SliderBar
-function SliderBar:setCurrentPosition(position)
-    Api.Slider.SetCurrentPosition(self:getName(), position)
-    return self
-end
-
----@return number A value between 0 and 1 representing the current slider position.
-function SliderBar:getCurrentPosition()
-    return Api.Slider.GetCurrentPosition(self:getName())
-end
-
----@param model SliderBarModel?
----@return SliderBar
-function Components.SliderBar(model)
-    local sliderBar = SliderBar:new(model)
-    Cache[sliderBar:getName()] = sliderBar
-    return sliderBar
-end
-
--- ========================================================================== --
--- Components - ComboBox
--- ========================================================================== --
-
----@param model ComboBoxModel?
----@return ComboBox
-function ComboBox:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatComboBox"
-    local instance = View.new(self, model)
-    return instance --[[@as ComboBox]]
-end
-
----@param item wstring The item to add.
----@return ComboBox
-function ComboBox:addItem(item)
-    Api.ComboBox.AddItem(self:getName(), item)
-    return self
-end
-
----@return ComboBox
-function ComboBox:clearItems()
-    Api.ComboBox.ClearItems(self:getName())
-    return self
-end
-
----@param item wstring The item to select.
----@return ComboBox
-function ComboBox:setSelectedItem(item)
-    Api.ComboBox.SetSelectedItem(self:getName(), item)
-    return self
-end
-
----@return wstring The currently selected item.
-function ComboBox:getSelectedItem()
-    return Api.ComboBox.GetSelectedItem(self:getName())
-end
-
----@param model ComboBoxModel?
----@return ComboBox
-function Components.ComboBox(model)
-    local comboBox = ComboBox:new(model)
-    Cache[comboBox:getName()] = comboBox
-    return comboBox
-end
-
--- ========================================================================== --
--- Components - List Box
--- ========================================================================== --
-
----@param model ListBoxModel?
----@return ListBox
-function ListBox:new(model)
-    model = model or {}
-    local instance = View.new(self, model)
-    return instance --[[@as ListBox]]
-end
-
----@param data table The data table to populate the list box from.
----@return ListBox
-function ListBox:setDataTable(data)
-    Api.ListBox.SetDataTable(self:getName(), data)
-    return self
-end
-
----@param rowIndex number The 1-based visual row index.
----@return number The data index for that row.
-function ListBox:getDataIndex(rowIndex)
-    return Api.ListBox.GetDataIndex(self:getName(), rowIndex)
-end
-
----@param orderArray table Array of data indices controlling display order.
----@return ListBox
-function ListBox:setDisplayOrder(orderArray)
-    Api.ListBox.SetDisplayOrder(self:getName(), orderArray)
-    return self
-end
-
----@param count number The number of visible rows.
----@return ListBox
-function ListBox:setVisibleRowCount(count)
-    Api.ListBox.SetVisibleRowCount(self:getName(), count)
-    return self
-end
-
----@param model ListBoxModel?
----@return ListBox
-function Components.ListBox(model)
-    local listBox = ListBox:new(model)
-    Cache[listBox:getName()] = listBox
-    return listBox
-end
-
--- ========================================================================== --
--- Components - CheckBox
--- ========================================================================== --
-
----@param model CheckBoxModel?
----@param label Label?
----@return CheckBox
-function CheckBox:new(model, label)
-    model = model or {}
-    model.Template = model.Template or "MongbatCheckBox"
-    local instance = View.new(self, model) --[[@as CheckBox]]
-    instance.label = label
-    return instance
-end
-
-function CheckBox:onInitialize()
-    View.onInitialize(self)
-
-    Api.Button.SetEnabled(self:getName(), true)
-    Api.Button.SetStayDown(self:getName(), true)
-
-    local label = self.label
-    if label ~= nil then
-        local checkBox = self
-        -- Always wrap OnLButtonDown so label clicks always toggle the checkbox
-        -- even when the labelModel already defined its own OnLButtonDown.
-        local existingLDown = label._model.OnLButtonDown
-        label._model.OnLButtonDown = function(labelSelf, flags, x, y)
-            checkBox:setChecked(not checkBox:isChecked())
-            if existingLDown ~= nil then
-                existingLDown(labelSelf, flags, x, y)
-            end
-        end
-        -- Always wrap OnLButtonUp so label releases propagate to the checkbox
-        -- OnLButtonUp handler, chaining any handler the labelModel provided.
-        local existingLUp = label._model.OnLButtonUp
-        label._model.OnLButtonUp = function(labelSelf, flags, x, y)
-            if checkBox._model.OnLButtonUp ~= nil then
-                checkBox._model.OnLButtonUp(checkBox, flags, x, y)
-            end
-            if existingLUp ~= nil then
-                existingLUp(labelSelf, flags, x, y)
-            end
-        end
-
-        label:create(true)
-        label:onInitialize()
-        label:setParent(self:getParent())
-
-        local dims = self:getDimensions()
-        label:clearAnchors()
-        label:addAnchor("left", self:getName(), "right", 4, 0)
-        label:setDimensions(label:getDimensions().x, dims.y)
-        label:centerText()
-    end
-end
-
-function CheckBox:onShutdown()
-    if self.label ~= nil then
-        self.label:destroy()
-    end
-    View.onShutdown(self)
-end
-
----@param isChecked boolean
----@return CheckBox
-function CheckBox:setChecked(isChecked)
-    Api.Button.SetChecked(self:getName(), isChecked)
-    return self
-end
-
----@return boolean
-function CheckBox:isChecked()
-    return Api.Button.IsChecked(self:getName())
-end
-
---- Toggles the checked state.
----@return CheckBox
-function CheckBox:toggle()
-    self:setChecked(not self:isChecked())
-    return self
-end
-
----@param model CheckBoxModel?
----@param labelModel LabelModel?
----@return CheckBox
-function Components.CheckBox(model, labelModel)
-    local label
-
-    if labelModel ~= nil then
-        label = Components.Label(labelModel)
-    end
-
-    local checkBox = CheckBox:new(model, label)
-    Cache[checkBox:getName()] = checkBox
-    return checkBox
-end
-
--- ========================================================================== --
--- Components - Animated Image
--- ========================================================================== --
-
----@param model AnimatedImageModel?
----@return AnimatedImage
-function AnimatedImage:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatAnimatedImage"
-    local instance = View.new(self, model) --[[@as AnimatedImage]]
-    return instance
-end
-
---- Sets the texture for this animated image.
----@param texture string The texture name.
----@return AnimatedImage
-function AnimatedImage:setTexture(texture)
-    Api.AnimatedImage.SetTexture(self:getName(), texture)
-    return self
-end
-
---- Starts the animation.
----@param startFrame number? The frame to start from (default 1).
----@param loop boolean? Whether to loop (default false).
----@param hideWhenDone boolean? Whether to hide when finished (default false).
----@param delay number? Delay before starting (default 0).
----@return AnimatedImage
-function AnimatedImage:startAnimation(startFrame, loop, hideWhenDone, delay)
-    Api.AnimatedImage.StartAnimation(
-        self:getName(),
-        startFrame or 1,
-        loop or false,
-        hideWhenDone or false,
-        delay or 0
-    )
-    return self
-end
-
---- Stops the animation.
----@return AnimatedImage
-function AnimatedImage:stopAnimation()
-    Api.AnimatedImage.StopAnimation(self:getName())
-    return self
-end
-
---- Sets the animation playback speed.
----@param fps number The frames per second.
----@return AnimatedImage
-function AnimatedImage:setPlaySpeed(fps)
-    Api.AnimatedImage.SetPlaySpeed(self:getName(), fps)
-    return self
-end
-
----@param model AnimatedImageModel?
----@return AnimatedImage
-function Components.AnimatedImage(model)
-    local animatedImage = AnimatedImage:new(model)
-    Cache[animatedImage:getName()] = animatedImage
-    return animatedImage
-end
-
--- ========================================================================== --
--- Components - Action Button
--- ========================================================================== --
-
----@param model ActionButtonModel?
----@return ActionButton
-function ActionButton:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatActionButton"
-    local instance = Button.new(self, model) --[[@as ActionButton]]
-    return instance
-end
-
---- Sets the game action on this button.
----@param actionType number The action type.
----@param actionId number The action ID.
----@return ActionButton
-function ActionButton:setAction(actionType, actionId)
-    Api.ActionButton.SetAction(self:getName(), actionType, actionId)
-    return self
-end
-
---- Gets the action data from this button.
----@return any The game action button data.
-function ActionButton:getAction()
-    return Api.ActionButton.GetAction(self:getName())
-end
-
---- Sets the game action trigger for this button.
----@param action any The action trigger value.
----@return ActionButton
-function ActionButton:setGameActionTrigger(action)
-    Api.ActionButton.SetGameActionTrigger(self:getName(), action)
-    return self
-end
-
----@param model ActionButtonModel?
----@return ActionButton
-function Components.ActionButton(model)
-    local actionButton = ActionButton:new(model)
-    Cache[actionButton:getName()] = actionButton
-    return actionButton
-end
-
--- ========================================================================== --
--- Components - Action Button Group
--- ========================================================================== --
-
----@param model ActionButtonGroupModel?
----@return ActionButtonGroup
-function ActionButtonGroup:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatWindow"
-    local instance = Window.new(self, model) --[[@as ActionButtonGroup]]
-    instance._buttons = {}
-    return instance
-end
-
-function ActionButtonGroup:onInitialize()
-    Window.onInitialize(self)
-
-    local count = self._model.Count or 12
-    local buttonSize = self._model.ButtonSize or 50
-    local spacing = self._model.Spacing or 0
-    local group = self
-
-    for i = 1, count do
-        local button = Components.ActionButton {
-            Name = self:getName() .. "Button" .. i,
-            Id = i,
-            OnLButtonDown = function(btn, flags, x, y)
-                if group._model.OnButtonLButtonDown then
-                    group._model.OnButtonLButtonDown(group, btn, i, flags, x, y)
-                end
-            end,
-            OnLButtonUp = function(btn, flags, x, y)
-                if group._model.OnButtonLButtonUp then
-                    group._model.OnButtonLButtonUp(group, btn, i, flags, x, y)
-                end
-            end,
-            OnRButtonUp = function(btn, flags, x, y)
-                if group._model.OnButtonRButtonUp then
-                    group._model.OnButtonRButtonUp(group, btn, i, flags, x, y)
-                end
-            end,
-            OnMouseOver = function(btn)
-                if group._model.OnButtonMouseOver then
-                    group._model.OnButtonMouseOver(group, btn, i)
-                end
-            end,
-            OnMouseOverEnd = function(btn)
-                if group._model.OnButtonMouseOverEnd then
-                    group._model.OnButtonMouseOverEnd(group, btn, i)
-                end
-            end,
-        }
-        button:create(true)
-        button:onInitialize()
-        button:setParent(self:getName())
-        button:setDimensions(buttonSize, buttonSize)
-        button:clearAnchors()
-        if i == 1 then
-            button:addAnchor("topleft", self:getName(), "topleft", 0, 0)
-        else
-            button:addAnchor("topleft", self._buttons[i - 1]:getName(), "topright", spacing, 0)
-        end
-        self._buttons[i] = button
-    end
-end
-
-function ActionButtonGroup:onShutdown()
-    Utils.Array.ForEach(self._buttons, function(button)
-        button:destroy()
-    end)
-    self._buttons = {}
-    Window.onShutdown(self)
-end
-
---- Gets the action button at the given 1-based index.
----@param index number The 1-based button index.
----@return ActionButton?
-function ActionButtonGroup:getButton(index)
-    return self._buttons[index]
-end
-
---- Gets the total number of buttons in the group.
----@return number
-function ActionButtonGroup:getButtonCount()
-    return #self._buttons
-end
-
----@param model ActionButtonGroupModel?
----@return ActionButtonGroup
-function Components.ActionButtonGroup(model)
-    local group = ActionButtonGroup:new(model)
-    Cache[group:getName()] = group
-    return group
-end
-
--- ========================================================================== --
--- Components - Cooldown Display
--- ========================================================================== --
-
----@param model CooldownDisplayModel?
----@return CooldownDisplay
-function CooldownDisplay:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatCooldownDisplay"
-    local instance = AnimatedImage.new(self, model) --[[@as CooldownDisplay]]
-    return instance
-end
-
---- Plays the cooldown animation overlay.
----@param loop boolean? Whether to loop (default false).
----@param hideWhenDone boolean? Whether to hide when finished (default false).
----@return CooldownDisplay
-function CooldownDisplay:play(loop, hideWhenDone)
-    self:startAnimation(1, loop or false, hideWhenDone or false, 0)
-    return self
-end
-
---- Stops the cooldown animation.
----@return CooldownDisplay
-function CooldownDisplay:stop()
-    self:stopAnimation()
-    return self
-end
-
----@param model CooldownDisplayModel?
----@return CooldownDisplay
-function Components.CooldownDisplay(model)
-    local cooldownDisplay = CooldownDisplay:new(model)
-    Cache[cooldownDisplay:getName()] = cooldownDisplay
-    return cooldownDisplay
-end
-
--- ========================================================================== --
--- Components - Dockable Window
--- ========================================================================== --
-
----@param model DockableWindowModel?
----@return DockableWindow
-function DockableWindow:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatWindow"
-    local instance = Window.new(self, model) --[[@as DockableWindow]]
-    return instance
-end
-
-function DockableWindow:onInitialize()
-    Window.onInitialize(self)
-    self:restorePosition(false)
-end
-
-function DockableWindow:onShutdown()
-    Api.Window.SavePosition(self:getName(), true, self:getName())
-    Window.onShutdown(self)
-end
-
---- Restores a previously saved position.
----@param trackSize boolean? Whether to also restore size (default false).
----@return DockableWindow
-function DockableWindow:restorePosition(trackSize)
-    Api.Window.RestorePosition(self:getName(), trackSize or false, self:getName())
-    return self
-end
-
----@param model DockableWindowModel?
----@return DockableWindow
-function Components.DockableWindow(model)
-    local dockableWindow = DockableWindow:new(model)
-    Cache[dockableWindow:getName()] = dockableWindow
-    return dockableWindow
-end
-
--- ========================================================================== --
--- Components - Page Window
--- ========================================================================== --
-
----@param model PageWindowModel?
----@return PageWindow
-function PageWindow:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatPageWindow"
-    local instance = View.new(self, model) --[[@as PageWindow]]
-    return instance
-end
-
---- Sets the currently visible page.
----@param pageNumber number The 1-based page number.
----@return PageWindow
-function PageWindow:setActivePage(pageNumber)
-    Api.PageWindow.SetActivePage(self:getName(), pageNumber)
-    return self
-end
-
---- Gets the currently visible page number.
----@return number
-function PageWindow:getActivePage()
-    return Api.PageWindow.GetActivePage(self:getName())
-end
-
---- Gets the total number of pages.
----@return number
-function PageWindow:getNumPages()
-    return Api.PageWindow.GetNumPages(self:getName())
-end
-
---- Advances to the next page. Wraps around to the first page when at the end.
----@return PageWindow
-function PageWindow:nextPage()
-    local current = self:getActivePage()
-    local total = self:getNumPages()
-    if current < total then
-        self:setActivePage(current + 1)
-    else
-        self:setActivePage(1)
-    end
-    return self
-end
-
---- Goes to the previous page. Wraps around to the last page when at the start.
----@return PageWindow
-function PageWindow:previousPage()
-    local current = self:getActivePage()
-    local total = self:getNumPages()
-    if current > 1 then
-        self:setActivePage(current - 1)
-    else
-        self:setActivePage(total)
-    end
-    return self
-end
-
----@param model PageWindowModel?
----@return PageWindow
-function Components.PageWindow(model)
-    local pageWindow = PageWindow:new(model)
-    Cache[pageWindow:getName()] = pageWindow
-    return pageWindow
-end
-
-
----@param model ViewModel
----@return View
-function View:new(model)
-    local name = model.Name or Utils.String.Random()
-    local instance = Component.new(self, name) --[[@as View]]
-    instance._model = model
-    return instance
-end
-
-function View:onInitialize()
-    local id = self._model.Id or Utils.String.ExtractNumber(self:getName())
-    self:setId(id)
-
-    local prefix = "Mongbat.EventHandler."
-
-    for k, _ in pairs(self._model) do
-        local systemEvent = Constants.SystemEvents[k]
-        local isCore = Constants.CoreEvents[k] ~= nil
-        local dataEvent = Constants.DataEvents[k]
-        local skip = k == Constants.CoreEvents.OnInitialize or
-            k == Constants.CoreEvents.OnShutdown
-
-        local functionName = prefix .. k
-
-        if isCore and not skip then
-            self:registerCoreEventHandler(k, functionName)
-        elseif systemEvent ~= nil then
-            self:registerEventHandler(systemEvent.getEvent(), functionName)
-        elseif dataEvent ~= nil then
-            self:registerEventHandler(dataEvent.getEvent(), functionName)
-        end
-    end
-
-    self:registerCoreEventHandler(
-        Constants.CoreEvents.OnShutdown,
-        prefix .. Constants.CoreEvents.OnShutdown
-    )
-
-    if self._model.OnInitialize ~= nil then
-        self._model.OnInitialize(self)
-    end
-
-    pcall(function ()
-        self:onUpdatePlayerStatus()
-        self:onUpdateMobileName()
-        self:onUpdateMobileStatus()
-        self:onUpdateHealthBarColor()
-        self:onUpdatePaperdoll()
-    end)
-end
-
-function View:onShutdown()
-    if self._model.OnShutdown ~= nil then
-        self._model.OnShutdown(self)
-    end
-
-    self:setId(0)
-
-    for k, _ in pairs(self._model) do
-        local systemEvent = Constants.SystemEvents[k]
-        local dataEvent = Constants.DataEvents[k]
-        local isCore = k == Constants.CoreEvents.OnInitialize or
-            k == Constants.CoreEvents.OnShutdown
-
-        if isCore then
-            self:unregisterCoreEventHandler(k)
-        elseif systemEvent ~= nil then
-            self:unregisterEventHandler(systemEvent.getEvent())
-        elseif dataEvent ~= nil then
-            self:unregisterEventHandler(dataEvent.getEvent())
-        end
-    end
-end
-
-function View:onLButtonUp(flags, x, y)
-    if self._model.OnLButtonUp ~= nil then
-        self._model.OnLButtonUp(self, flags, x, y)
-        return true
-    end
-    return false
-end
-
-function View:onMouseWheel(x, y, delta)
-    if self._model.OnMouseWheel ~= nil then
-        self._model.OnMouseWheel(self, x, y, delta)
-        return true
-    end
-    return false
-end
-
-function View:onLButtonDown(flags, x, y)
-    if self._model.OnLButtonDown ~= nil then
-        self._model.OnLButtonDown(self, flags, x, y)
-        return true
-    end
-    return false
-end
-
-function View:onRButtonUp(flags, x, y)
-    if self._model.OnRButtonUp ~= nil then
-        self._model.OnRButtonUp(self, flags, x, y)
-        return true
-    end
-    return false
-end
-
-function View:onRButtonDown(flags, x, y)
-    if self._model.OnRButtonDown ~= nil then
-        self._model.OnRButtonDown(self, flags, x, y)
-        return true
-    end
-    return false
-end
-
-function View:onHidden()
-    if self._model.OnHidden ~= nil then
-        self._model.OnHidden(self)
-        return true
-    end
-    return false
-end
-
-function View:onShown()
-    if self._model.OnShown ~= nil then
-        self._model.OnShown(self)
-        return true
-    end
-    return false
-end
-
-function View:onUpdate(timePassed, windowData)
-    if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed, windowData)
-    end
-    return true
-end
-
-function View:onUpdateMobileName()
-    if self._model.OnUpdateMobileName ~= nil then
-        self._model.OnUpdateMobileName(self, Data.MobileName(self:getId()))
-        return true
-    end
-    return false
-end
-
-function View:onUpdatePlayerStatus()
-    if self._model.OnUpdatePlayerStatus ~= nil then
-        self._model.OnUpdatePlayerStatus(self, Data.PlayerStatus())
-        return true
-    end
-    return false
-end
-
-function View:onUpdateHealthBarColor()
-    if self._model.OnUpdateHealthBarColor ~= nil then
-        self._model.OnUpdateHealthBarColor(self, Data.HealthBarColor(self:getId()))
-        return true
-    end
-    return false
-end
-
-function View:onUpdateMobileStatus()
-    if self._model.OnUpdateMobileStatus ~= nil then
-        self._model.OnUpdateMobileStatus(self, Data.MobileStatus(self:getId()))
-        return true
-    end
-    return false
-end
-
-function View:onUpdatePaperdoll()
-    if self._model.OnUpdatePaperdoll ~= nil then
-        self._model.OnUpdatePaperdoll(self, Data.Paperdoll(self:getId()))
-        return true
-    end
-    return false
-end
-
-function View:onLButtonDblClk(flags, x, y)
-    if self._model.OnLButtonDblClk ~= nil then
-        self._model.OnLButtonDblClk(self, flags, x, y)
-        return true
-    end
-    return false
-end
-
-function View:onMouseOver()
-    if self._model.OnMouseOver ~= nil then
-        self._model.OnMouseOver(self)
-        return true
-    end
-    return false
-end
-
-function View:onMouseOverEnd()
-    if self._model.OnMouseOverEnd ~= nil then
-        self._model.OnMouseOverEnd(self)
-        return true
-    end
-    return false
-end
-
-function View:onEndHealthBarDrag()
-    if self._model.OnEndHealthBarDrag ~= nil then
-        self._model.OnEndHealthBarDrag(self)
-        return true
-    end
-    return false
-end
-
----@param data WindowData.Radar
-function View:onUpdateRadar(data)
-    if self._model.OnUpdateRadar ~= nil then
-        self._model.OnUpdateRadar(self, data)
-        return true
-    end
-    return false
-end
-
-function View:onUpdatePlayerLocation(data)
-    if self._model.OnUpdatePlayerLocation ~= nil then
-        self._model.OnUpdatePlayerLocation(self, data)
-        return true
-    end
-    return false
-end
-
-function View:onTextChanged(text)
-    if self._model.OnTextChanged ~= nil then
-        self._model.OnTextChanged(self, text)
-        return true
-    end
-    return false
-end
-
-function View:onKeyEnter()
-    if self._model.OnKeyEnter ~= nil then
-        self._model.OnKeyEnter(self)
-        return true
-    end
-    return false
-end
-
-function View:onKeyEscape()
-    if self._model.OnKeyEscape ~= nil then
-        self._model.OnKeyEscape(self)
-        return true
-    end
-    return false
-end
-
-function View:onSlide()
-    if self._model.OnSlide ~= nil then
-        self._model.OnSlide(self, Api.Slider.GetCurrentPosition(self:getName()))
-        return true
-    end
-    return false
-end
-
-function View:onSelChanged()
-    if self._model.OnSelChanged ~= nil then
-        self._model.OnSelChanged(self)
-        return true
-    end
-    return false
-end
-
-function View:getId()
-    return Api.Window.GetId(self.name)
-end
-
-function View:setId(id)
-    id = id or 0
-    local oldId = self:getId()
-
-    if oldId == id then
-        return
-    end
-
-    if oldId ~= 0 then
-        for k, _ in pairs(self._model) do
-            local dataEvent = Constants.DataEvents[k]
-            if dataEvent ~= nil then
-                local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
-                    dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
-
-                if not skip then
-                    Api.Window.UnregisterData(dataEvent.getType(), oldId)
-                end
-            end
-        end
-    end
-
-    if id ~= 0 then
-        for k, _ in pairs(self._model) do
-            local dataEvent = Constants.DataEvents[k]
-            if dataEvent ~= nil then
-                local skip = dataEvent == Constants.DataEvents.OnUpdatePlayerStatus or
-                    dataEvent == Constants.DataEvents.OnUpdateRadar or
-                    dataEvent == Constants.DataEvents.OnUpdatePlayerLocation
-
-                if not skip then
-                    Api.Window.RegisterData(dataEvent.getType(), id)
-                end
-            end
-        end
-    end
-
-    Api.Window.SetId(self.name, id)
-end
-
-function View:setHandleInput(handleInput)
-    Api.Window.SetHandleInput(self.name, handleInput)
-end
-
-function View:getParent()
-    return Api.Window.GetParent(self.name)
-end
-
-function View:setParent(parent)
-    Api.Window.SetParent(self.name, parent)
-end
-
-function View:matchParentWidth(percent)
-    local parent = self:getParent()
-    local parentDimen = Api.Window.GetDimensions(parent)
-    local dimen = self:getDimensions()
-    self:setDimensions(parentDimen.x * percent, dimen.y)
-end
-
-function View:registerCoreEventHandler(event, callback)
-    Api.Window.RegisterCoreEventHandler(self.name, event, callback)
-end
-
-function View:unregisterCoreEventHandler(event)
-    Api.Window.UnregisterCoreEventHandler(self.name, event)
-end
-
-function View:registerEventHandler(event, callback)
-    Api.Window.RegisterEventHandler(self.name, event, callback)
-end
-
-function View:unregisterEventHandler(event)
-    Api.Window.UnregisterEventHandler(self.name, event)
-end
-
-function View:isMoving()
-    return Api.Window.IsMoving(self.name)
-end
-
-function View:setMoving(isMoving)
-    Api.Window.SetMoving(self.name, isMoving)
-    return self
-end
-
-function View:getDimensions()
-    return Api.Window.GetDimensions(self.name)
-end
-
-function View:setDimensions(x, y)
-    local current = Api.Window.GetDimensions(self.name)
-    if current.x == x and current.y == y then
-        return self
-    end
-    Api.Window.SetDimensions(self.name, x, y)
-    self:onDimensionsChanged(x, y)
-    return self
-end
-
---- Called whenever this view's dimensions are set. Override in subclasses to
---- propagate size changes to internal sub-components (e.g. StatusBar's label).
----@param width number
----@param height number
-function View:onDimensionsChanged(width, height)
-    if self._model.OnDimensionsChanged ~= nil then
-        self._model.OnDimensionsChanged(self, width, height)
-    end
-end
-
-function View:getAlpha()
-    return Api.Window.GetAlpha(self.name)
-end
-
-function View:setAlpha(alpha)
-    Api.Window.SetAlpha(self.name, alpha)
-    return self
-end
-
-function View:setLayer()
-    return LayerBuilder:new(function()
-        return self
-    end)
-end
-
-function View:getScale()
-    return Api.Window.GetScale(self.name)
-end
-
-function View:setScale(scale)
-    Api.Window.SetScale(self.name, scale)
-    return self
-end
-
-function View:getOffsetFromParent()
-    return Api.Window.GetOffsetFromParent(self.name)
-end
-
-function View:setOffsetFromParent(x, y)
-    Api.Window.SetOffsetFromParent(self.name, x, y)
-    return self
-end
-
-function View:getColor()
-    return Api.Window.GetColor(self.name)
-end
-
-function View:setColor(color)
-    Api.Window.SetColor(self.name, color)
-    return self
-end
-
-function View:getPosition()
-    return Api.Window.GetPosition(self.name)
-end
-
-function View:isShowing()
-    return Api.Window.IsShowing(self.name)
-end
-
-function View:setShowing(isShowing)
-    Api.Window.SetShowing(self.name, isShowing)
-    return self
-end
-
-function View:isPopable()
-    return Api.Window.IsPopable(self.name)
-end
-
-function View:setPopable(isPopable)
-    Api.Window.SetPopable(self.name, isPopable)
-    return self
-end
-
-function View:isMovable()
-    return Api.Window.IsMovable(self.name)
-end
-
-function View:setMovable(isMovable)
-    Api.Window.SetMovable(self.name, isMovable)
-    return self
-end
-
-function View:isSticky()
-    return Api.Window.IsSticky(self.name)
-end
-
-function View:clearAnchors()
-    Api.Window.ClearAnchors(self.name)
-end
-
-function View:forceProcessAnchors()
-    Api.Window.ForceProcessAnchors(self.name)
-    return self
-end
-
-function View:addAnchor(anchorPoint, relativeTo, relativePoint, x, y)
-    Api.Window.AddAnchor(self.name, anchorPoint, relativeTo, relativePoint, x or 0, y or 0)
-end
-
-function View:anchorToParentTop(x, y)
-    self:addAnchor(
-        Constants.AnchorPoints.Top,
-        self:getParent(),
-        Constants.AnchorPoints.Top,
-        x or 0,
-        y or 0
-    )
-end
-
-function View:centerInWindow(toCenter, x, y)
-    self:addAnchor(
-        Constants.AnchorPoints.Center,
-        toCenter or self:getParent(),
-        Constants.AnchorPoints.Center,
-        x or 0,
-        y or 0
-    )
-end
-
-function View:anchorToParentCenter(x, y)
-    self:centerInWindow(self:getParent(), x, y)
-end
-
-function View:isFocused()
-    return Api.Window.HasFocus(self.name)
-end
-
-function View:setFocus(doFocus)
-    Api.Window.AssignFocus(self.name, doFocus)
-end
-
-function View:isResizing()
-    return Api.Window.IsResizing(self.name)
-end
-
-function View:setResizing(isResizing)
-    Api.Window.SetResizing(self.name, isResizing)
-end
-
-function View:setRelativeScale(scale)
-    Api.Window.SetRelativeScale(self.name, scale)
-end
-
-function View:doesExist()
-    return Api.Window.DoesExist(self.name)
-end
-
-function View:destroy()
-    return Api.Window.Destroy(self.name)
-end
-
-function View:create(doShow)
-    doShow = doShow == nil or doShow
-    if self._model.Template == nil then
-        return Api.Window.Create(self.name, doShow)
-    else
-        return Api.Window.CreateFromTemplate(self.name, self._model.Template, "Root", doShow)
-    end
-end
-
-function View:registerData(type)
-    local id = self:getId()
-    Api.Window.RegisterData(type, id)
-end
-
-function View:unregisterData(type)
-    local id = self:getId()
-    Api.Window.UnregisterData(type, id)
-end
-
-function View:isParentRoot()
-    return self:getParent() == "Root"
-end
-
--- ========================================================================== --
--- Components - Window
--- ========================================================================== --
 
 ---@param model WindowModel?
 function Window:new(model)
-    model = model or {}
-    model.Template = model.Template or "MongbatWindow"
-    local instance = View.new(self, model) --[[@as Window]]
+    local window = setmetatable({ _name = model and model.Name or Utils.String.Random() }, self)
+    window._template = model and model.Template or self._defaultTemplate
+    window._parent = model and model.Parent or "Root"
+    window._isInitialized = window:exists()
+    window._isTopLevel = true
+    window._initialShowing = false
+    window._children = {}
+    window._state = {}
+    window._registrations = {}
+    window._registered = {}
+    window._handlers = {}
+    window._onInitialize = model and model.OnInitialize or nil
+    window._onUpdate = model and model.OnUpdate or nil
+    window._onShutdown = model and model.OnShutdown or nil
+    window._topLevel = window
+    return window
+end
 
-    instance._children = {}
-    instance._frame = instance.name .. "Frame"
-    instance._background = instance.name .. "Background"
-    instance._startDrag = { x = -1, y = -1 }
+function Window:template() return self._template end
 
-    instance._model.OnRButtonUp = model.OnRButtonUp or function(window)
-        if window:isParentRoot() then
-            window:destroy()
-        end
+function Window:name() return self._name end
+
+function Window:exists() return Api.Window.DoesExist(self._name) end
+
+function Window:getState() return Api.Window.GetState(self._name) end
+
+function Window:destroy() State.Systems.DestroyWindow(self) end
+
+function Window:create(doShow, parent)
+    if parent then self._parent = parent end
+    local show = doShow ~= false
+    self._initialShowing = show
+    self._state.setShowing = { Api.Window.SetShowing, show }
+end
+
+function Window:onInitialize() if self._onInitialize then self._onInitialize(self) end end
+
+function Window:onShutdown() if self._onShutdown then self._onShutdown(self) end end
+
+function Window:addChild(child)
+    child._parent = self._name
+    child._isTopLevel = false
+    child._topLevel = self._topLevel
+    child._initialShowing = true
+    child._state.setShowing = { Api.Window.SetShowing, true }
+    table.insert(self._children, child)
+end
+
+function Window:addChildren(children, layout)
+    for _, child in ipairs(children) do
+        self:addChild(child)
     end
+    if layout then
+        self._layout = {
+            children = children,
+            offsetX = layout.offsetX or 0,
+            offsetY = layout.offsetY or 0,
+            spacing = layout.spacing or 0,
+        }
+    end
+end
 
-    instance._model.OnLayout = model.OnLayout or Layouts.StackAndFill
+function Window:toggle() return Api.Window.ToggleWindow(self._name) end
+
+function Window:setShowing(show)
+    self._state.setShowing = { Api.Window.SetShowing, show }
+end
+
+function Window:isShowing() return Api.Window.IsShowing(self._name) end
+
+function Window:setLayer(layer) self._state.setLayer = { Api.Window.SetLayer, layer } end
+
+function Window:getLayer() return Api.Window.GetLayer(self._name) end
+
+function Window:setHandleInput(handleInput) self._state.setHandleInput = { Api.Window.SetHandleInput, handleInput } end
+
+function Window:getHandleInput() return Api.Window.GetHandleInput(self._name) end
+
+function Window:setPopable(popable) self._state.setPopable = { Api.Window.SetPopable, popable } end
+
+function Window:isPopable() return Api.Window.IsPopable(self._name) end
+
+function Window:setMovable(movable) self._state.setMovable = { Api.Window.SetMovable, movable } end
+
+function Window:isMovable() return Api.Window.IsMovable(self._name) end
+
+function Window:setOffsetFromParent(x, y) self._state.setOffsetFromParent = { Api.Window.SetOffsetFromParent, x, y } end
+
+function Window:getOffsetFromParent() return Api.Window.GetOffsetFromParent(self._name) end
+
+function Window:setDimensions(w, h) self._state.setDimensions = { Api.Window.SetDimensions, w, h } end
+
+function Window:getDimensions() return Api.Window.GetDimensions(self._name) end
+
+function Window:isSticky() return Api.Window.IsSticky(self._name) end
+
+function Window:clearAnchors()
+    if self._isInitialized then Api.Window.ClearAnchors(self._name) end
+end
+
+function Window:addAnchor(anchorPoint, relativeTo, relativePoint, x, y)
+    if self._isInitialized then Api.Window.AddAnchor(self._name, anchorPoint, relativeTo, relativePoint, x, y) end
+end
+
+function Window:getAnchor(anchorId) return Api.Window.GetAnchor(self._name, anchorId) end
+
+function Window:getAnchorCount() return Api.Window.GetAnchorCount(self._name) end
+
+function Window:forceProcessAnchors()
+    if self._isInitialized then Api.Window.ForceProcessAnchors(self._name) end
+end
+
+function Window:assignFocus(doFocus) return Api.Window.AssignFocus(self._name, doFocus) end
+
+function Window:hasFocus() return Api.Window.HasFocus(self._name) end
+
+function Window:setResizing(isResizing) self._state.setResizing = { Api.Window.SetResizing, isResizing } end
+
+function Window:isResizing() return Api.Window.IsResizing(self._name) end
+
+function Window:startAlphaAnimation(animType, startAlpha, endAlpha, duration, setStartBeforeDelay, delay, numLoop)
+    if self._isInitialized then Api.Window.StartAlphaAnimation(self._name, animType, startAlpha, endAlpha, duration,
+            setStartBeforeDelay, delay, numLoop) end
+end
+
+function Window:stopAlphaAnimation()
+    if self._isInitialized then Api.Window.StopAlphaAnimation(self._name) end
+end
+
+function Window:startScaleAnimation(animType, startX, startY, endX, endY, duration, setStartBeforeDelay, delay, numLoop)
+    if self._isInitialized then Api.Window.StartScaleAnimation(self._name, animType, startX, startY, endX, endY, duration,
+            setStartBeforeDelay, delay, numLoop) end
+end
+
+function Window:stopScaleAnimation()
+    if self._isInitialized then Api.Window.StopScaleAnimation(self._name) end
+end
+
+function Window:stopPositionAnimation()
+    if self._isInitialized then Api.Window.StopPositionAnimation(self._name) end
+end
+
+function Window:setAlpha(alpha) self._state.setAlpha = { Api.Window.SetAlpha, alpha } end
+
+function Window:getAlpha() return Api.Window.GetAlpha(self._name) end
+
+function Window:setColor(color) self._state.setColor = { Api.Window.SetColor, color } end
+
+function Window:getColor() return Api.Window.GetColor(self._name) end
+
+function Window:setId(id) self._state.setId = { Api.Window.SetId, id } end
+
+function Window:getId() return Api.Window.GetId(self._name) end
+
+function Window:setTabOrder(tabOrder) self._state.setTabOrder = { Api.Window.SetTabOrder, tabOrder } end
+
+function Window:getTabOrder() return Api.Window.GetTabOrder(self._name) end
+
+function Window:setMoving(isMoving) self._state.setMoving = { Api.Window.SetMoving, isMoving } end
+
+function Window:isMoving() return Api.Window.IsMoving(self._name) end
+
+function Window:registerEventHandler(event, callback)
+    if self._isInitialized then Api.Window.RegisterEventHandler(self._name, event, callback) end
+end
+
+function Window:unregisterEventHandler(event)
+    if self._isInitialized then Api.Window.UnregisterEventHandler(self._name, event) end
+end
+
+function Window:registerCoreEventHandler(event, callback)
+    if self._isInitialized then Api.Window.RegisterCoreEventHandler(self._name, event, callback) end
+end
+
+function Window:unregisterCoreEventHandler(event)
+    if self._isInitialized then Api.Window.UnregisterCoreEventHandler(self._name, event) end
+end
+
+function Window:onLButtonUp(fn) self._handlers.onLButtonUp = fn end
+
+function Window:onLButtonDown(fn) self._handlers.onLButtonDown = fn end
+
+function Window:onRButtonUp(fn) self._handlers.onRButtonUp = fn end
+
+function Window:onRButtonDown(fn) self._handlers.onRButtonDown = fn end
+
+function Window:onLButtonDblClk(fn)
+    self._handlers.onLButtonDblClk = fn
+    self._registrations.OnLButtonDblClk = { Api.Window.RegisterCoreEventHandler, "OnLButtonDblClk", "_Mongbat.OnLButtonDblClk" }
+end
+
+function Window:onMouseOver(fn) self._registrations.OnMouseOver = { Api.Window.RegisterCoreEventHandler, "OnMouseOver", fn } end
+
+function Window:onMouseOverEnd(fn) self._registrations.OnMouseOverEnd = { Api.Window.RegisterCoreEventHandler, "OnMouseOverEnd", fn } end
+
+function Window:onMouseWheel(fn) self._registrations.OnMouseWheel = { Api.Window.RegisterCoreEventHandler, "OnMouseWheel", fn } end
+
+function Window:setParent(parentId) self._state.setParent = { Api.Window.SetParent, parentId } end
+
+function Window:getParent() return Api.Window.GetParent(self._name) end
+
+function Window:setScale(scale) self._state.setScale = { Api.Window.SetScale, scale } end
+
+function Window:getScale() return Api.Window.GetScale(self._name) end
+
+function Window:setRelativeScale(scale) self._state.setRelativeScale = { Api.Window.SetRelativeScale, scale } end
+
+function Window:setResizeOnChildren(isRecursive, borderSpacing) self._state.setResizeOnChildren = { Api.Window.SetResizeOnChildren, isRecursive, borderSpacing } end
+
+function Window:setGameActionTrigger(action) self._state.setGameActionTrigger = { Api.Window.SetGameActionTrigger, action } end
+
+function Window:setGameActionData(actionType, actionId, actionText) self._state.setGameActionData = { Api.Window.SetGameActionData, actionType, actionId, actionText } end
+
+function Window:setGameActionButton(button) self._state.setGameActionButton = { Api.Window.SetGameActionButton, button } end
+
+function Window:getGameActionButton() return Api.Window.GetGameActionButton(self._name) end
+
+function Window:isGameActionLocked() return Api.Window.IsGameActionLocked(self._name) end
+
+function Window:setDrawWhenInterfaceHidden(doDraw) self._state.setDrawWhenInterfaceHidden = { Api.Window.SetDrawWhenInterfaceHidden, doDraw } end
+
+function Window:restoreDefaults()
+    if self._isInitialized then Api.Window.RestoreDefaults(self._name) end
+end
+
+function Window:setUpdateFrequency(frequency) self._state.setUpdateFrequency = { Api.Window.SetUpdateFrequency, frequency } end
+
+function Window:getPosition() return Api.Window.GetPosition(self._name) end
+
+function Window:attachToWorldObject(objectId)
+    if self._isInitialized then Api.Window.AttachToWorldObject(self._name, objectId) end
+end
+
+function Window:detachFromWorldObject(objectId)
+    if self._isInitialized then Api.Window.DetachFromWorldObject(self._name, objectId) end
+end
+
+function Window:savePosition(closing, alias)
+    if self._isInitialized then Api.Window.SavePosition(self._name, closing, alias) end
+end
+
+function Window:restorePosition(trackSize, alias, ignoreBounds)
+    if self._isInitialized then Api.Window.RestorePosition(self._name, trackSize, alias, ignoreBounds) end
+end
+
+---@param model WindowModel?
+Components.Window = function(model)
+    local window = Window:new(model)
+    State.Components[window:name()] = window
+    return window
+end
+
+-- Label ----------------------------------------------------------------------
+
+---@class LabelModel : WindowModel
+---@field Name string?
+---@field Template string?
+---@field OnInitialize fun(label: Label)?
+---@field OnUpdate fun(label: Label, timePassed: number)?
+---@field OnShutdown fun(label: Label)?
+
+---@class Label : Window
+local Label = {}
+Label.__index = Label
+Label._defaultTemplate = "MongbatLabel"
+setmetatable(Label, { __index = Window })
+
+---@param model LabelModel?
+function Label:new(model) return Window.new(self, model) end
+
+function Label:setText(text) self._state.setText = { Api.Label.SetText, text } end
+
+function Label:getText() return Api.Label.GetText(self._name) end
+
+function Label:setTextColor(color) self._state.setTextColor = { Api.Label.SetTextColor, color } end
+
+function Label:setTextAlignment(alignment) self._state.setTextAlignment = { Api.Label.SetTextAlignment, alignment } end
+
+function Label:setWordWrap(wordWrap) self._state.setWordWrap = { Api.Label.SetWordWrap, wordWrap } end
+
+---@param model LabelModel?
+Components.Label = function(model)
+    local label = Label:new(model)
+    State.Components[label:name()] = label
+    return label
+end
+
+-- DynamicImage ---------------------------------------------------------------
+
+---@class DynamicImageModel : WindowModel
+---@field Name string?
+---@field Template string?
+---@field OnInitialize fun(self: DynamicImage)?
+---@field OnUpdate fun(self: DynamicImage, timePassed: number, windowData: WindowDataWrapper)?
+---@field OnShutdown fun(self: DynamicImage)?
+
+---@class DynamicImage : Window
+local DynamicImage = {}
+DynamicImage.__index = DynamicImage
+DynamicImage._defaultTemplate = "MongbatDynamicImage"
+setmetatable(DynamicImage, { __index = Window })
+
+---@param model DynamicImageModel?
+---@return DynamicImage
+function DynamicImage:new(model) return Window.new(self, model) --[[@as DynamicImage]] end
+
+function DynamicImage:setTexture(texture, x, y) self._state.setTexture = { Api.DynamicImage.SetTexture, texture, x, y } end
+
+function DynamicImage:setTextureScale(scale) self._state.setTextureScale = { Api.DynamicImage.SetTextureScale, scale } end
+
+function DynamicImage:setTextureDimensions(x, y) self._state.setTextureDimensions = { Api.DynamicImage.SetTextureDimensions, x, y } end
+
+function DynamicImage:setTextureOrientation(mirrored) self._state.setTextureOrientation = { Api.DynamicImage.SetTextureOrientation, mirrored } end
+
+function DynamicImage:setTextureSlice(sliceName) self._state.setTextureSlice = { Api.DynamicImage.SetTextureSlice, sliceName } end
+
+function DynamicImage:setRotation(rotation) self._state.setRotation = { Api.DynamicImage.SetRotation, rotation } end
+
+function DynamicImage:hasTexture() return Api.DynamicImage.HasTexture(self._name) end
+
+function DynamicImage:setCustomShader(shader, hue) self._state.setCustomShader = { Api.DynamicImage.SetCustomShader, shader, hue } end
+
+---@param model DynamicImageModel?
+Components.DynamicImage = function(model)
+    local image = DynamicImage:new(model)
+    State.Components[image:name()] = image
+    return image
+end
+
+-- StatusBar ------------------------------------------------------------------
+
+---@class StatusBarModel : WindowModel
+---@field Name string?
+---@field Template string?
+---@field OnInitialize fun(self: StatusBar)?
+---@field OnUpdate fun(self: StatusBar, timePassed: number, windowData: WindowDataWrapper)?
+---@field OnShutdown fun(self: StatusBar)?
+
+---@class StatusBar : Window
+---@field _maxValue number
+---@field _currentValue number
+---@field _foregroundColor Color
+---@field _background DynamicImage
+---@field _fill DynamicImage
+local StatusBar = {}
+StatusBar.__index = StatusBar
+StatusBar._defaultTemplate = "MongbatStatusBar"
+setmetatable(StatusBar, { __index = Window })
+
+---@param bar StatusBar
+local function updateFill(bar)
+    if not bar:exists() or not bar._fill:exists() then return end
+    local dims = bar:getDimensions()
+    local barWidth = dims.x
+    local barHeight = dims.y
+    if bar._maxValue > 0 and bar._currentValue > 0 and barWidth > 0 then
+        local ratio = math.min(bar._currentValue, bar._maxValue) / bar._maxValue
+        local fillWidth = math.max(math.floor(barWidth * ratio), 1)
+        bar._fill:setDimensions(fillWidth, barHeight)
+        bar._fill:setColor(bar._foregroundColor)
+        bar._fill:setShowing(true)
+    else
+        bar._fill:setShowing(false)
+    end
+end
+
+---@param model StatusBarModel?
+function StatusBar:new(model)
+    local instance = Window.new(self, model) --[[@as StatusBar]]
+    instance._maxValue = 0
+    instance._currentValue = 0
+    instance._foregroundColor = Constants.Colors.White
+
+    local background = DynamicImage:new { Name = instance._name .. "Bg", Template = "MongbatStatusBarFill" }
+    instance:addChild(background)
+    instance._background = background
+
+    local fill = DynamicImage:new { Name = instance._name .. "Fill", Template = "MongbatStatusBarFill" }
+    instance:addChild(fill)
+    instance._fill = fill
+
+    -- Point both DynamicImages at a 1x1 region of the StatusBar texture so
+    -- SetColor tinting produces a flat colored fill.
+    background:setTexture("StatusBar", 1, 25)
+    background:setTextureDimensions(1, 1)
+    background:setColor(Constants.Colors.OffBlack)
+    background:setLayer(Constants.WindowLayers.Background)
+    fill:setTexture("StatusBar", 1, 25)
+    fill:setTextureDimensions(1, 1)
+    fill:setLayer(Constants.WindowLayers.Default)
+
+    -- Wrap the user's OnUpdate so the fill is recomputed every frame after
+    -- their setMaxValue/setCurrentValue calls.
+    local userOnUpdate = instance._onUpdate
+    instance._onUpdate = function(self, timePassed, windowData)
+        if userOnUpdate then userOnUpdate(self, timePassed, windowData) end
+        updateFill(self)
+    end
 
     return instance
 end
 
-function Window:onInitialize()
-    local isParentRoot = self:isParentRoot()
-    self:toggleBackground(isParentRoot)
-    self:toggleFrame(isParentRoot)
-    View.onInitialize(self)
+function StatusBar:setMaxValue(value) self._maxValue = value or 0 end
 
-    -- Re-check parent after View.onInitialize, which may reparent this window
-    isParentRoot = self:isParentRoot()
+function StatusBar:setCurrentValue(value) self._currentValue = value or 0 end
 
-    if isParentRoot then
-        Api.Window.RestorePosition(self.name)
-    end
-
-    -- Create resize grip for root windows unless explicitly disabled
-    if isParentRoot and self._model.Resizable ~= false then
-        local parentWindow = self
-        local grip = Components.Button {
-            Template = "MongbatResizeGrip",
-            Resizable = false,
-            OnLButtonDown = function()
-                startResize(parentWindow)
-            end,
-        }
-        grip:create()
-        grip:onInitialize()
-        grip:setParent(self.name)
-        grip:clearAnchors()
-        grip:addAnchor("bottomright", self.name, "bottomright", 0, 0)
-        grip:setLayer():overlay()
-        self._resizeGrip = grip
-    end
-
-    -- Register snappable root windows for edge snapping
-    if isParentRoot and self._model.Snappable ~= false then
-        SnappableWindows[self.name] = true
-        self._wasMoving = false
-        self._isSnapped = false
-        -- Ensure OnUpdate CoreEvent is registered even if the model has no OnUpdate
-        if self._model.OnUpdate == nil then
-            self._snapRegisteredOnUpdate = true
-            self:registerCoreEventHandler(
-                Constants.CoreEvents.OnUpdate,
-                "Mongbat.EventHandler.OnUpdate"
-            )
-        end
-    end
-
-    Utils.Array.ForEach(
-        self._children,
-        function(item, index)
-            -- Guard against double-wrapping if onInitialize is called more than once
-            if item._parentWrapped then
-                item:create()
-                item:onInitialize()
-                return
-            end
-            item._parentWrapped = true
-
-            --- For each child, override its onInitialize to set its parent and anchors
-            local onChildInitialize = item._model.OnInitialize
-
-            item._model.OnInitialize = function(child)
-                child:setParent(self:getName())
-                child:clearAnchors()
-                self._model.OnLayout(self, self._children, child, index)
-                if onChildInitialize ~= nil then
-                    onChildInitialize(child)
-                end
-            end
-
-            local onChildRButtonUp = item._model.OnRButtonUp
-
-            --- For each child propagate the onRButtonUp event to the parent
-            --- This is to allow closing the parent window when right-clicking on any child
-            item._model.OnRButtonUp = function(child, flags, x, y)
-                self:onRButtonUp(flags, x, y)
-                if onChildRButtonUp ~= nil then
-                    onChildRButtonUp(child, flags, x, y)
-                end
-            end
-
-            local onChildLButtonDown = item._model.OnLButtonDown
-
-            --- For each child propagate the onLButtonDown event to the parent
-            --- This is to allow moving the parent window when left-clicking on any child
-            item._model.OnLButtonDown = function(child, flags, x, y)
-                if onChildLButtonDown ~= nil then
-                    onChildLButtonDown(child, flags, x, y)
-                end
-                self:onLButtonDown(flags, x, y)
-            end
-
-            local onChildLButtonUp = item._model.OnLButtonUp
-
-            --- For each child propagate the onLButtonUp event to the parent
-            --- This is to allow stopping moving the parent window when releasing left-click on any child
-            item._model.OnLButtonUp = function(child, flags, x, y)
-                if onChildLButtonUp ~= nil then
-                    onChildLButtonUp(child, flags, x, y)
-                end
-                self:onLButtonUp(flags, x, y)
-            end
-
-            local onChildLButtonDblClk = item._model.OnLButtonDblClk
-
-            --- For each child propagate the onLButtonDblClk event to the parent
-            item._model.OnLButtonDblClk = function(child, flags, x, y)
-                self:onLButtonDblClk(flags, x, y)
-                if onChildLButtonDblClk ~= nil then
-                    onChildLButtonDblClk(child, flags, x, y)
-                end
-            end
-
-            local onMouseOver = item._model.OnMouseOver
-
-            item._model.OnMouseOver = function(child)
-                if onMouseOver ~= nil then
-                    onMouseOver(child)
-                end
-                self:onMouseOver()
-            end
-
-            local onMouseOverEnd = item._model.OnMouseOverEnd
-
-            item._model.OnMouseOverEnd = function(child)
-                self:onMouseOverEnd()
-                if onMouseOverEnd ~= nil then
-                    onMouseOverEnd(child)
-                end
-            end
-
-            item:create()
-            item:onInitialize()
-        end
-    )
+function StatusBar:setForegroundTint(color)
+    self._foregroundColor = color
 end
 
-local DETACH_NUDGE = 5
-
-function Window:onLButtonDown(flags, x, y)
-    -- Ctrl + left-click: detach this window from its snap group
-    if self._isSnapped and flags == Constants.ButtonFlags.Control then
-        local ox, oy = WindowGetOffsetFromParent(self.name)
-        WindowClearAnchors(self.name)
-        WindowAddAnchor(self.name, "topleft", "Root", "topleft",
-            ox + DETACH_NUDGE, oy + DETACH_NUDGE)
-        self._isSnapped = false
-        return
-    end
-
-    View.onLButtonDown(self, flags, x, y)
-    self._startDrag = { x = x, y = y }
+function StatusBar:setBackgroundTint(color)
+    self._background:setColor(color)
 end
 
-function Window:onLButtonUp(flags, x, y)
-    local moved = (self._startDrag.x >= 0 and self._startDrag.x ~= x) or
-        (self._startDrag.y >= 0 and self._startDrag.y ~= y)
-    local isDraggingItem = Data.Drag():isDraggingItem()
-    local shouldFire = (not moved) or isDraggingItem
-    if shouldFire then
-        View.onLButtonUp(self, flags, x, y)
-    end
-    self._startDrag = { x = -1, y = -1 }
+---@param model StatusBarModel?
+Components.StatusBar = function(model)
+    local statusBar = StatusBar:new(model)
+    State.Components[statusBar:name()] = statusBar
+    State.Components[statusBar._background:name()] = statusBar._background
+    State.Components[statusBar._fill:name()] = statusBar._fill
+    return statusBar
 end
 
-function Window:onUpdate(timePassed)
-    -- Snap + group drag logic for snappable windows
-    if self._wasMoving ~= nil then
-        local isMoving = self:isMoving()
+-- Button ---------------------------------------------------------------------
 
-        -- Drag start: compute the joined group and save offsets
-        if isMoving and not self._wasMoving then
-            local group = findJoinedGroup(self.name)
-            local myRect = getWindowRect(self.name)
-            local dragGroup = {}
-            local exclude = { [self.name] = true }
-            if myRect then
-                for _, name in ipairs(group) do
-                    exclude[name] = true
-                    if name ~= self.name then
-                        local rect = getWindowRect(name)
-                        if rect then
-                            table.insert(dragGroup, {
-                                name = name,
-                                offsetX = rect.x - myRect.x,
-                                offsetY = rect.y - myRect.y,
-                            })
-                        end
-                    end
-                end
-            end
-            self._dragGroup = dragGroup
-            self._dragExclude = exclude
-        end
+---@class ButtonModel : WindowModel
+---@field Name string?
+---@field Template string?
+---@field OnInitialize fun(self: Button)?
+---@field OnUpdate fun(self: Button, timePassed: number)?
+---@field OnShutdown fun(self: Button)?
 
-        if isMoving then
-            -- Move group members to maintain their offsets from the dragged window
-            local myRect = getWindowRect(self.name)
-            if myRect and self._dragGroup then
-                for _, member in ipairs(self._dragGroup) do
-                    WindowClearAnchors(member.name)
-                    WindowAddAnchor(member.name, "topleft", "Root", "topleft",
-                        myRect.x + member.offsetX, myRect.y + member.offsetY)
-                end
-            end
+---@class Button : Window
+local Button = {}
+Button.__index = Button
+Button._defaultTemplate = "MongbatButton"
+setmetatable(Button, { __index = Window })
 
-            -- Show snap preview for window-to-window only (skip screen edges)
-            local dx, dy = findSnap(self.name, self._dragExclude, true)
-            if dx ~= 0 or dy ~= 0 then
-                if myRect then
-                    showSnapPreview(myRect.x + dx, myRect.y + dy, myRect.w, myRect.h)
-                end
-            else
-                hideSnapPreview()
-            end
-        elseif self._wasMoving then
-            -- Just stopped moving: apply snap to dragged window and shift group
-            local isGroupDrag = self._dragGroup and #self._dragGroup > 0
-            local dx, dy = findSnap(self.name, self._dragExclude, isGroupDrag)
-            applySnap(self.name, dx, dy)
-            if self._dragGroup then
-                for _, member in ipairs(self._dragGroup) do
-                    applySnap(member.name, dx, dy)
-                end
-            end
-            self._dragGroup = nil
-            self._dragExclude = nil
-            hideSnapPreview()
+---@param model ButtonModel?
+function Button:new(model) return Window.new(self, model) end
 
-            -- Update _isSnapped: true if this window is now adjacent to another
-            local postGroup = findJoinedGroup(self.name)
-            self._isSnapped = #postGroup > 1
-        end
+function Button:getTextDimensions() return Api.Button.GetTextDimensions(self._name) end
 
-        self._wasMoving = isMoving
-    end
+function Button:setText(text) self._state.setText = { Api.Button.SetText, Utils.String.ToWString(text) } end
 
-    -- Chain to model OnUpdate if present
-    if self._model.OnUpdate ~= nil then
-        self._model.OnUpdate(self, timePassed)
-    end
+function Button:getText() return Api.Button.GetText(self._name) end
+
+function Button:setDisabled(isDisabled) self._state.setDisabled = { Api.Button.SetDisabled, isDisabled } end
+
+function Button:isDisabled() return Api.Button.IsDisabled(self._name) end
+
+function Button:setEnabled(isEnabled) self._state.setEnabled = { Api.Button.SetEnabled, isEnabled } end
+
+function Button:setChecked(isChecked) self._state.setChecked = { Api.Button.SetChecked, isChecked } end
+
+function Button:isChecked() return Api.Button.IsChecked(self._name) end
+
+function Button:setTexture(state, texture, x, y) self._state["setTexture:" .. tostring(state)] = { Api.Button.SetTexture, state, texture, x, y } end
+
+function Button:setHighlight(doHighlight) self._state.setHighlight = { Api.Button.SetHighlight, doHighlight } end
+
+function Button:setStayDown(stayDown) self._state.setStayDown = { Api.Button.SetStayDown, stayDown } end
+
+function Button:isStayDown() return Api.Button.IsStayDown(self._name) end
+
+function Button:setTextColor(r, g, b, a) self._state.setTextColor = { Api.Button.SetTextColor, r, g, b, a } end
+
+---@param model ButtonModel?
+---@return Button
+Components.Button = function(model)
+    local button = Button:new(model)
+    State.Components[button:name()] = button
+    return button --[[@as Button]]
 end
 
-function Window:onShutdown()
-    -- Cancel active resize if this window is being resized
-    if resizingWindow == self then
-        stopResize()
-    end
+-- Defaults -------------------------------------------------------------------
 
-    -- Clean up resize grip
-    if self._resizeGrip then
-        self._resizeGrip:destroy()
-        self._resizeGrip = nil
-    end
-
-    -- Unregister from snap system
-    SnappableWindows[self.name] = nil
-    if self._snapRegisteredOnUpdate then
-        self:unregisterCoreEventHandler(Constants.CoreEvents.OnUpdate)
-        self._snapRegisteredOnUpdate = false
-    end
-    self._wasMoving = nil
-
-    if self:isParentRoot() then
-        Api.Window.SavePosition(self.name)
-    end
-
-    Utils.Array.ForEach(self._children, function(item)
-        item:destroy()
-    end)
-    View.onShutdown(self)
-end
-
+---@param name string
 ---@return Window
-function Window:getFrame()
-    if self._frameWindow == nil then
-        self._frameWindow = Window:new { Name = self._frame }
+local function DefaultWindow(name)
+    local window = Window:new({ Name = name })
+    window.destroy = function(self)
+        Api.Window.Destroy(self._name)
     end
-    return self._frameWindow
-end
-
----@return Window
-function Window:getBackground()
-    if self._backgroundWindow == nil then
-        self._backgroundWindow = Window:new { Name = self._background }
+    window.setShowing = function(self, show)
+        Api.Window.SetShowing(self._name, show)
     end
-    return self._backgroundWindow
-end
-
-function Window:toggleFrame(doShow)
-    if Api.Window.DoesExist(self._frame) then
-        Api.Window.SetShowing(self._frame, doShow)
-    end
-end
-
-function Window:toggleBackground(doShow)
-    if Api.Window.DoesExist(self._background) then
-        Api.Window.SetShowing(self._background, doShow)
-    end
-end
-
-function Window:attachToObject()
-    Api.Window.AttachToWorldObject(self:getId(), self:getName())
-    return self
-end
-
-function Window:setChildren(children)
-    self._children = children
-end
-
----@param model WindowModel?
----@return Window
-function Components.Window(model)
-    local window = Window:new(model)
-    Cache[window:getName()] = window
     return window
 end
 
-setmetatable(View, { __index = Component })
-setmetatable(Window, { __index = View })
-setmetatable(Button, { __index = Window })
-setmetatable(EditTextBox, { __index = View })
-setmetatable(Label, { __index = View })
-setmetatable(LogDisplay, { __index = View })
-setmetatable(ScrollWindow, { __index = View })
-setmetatable(StatusBar, { __index = View })
-setmetatable(Gump, { __index = Window })
-setmetatable(CircleImage, { __index = View })
-setmetatable(DynamicImage, { __index = View })
-setmetatable(DefaultComponent, { __index = Component })
-setmetatable(DefaultActionsComponent, { __index = DefaultComponent })
-setmetatable(DefaultMainMenuWindowComponent, { __index = DefaultComponent })
-setmetatable(DefaultStatusWindowComponent, { __index = DefaultComponent })
-setmetatable(DefaultWarShieldComponent, { __index = DefaultComponent })
-setmetatable(DefaultPaperdollWindowComponent, { __index = DefaultComponent })
-setmetatable(DefaultInterfaceComponent, { __index = DefaultComponent })
-setmetatable(DefaultObjectHandleComponent, { __index = DefaultComponent })
-setmetatable(DefaultHealthBarManagerComponent, { __index = DefaultComponent })
-setmetatable(DefaultGumpsParsingComponent, { __index = DefaultComponent })
-setmetatable(DefaultGenericGumpComponent, { __index = DefaultComponent })
-setmetatable(DefaultMapWindowComponent, { __index = DefaultComponent })
-setmetatable(DefaultMapCommonComponent, { __index = DefaultComponent })
-setmetatable(DefaultDebugWindowComponent, { __index = DefaultComponent })
-setmetatable(SliderBar, { __index = View })
-setmetatable(ComboBox, { __index = View })
-setmetatable(ListBox, { __index = View })
-setmetatable(CheckBox, { __index = View })
-setmetatable(AnimatedImage, { __index = View })
-setmetatable(ActionButton, { __index = Button })
-setmetatable(ActionButtonGroup, { __index = Window })
-setmetatable(CooldownDisplay, { __index = AnimatedImage })
-setmetatable(DockableWindow, { __index = Window })
-setmetatable(PageWindow, { __index = View })
-
-Components.Defaults.Actions = DefaultActionsComponent:new()
-Components.Defaults.MainMenuWindow = DefaultMainMenuWindowComponent:new()
-Components.Defaults.StatusWindow = DefaultStatusWindowComponent:new()
-Components.Defaults.WarShield = DefaultWarShieldComponent:new()
-Components.Defaults.PaperdollWindow = DefaultPaperdollWindowComponent:new()
-Components.Defaults.Interface = DefaultInterfaceComponent:new()
-Components.Defaults.ObjectHandle = DefaultObjectHandleComponent:new()
-Components.Defaults.HealthBarManager = DefaultHealthBarManagerComponent:new()
-Components.Defaults.GumpsParsing = DefaultGumpsParsingComponent:new()
-Components.Defaults.GenericGump = DefaultGenericGumpComponent:new()
-Components.Defaults.MapWindow = DefaultMapWindowComponent:new()
-Components.Defaults.MapCommon = DefaultMapCommonComponent:new()
-Components.Defaults.DebugWindow = DefaultDebugWindowComponent:new()
+Components.Defaults = {
+    MainMenuWindow = DefaultWindow("MainMenuWindow"),
+    StatusWindow = DefaultWindow("StatusWindow"),
+    WarShield = DefaultWindow("WarShield"),
+    DebugWindow = DefaultWindow("DebugWindow")
+}
 
 -- ========================================================================== --
 -- Mod
@@ -7831,7 +4717,7 @@ function Mongbat.ModManager.Window()
         Name = "MongbatModManagerWindow",
         OnInitialize = function(self)
             self:setDimensions(400, 300)
-            self:setChildren(
+            self:addChildren(
                 Utils.Table.MapToArray(
                     Mods,
                     function(name, mod)
@@ -7856,8 +4742,6 @@ function Mongbat.ModManager.Window()
         end
     }
 end
-
-Mongbat.EventHandler = EventHandler
 
 ---@param model ModModel
 ---@return Mod
@@ -7889,37 +4773,44 @@ local mod = Mod:new {
         "Mongbat.xml"
     },
     OnInitialize = function()
-        local register = {
-            Constants.DataEvents.OnUpdatePlayerStatus,
-            Constants.DataEvents.OnUpdateRadar,
-            Constants.DataEvents.OnUpdatePlayerLocation
-        }
+        -- local register = {
+        --     Constants.DataEvents.OnUpdatePlayerStatus,
+        --     Constants.DataEvents.OnUpdateRadar,
+        --     Constants.DataEvents.OnUpdatePlayerLocation
+        -- }
 
-        Utils.Array.ForEach(
-            register,
-            function(dataEvent)
-                Api.Window.RegisterData(dataEvent.getType(), 0)
-            end
-        )
+        -- Utils.Array.ForEach(
+        --     register,
+        --     function(dataEvent)
+        --         Api.Window.RegisterData(dataEvent.getType(), 0)
+        --     end
+        -- )
 
-        --- We are using SystemEvents for onLButtonUp and onLButtonDown to facilitate the
-        --- dragging and dropping of items onto another window. In this scenario, the onLButtonUp attached
-        --- to the window is not activated. For example, if you drag an item from the inventory
-        --- to the status window, the onLButtonUp attached to the status window will not be activated.
+        -- --- We are using SystemEvents for onLButtonUp and onLButtonDown to facilitate the
+        -- --- dragging and dropping of items onto another window. In this scenario, the onLButtonUp attached
+        -- --- to the window is not activated. For example, if you drag an item from the inventory
+        -- --- to the status window, the onLButtonUp attached to the status window will not be activated.
         Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonUp")
+            "_Mongbat.OnLButtonUp")
         Api.Event.RegisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonDown")
+            "_Mongbat.OnLButtonDown")
+        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnRButtonUpProcessed.getEvent(),
+            "_Mongbat.OnRButtonUp")
+        Api.Event.RegisterEventHandler(Constants.SystemEvents.OnRButtonDownProcessed.getEvent(),
+            "_Mongbat.OnRButtonDown")
     end,
     OnShutdown = function()
-        Api.Window.UnregisterData(Constants.DataEvents.OnUpdatePlayerStatus.getType(), 0)
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonUp")
+            "_Mongbat.OnLButtonUp")
         Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnLButtonDownProcessed.getEvent(),
-            "Mongbat.EventHandler.OnLButtonDown")
-        SnappableWindows = {}
-        destroySnapPreview()
-        Cache = {}
+            "_Mongbat.OnLButtonDown")
+        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnRButtonUpProcessed.getEvent(),
+            "_Mongbat.OnRButtonUp")
+        Api.Event.UnregisterEventHandler(Constants.SystemEvents.OnRButtonDownProcessed.getEvent(),
+            "_Mongbat.OnRButtonDown")
+    end,
+    OnUpdate = function(timePassed)
+        State.Systems.OnUpdate(timePassed)
     end
 }
 
@@ -7935,14 +4826,51 @@ function _Mongbat.OnInitialize()
     mod:onInitialize()
 end
 
-function _Mongbat.OnShutdown()
-    mod:onShutdown()
+function _Mongbat.OnUpdate(timePassed)
+    mod:onUpdate(timePassed)
+end
 
-    -- Restore all proxied globals to their originals
-    for _, default in pairs(Components.Defaults) do
-        if type(default) == "table" and default.restoreGlobal then
-            default:restoreGlobal()
-        end
+function _Mongbat.OnLButtonUp(flags, x, y)
+    State.Systems.OnLButtonUp(flags, x, y)
+end
+
+function _Mongbat.OnLButtonDown(flags, x, y)
+    State.Systems.OnLButtonDown(flags, x, y)
+end
+
+function _Mongbat.OnRButtonUp(flags, x, y)
+    State.Systems.OnClick("onRButtonUp", flags, x, y)
+end
+
+function _Mongbat.OnRButtonDown(flags, x, y)
+    State.Systems.OnClick("onRButtonDown", flags, x, y)
+end
+
+function _Mongbat.OnShown()
+    local name = SystemData.ActiveWindow.name
+    local component = State.Components[name]
+    if component and component._isTopLevel then
+        component._state.setShowing = { Api.Window.SetShowing, true }
     end
 end
 
+function _Mongbat.OnHidden()
+    local name = SystemData.ActiveWindow.name
+    local component = State.Components[name]
+    if component and component._isTopLevel then
+        component._state.setShowing = { Api.Window.SetShowing, false }
+    end
+end
+
+function _Mongbat.OnLButtonDblClk(flags, x, y)
+    local name = SystemData.ActiveWindow.name
+    local component = State.Components[name]
+    if component then
+        local fn = component._handlers.onLButtonDblClk
+        if fn then fn(component, flags, x, y) end
+    end
+end
+
+function _Mongbat.OnShutdown()
+    mod:onShutdown()
+end

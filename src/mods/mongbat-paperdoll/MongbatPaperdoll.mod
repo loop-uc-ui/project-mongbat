@@ -13,12 +13,12 @@
 			<File name="MongbatPaperdollMod.lua" />
 		</Files>
 
-		<OnInitialize>
+		<!-- <OnInitialize>
 			<CallFunction name="Mongbat.ModManager.MongbatPaperdoll.OnInitialize" />
 		</OnInitialize>
 
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatPaperdoll.OnShutdown" />
-		</OnShutdown>
+		</OnShutdown> -->
 	</UiMod>
 </ModuleFile>

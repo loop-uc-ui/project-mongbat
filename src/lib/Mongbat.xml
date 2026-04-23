@@ -30,11 +30,11 @@
           </Size>
       </DynamicImage>
 
-      <StatusBar name="MongbatStatusBar" foreground="StatusBarForground">
+      <Window name="MongbatStatusBar">
           <Size>
               <AbsPoint x="168" y="24"/>
           </Size>
-      </StatusBar>
+      </Window>
 
       <Button name="MongbatButton" font="inter_medium_20">
           <TextColors>
@@ -63,11 +63,6 @@
           <Size>
               <AbsPoint x="54" y="18" />
           </Size>
-          <EventHandlers>
-              <EventHandler event="OnTextChanged" function="Mongbat.EventHandler.OnTextChanged"/>
-              <EventHandler event="OnKeyEnter" function="Mongbat.EventHandler.OnKeyEnter"/>
-              <EventHandler event="OnKeyEscape" function="Mongbat.EventHandler.OnKeyEscape"/>
-          </EventHandlers>
       </EditBox>
 
       <LogDisplay name="MongbatLogDisplay" font="inter_medium_18" scrollbar="$parentScrollbar">
@@ -136,9 +131,6 @@
       </MapDisplay>
 
       <MaskWindow name="MongbatWindow" movable="true">
-          <EventHandlers>
-              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
-          </EventHandlers>
           <Windows>
               <!-- Body background -->
               <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
@@ -220,19 +212,6 @@
               <AbsPoint x="48" y="48" />
           </Size>
       </AnimatedImage>
-
-      <Button name="MongbatActionButton" inherits="ActionButtonDef" sticky="false">
-          <Size>
-              <AbsPoint x="50" y="50" />
-          </Size>
-          <EventHandlers>
-              <EventHandler event="OnLButtonDown" function="Mongbat.EventHandler.OnLButtonDown"/>
-              <EventHandler event="OnLButtonUp" function="Mongbat.EventHandler.OnLButtonUp"/>
-              <EventHandler event="OnRButtonUp" function="Mongbat.EventHandler.OnRButtonUp"/>
-              <EventHandler event="OnMouseOver" function="Mongbat.EventHandler.OnMouseOver"/>
-              <EventHandler event="OnMouseOverEnd" function="Mongbat.EventHandler.OnMouseOverEnd"/>
-          </EventHandlers>
-      </Button>
 
       <AnimatedImage name="MongbatCooldownDisplay" inherits="CooldownEffect" handleinput="false" layer="popup">
           <Size>

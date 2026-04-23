@@ -13,12 +13,12 @@
 			<File name="MongbatDebugMod.lua" />
 		</Files>
 
-		<OnInitialize>
+		<!-- <OnInitialize>
 			<CallFunction name="Mongbat.ModManager.MongbatDebug.OnInitialize" />
 		</OnInitialize>
 
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatDebug.OnShutdown" />
-		</OnShutdown>
+		</OnShutdown> -->
 	</UiMod>
 </ModuleFile>
