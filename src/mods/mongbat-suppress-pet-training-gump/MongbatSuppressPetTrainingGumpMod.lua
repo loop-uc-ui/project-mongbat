@@ -1,16 +1,18 @@
+﻿-- Suppresses the pet training progress gump by intercepting GumpsParsing's
+-- per-frame parsing pass and clearing the entry before the engine can show
+-- it. No windows; pure init-time hook via Api.GumpsParsing.
+
+local Api       = Mongbat.Api
 local Constants = Mongbat.Constants
-local Components = Mongbat.Components
+
+local M = {}
+
+function M.OnLoad()
+    Api.GumpsParsing.SuppressGump(Constants.GumpIds.PetTrainingProgress)
+end
 
 Mongbat.Mod {
-    Name = "MongbatSuppressPetTrainingGump",
-    Path = "/src/mods/mongbat-suppress-pet-training-gump",
-    OnInitialize = function()
-        local gumpsParsing = Components.Defaults.GumpsParsing:getDefault()
-        local parsingCheck = gumpsParsing.MainParsingCheck
-        gumpsParsing.MainParsingCheck = function(timePassed)
-            parsingCheck(timePassed)
-            gumpsParsing.ToShow[Constants.GumpIds.PetTrainingProgress] = nil
-        end
-    end,
-    OnShutdown = function() end
+    Name   = "MongbatSuppressPetTrainingGump",
+    Path   = "/src/mods/mongbat-suppress-pet-training-gump",
+    Module = M,
 }

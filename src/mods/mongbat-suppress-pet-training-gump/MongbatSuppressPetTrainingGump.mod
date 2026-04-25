@@ -13,11 +13,11 @@
 			<File name="MongbatSuppressPetTrainingGumpMod.lua" />
 		</Files>
 
-		<!-- <OnInitialize>
+		<OnInitialize>
 			<CallFunction name="Mongbat.ModManager.MongbatSuppressPetTrainingGump.OnInitialize" />
 		</OnInitialize>
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatSuppressPetTrainingGump.OnShutdown" />
-		</OnShutdown> -->
+		</OnShutdown>
 	</UiMod>
 </ModuleFile>

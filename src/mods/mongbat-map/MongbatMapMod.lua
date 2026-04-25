@@ -1,261 +1,206 @@
----@type Window
-local window
+-- Radar map: hijacks the default UI''s MapWindow so this mod owns
+-- presentation. Engine still runs its MapCommon module — those callbacks
+-- short-circuit harmlessly when MapWindow no longer exists.
+--
+-- Pattern: Mongbat is a router. The mod owns three windows (outer panel,
+-- DynamicImage radar, coords label). Mod-level M.OnUpdate(dt) pushes the
+-- per-frame texture coords + label text + pan delta + size-poll. Routed
+-- engine events (M.OnLButtonDown / OnLButtonUp / OnLButtonDblClk /
+-- OnMouseWheel / OnMouseOverEnd) carry (name, key, ...).
+
+local Api       = Mongbat.Api
+local Data      = Mongbat.Data
+local Utils     = Mongbat.Utils
+local Constants = Mongbat.Constants
+
+local NAME       = "MongbatMapWindow"
+local MAP_NAME   = "MongbatMapRadar"
+local LABEL_NAME = "MongbatMapCoords"
 
 local WINDOW_SIZE = 400
-local MARGIN = 8
+local MARGIN      = 8
+local LABEL_H     = 16
+local CONTENT     = WINDOW_SIZE
 
-local Api = Mongbat.Api
-local Data = Mongbat.Data
-local Utils = Mongbat.Utils
-local Components = Mongbat.Components
+local M = {}
+
+local state = {
+    centerOnPlayer = true,
+    isPanning      = false,
+    lastMouseX     = 0,
+    lastMouseY     = 0,
+    radarW         = 0,
+    radarH         = 0,
+    zoom = {
+        current = 0,
+        min     = -2.0,
+        max     = 0.0,
+        step    = 0.50,
+    },
+}
+
+local function adjustZoom(delta)
+    local z = state.zoom
+    local step = z.current < 0.0 and 0.2 or z.step
+    z.current = math.max(z.min, math.min(z.max, z.current + delta * step))
+    Api.Radar.SetZoom(z.current)
+end
+
+local function initializeZoom()
+    local facet   = Api.Radar.GetFacet()
+    local area    = Api.Radar.GetArea()
+    local maxZoom = Api.Radar.GetMaxZoom(facet, area)
+    local z = state.zoom
+    if maxZoom and maxZoom > 0 then
+        z.max  = maxZoom
+        z.step = maxZoom / 5
+    else
+        z.max  = 0.0
+        z.step = 0.50
+    end
+    z.min = -2.0
+    local saved = Api.Radar.GetCurrentZoom()
+    if saved ~= 0 then
+        z.current = saved
+        adjustZoom(0)
+    else
+        adjustZoom(-20)
+    end
+end
+
+local function applyRadarSize(w, h)
+    if w == state.radarW and h == state.radarH then return end
+    state.radarW, state.radarH = w, h
+    local Radar = Api.Radar
+    local savedX, savedY = Radar.GetCenter()
+    local facet = Radar.GetFacet()
+    local area  = Radar.GetArea()
+    Radar.SetWindowSize(w, h, true, true)
+    if not state.centerOnPlayer then
+        Radar.CenterOnLocation(savedX, savedY, facet, area, false)
+    end
+end
+
+local function formatLocationText()
+    local x, y
+    if state.centerOnPlayer then
+        local loc = Data.PlayerLocation()
+        x, y = loc:getX(), loc:getY()
+    else
+        x, y = Api.Radar.GetCenter()
+    end
+    local facet     = Api.Radar.GetFacet()
+    local facetTid  = Api.Radar.GetFacetLabel(facet)
+    local facetName = Utils.String.FromWString(Api.String.GetStringFromTid(facetTid))
+    return Utils.String.Format("%d, %d - %s", x, y, facetName)
+end
+
+function M.OnLoad()
+    Api.Window.Destroy("MapWindow")
+    Mongbat.CreateWindow {
+        name = NAME, template = "MongbatWindow",
+        module = M, key = "panel",
+    }
+    Api.Window.SetDimensions(NAME, CONTENT + MARGIN * 2, CONTENT + MARGIN * 2)
+
+    Mongbat.CreateWindow {
+        name = MAP_NAME, template = "MongbatDynamicImage",
+        parent = NAME, module = M, key = "map",
+    }
+    Api.Window.SetDimensions(MAP_NAME, CONTENT, CONTENT)
+    Api.Window.ClearAnchors(MAP_NAME)
+    Api.Window.AddAnchor(MAP_NAME, "topleft",     "parent", "topleft",      MARGIN,  MARGIN)
+    Api.Window.AddAnchor(MAP_NAME, "bottomright", "parent", "bottomright", -MARGIN, -MARGIN)
+
+    Mongbat.CreateWindow {
+        name = LABEL_NAME, template = "MongbatLabelSmall",
+        parent = NAME, module = M, key = "coords",
+    }
+    Api.Window.SetDimensions(LABEL_NAME, CONTENT, LABEL_H)
+    Api.Window.SetLayer(LABEL_NAME, Constants.WindowLayers.Overlay)
+    Api.Window.ClearAnchors(LABEL_NAME)
+    Api.Window.AddAnchor(LABEL_NAME, "bottomleft", "parent", "bottomleft", MARGIN, -MARGIN)
+
+    applyRadarSize(CONTENT, CONTENT)
+    Api.Radar.SetRotation(0)
+    Api.Radar.SetWindowOffset(0, 0)
+    Api.Radar.SetCenterOnPlayer(true)
+    initializeZoom()
+end
+
+function M.OnUnload()
+    Mongbat.DestroyWindow(LABEL_NAME)
+    Mongbat.DestroyWindow(MAP_NAME)
+    Mongbat.DestroyWindow(NAME)
+end
+
+function M.OnUpdate(_dt)
+    if not Api.Window.DoesExist(MAP_NAME) then return end
+
+    -- Resize-poll: outer window is movable+resizable; mirror to radar.
+    local dims = Api.Window.GetDimensions(MAP_NAME)
+    applyRadarSize(dims.x, dims.y)
+
+    -- Update texture from current radar state.
+    local radar = Data.Radar()
+    Api.DynamicImage.SetTexture(MAP_NAME, "radar_texture",
+        radar:getTexCoordX(), radar:getTexCoordY())
+    Api.DynamicImage.SetTextureScale(MAP_NAME, radar:getTexScale())
+
+    Api.Label.SetText(LABEL_NAME, formatLocationText())
+
+    -- Pan delta.
+    if state.isPanning then
+        local pos = Data.MousePosition()
+        local dx = pos.x - state.lastMouseX
+        local dy = pos.y - state.lastMouseY
+        state.lastMouseX, state.lastMouseY = pos.x, pos.y
+        if dx ~= 0 or dy ~= 0 then
+            local Radar = Api.Radar
+            local facet = Radar.GetFacet()
+            local area  = Radar.GetArea()
+            local mx, my = Radar.GetCenter()
+            local wx, wy = Radar.TranslateWorldPositionToRadarPosition(mx, my)
+            local nx, ny = Radar.TranslateRadarPositionToWorldPosition(wx - dx, wy - dy, false)
+            Radar.CenterOnLocation(nx, ny, facet, area, false)
+        end
+    end
+end
+
+-- ---- Routed events --------------------------------------------------
+
+function M.OnMouseWheel(_name, key, _x, _y, delta)
+    if key == "map" then adjustZoom(-delta) end
+end
+
+function M.OnLButtonDown(name, key, flags)
+    if key ~= "map" then return end
+    if not Data.IsShift(flags) then return end
+    state.isPanning      = true
+    state.centerOnPlayer = false
+    local pos = Data.MousePosition()
+    state.lastMouseX, state.lastMouseY = pos.x, pos.y
+    Api.Radar.SetCenterOnPlayer(false)
+    Api.Window.SetMoving(Api.Window.GetParent(name), false)
+end
+
+function M.OnLButtonUp(_name, key)
+    if key == "map" then state.isPanning = false end
+end
+
+function M.OnMouseOverEnd(_name, key)
+    if key == "map" then state.isPanning = false end
+end
+
+function M.OnLButtonDblClk(_name, key)
+    if key ~= "map" then return end
+    state.isPanning      = false
+    state.centerOnPlayer = true
+    Api.Radar.SetCenterOnPlayer(true)
+end
 
 Mongbat.Mod {
-    Name = "MongbatMap",
-    Path = "/src/mods/mongbat-map",
-    OnInitialize = function()
-        local mapWindow = Components.Defaults.MapWindow
-        mapWindow:asComponent():setShowing(false)
-        mapWindow:disable()
-
-        local mapCommon = Components.Defaults.MapCommon
-        mapCommon:disable()
-
-        -- Track whether the radar is centered on the player
-        local centerOnPlayer = true
-        -- Track whether Shift+drag panning is active
-        local isPanning = false
-        local lastMouseX = 0
-        local lastMouseY = 0
-
-        -- Zoom state (mirrors MapCommon.ZoomLevel)
-        local zoom = {
-            current = 0,
-            min = -2.0,
-            max = 0.0,
-            step = 0.50,
-        }
-
-        --- Applies a zoom delta, clamped to [min, max].
-        --- Mirrors MapCommon.AdjustZoom from the default UI.
-        local function adjustZoom(delta)
-            local step = zoom.step
-            if zoom.current < 0.0 then
-                step = 0.2
-            end
-            zoom.current = zoom.current + (delta * step)
-            if zoom.current > zoom.max then
-                zoom.current = zoom.max
-            end
-            if zoom.current < zoom.min then
-                zoom.current = zoom.min
-            end
-            Api.Radar.SetZoom(zoom.current)
-        end
-
-        --- Queries the engine for zoom boundaries and applies an initial zoom.
-        --- Mirrors MapCommon.UpdateZoomValues + initial AdjustZoom.
-        local function initializeZoom()
-            local facet = Api.Radar.GetFacet()
-            local area = Api.Radar.GetArea()
-            local maxZoom = Api.Radar.GetMaxZoom(facet, area)
-            if maxZoom and maxZoom > 0 then
-                zoom.max = maxZoom
-                zoom.step = maxZoom / 5
-            else
-                zoom.max = 0.0
-                zoom.step = 0.50
-            end
-            zoom.min = -2.0
-
-            local savedZoom = Api.Radar.GetCurrentZoom()
-            if savedZoom ~= 0 then
-                zoom.current = savedZoom
-                adjustZoom(0)
-            else
-                adjustZoom(-20)
-            end
-        end
-
-        --- Returns the coordinate + facet display text.
-        --- Shows player coords when centered on player, otherwise the map center.
-        local function formatLocationText()
-            local Radar = Api.Radar
-            local x, y
-            if centerOnPlayer then
-                local loc = Data.PlayerLocation()
-                x = loc:getX()
-                y = loc:getY()
-            else
-                x, y = Radar.GetCenter()
-            end
-            local facet = Radar.GetFacet()
-            local facetTid = Radar.GetFacetLabel(facet)
-            local facetName = Utils.String.FromWString(
-                Api.String.GetStringFromTid(facetTid)
-            )
-            return Utils.String.Format("%d, %d - %s", x, y, facetName)
-        end
-
-        -- Track last radar size to avoid redundant SetWindowSize calls
-        local lastRadarW = 0
-        local lastRadarH = 0
-
-        local function updateRadarSize(w, h)
-            if w == lastRadarW and h == lastRadarH then return end
-            lastRadarW = w
-            lastRadarH = h
-
-            -- Save the current view center before resizing
-            local Radar = Api.Radar
-            local savedX, savedY = Radar.GetCenter()
-            local facet = Radar.GetFacet()
-            local area = Radar.GetArea()
-
-            Radar.SetWindowSize(w, h, true, true)
-
-            -- If the user had panned away, restore their view position
-            if not centerOnPlayer then
-                Radar.CenterOnLocation(savedX, savedY, facet, area, false)
-            end
-        end
-
-        local function Map()
-            return Components.DynamicImage {
-                OnInitialize = function(self)
-                    -- Activate the radar (mirrors MapWindow.ActivateMap)
-                    local dims = self:getDimensions()
-                    updateRadarSize(dims.x, dims.y)
-                    Api.Radar.SetRotation(0)
-                    Api.Radar.SetWindowOffset(0, 0)
-                    Api.Radar.SetCenterOnPlayer(true)
-                    initializeZoom()
-                end,
-                OnUpdateRadar = function(self, data)
-                    self:setTexture("radar_texture", data.TexCoordX, data.TexCoordY)
-                    self:setTextureScale(data.TexScale)
-                end,
-                OnDimensionsChanged = function(self, width, height)
-                    updateRadarSize(width, height)
-                end,
-                OnMouseWheel = function(self, _, _, delta)
-                    adjustZoom(-delta)
-                end,
-                OnLButtonDown = function(self, flags)
-                    if Data.IsShift(flags) then
-                        isPanning = true
-                        centerOnPlayer = false
-                        local pos = Data.MousePosition()
-                        lastMouseX = pos.x
-                        lastMouseY = pos.y
-                        Api.Radar.SetCenterOnPlayer(false)
-                        Api.Window.SetMoving(self:getParent(), false)
-                    end
-                end,
-                OnLButtonUp = function(self)
-                    isPanning = false
-                end,
-                OnMouseOverEnd = function(self)
-                    if isPanning then
-                        isPanning = false
-                    end
-                end,
-                OnLButtonDblClk = function(self)
-                    isPanning = false
-                    centerOnPlayer = true
-                    Api.Radar.SetCenterOnPlayer(true)
-                end,
-                OnUpdate = function(self)
-                    if not isPanning then return end
-
-                    local pos = Data.MousePosition()
-                    local mouseX = pos.x
-                    local mouseY = pos.y
-                    local deltaX = mouseX - lastMouseX
-                    local deltaY = mouseY - lastMouseY
-                    lastMouseX = mouseX
-                    lastMouseY = mouseY
-
-                    if deltaX == 0 and deltaY == 0 then return end
-
-                    local Radar = Api.Radar
-                    local facet = Radar.GetFacet()
-                    local area = Radar.GetArea()
-                    local mapCenterX, mapCenterY = Radar.GetCenter()
-                    local winCenterX, winCenterY =
-                        Radar.TranslateWorldPositionToRadarPosition(mapCenterX, mapCenterY)
-
-                    local offsetX = winCenterX - deltaX
-                    local offsetY = winCenterY - deltaY
-                    local newCenterX, newCenterY =
-                        Radar.TranslateRadarPositionToWorldPosition(offsetX, offsetY, false)
-
-                    Radar.CenterOnLocation(newCenterX, newCenterY, facet, area, false)
-                end,
-            }
-        end
-
-        --- Label in the lower-left corner showing coordinates and facet name.
-        --- Displays player coords when centered on player, map center otherwise.
-        local function CoordsLabel()
-            return Components.Label {
-                Template = "MongbatLabelSmall",
-                OnInitialize = function(self)
-                    self:setDimensions(WINDOW_SIZE, 16)
-                    self:setLayer():overlay()
-                    self:setText(formatLocationText())
-                end,
-                OnUpdateRadar = function(self)
-                    self:setText(formatLocationText())
-                end,
-                OnUpdatePlayerLocation = function(self)
-                    if centerOnPlayer then
-                        self:setText(formatLocationText())
-                    end
-                end,
-            }
-        end
-
-        local function Window()
-            return Components.Window {
-                Name = "MongbatMapWindow",
-                MinWidth = 100 + MARGIN * 2,
-                MinHeight = 100 + MARGIN * 2,
-                OnInitialize = function(self)
-                    self:setDimensions(WINDOW_SIZE + MARGIN * 2, WINDOW_SIZE + MARGIN * 2)
-                    self:setChildren { Map(), CoordsLabel() }
-                end,
-                OnLayout = function(self, children, child, index)
-                    local dimens = self:getDimensions()
-                    local contentW = dimens.x - MARGIN * 2
-                    local contentH = dimens.y - MARGIN * 2
-
-                    if index == 1 then
-                        -- Map image: fill the window minus margins
-                        child:setDimensions(contentW, contentH)
-                        child:anchorToParentCenter(0, 0)
-                    elseif index == 2 then
-                        -- Coords/facet label: full width, bottom-left
-                        child:setDimensions(contentW, 16)
-                        child:addAnchor("bottomleft", self:getName(), "bottomleft", MARGIN, -MARGIN)
-                    end
-                end,
-            }
-        end
-
-        window = Window()
-        window:create(true)
-    end,
-
-    OnShutdown = function()
-        if window ~= nil then
-            window:destroy()
-        end
-
-        local mapCommon = Components.Defaults.MapCommon
-        mapCommon:restore()
-
-        local mapWindow = Components.Defaults.MapWindow
-        mapWindow:restore()
-        mapWindow:asComponent():setShowing(true)
-    end,
+    Name   = "MongbatMap",
+    Path   = "/src/mods/mongbat-map",
+    Module = M,
 }

@@ -12,7 +12,7 @@
           <ThumbOffset x="1" y="1" />
       </VerticalScrollbar>
 
-      <HorizontalResizeImage name="StatusBarForground" texture="StatusBar" texturescale="2.0" alpha="0.0">
+      <HorizontalResizeImage name="StatusBarForground" texture="StatusBar" texturescale="2.0" alpha="0.0" handleinput="false">
           <Size>
             <AbsPoint x="168" y="24" />
           </Size>
@@ -28,34 +28,49 @@
           <Size>
             <AbsPoint x="168" y="24" />
           </Size>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </DynamicImage>
 
-      <Window name="MongbatStatusBar">
+      <Window name="MongbatStatusBar" handleinput="false">
           <Size>
               <AbsPoint x="168" y="24"/>
           </Size>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </Window>
 
       <Button name="MongbatButton" font="inter_medium_20">
           <TextColors>
               <Normal r="206" g="217" b="242" a="255"/>
           </TextColors>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </Button>
 
       <Button name="MongbatButton18" inherits="MongbatButton" font="inter_medium_18"/>
 
-      <Label name="MongbatLabel" font="inter_medium_18">
+      <Label name="MongbatLabel" font="inter_medium_18" handleinput="false">
           <Size>
               <AbsPoint x="54" y="18" />
           </Size>
           <Color r="206" g="217" b="242" a="255" />
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </Label>
 
-      <Label name="MongbatLabelSmall" font="inter_medium_12">
+      <Label name="MongbatLabelSmall" font="inter_medium_12" handleinput="false">
           <Size>
               <AbsPoint x="54" y="12" />
           </Size>
           <Color r="206" g="217" b="242" a="255" />
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </Label>
 
       <EditBox name="MongbatEditTextBox" font="inter_medium_18" taborder="1" maxchars="256" scrolling="horz">
@@ -63,6 +78,9 @@
           <Size>
               <AbsPoint x="54" y="18" />
           </Size>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </EditBox>
 
       <LogDisplay name="MongbatLogDisplay" font="inter_medium_18" scrollbar="$parentScrollbar">
@@ -84,6 +102,9 @@
                   </Anchors>
               </VerticalScrollbar>
           </Windows>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </LogDisplay>
 
       <ScrollWindow name="MongbatScrollWindow" childscrollwindow="$parentChild" scrollbar="$parentScrollbar" lineheight="55" autoHideScrollBar="true">
@@ -106,22 +127,28 @@
         </Windows>
       </ScrollWindow>
 
-      <CircleImage name="MongbatCircleImage">
+      <CircleImage name="MongbatCircleImage" handleinput="false">
         <Size>
           <AbsPoint x="200" y="200" />
         </Size>
       </CircleImage>
 
-      <DynamicImage name="MongbatDynamicImage" scaleAnchor="center">
+      <DynamicImage name="MongbatDynamicImage" scaleAnchor="center" handleinput="false">
         <Size>
           <AbsPoint x="250" y="250" />
         </Size>
+        <EventHandlers>
+            <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+        </EventHandlers>
       </DynamicImage>
 
-      <DynamicImage name="MongbatFilteredDynamicImage" filtering="true" texturescale="1.0" scaleAnchor="center">
+      <DynamicImage name="MongbatFilteredDynamicImage" filtering="true" texturescale="1.0" scaleAnchor="center" handleinput="false">
         <Size>
           <AbsPoint x="250" y="250" />
         </Size>
+        <EventHandlers>
+            <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+        </EventHandlers>
       </DynamicImage>
 
       <MapDisplay name="MongbatMapDisplay">
@@ -133,7 +160,7 @@
       <MaskWindow name="MongbatWindow" movable="true">
           <Windows>
               <!-- Body background -->
-              <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background">
+              <FullResizeImage name="$parentBackground" inherits="UO_Simple_Black_Background" handleinput="false">
                   <Anchors>
                       <Anchor point="topleft" relativePoint="topleft" relativeTo="$parent"/>
                       <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parent"/>
@@ -141,7 +168,7 @@
               </FullResizeImage>
 
               <!-- Inner Frame Boilerplate -->
-              <FullResizeImage name="$parentFrame" inherits="UO_Simple_Frame" layer="background" frameonly="true">
+              <FullResizeImage name="$parentFrame" inherits="UO_Simple_Frame" layer="background" frameonly="true" handleinput="false">
                   <Anchors>
                       <Anchor point="topleft" relativePoint="topleft" relativeTo="$parentBackground"/>
                       <Anchor point="bottomright" relativePoint="bottomright" relativeTo="$parentBackground" />
@@ -149,6 +176,9 @@
               </FullResizeImage>
               <!-- End of Inner Frame Boilerplate -->
           </Windows>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
       </MaskWindow>
 
       <!-- Resize grip anchored to bottom-right corner of a window (purple diamond from Legacy Runebook) -->

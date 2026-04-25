@@ -5,6 +5,15 @@
 		<Author name="Loop" />
 		<Description text="https://github.com/loop-uc-ui/project-mongbat/"/>
 
+		<Dependencies>
+			<Dependency name="MongbatInternal" />
+			<Dependency name="MongbatUtils" />
+			<Dependency name="MongbatConstants" />
+			<Dependency name="MongbatApi" />
+			<Dependency name="MongbatData" />
+			<Dependency name="MongbatDebugger" />
+		</Dependencies>
+
 		<Files>
             <File name="Mongbat.lua"/>
 		</Files>

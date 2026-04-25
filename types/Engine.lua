@@ -1,4 +1,6 @@
-﻿---@class Event:number
+﻿---@alias wstring string
+
+---@class Event:number
 ---@class Type:number
 
 ---@class Object

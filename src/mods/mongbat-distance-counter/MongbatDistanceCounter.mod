@@ -13,11 +13,11 @@
 			<File name="MongbatDistanceCounterMod.lua" />
 		</Files>
 
-		<!-- <OnInitialize>
+		<OnInitialize>
 			<CallFunction name="Mongbat.ModManager.MongbatDistanceCounter.OnInitialize" />
 		</OnInitialize>
 		<OnShutdown>
 			<CallFunction name="Mongbat.ModManager.MongbatDistanceCounter.OnShutdown" />
-		</OnShutdown> -->
+		</OnShutdown>
 	</UiMod>
 </ModuleFile>

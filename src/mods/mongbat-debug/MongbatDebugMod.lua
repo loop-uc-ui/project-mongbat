@@ -1,49 +1,61 @@
-local NAME = "MongbatDebugWindow"
-local FILTERED_LOG = "MongbatDebugFiltered"
+-- Debug log viewer: a filter EditBox over two LogDisplays (full + filtered),
+-- toggled by whether the filter has any text. Hijacks the default
+-- DebugWindow so this mod owns presentation entirely.
 
-local Api = Mongbat.Api
-local Components = Mongbat.Components
+local Api   = Mongbat.Api
+local Utils = Mongbat.Utils
+
+local NAME           = "MongbatDebugWindow"
+local FILTER_LOG     = "MongbatDebugFiltered"
+local FILTER_INPUT   = "MongbatDebugFilterInput"
+local FULL_LOG       = "MongbatDebugFullLog"
+local FILTERED_LOG_W = "MongbatDebugFilteredLog"
 
 local FilterColors = {
     [1] = { r = 255, g = 0,   b = 255 }, -- System: Magenta
-    [2] = { r = 255, g = 0,   b = 0   }, -- Error: Red
-    [3] = { r = 255, g = 255, b = 0   }, -- Debug: Yellow
+    [2] = { r = 255, g = 0,   b = 0   }, -- Error:  Red
+    [3] = { r = 255, g = 255, b = 0   }, -- Debug:  Yellow
     [4] = { r = 0,   g = 255, b = 0   }, -- Function: Green
 }
 
---- Populates the filtered text log with entries matching the filter text,
---- then toggles visibility between the full and filtered LogDisplays.
----@param fullLog LogDisplay
----@param filteredLog LogDisplay
----@param text wstring
-local function applyFilter(fullLog, filteredLog, text)
-    if wstring.len(text) <= 0 then
-        filteredLog:setShowing(false)
-        fullLog:setShowing(true)
-        return
-    end
+local PADDING       = 12
+local SPACING       = 4
+local FILTER_HEIGHT = 24
+local PANEL_W       = 800
+local PANEL_H       = 500
 
-    Api.TextLog.Clear(FILTERED_LOG)
-    local lowerFilter = wstring.lower(text)
+local M = {}
+local state = { filtered = false }
 
-    for _, logName in ipairs({ "UiLog", "DebugPrint" }) do
-        local count = Api.TextLog.GetNumEntries(logName)
+local function rebuildFilteredLog(filterText)
+    Api.TextLog.Clear(FILTER_LOG)
+    if Utils.String.IsEmpty(filterText) then return end
+
+    local needle = Utils.String.Lower(filterText)
+    Utils.Array.ForEach({ "UiLog", "DebugPrint" }, function(sourceLog)
+        local count = Api.TextLog.GetNumEntries(sourceLog)
         for i = 0, count - 1 do
-            local _, filterType, entryText = Api.TextLog.GetEntry(logName, i)
-            if entryText and wstring.find(wstring.lower(entryText), lowerFilter) then
-                Api.TextLog.AddEntry(FILTERED_LOG, filterType, entryText)
+            local _, filterType, entryText = Api.TextLog.GetEntry(sourceLog, i)
+            if entryText and Utils.String.Find(Utils.String.Lower(entryText), needle) then
+                Api.TextLog.AddEntry(FILTER_LOG, filterType, entryText)
             end
         end
-    end
-
-    fullLog:setShowing(false)
-    filteredLog:setShowing(true)
+    end)
 end
 
-local function OnInitialize()
-    local original = Components.Defaults.DebugWindow
-    original:disable()
+local function applyFilter(text)
+    rebuildFilteredLog(text)
+    local nowFiltered = not Utils.String.IsEmpty(text)
+    if nowFiltered ~= state.filtered then
+        state.filtered = nowFiltered
+        Api.Window.SetShowing(FULL_LOG,       not nowFiltered)
+        Api.Window.SetShowing(FILTERED_LOG_W, nowFiltered)
+    end
+end
 
+function M.OnLoad()
+    Api.Window.Destroy("DebugWindow")
+    -- TextLog setup (engine state, not a window).
     Api.TextLog.Create("DebugPrint", 500)
     Api.TextLog.SetEnabled("DebugPrint", true)
     Api.TextLog.Clear("DebugPrint")
@@ -51,89 +63,86 @@ local function OnInitialize()
     Api.TextLog.SetEnabled("UiLog", true)
     Api.TextLog.SetIncrementalSaving("UiLog", true, "logs/lua.log")
 
-    Api.TextLog.Create(FILTERED_LOG, 500)
-    Api.TextLog.SetEnabled(FILTERED_LOG, true)
+    Api.TextLog.Create(FILTER_LOG, 500)
+    Api.TextLog.SetEnabled(FILTER_LOG, true)
     for id = 1, 4 do
-        Api.TextLog.AddFilterType(FILTERED_LOG, id, L"")
+        Api.TextLog.AddFilterType(FILTER_LOG, id, Utils.String.ToWString(""))
     end
 
-    local fullLogDisplay = Components.LogDisplay {
-        OnInitialize = function(self)
-            self:showTimestamp(false)
-            self:showLogName(true)
-            self:showFilterName(true)
-            self:addLog("UiLog", true)
-            self:addLog("DebugPrint", true)
-
-            for id, color in pairs(FilterColors) do
-                self:setFilterColor("UiLog", id, color)
-            end
-        end,
+    -- Outer window.
+    Mongbat.CreateWindow {
+        name = NAME, template = "MongbatWindow",
+        module = M, key = "panel", showing = false,
     }
+    Api.Window.SetDimensions(NAME, PANEL_W, PANEL_H)
+    Api.Window.SetAlpha(NAME, 0.75)
 
-    local filteredLogDisplay = Components.LogDisplay {
-        OnInitialize = function(self)
-            self:showTimestamp(false)
-            self:showLogName(false)
-            self:showFilterName(true)
-            self:addLog(FILTERED_LOG, true)
-
-            for id, color in pairs(FilterColors) do
-                self:setFilterColor(FILTERED_LOG, id, color)
-            end
-
-            self:setShowing(false)
-        end,
+    -- Filter input.
+    Mongbat.CreateWindow {
+        name = FILTER_INPUT, template = "MongbatEditTextBox",
+        parent = NAME, module = M, key = "filter",
     }
+    Api.Window.SetDimensions(FILTER_INPUT, PANEL_W - 2 * PADDING, FILTER_HEIGHT)
+    Api.Window.SetOffsetFromParent(FILTER_INPUT, PADDING, PADDING)
 
-    local filterInput = Components.FilterInput {
-        OnTextChanged = function(self, text)
-            applyFilter(fullLogDisplay, filteredLogDisplay, text)
-        end,
-        OnKeyEscape = function(self)
-            self:clear()
-            applyFilter(fullLogDisplay, filteredLogDisplay, L"")
-        end,
+    -- Full (unfiltered) log.
+    Mongbat.CreateWindow {
+        name = FULL_LOG, template = "MongbatLogDisplay",
+        parent = NAME, module = M, key = "fullLog",
     }
+    Api.Window.SetOffsetFromParent(FULL_LOG, PADDING, PADDING + FILTER_HEIGHT + SPACING)
+    Api.Window.SetDimensions(FULL_LOG,
+        PANEL_W - 2 * PADDING,
+        PANEL_H - PADDING - FILTER_HEIGHT - SPACING - PADDING)
+    Api.LogDisplay.ShowTimestamp(FULL_LOG, false)
+    Api.LogDisplay.ShowLogName(FULL_LOG, true)
+    Api.LogDisplay.ShowFilterName(FULL_LOG, true)
+    Api.LogDisplay.AddLog(FULL_LOG, "UiLog", true)
+    Api.LogDisplay.AddLog(FULL_LOG, "DebugPrint", true)
+    Utils.Table.ForEach(FilterColors, function(level, color)
+        Api.LogDisplay.SetFilterColor(FULL_LOG, "UiLog", level, color)
+    end)
 
-    Components.Window({
-        Name = NAME,
-        OnLayout = function(window, children, child, index)
-            local dimens = window:getDimensions()
-            local padding = 12
-            local spacing = 4
-            local filterHeight = 24
-            local contentWidth = dimens.x - (padding * 2)
-            local logHeight = dimens.y - (padding * 2) - filterHeight - spacing
-
-            if index == 1 then
-                -- FilterInput
-                child:addAnchor("topleft", window:getName(), "topleft", padding, padding)
-                child:setDimensions(contentWidth, filterHeight)
-            else
-                -- Both LogDisplays occupy the same space below the filter
-                child:addAnchor("bottomleft", children[1]:getName(), "topleft", 0, spacing)
-                child:setDimensions(contentWidth, logHeight)
-            end
-        end,
-        OnInitialize = function(self)
-            self:setDimensions(800, 500)
-            self:setAlpha(0.75)
-            self:setChildren { filterInput, fullLogDisplay, filteredLogDisplay }
-        end
-    }):create(false)
+    -- Filtered log (hidden until filter has text).
+    Mongbat.CreateWindow {
+        name = FILTERED_LOG_W, template = "MongbatLogDisplay",
+        parent = NAME, module = M, key = "filteredLog",
+        showing = false,
+    }
+    Api.Window.SetOffsetFromParent(FILTERED_LOG_W, PADDING, PADDING + FILTER_HEIGHT + SPACING)
+    Api.Window.SetDimensions(FILTERED_LOG_W,
+        PANEL_W - 2 * PADDING,
+        PANEL_H - PADDING - FILTER_HEIGHT - SPACING - PADDING)
+    Api.LogDisplay.ShowTimestamp(FILTERED_LOG_W, false)
+    Api.LogDisplay.ShowLogName(FILTERED_LOG_W, false)
+    Api.LogDisplay.ShowFilterName(FILTERED_LOG_W, true)
+    Api.LogDisplay.AddLog(FILTERED_LOG_W, FILTER_LOG, true)
+    Utils.Table.ForEach(FilterColors, function(level, color)
+        Api.LogDisplay.SetFilterColor(FILTERED_LOG_W, FILTER_LOG, level, color)
+    end)
 end
 
-local function OnShutdown()
-    Api.Window.Destroy(NAME)
-    Api.TextLog.Destroy(FILTERED_LOG)
-    local original = Components.Defaults.DebugWindow
-    original:restore()
+function M.OnUnload()
+    Mongbat.DestroyWindow(FILTERED_LOG_W)
+    Mongbat.DestroyWindow(FULL_LOG)
+    Mongbat.DestroyWindow(FILTER_INPUT)
+    Mongbat.DestroyWindow(NAME)
+    Api.TextLog.Destroy(FILTER_LOG)
+end
+
+function M.OnEditBoxChanged(name, key)
+    if key == "filter" then applyFilter(Api.EditTextBox.GetText(name)) end
+end
+
+function M.OnEditBoxKeyEscape(name, key)
+    if key == "filter" then
+        Api.EditTextBox.Clear(name)
+        applyFilter(Utils.String.ToWString(""))
+    end
 end
 
 Mongbat.Mod {
-    Name = "MongbatDebug",
-    Path = "/src/mods/mongbat-debug",
-    OnInitialize = OnInitialize,
-    OnShutdown = OnShutdown,
+    Name   = "MongbatDebug",
+    Path   = "/src/mods/mongbat-debug",
+    Module = M,
 }
