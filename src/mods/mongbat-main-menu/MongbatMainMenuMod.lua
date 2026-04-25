@@ -78,7 +78,7 @@ function M.OnLoad()
         }
         Api.Window.SetDimensions(n, BTN_W, BTN_H)
         Api.Window.SetOffsetFromParent(n, PAD_X, PAD_Y + (i - 1) * (BTN_H + BTN_SPACING))
-        Api.Button.SetText(n, Utils.String.ToWString(b.text))
+        Api.Button.SetText(n, b.text)
     end)
 end
 

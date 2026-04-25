@@ -273,9 +273,9 @@ end
 ---
 --- Sets the text of a button.
 ---@param id string The ID of the button.
----@param text string|wstring The text to set.
+---@param text string|number|wstring The text to set.
 function Api.Button.SetText(id, text)
-    ButtonSetText(id, Mongbat.Utils.String.FromWString(text))
+    ButtonSetText(id, Mongbat.Utils.String.ToWString(text))
 end
 
 ---
@@ -426,10 +426,19 @@ function Api.CircleImage.SetRotation(id, rotation)
     CircleImageSetRotation(id, rotation)
 end
 
+---
+--- Sets the fill parameters for a circle image.
+---@param name string The name of the circle image.
+---@param startAngle number The start angle in degrees.
+---@param fillAngle number The fill angle in degrees.
 function Api.CircleImage.SetFillParams(name, startAngle, fillAngle)
     CircleImageSetFillParams(name, startAngle, fillAngle)
 end
 
+---
+--- Sets the texture slice for a circle image.
+---@param name string The name of the circle image.
+---@param sliceName string The name of the texture slice.
 function Api.CircleImage.SetTextureSlice(name, sliceName)
     CircleImageSetTextureSlice(name, sliceName)
 end
@@ -533,7 +542,7 @@ end
 ---
 --- Sets the mouse click data for an object.
 ---@param objectId number The object ID.
----@param dragSource string The drag source.
+---@param dragSource number The drag source.
 function Api.Drag.SetObjectMouseClickData(objectId, dragSource)
     DragSlotSetObjectMouseClickData(objectId, dragSource)
 end
@@ -769,31 +778,43 @@ Api.Event = {}
 
 ---
 --- Broadcasts an event.
----@param event string The event to broadcast.
+---@param event number The event to broadcast.
 function Api.Event.Broadcast(event)
     BroadcastEvent(event)
 end
 
+--- Broadcasts the `REQUEST_OPEN_HELP_MENU` system event.
 function Api.Event.OpenHelpMenu()
     Api.Event.Broadcast(SystemData.Events.REQUEST_OPEN_HELP_MENU)
 end
 
+--- Broadcasts the `UO_STORE_REQUEST` system event.
 function Api.Event.OpenStore()
     Api.Event.Broadcast(SystemData.Events.UO_STORE_REQUEST)
 end
 
+--- Broadcasts the `LOG_OUT` system event.
 function Api.Event.Logout()
     Api.Event.Broadcast(SystemData.Events.LOG_OUT)
 end
 
+--- Broadcasts the `EXIT_GAME` system event.
 function Api.Event.ExitGame()
     Api.Event.Broadcast(SystemData.Events.EXIT_GAME)
 end
 
+---
+--- Registers a persistent global event handler.
+---@param event number The event ID to listen for.
+---@param callback string The name of the global handler function.
 function Api.Event.RegisterEventHandler(event, callback)
     RegisterEventHandler(event, callback)
 end
 
+---
+--- Unregisters a persistent global event handler.
+---@param event number The event ID to stop listening for.
+---@param callback string The name of the global handler function.
 function Api.Event.UnregisterEventHandler(event, callback)
     UnregisterEventHandler(event, callback)
 end
@@ -1282,6 +1303,10 @@ function Api.Radar.SetWindowSize(sizeX, sizeY, boolOne, centerOnPlayer)
     UORadarSetWindowSize(sizeX, sizeY, boolOne, centerOnPlayer)
 end
 
+---
+--- Sets the window offset for the radar display.
+---@param x number The x offset.
+---@param y number The y offset.
 function Api.Radar.SetWindowOffset(x, y)
     UORadarSetWindowOffset(x, y)
 end
@@ -1310,8 +1335,11 @@ function Api.Radar.GetMaxZoom(facet, area)
         area or Api.Radar.GetArea())
 end
 
+---
+--- Gets the current saved radar zoom level.
+---@return number The current zoom level.
 function Api.Radar.GetCurrentZoom()
-    return Api.Interface.LoadNumber("MapZoom", 0)
+    return Api.Interface.LoadNumber("MapZoom", 0) or 0
 end
 
 ---
@@ -1833,6 +1861,10 @@ end
 Api.Window = {}
 
 
+---
+--- Gets the current state of a window.
+---@param windowName string The name of the window.
+---@return any The window state.
 function Api.Window.GetState(windowName)
     return WindowGetState(windowName)
 end
@@ -2474,6 +2506,7 @@ function Api.InterfaceCore.GetScaleFactor()
     return 1 / InterfaceCore.scale
 end
 
+--- Triggers a full UI reload.
 function Api.InterfaceCore.ReloadUI()
     InterfaceCore.ReloadUI()
 end
@@ -2484,26 +2517,53 @@ end
 
 Api.Interface = {}
 
+---
+--- Saves a string value to persistent Interface storage.
+---@param key string The storage key.
+---@param value string The value to save.
 function Api.Interface.SaveString(key, value)
     Interface.SaveString(key, value)
 end
 
+---
+--- Loads a string value from persistent Interface storage.
+---@param key string The storage key.
+---@param default string? The default value if the key is not found.
+---@return string? The stored value, or `default`.
 function Api.Interface.LoadString(key, default)
     return Interface.LoadString(key, default)
 end
 
+---
+--- Saves a number value to persistent Interface storage.
+---@param key string The storage key.
+---@param value number The value to save.
 function Api.Interface.SaveNumber(key, value)
     Interface.SaveNumber(key, value)
 end
 
+---
+--- Loads a number value from persistent Interface storage.
+---@param key string The storage key.
+---@param default number? The default value if the key is not found.
+---@return number? The stored value, or `default`.
 function Api.Interface.LoadNumber(key, default)
     return Interface.LoadNumber(key, default)
 end
 
+---
+--- Saves a boolean value to persistent Interface storage.
+---@param key string The storage key.
+---@param value boolean The value to save.
 function Api.Interface.SaveBoolean(key, value)
     Interface.SaveBoolean(key, value)
 end
 
+---
+--- Loads a boolean value from persistent Interface storage.
+---@param key string The storage key.
+---@param default boolean? The default value if the key is not found.
+---@return boolean? The stored value, or `default`.
 function Api.Interface.LoadBoolean(key, default)
     return Interface.LoadBoolean(key, default)
 end
@@ -2574,6 +2634,8 @@ end
 
 Api.GenericGump = {}
 
+--- Chains a subscriber to `GenericGump.OnShown`. Preserves the existing
+--- handler so multiple subscribers compose without clobbering each other.
 ---@param fn fun()
 function Api.GenericGump.OnShown(fn)
     local previous = GenericGump.OnShown or function() end
@@ -2583,6 +2645,7 @@ function Api.GenericGump.OnShown(fn)
     end
 end
 
+--- Returns the label list populated by the last parsed generic gump.
 ---@return { windowName: string }[]
 function Api.GenericGump.GetLastLabels()
     return GenericGump.LastGumpLabels or {}
@@ -2599,6 +2662,8 @@ end
 
 Api.GumpsParsing = {}
 
+--- Returns the gump name for a given gump ID from `GumpsParsing.GumpMaps`,
+--- or nil if no entry exists.
 ---@param id integer
 ---@return string?
 function Api.GumpsParsing.GetGumpName(id)
@@ -2606,12 +2671,16 @@ function Api.GumpsParsing.GetGumpName(id)
     return entry and entry.name
 end
 
+--- Sets the gump name for a given gump ID in `GumpsParsing.GumpMaps`.
+--- Used to defeat specialised renderers by renaming their entry.
 ---@param id integer
 ---@param name string
 function Api.GumpsParsing.SetGumpName(id, name)
     GumpsParsing.GumpMaps[id].name = name
 end
 
+--- Chains a subscriber to `GumpsParsing.MainParsingCheck`. Preserves the
+--- existing handler so multiple subscribers compose.
 ---@param fn fun(timePassed: number)
 function Api.GumpsParsing.OnParsingCheck(fn)
     local previous = GumpsParsing.MainParsingCheck
@@ -2621,6 +2690,8 @@ function Api.GumpsParsing.OnParsingCheck(fn)
     end
 end
 
+--- Permanently suppresses a gump from being displayed. Chains into
+--- `MainParsingCheck` and clears the gump from `ToShow` each frame.
 ---@param gumpId integer
 function Api.GumpsParsing.SuppressGump(gumpId)
     Api.GumpsParsing.OnParsingCheck(function()
@@ -2637,6 +2708,8 @@ end
 
 Api.HealthBar = {}
 
+--- Begins a health bar drag for a mobile by delegating to
+--- `ObjectHandleWindow.OnBeginDragHealthBar`.
 ---@param id integer
 function Api.HealthBar.BeginDrag(id)
     if ObjectHandleWindow and ObjectHandleWindow.OnBeginDragHealthBar then
@@ -2663,11 +2736,15 @@ local function chainObjectHandleWindow(method, fn)
     end
 end
 
+--- Chains a subscriber to `ObjectHandleWindow.CreateObjectHandles`.
+--- Called when the engine creates the object handle windows.
 ---@param fn fun()
 function Api.ObjectHandle.OnCreate(fn)
     chainObjectHandleWindow("CreateObjectHandles", fn)
 end
 
+--- Chains a subscriber to `ObjectHandleWindow.DestroyObjectHandles`.
+--- Called when the engine destroys the object handle windows.
 ---@param fn fun()
 function Api.ObjectHandle.OnDestroy(fn)
     chainObjectHandleWindow("DestroyObjectHandles", fn)

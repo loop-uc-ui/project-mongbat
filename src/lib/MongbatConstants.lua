@@ -20,32 +20,39 @@ Constants.ButtonFlags = {
 
 Constants.DragSource = {}
 
+---@return integer
 function Constants.DragSource.Object()
     return SystemData.DragSource["SOURCETYPE_OBJECT"]
 end
 
+---@return integer
 function Constants.DragSource.Paperdoll()
     return SystemData.DragSource["SOURCETYPE_PAPERDOLL"]
 end
 
 Constants.Broadcasts = {}
 
+---@return integer
 function Constants.Broadcasts.Help()
     return SystemData.Events["REQUEST_OPEN_HELP_MENU"]
 end
 
+---@return integer
 function Constants.Broadcasts.BeginHealthBarDrag()
     return SystemData.Events["BEGIN_DRAG_HEALTHBAR_WINDOW"]
 end
 
+---@return integer
 function Constants.Broadcasts.EscapeKeyProcessed()
     return SystemData.Events["ESCAPE_KEY_PROCESSED"]
 end
 
+---@return integer
 function Constants.Broadcasts.ExitGame()
     return SystemData.Events["EXIT_GAME"]
 end
 
+---@return integer
 function Constants.Broadcasts.BugReport()
     return SystemData.Events["BUG_REPORT_SCREEN"]
 end

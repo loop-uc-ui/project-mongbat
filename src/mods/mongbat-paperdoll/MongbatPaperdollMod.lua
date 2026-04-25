@@ -127,7 +127,7 @@ local function createGridChildren()
     Api.Window.SetOffsetFromParent(TOGGLE_NAME,
         MARGIN + col * (CELL + PADDING),
         MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL + PADDING))
-    Api.Button.SetText(TOGGLE_NAME, Utils.String.ToWString("\xE2\x98\xBA"))
+    Api.Button.SetText(TOGGLE_NAME, "\xE2\x98\xBA")
 end
 
 local function createFigureChildren()

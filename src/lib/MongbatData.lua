@@ -26,10 +26,12 @@ function ActiveMobile:getData()
     return SystemData.ActiveMobile
 end
 
+---@return number
 function ActiveMobile:getId()
     return self:getData().Id
 end
 
+---@param id number
 function ActiveMobile:setId(id)
     self:getData().Id = id
 end
@@ -64,22 +66,27 @@ function CurrentTarget:getData()
     return WindowData.CurrentTarget
 end
 
+---@return boolean
 function CurrentTarget:hasTarget()
     return self:getData().HasTarget
 end
 
+---@return boolean
 function CurrentTarget:isMobile()
     return self:getData().TargetType == 2
 end
 
+---@return boolean
 function CurrentTarget:isCorpse()
     return self:getData().TargetType == 4
 end
 
+---@return boolean
 function CurrentTarget:isObject()
     return self:getData().TargetType == 3
 end
 
+---@return number
 function CurrentTarget:getId()
     return self:getData().TargetId
 end
@@ -108,6 +115,7 @@ function Cursor:getData()
     return WindowData.Cursor
 end
 
+---@return boolean
 function Cursor:isTarget()
     local data = self:getData()
     if data == nil then return false end
@@ -140,10 +148,12 @@ function Drag:getDragSourceData()
     return SystemData.DragSource
 end
 
+---@return boolean
 function Drag:isDraggingItem()
     return self:getDragItemData().DragType == SystemData.DragItem.TYPE_ITEM
 end
 
+---@return number
 function Drag:getDraggingObject()
     return self:getDragSourceData()["SOURCETYPE_OBJECT"]
 end
@@ -185,11 +195,13 @@ function HealthBarColor:getData()
     return WindowData.HealthBarColor and WindowData.HealthBarColor[self._id]
 end
 
+---@return integer?
 function HealthBarColor:getVisualStateId()
     local data = self:getData()
     return data and data.VisualStateId
 end
 
+---@return Color?
 function HealthBarColor:getVisualStateColor()
     local id = self:getVisualStateId()
     if id == nil then return nil end
@@ -204,6 +216,9 @@ end
 -- Data - Mobile Name
 -- ========================================================================== --
 
+---@class WindowData.MobileName
+---@field MobName string
+
 ---@class MobileNameWrapper
 ---@field _id number
 local MobileName = {}
@@ -215,11 +230,12 @@ function MobileName:new(id)
     return instance
 end
 
----@return MobileName?
+---@return WindowData.MobileName?
 function MobileName:getData()
     return WindowData.MobileName and WindowData.MobileName[self._id]
 end
 
+---@return string?
 function MobileName:getName()
     local data = self:getData()
     return data and data.MobName
@@ -263,16 +279,19 @@ function MobileStatus:getData()
     return WindowData.MobileStatus and WindowData.MobileStatus[self._id]
 end
 
+---@return string?
 function MobileStatus:getName()
     local data = self:getData()
     return data and data.MobName
 end
 
+---@return integer?
 function MobileStatus:getNotoriety()
     local data = self:getData()
     return data and data.Notoriety
 end
 
+---@return Color?
 function MobileStatus:getNotorietyColor()
     local n = self:getNotoriety()
     if n == nil then return nil end
@@ -418,6 +437,8 @@ function ObjectHandles:getHandles()
     )
 end
 
+---@param id integer The object ID to look up.
+---@return ObjectHandle? The handle entry, or nil if not found.
 function ObjectHandles:getHandle(id)
     return self:getHandles()[id]
 end
@@ -553,38 +574,47 @@ function PlayerStatus:getData()
     return WindowData.PlayerStatus or { PlayerId = 0 }
 end
 
+---@return number
 function PlayerStatus:getStatCap()
     return self:getData().StatCap or 0
 end
 
+---@return number
 function PlayerStatus:getCurrentMana()
     return self:getData().CurrentMana or 0
 end
 
+---@return number
 function PlayerStatus:getMaxMana()
     return self:getData().MaxMana or 0
 end
 
+---@return number
 function PlayerStatus:getCurrentHealth()
     return self:getData().CurrentHealth or 0
 end
 
+---@return number
 function PlayerStatus:getMaxHealth()
     return self:getData().MaxHealth or 0
 end
 
+---@return number
 function PlayerStatus:getCurrentStamina()
     return self:getData().CurrentStamina or 0
 end
 
+---@return number
 function PlayerStatus:getMaxStamina()
     return self:getData().MaxStamina or 0
 end
 
+---@return boolean
 function PlayerStatus:isInWarMode()
     return self:getData().InWarMode or false
 end
 
+---@return number
 function PlayerStatus:getId()
     return self:getData().PlayerId or 0
 end
@@ -619,6 +649,7 @@ end
 ---@field hue table Table with r, g, b, a hue values
 
 ---@class PaperdollWrapper
+---@field _id number id of the paperdoll
 local PaperdollData = {}
 PaperdollData.__index = PaperdollData
 
@@ -785,25 +816,39 @@ WindowDataWrapper.__index = WindowDataWrapper
 
 function WindowDataWrapper:new() return setmetatable({}, self) end
 
+---@return ActiveMobileWrapper
 function WindowDataWrapper:activeMobile() return Data.ActiveMobile() end
+---@return CurrentTargetWrapper
 function WindowDataWrapper:currentTarget() return Data.CurrentTarget() end
+---@return CursorDataWrapper
 function WindowDataWrapper:cursor() return Data.Cursor() end
+---@return DragDataWrapper
 function WindowDataWrapper:drag() return Data.Drag() end
+---@return PlayerStatusWrapper
 function WindowDataWrapper:playerStatus() return Data.PlayerStatus() end
+---@return PlayerLocationWrapper
 function WindowDataWrapper:playerLocation() return Data.PlayerLocation() end
+---@return ObjectHandleDataWrapper
 function WindowDataWrapper:objectHandles() return Data.ObjectHandles() end
+---@return RadarWrapper
 function WindowDataWrapper:radar() return Data.Radar() end
 ---@param id integer
+---@return HealthBarColorWrapper
 function WindowDataWrapper:healthBarColor(id) return Data.HealthBarColor(id) end
 ---@param id integer
+---@return MobileNameWrapper
 function WindowDataWrapper:mobileName(id) return Data.MobileName(id) end
 ---@param id integer
+---@return MobileStatusWrapper
 function WindowDataWrapper:mobileStatus(id) return Data.MobileStatus(id) end
 ---@param id integer
+---@return PaperdollWrapper
 function WindowDataWrapper:paperdoll(id) return Data.Paperdoll(id) end
 ---@param id integer
+---@return PaperdollTextureWrapper
 function WindowDataWrapper:paperdollTexture(id) return Data.PaperdollTexture(id) end
 ---@param id integer
+---@return ObjectWrapper
 function WindowDataWrapper:object(id) return Data.Object(id) end
 
 ---@return WindowDataWrapper

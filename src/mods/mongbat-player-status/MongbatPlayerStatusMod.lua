@@ -69,8 +69,8 @@ end
 
 local function pullMobileName()
     if state.id == 0 then return end
-    local name = Data.MobileStatus(state.id):getName()
-    if name then state.name = name end
+    local name = Data.MobileName(state.id):getName()
+    if name and name ~= "" then state.name = name end
 end
 
 -- ---- Push to engine ----------------------------------------------------
@@ -133,7 +133,7 @@ function M.OnLoad()
         template = "MongbatWindow",
         module   = M,
         key      = "panel",
-        bindings = { "PlayerStatus", "MobileStatus", "HealthBarColor" },
+        bindings = { "PlayerStatus", "MobileName", "HealthBarColor" },
     }
     Api.Window.SetDimensions(NAME, PANEL_W, NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD)
 
@@ -176,7 +176,7 @@ function M.OnUpdatePlayerStatus()
     end
 end
 
-function M.OnUpdateMobileStatus()
+function M.OnUpdateMobileName()
     pullMobileName()
     pushAll()
 end

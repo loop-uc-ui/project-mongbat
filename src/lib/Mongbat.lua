@@ -113,6 +113,17 @@ local function attachBinding(name, dataKey)
     -- fires. The engine pushes the event to each window that asked for it.
     Mongbat.Api.Window.RegisterEventHandler(name, dataEvent.getEvent(),
         "Mongbat.EventHandler.OnUpdate" .. dataKey)
+    -- Prime the initial render: if data is already populated when the window
+    -- registers (e.g. re-load while logged in), the engine won't fire a
+    -- spontaneous event, so call the handler directly with the current data.
+    local entry = Windows[name]
+    if entry then
+        local fn = entry.module["OnUpdate" .. dataKey]
+        local data = WindowData[dataKey]
+        if fn and data then
+            fn(name, entry.key, data)
+        end
+    end
 end
 
 --- Unsubscribes a window's bindings. Calls UnregisterWindowData when the
@@ -173,6 +184,7 @@ function Core.CreateWindow(opts)
 end
 
 --- Removes a window from the registry and destroys it from the engine.
+---@param name string The name of the window to destroy.
 function Core.DestroyWindow(name)
     detachBindings(name)
     Windows[name] = nil
@@ -183,23 +195,33 @@ end
 
 --- Removes a window from the registry without destroying it. Use when the
 --- engine destroyed the window for us (e.g. on shutdown).
+---@param name string The name of the window to unregister.
 function Core.UnregisterWindow(name)
     detachBindings(name)
     Windows[name] = nil
 end
 
 --- Returns the registry entry for a window, or nil.
+---@param name string The name of the window.
+---@return { module: ModModule, key: string, bindings: string[]? }? The registry entry, or nil if the window is not registered.
 function Core.GetWindow(name)
     return Windows[name]
 end
 
 -- ----- Mod lifecycle -------------------------------------------------------
 
+--- Registers and loads a mod. Appends the mod to the per-frame fan-out list
+--- and calls `module.OnLoad()` if defined.
+---@param modName string The name of the mod.
+---@param module ModModule The mod's module table.
 function Core.LoadMod(modName, module)
     LoadedMods[#LoadedMods + 1] = { name = modName, module = module }
     if module.OnLoad then module.OnLoad() end
 end
 
+--- Unloads a mod by name. Calls `module.OnUnload()` if defined and removes
+--- the mod from the per-frame fan-out list.
+---@param modName string The name of the mod to unload.
 function Core.UnloadMod(modName)
     for i = #LoadedMods, 1, -1 do
         if LoadedMods[i].name == modName then
@@ -213,6 +235,7 @@ end
 
 --- Per-frame fan-out. Every loaded mod that defines OnUpdate gets called
 --- once with `(dt)`. Mods without OnUpdate pay nothing.
+---@param dt number Elapsed time in seconds since the last frame.
 function Core.PerFrame(dt)
     Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
         local fn = entry.module.OnUpdate
@@ -302,14 +325,20 @@ function Mod:new(model)
     return mod
 end
 
+--- Persists the enabled state of the mod to Interface storage.
+---@param isEnabled boolean Whether the mod is enabled.
 function Mod:setEnabled(isEnabled)
     Mongbat.Api.Interface.SaveBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", isEnabled)
 end
 
+--- Returns the persisted enabled state of the mod from Interface storage.
+---@return boolean? The enabled state, or nil if not yet set.
 function Mod:isEnabled()
     return Mongbat.Api.Interface.LoadBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", true)
 end
 
+--- Loads all resource files declared in `self.Files` for this mod, resolving
+--- both the shipped path and the installed Interface path.
 function Mod:loadResources()
     Mongbat.Utils.Array.ForEach(
         self.Files,

@@ -307,6 +307,9 @@ function Utils.Table.Diff(prev, next)
     end
 end
 
+--- Returns true if `table` is nil or has no iteration entries.
+---@param table table? The table to check.
+---@return boolean
 function Utils.Table.IsEmpty(table)
     if not table then
         return true
@@ -373,6 +376,10 @@ end
 
 Utils.String = {}
 
+--- Converts a wstring to a plain Lua string. If `text` is already a
+--- plain string, returns it unchanged.
+---@param text string|wstring The value to convert.
+---@return string The plain string.
 function Utils.String.FromWString(text)
     if type(text) == "string" then
         return text
@@ -396,6 +403,9 @@ function Utils.String.ToWString(text)
     end
 end
 
+--- Converts a string or wstring to lowercase, preserving the input type.
+---@param text string|wstring The value to convert.
+---@return string|wstring The lowercased value.
 function Utils.String.Lower(text)
     if type(text) == "wstring" then
         return wstring.lower(text)
@@ -403,6 +413,9 @@ function Utils.String.Lower(text)
     return string.lower(text)
 end
 
+--- Converts a string or wstring to uppercase, preserving the input type.
+---@param text string|wstring The value to convert.
+---@return string|wstring The uppercased value.
 function Utils.String.Upper(text)
     if type(text) == "wstring" then
         return wstring.upper(text)
