@@ -44,6 +44,19 @@ local Core = {}
 -- name -> { module = table, key = string }
 local Windows = {}
 
+-- Resizable windows config: [windowName] -> { minW, minH, onResizeEnd? }
+local ResizableWindows = {}
+
+-- Internal module shared by all auto-created MongbatResizeGrip children.
+local ResizeGripModule = {}
+function ResizeGripModule.OnLButtonDown(name, _key)
+    -- Strip the "ResizeGrip" suffix to get the parent window name.
+    local parentName = name:sub(1, -(#"ResizeGrip" + 1))
+    local cfg = ResizableWindows[parentName]
+    if not cfg then return end
+    Mongbat.Api.Window.BeginResize(parentName, "topleft", cfg.minW, cfg.minH, false, cfg.onResizeEnd)
+end
+
 -- Loaded mod modules in registration order. OnUpdate fan-out walks this.
 local LoadedMods = {}    -- array of { name = string, module = table }
 
@@ -168,7 +181,12 @@ end
 --- Registry insertion happens BEFORE Mongbat.Api.Window.CreateFromTemplate so the
 --- engine's OnInitialize fires into a registry that already knows the
 --- window. (OnInitialize is declared on Mongbat templates in XML.)
----@param opts { name: string, template: string, module: ModModule, key: string?, parent: string?, showing: boolean?, bindings: string[]? }
+---
+--- When `resizable = true` the lib creates a `MongbatResizeGrip` child anchored
+--- to the bottom-right corner and wires it up automatically. Pass `minWidth` /
+--- `minHeight` to clamp the resize, and an optional `onResizeEnd` callback for
+--- post-resize layout work.
+---@param opts { name: string, template: string, module: ModModule, key: string?, parent: string?, showing: boolean?, bindings: string[]?, resizable: boolean?, minWidth: number?, minHeight: number?, onResizeEnd: (fun(windowName: string))? }
 function Core.CreateWindow(opts)
     local name = opts.name
     if not name        then error("Mongbat.CreateWindow: name required") end
@@ -181,11 +199,28 @@ function Core.CreateWindow(opts)
     if opts.bindings then
         Mongbat.Utils.Array.ForEach(opts.bindings, function(key) attachBinding(name, key) end)
     end
+    if opts.resizable then
+        local minW    = opts.minWidth  or 0
+        local minH    = opts.minHeight or 0
+        ResizableWindows[name] = { minW = minW, minH = minH, onResizeEnd = opts.onResizeEnd }
+        local gripName = name .. "ResizeGrip"
+        Windows[gripName] = { module = ResizeGripModule, key = "grip" }
+        Mongbat.Api.Window.CreateFromTemplate(gripName, "MongbatResizeGrip", name, true)
+        attachRoutableEvents(gripName)
+        Mongbat.Api.Window.ClearAnchors(gripName)
+        Mongbat.Api.Window.AddAnchor(gripName, "bottomright", name, "bottomright", 0, 0)
+    end
 end
 
 --- Removes a window from the registry and destroys it from the engine.
 ---@param name string The name of the window to destroy.
 function Core.DestroyWindow(name)
+    if ResizableWindows[name] then
+        ResizableWindows[name] = nil
+        Windows[name .. "ResizeGrip"] = nil
+        -- The engine destroys child windows automatically when the parent is
+        -- destroyed, so no explicit DestroyWindow call is needed for the grip.
+    end
     detachBindings(name)
     Windows[name] = nil
     if Mongbat.Api.Window.DoesExist(name) then
@@ -197,6 +232,10 @@ end
 --- engine destroyed the window for us (e.g. on shutdown).
 ---@param name string The name of the window to unregister.
 function Core.UnregisterWindow(name)
+    if ResizableWindows[name] then
+        ResizableWindows[name] = nil
+        Windows[name .. "ResizeGrip"] = nil
+    end
     detachBindings(name)
     Windows[name] = nil
 end

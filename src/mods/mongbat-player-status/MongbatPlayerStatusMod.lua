@@ -19,6 +19,8 @@ local BAR_H   = 20
 local PAD     = 8
 local SPACING = 4
 local NAME_H  = 20
+local MIN_W   = 120
+local MIN_H   = NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD
 
 local NAMES = {
     name      = NAME .. "Name",
@@ -101,6 +103,22 @@ local function pushAll()
     setBar(NAMES.stamFill, NAMES.stamLabel, state.stamina, state.maxStamina, Constants.Colors.YellowDark,  "%d / %d")
 end
 
+-- ---- Resize callback --------------------------------------------------
+
+--- Called by Api.Window.BeginResize when the user finishes dragging the grip.
+local function onResizeEnd(_)
+    local dims = Api.Window.GetDimensions(NAME)
+    BAR_W = math.max(MIN_W - 2 * PAD, dims.x - 2 * PAD)
+    Api.Window.SetDimensions(NAMES.name,      BAR_W, NAME_H)
+    Api.Window.SetDimensions(NAMES.hp,        BAR_W, BAR_H)
+    Api.Window.SetDimensions(NAMES.mana,      BAR_W, BAR_H)
+    Api.Window.SetDimensions(NAMES.stam,      BAR_W, BAR_H)
+    Api.Window.SetDimensions(NAMES.hpLabel,   BAR_W, BAR_H)
+    Api.Window.SetDimensions(NAMES.manaLabel, BAR_W, BAR_H)
+    Api.Window.SetDimensions(NAMES.stamLabel, BAR_W, BAR_H)
+    pushAll()
+end
+
 -- ---- Window construction ------------------------------------------------
 
 local function createBar(containerName, fillName, labelName, parentName, yOffset, key, fillKey, labelKey)
@@ -136,11 +154,15 @@ function M.OnLoad()
     Api.Window.Destroy("StatusWindow")
     Api.Window.Destroy("WarShield")
     Mongbat.CreateWindow {
-        name     = NAME,
-        template = "MongbatWindow",
-        module   = M,
-        key      = "panel",
-        bindings = { "PlayerStatus", "MobileName", "HealthBarColor" },
+        name      = NAME,
+        template  = "MongbatWindow",
+        module    = M,
+        key       = "panel",
+        bindings  = { "PlayerStatus", "MobileName", "HealthBarColor" },
+        resizable = true,
+        minWidth  = MIN_W,
+        minHeight = MIN_H,
+        onResizeEnd = onResizeEnd,
     }
     Api.Window.SetDimensions(NAME, PANEL_W, NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD)
     -- Name label, then three bars stacked as a column.

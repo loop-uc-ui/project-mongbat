@@ -2492,6 +2492,21 @@ function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
 end
 
+---
+--- Begins a resize operation on a window using the engine's ResizingWindowFrame.
+--- The anchorCorner is the corner that stays fixed during the resize (typically
+--- "topleft"). The resize ends on the next L_BUTTON_UP_PROCESSED event, at which
+--- point endCallback is called with the window name.
+---@param windowName string The name of the window to resize.
+---@param anchorCorner string The fixed corner during resize (e.g. "topleft").
+---@param minWidth number Minimum allowed width.
+---@param minHeight number Minimum allowed height.
+---@param lockRatio boolean Whether to lock the aspect ratio.
+---@param endCallback fun(windowName: string)? Called when the resize ends.
+function Api.Window.BeginResize(windowName, anchorCorner, minWidth, minHeight, lockRatio, endCallback)
+    WindowUtils.BeginResize(windowName, anchorCorner, minWidth, minHeight, lockRatio, endCallback)
+end
+
 -- ========================================================================== --
 -- Api - Interface Core
 -- ========================================================================== --
