@@ -1,11 +1,10 @@
--- Player status panel: name + HP / Mana / Stamina bars driven by the
--- engine''s PlayerStatus binding. Hijacks the default StatusWindow and
--- WarShield so this mod owns presentation entirely.
+-- Player status panel: name + HP / Mana / Stamina bars. Hijacks the default
+-- StatusWindow and WarShield so this mod owns presentation entirely.
 --
 -- Pattern: Mongbat is a router. The mod registers one outer window plus
--- three bar composites (each composite = container + fill + label). All
--- engine -> mod traffic flows through M.OnUpdatePlayerStatus / etc., which
--- read state and call thin Api setters; no descriptor diff, no Render.
+-- three bar composites (each composite = container + fill + label). Live
+-- engine data is pulled each frame in M.OnUpdateWindow and pushed straight
+-- to the Api setters; no descriptor diff, no Render, no cached values.
 
 local Api       = Mongbat.Api
 local Data      = Mongbat.Data
@@ -37,47 +36,14 @@ local NAMES = {
 
 local DRAG_THRESHOLD = 4
 
+-- Mod-owned state. Only mouse-drag bookkeeping needs caching; live engine
+-- data is pulled every frame in OnUpdateWindow.
 local state = {
-    id          = 0,
-    name        = "",
-    health      = 0, maxHealth  = 1,
-    mana        = 0, maxMana    = 1,
-    stamina     = 0, maxStamina = 1,
-    inWar       = false,
-    healthColor = Constants.Colors.HealhBar[1],
-    downWinX    = 0,
-    downWinY    = 0,
+    downWinX = 0,
+    downWinY = 0,
 }
 
 local M = {}
-
--- ---- Pulls --------------------------------------------------------------
-
-local function pullPlayerStatus()
-    local p = Data.PlayerStatus()
-    if p:getId() == 0 then return false end
-    state.id         = p:getId()
-    state.health     = p:getCurrentHealth()
-    state.maxHealth  = math.max(p:getMaxHealth(), 1)
-    state.mana       = p:getCurrentMana()
-    state.maxMana    = math.max(p:getMaxMana(), 1)
-    state.stamina    = p:getCurrentStamina()
-    state.maxStamina = math.max(p:getMaxStamina(), 1)
-    state.inWar      = p:isInWarMode()
-    return true
-end
-
-local function pullHealthColor()
-    if state.id == 0 then return end
-    local color = Data.HealthBarColor(state.id):getVisualStateColor()
-    if color then state.healthColor = color end
-end
-
-local function pullMobileName()
-    if state.id == 0 then return end
-    local name = Data.MobileName(state.id):getName()
-    if name and name ~= "" then state.name = name end
-end
 
 -- ---- Push to engine ----------------------------------------------------
 
@@ -89,18 +55,32 @@ local function setBar(fillName, labelName, current, max, color, fmt)
     Api.Label.SetText(labelName, string.format(fmt, current, max))
 end
 
-local function pushAll()
-    local frameColor = state.inWar
+--- Pull live state from the engine and push it straight to the windows.
+--- Called every frame from M.OnUpdateWindow on the panel key, and once at
+--- the end of M.OnLoad so the first frame shows live values.
+local function refresh()
+    local p = Data.PlayerStatus()
+    local id = p:getId()
+    if id == 0 then return end
+
+    local maxHealth  = math.max(p:getMaxHealth(),  1)
+    local maxMana    = math.max(p:getMaxMana(),    1)
+    local maxStamina = math.max(p:getMaxStamina(), 1)
+
+    local healthColor = Data.HealthBarColor(id):getVisualStateColor()
+        or Constants.Colors.HealhBar[1]
+    local mobName = Data.MobileName(id):getName() or ""
+
+    local frameColor = p:isInWarMode()
         and Constants.Colors.Notoriety[6]
         or  Constants.Colors.Notoriety[1]
     Api.Window.SetColor(NAME, frameColor)
-    Api.Window.SetId(NAME, state.id)
+    Api.Window.SetId(NAME, id)
+    Api.Label.SetText(NAMES.name, mobName ~= "" and mobName or " ")
 
-    Api.Label.SetText(NAMES.name, state.name ~= "" and state.name or " ")
-
-    setBar(NAMES.hpFill,   NAMES.hpLabel,   state.health,  state.maxHealth,  state.healthColor,            "%d / %d")
-    setBar(NAMES.manaFill, NAMES.manaLabel, state.mana,    state.maxMana,    Constants.Colors.Blue,        "%d / %d")
-    setBar(NAMES.stamFill, NAMES.stamLabel, state.stamina, state.maxStamina, Constants.Colors.YellowDark,  "%d / %d")
+    setBar(NAMES.hpFill,   NAMES.hpLabel,   p:getCurrentHealth(),  maxHealth,  healthColor,                  "%d / %d")
+    setBar(NAMES.manaFill, NAMES.manaLabel, p:getCurrentMana(),    maxMana,    Constants.Colors.Blue,        "%d / %d")
+    setBar(NAMES.stamFill, NAMES.stamLabel, p:getCurrentStamina(), maxStamina, Constants.Colors.YellowDark,  "%d / %d")
 end
 
 -- ---- Resize callback --------------------------------------------------
@@ -116,7 +96,7 @@ local function onResizeEnd(_)
     Api.Window.SetDimensions(NAMES.hpLabel,   BAR_W, BAR_H)
     Api.Window.SetDimensions(NAMES.manaLabel, BAR_W, BAR_H)
     Api.Window.SetDimensions(NAMES.stamLabel, BAR_W, BAR_H)
-    pushAll()
+    refresh()
 end
 
 -- ---- Window construction ------------------------------------------------
@@ -153,12 +133,13 @@ end
 function M.OnLoad()
     Api.Window.Destroy("StatusWindow")
     Api.Window.Destroy("WarShield")
+    local playerId = Data.PlayerStatus():getId()
     Mongbat.CreateWindow {
         name      = NAME,
         template  = "MongbatWindow",
         module    = M,
         key       = "panel",
-        bindings  = { "PlayerStatus", "MobileName", "HealthBarColor" },
+        id        = playerId,
         resizable = true,
         minWidth  = MIN_W,
         minHeight = MIN_H,
@@ -180,13 +161,8 @@ function M.OnLoad()
     createBar(NAMES.mana, NAMES.manaFill, NAMES.manaLabel, NAME, baseY + BAR_H + SPACING,     "manaBar", "manaFill", "manaLabel")
     createBar(NAMES.stam, NAMES.stamFill, NAMES.stamLabel, NAME, baseY + 2*(BAR_H + SPACING), "stamBar", "stamFill", "stamLabel")
 
-    -- Engine may push partial updates before PlayerStatus arrives;
-    -- pull defensively so first frame shows live values too.
-    if pullPlayerStatus() then
-        pullMobileName()
-        pullHealthColor()
-        pushAll()
-    end
+    -- First-frame paint so the panel isn't empty until the next tick.
+    refresh()
 end
 
 function M.OnUnload()
@@ -194,24 +170,13 @@ function M.OnUnload()
     Mongbat.DestroyWindow(NAME)
 end
 
--- ---- Bindings -----------------------------------------------------------
+-- ---- Per-frame pull/push ------------------------------------------------
 
-function M.OnUpdatePlayerStatus()
-    if pullPlayerStatus() then
-        pullMobileName()
-        pullHealthColor()
-        pushAll()
-    end
-end
-
-function M.OnUpdateMobileName()
-    pullMobileName()
-    pushAll()
-end
-
-function M.OnUpdateHealthBarColor()
-    pullHealthColor()
-    pushAll()
+--- The lib calls this once per registered window per frame. We only want to
+--- refresh the panel; the bar containers, fills, and labels share data with
+--- the panel and would be redundant work.
+function M.OnUpdateWindow(_name, key, _dt)
+    if key == "panel" then refresh() end
 end
 
 -- ---- Click handling on the outer panel ---------------------------------
@@ -224,8 +189,9 @@ function M.OnLButtonDown(_name, key)
 end
 
 function M.OnLButtonDblClk(_name, key)
-    if key == "panel" and state.id ~= 0 then
-        Api.UserAction.UseItem(state.id)
+    if key == "panel" then
+        local id = Data.PlayerStatus():getId()
+        if id ~= 0 then Api.UserAction.UseItem(id) end
     end
 end
 
@@ -236,11 +202,12 @@ function M.OnLButtonUp(_name, key)
     local dx = math.abs(wx - state.downWinX)
     local dy = math.abs(wy - state.downWinY)
     if dx > DRAG_THRESHOLD or dy > DRAG_THRESHOLD then return end
-    if state.id == 0 then return end
+    local id = Data.PlayerStatus():getId()
+    if id == 0 then return end
     if Data.Drag():isDraggingItem() then
-        Api.Drag.DragToObject(state.id)
+        Api.Drag.DragToObject(id)
     else
-        Api.Target.LeftClick(state.id)
+        Api.Target.LeftClick(id)
     end
 end
 

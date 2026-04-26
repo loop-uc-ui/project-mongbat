@@ -60,7 +60,7 @@ holds no closures.
 
 A mod is a Lua module table `M` plus a `Mongbat.Mod{...}` declaration. It
 implements only the lifecycle methods it needs (`OnLoad`, `OnUnload`,
-`OnUpdate(dt)`, `On<Event>(name, key, ...)`, `OnUpdate<DataKey>(name, key, data)`).
+`OnUpdate(dt)`, `OnUpdateWindow(name, key, dt)`, `On<Event>(name, key, ...)`).
 Windows are registered via `Mongbat.CreateWindow{ name, template, module=M, key?, parent?, bindings? }`.
 
 **For the full mod-authoring workflow** (skeleton, lifecycle method
@@ -74,10 +74,19 @@ Canonical example mods are linked there too.
 1. **Distinct windows need unique names; routed events arrive with `key`.**
    Pass `key = "..."` to `Mongbat.CreateWindow` and dispatch on it inside
    `M.On*` methods. The lib uses `name` itself as the default key.
-2. **`Bindings` over `OnUpdate`.** Pass `bindings = { "PlayerStatus" }` to
-   `Mongbat.CreateWindow` and implement `M.OnUpdatePlayerStatus`. Use
-   mod-level `M.OnUpdate(dt)` only for true per-frame work (animations,
-   mouse-position polling, things the engine doesn''t notify about).
+2. **Pull data each frame in `OnUpdateWindow`.** Implement
+   `M.OnUpdateWindow(name, key, dt)` and read live state via
+   `Mongbat.Data.PlayerStatus():getCurrentHealth()` etc. The lib
+   auto-registers every WindowData type with the engine when a window is
+   created, so it populates each frame with no per-key opt-in. For
+   per-mobile data (`MobileName`, `MobileStatus`, `HealthBarColor`,
+   `Paperdoll`), pass `id = mobileId` to `Mongbat.CreateWindow` so
+   `Mongbat.Data.MobileName(mobileId):getName()` resolves. The lib
+   ref-counts each `(dataKey, id)` pair and unregisters when the last
+   window using that id is destroyed. The lib calls `OnUpdateWindow` once
+   per registered window per frame. Use mod-level `M.OnUpdate(dt)` for work
+   that doesn''t belong to any one window (cross-window state,
+   mouse-position polling, animations).
 3. **`Api.Window.Destroy` to own a default-UI window''s name.** Call
    `Api.Window.Destroy("DefaultWindowName")` at the top of `M.OnLoad()`
    before creating your replacement. Use `Api.<Module>.On<Event>` chain

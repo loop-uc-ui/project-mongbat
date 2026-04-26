@@ -31,13 +31,16 @@
 --
 --     function M.OnInitialize(name, key) ... end
 --     function M.OnLButtonUp(name, key, flags, x, y) ... end
---     function M.OnUpdatePlayerStatus(name, key, data) ... end
+--     function M.OnUpdateWindow(name, key, dt) ... end -- per-frame, per-window
+--     function M.OnUpdate(dt) ... end                  -- per-frame, per-mod
 --     function M.OnUnload() end
 --
 --     Mongbat.Mod { Name = "MongbatX", Path = "/src/mods/mongbat-x", Module = M }
 --
--- The framework never holds closures, never diffs descriptors, never
--- rebuilds anything per frame. The engine fires; we look up; we call.
+-- The framework never holds closures, never diffs descriptors. Live engine
+-- data (WindowData.*) is pulled by mods each frame from M.OnUpdateWindow;
+-- the lib only registers WindowData so the engine populates it. Click and
+-- lifecycle events are still pushed via active-window dispatch.
 
 local Core = {}
 
@@ -60,10 +63,10 @@ end
 -- Loaded mod modules in registration order. OnUpdate fan-out walks this.
 local LoadedMods = {}    -- array of { name = string, module = table }
 
--- Per-binding-key state. Each binding key gets one global per-window
--- handler name; the engine fires it on the active window only when that
--- window is registered for the binding.
-local BindingsRegistered = {}    -- [dataKey] = number of windows currently subscribed
+-- Ref-count of windows currently requesting each WindowData key. When the
+-- count drops to zero we UnregisterWindowData so the engine stops populating
+-- it. Mods read live data each frame from M.OnUpdateWindow.
+local DataRegistered = {}    -- [dataKey] = number of windows currently registered
 
 -- Routable per-window engine events. When a window is registered, we
 -- attach `Mongbat.EventHandler.<event>` to each of these. The dispatcher
@@ -107,103 +110,111 @@ local function attachRoutableEvents(name)
     end)
 end
 
-local function attachBinding(name, dataKey)
-    local dataEvent = Mongbat.Constants.DataEvents["OnUpdate" .. dataKey]
-    if not dataEvent then
-        error("Mongbat: unknown binding key '" .. tostring(dataKey) ..
-            "' (no Constants.DataEvents.OnUpdate" .. tostring(dataKey) .. ")")
-    end
-    -- One global dispatcher per binding key; lazy-installed on first subscriber.
-    if not BindingsRegistered[dataKey] then
-        BindingsRegistered[dataKey] = 0
-        Mongbat.EventHandler["OnUpdate" .. dataKey] = function()
-            dispatchActive("OnUpdate" .. dataKey, WindowData[dataKey])
+--- All WindowData types the lib auto-registers per window. Names not
+--- present on the engine's `WindowData` table at registration time are
+--- silently skipped (different EC builds expose different surfaces).
+local DataTypes = {
+    "PlayerStatus", "MobileName", "HealthBarColor", "MobileStatus",
+    "Radar", "PlayerLocation", "Paperdoll", "ObjectHandle",
+}
+
+--- Asks the engine to populate every WindowData[type][id] for this window.
+--- Ref-counted per (dataType, id) so the registration survives until the
+--- last window using that id is destroyed. Mods read live data each frame
+--- from M.OnUpdateWindow via Mongbat.Data.*.
+local function attachAllData(id)
+    Mongbat.Utils.Array.ForEach(DataTypes, function(name)
+        local entry = WindowData[name]
+        if not entry or entry.Type == nil then return end
+        local refKey = name .. ":" .. tostring(id)
+        if not DataRegistered[refKey] then
+            DataRegistered[refKey] = 0
+            Mongbat.Api.Window.RegisterData(entry.Type, id)
         end
-        Mongbat.Api.Window.RegisterData(dataEvent.getType(), 0)
-    end
-    BindingsRegistered[dataKey] = BindingsRegistered[dataKey] + 1
-    -- Per-window event subscription so ActiveWindow is set when the engine
-    -- fires. The engine pushes the event to each window that asked for it.
-    Mongbat.Api.Window.RegisterEventHandler(name, dataEvent.getEvent(),
-        "Mongbat.EventHandler.OnUpdate" .. dataKey)
-    -- Prime the initial render: if data is already populated when the window
-    -- registers (e.g. re-load while logged in), the engine won't fire a
-    -- spontaneous event, so call the handler directly with the current data.
-    local entry = Windows[name]
-    if entry then
-        local fn = entry.module["OnUpdate" .. dataKey]
-        local data = WindowData[dataKey]
-        if fn and data then
-            fn(name, entry.key, data)
-        end
-    end
+        DataRegistered[refKey] = DataRegistered[refKey] + 1
+    end)
 end
 
---- Unsubscribes a window's bindings. Calls UnregisterWindowData when the
---- last subscriber for a given key is removed.
-local function detachBindings(name)
+--- Releases this window's data registrations. Calls UnregisterWindowData
+--- when the last window for a given (dataType, id) pair is destroyed.
+local function detachAllData(name)
     local entry = Windows[name]
-    if not entry or not entry.bindings then return end
-    Mongbat.Utils.Array.ForEach(entry.bindings, function(dataKey)
-        local count = BindingsRegistered[dataKey]
+    if not entry or entry.id == nil then return end
+    local id = entry.id
+    Mongbat.Utils.Array.ForEach(DataTypes, function(typeName)
+        local refKey = typeName .. ":" .. tostring(id)
+        local count = DataRegistered[refKey]
         if not count then return end
         count = count - 1
         if count <= 0 then
-            BindingsRegistered[dataKey] = nil
-            local dataEvent = Mongbat.Constants.DataEvents["OnUpdate" .. dataKey]
-            if dataEvent then
-                Mongbat.Api.Window.UnregisterData(dataEvent.getType(), 0)
+            DataRegistered[refKey] = nil
+            local wd = WindowData[typeName]
+            if wd and wd.Type ~= nil then
+                Mongbat.Api.Window.UnregisterData(wd.Type, id)
             end
         else
-            BindingsRegistered[dataKey] = count
+            DataRegistered[refKey] = count
         end
     end)
 end
 
 --- Adds a window to the registry without creating it. Use when the window
 --- already exists by other means and you want it routed.
----@param opts { name: string, module: ModModule, key: string?, bindings: string[]? }
+---
+--- Every WindowData type is registered with the engine for `id` (default 0)
+--- so the engine populates `WindowData.<Key>[id]` each frame. Mods consume
+--- it via `Mongbat.Data.<Key>(id)` in M.OnUpdateWindow(name, key, dt) -- the
+--- lib does not push data events. Registrations are ref-counted per
+--- (dataKey, id) and released when the last window using that id is
+--- destroyed.
+---@param opts { name: string, module: ModModule, key: string?, id: number? }
 function Core.RegisterWindow(opts)
     local name   = opts.name
     local module = opts.module
     if not name   then error("Mongbat.RegisterWindow: name required") end
     if not module then error("Mongbat.RegisterWindow: module required") end
-    Windows[name] = { module = module, key = opts.key or name, bindings = opts.bindings }
+    local id = opts.id or 0
+    Windows[name] = { module = module, key = opts.key or name, id = id }
     attachRoutableEvents(name)
-    if opts.bindings then
-        Mongbat.Utils.Array.ForEach(opts.bindings, function(key) attachBinding(name, key) end)
-    end
+    attachAllData(id)
 end
 
 --- Creates a window from a template, registers it, attaches all routable
---- engine events, and (optionally) attaches WindowData bindings.
+--- engine events, and registers every WindowData type for the window's id.
 ---
 --- Registry insertion happens BEFORE Mongbat.Api.Window.CreateFromTemplate so the
 --- engine's OnInitialize fires into a registry that already knows the
 --- window. (OnInitialize is declared on Mongbat templates in XML.)
 ---
+--- Every WindowData type is registered with the engine for `id` (default 0)
+--- so the engine populates `WindowData.<Key>[id]` each frame. Mods consume
+--- it via `Mongbat.Data.<Key>(id)` in M.OnUpdateWindow(name, key, dt) -- the
+--- lib does not push data events. Registrations are ref-counted per
+--- (dataKey, id) and released when the last window using that id is
+--- destroyed.
+---
 --- When `resizable = true` the lib creates a `MongbatResizeGrip` child anchored
 --- to the bottom-right corner and wires it up automatically. Pass `minWidth` /
 --- `minHeight` to clamp the resize, and an optional `onResizeEnd` callback for
 --- post-resize layout work.
----@param opts { name: string, template: string, module: ModModule, key: string?, parent: string?, showing: boolean?, bindings: string[]?, resizable: boolean?, minWidth: number?, minHeight: number?, onResizeEnd: (fun(windowName: string))? }
+---@param opts { name: string, template: string, module: ModModule, key: string?, parent: string?, showing: boolean?, id: number?, resizable: boolean?, minWidth: number?, minHeight: number?, onResizeEnd: (fun(windowName: string))? }
 function Core.CreateWindow(opts)
     local name = opts.name
     if not name        then error("Mongbat.CreateWindow: name required") end
     if not opts.template then error("Mongbat.CreateWindow: template required") end
     if not opts.module then error("Mongbat.CreateWindow: module required") end
-    Windows[name] = { module = opts.module, key = opts.key or name, bindings = opts.bindings }
+    local id = opts.id or 0
+    Windows[name] = { module = opts.module, key = opts.key or name, id = id }
     Mongbat.Api.Window.CreateFromTemplate(name, opts.template, opts.parent or "Root",
         opts.showing ~= false)
     attachRoutableEvents(name)
-    if opts.bindings then
-        Mongbat.Utils.Array.ForEach(opts.bindings, function(key) attachBinding(name, key) end)
-    end
+    attachAllData(id)
     if opts.resizable then
         local minW    = opts.minWidth  or 0
         local minH    = opts.minHeight or 0
         ResizableWindows[name] = { minW = minW, minH = minH, onResizeEnd = opts.onResizeEnd }
         local gripName = name .. "ResizeGrip"
+        -- Internal child; skip data registration (entry.id stays nil).
         Windows[gripName] = { module = ResizeGripModule, key = "grip" }
         Mongbat.Api.Window.CreateFromTemplate(gripName, "MongbatResizeGrip", name, true)
         attachRoutableEvents(gripName)
@@ -221,7 +232,7 @@ function Core.DestroyWindow(name)
         -- The engine destroys child windows automatically when the parent is
         -- destroyed, so no explicit DestroyWindow call is needed for the grip.
     end
-    detachBindings(name)
+    detachAllData(name)
     Windows[name] = nil
     if Mongbat.Api.Window.DoesExist(name) then
         Mongbat.Api.Window.Destroy(name)
@@ -236,7 +247,7 @@ function Core.UnregisterWindow(name)
         ResizableWindows[name] = nil
         Windows[name .. "ResizeGrip"] = nil
     end
-    detachBindings(name)
+    detachAllData(name)
     Windows[name] = nil
 end
 
@@ -272,14 +283,27 @@ function Core.UnloadMod(modName)
     end
 end
 
---- Per-frame fan-out. Every loaded mod that defines OnUpdate gets called
---- once with `(dt)`. Mods without OnUpdate pay nothing.
+--- Per-frame fan-out over registered windows. Every window whose owning
+--- mod defines OnUpdateWindow is called once with `(name, key, dt)`. Mods
+--- without OnUpdateWindow pay one table lookup per window per frame.
+---@param dt number Elapsed time in seconds since the last frame.
+local function perFrameWindows(dt)
+    for name, entry in pairs(Windows) do
+        local fn = entry.module.OnUpdateWindow
+        if fn then fn(name, entry.key, dt) end
+    end
+end
+
+--- Per-frame fan-out. Mod-level M.OnUpdate(dt) runs first across all loaded
+--- mods, then per-window M.OnUpdateWindow(name, key, dt) runs for every
+--- registered window whose owning module defines it.
 ---@param dt number Elapsed time in seconds since the last frame.
 function Core.PerFrame(dt)
     Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
         local fn = entry.module.OnUpdate
         if fn then fn(dt) end
     end)
+    perFrameWindows(dt)
 end
 
 -- ----- Global event handler table ------------------------------------------
@@ -317,11 +341,12 @@ Core.EventHandler.OnEditBoxKeyTab    = function() dispatchActive("OnEditBoxKeyTa
 --- The mod module table. All fields are optional; implement only what you need.
 --- Lifecycle methods (OnLoad/OnUnload/OnUpdate) receive no window arguments.
 --- Per-window event handlers always receive (name: string, key: string, ...) first.
---- WindowData binding handlers follow the pattern OnUpdate<DataKey>(name, key, data).
+--- OnUpdateWindow runs every frame for each registered window owned by this mod.
 ---@class ModModule
 ---@field OnLoad           (fun())?                                                              Called once when the mod is loaded.
 ---@field OnUnload         (fun())?                                                              Called once when the mod is unloaded.
----@field OnUpdate         (fun(dt: number))?                                                    Called every frame.
+---@field OnUpdate         (fun(dt: number))?                                                    Called every frame, once per mod.
+---@field OnUpdateWindow   (fun(name: string, key: string, dt: number))?                         Called every frame, once per registered window.
 ---@field OnInitialize     (fun(name: string, key: string))?                                     Engine window created.
 ---@field OnShown          (fun(name: string, key: string))?                                     Window became visible.
 ---@field OnHidden         (fun(name: string, key: string))?                                     Window became hidden.

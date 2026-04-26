@@ -181,7 +181,7 @@ function M.OnLoad()
     Mongbat.CreateWindow {
         name = NAME, template = "MongbatWindow",
         module = M, key = "panel",
-        bindings = { "Paperdoll", "MobileName", "MobileStatus" },
+        id = state.playerId,
     }
     Api.Window.SetDimensions(NAME, GRID_WIN_W, GRID_WIN_H)
     Api.Window.SetId(NAME, state.playerId)
@@ -209,17 +209,14 @@ end
 
 -- ---- Bindings ---------------------------------------------------------
 
-function M.OnUpdatePaperdoll()
+--- Per-frame pull/push. Called once per registered window per frame; we
+--- only want the work once, so dispatch on the panel key. Slot data is
+--- still cached in `state.slots` so the click handlers can read it.
+function M.OnUpdateWindow(_name, key, _dt)
+    if key ~= "panel" then return end
     pullSlots()
-    if state.mode == "grid" then pushSlotIcons() end
-end
-
-function M.OnUpdateMobileName()
     pullName()
-    pushNameLabel()
-end
-
-function M.OnUpdateMobileStatus()
+    if state.mode == "grid" then pushSlotIcons() end
     pushNameLabel()
 end
 

@@ -1,6 +1,6 @@
 ---
 name: mongbat-mod-authoring
-description: "Use when creating, migrating, modifying, or refactoring a mod in src/mods/. Walks through the router-pattern authoring workflow: identify engine globals, add Mongbat wrappers FIRST, declare a module table M with lifecycle methods (OnLoad/OnUnload/OnUpdate/On<Event>), register windows via Mongbat.CreateWindow, route engine events on (name, key), verify zero diagnostics in mod files. Covers mongbat mod authoring, mod scaffolding, mod migration, router pattern, module-table model, Mongbat.Mod declaration, Mongbat.CreateWindow. DO NOT USE for src/lib/Mongbat.lua framework work — that's where engine globals legally live."
+description: "Use when creating, migrating, modifying, or refactoring a mod in src/mods/. Walks through the router-pattern authoring workflow: identify engine globals, add Mongbat wrappers FIRST, declare a module table M with lifecycle methods (OnLoad/OnUnload/OnUpdate/OnUpdateWindow/On<Event>), register windows via Mongbat.CreateWindow, route engine events on (name, key), verify zero diagnostics in mod files. Covers mongbat mod authoring, mod scaffolding, mod migration, router pattern, module-table model, Mongbat.Mod declaration, Mongbat.CreateWindow. DO NOT USE for src/lib/Mongbat.lua framework work — that's where engine globals legally live."
 ---
 
 # Mongbat Mod Authoring
@@ -129,7 +129,7 @@ function M.OnLoad()
         template = "MongbatWindow",
         module   = M,
         key      = "panel",
-        bindings = { "PlayerStatus" },   -- optional WindowData subscriptions
+        -- id     = mobileId,   -- pass for per-mobile data
     }
     Api.Window.SetDimensions(NAME, 200, 100)
 end
@@ -143,10 +143,11 @@ function M.OnLButtonUp(_name, key)
     if key == "panel" then ... end
 end
 
--- Bindings: each WindowData key gets an OnUpdate<Key>(name, key, data) method.
-function M.OnUpdatePlayerStatus(_name, _key, data)
-    state.hp = data.CurrentHealth
-    Api.Label.SetText(NAME .. "Label", tostring(state.hp))
+-- Per-frame, per-window pull. The lib auto-registers every WindowData
+-- type for the window's id, so Mongbat.Data.* resolves; just read it.
+function M.OnUpdateWindow(_name, _key, _dt)
+    local hp = Mongbat.Data.PlayerStatus():getCurrentHealth()
+    Api.Label.SetText(NAME .. "Label", tostring(hp))
 end
 
 Mongbat.Mod {
@@ -162,14 +163,14 @@ Mongbat.Mod {
 |---|---|---|
 | `M.OnLoad()` | — | Once at startup |
 | `M.OnUnload()` | — | Once at teardown |
-| `M.OnUpdate(dt)` | `dt` | Every frame (only if defined; true per-frame work only) |
+| `M.OnUpdate(dt)` | `dt` | Every frame, once per mod (cross-window or mod-level work) |
+| `M.OnUpdateWindow(name, key, dt)` | `(name, key, dt)` | Every frame, once per registered window owned by this mod |
 | `M.OnInitialize` | `(name, key)` | Engine fires when a window is created |
 | `M.OnShown` / `M.OnHidden` / `M.OnShutdown` | `(name, key)` | Window visibility/destroy |
 | `M.OnLButtonUp/Down`, `M.OnRButtonUp/Down`, `M.OnLButtonDblClk` | `(name, key, flags?, x?, y?)` | Mouse buttons |
 | `M.OnMouseOver` / `M.OnMouseOverEnd` | `(name, key)` | Hover transitions |
 | `M.OnMouseWheel` | `(name, key, x, y, delta)` | Scroll wheel |
 | `M.OnEditBoxChanged/KeyEscape/KeyReturn/KeyTab` | `(name, key)` | Edit-box events |
-| `M.OnUpdate<DataKey>` | `(name, key, data)` | WindowData binding fires |
 
 Any method you don't define is simply not called.
 
@@ -183,9 +184,18 @@ Mongbat.CreateWindow {
     key      = "panel",           -- optional; defaults to `name`
     parent   = "MongbatYWindow",  -- optional; parent window for child windows
     showing  = true,              -- optional; defaults to true
-    bindings = { "PlayerStatus", "MobileStatus" },  -- optional WindowData keys
+    id       = mobileId,          -- optional; defaults to 0. Used for per-mobile
+                                  -- WindowData (MobileName, MobileStatus,
+                                  -- HealthBarColor, Paperdoll). The lib
+                                  -- auto-registers every WindowData type for
+                                  -- this id; mods read it via Mongbat.Data.<Key>(id).
 }
 ```
+
+The lib ref-counts each `(dataKey, id)` pair and calls
+`Api.Window.UnregisterData` when the last window using that id is destroyed.
+Fetch the id (e.g. `Data.PlayerStatus():getId()`) before calling
+`Mongbat.CreateWindow` so it can be passed in.
 
 Distinct windows in a single mod need unique `name` values. Pass distinct
 `key` values to dispatch on inside `M.On*` methods (e.g. `key = "slot1"`,
@@ -271,9 +281,10 @@ After every mod edit:
 - **`L"..."` wstring literals in a mod.** `L` is undefined. Use
   `Utils.String.ToWString("...")` instead. (`Api.Label.SetText` and
   `Api.Button.SetText` accept `string|wstring|number` directly.)
-- **Polling engine data in `M.OnUpdate(dt)`.** Use `bindings` and
-  `M.OnUpdate<DataKey>` instead. `OnUpdate(dt)` is for true per-frame work
-  only (animations, mouse-position polling, drag deltas).
+- **Pulling engine data in `M.OnUpdate(dt)` for window-specific UI.** Use
+  `bindings` + `M.OnUpdateWindow(name, key, dt)` and read live state via
+  `Mongbat.Data.*`. Reserve `M.OnUpdate(dt)` for cross-window or mod-level
+  work (animations, mouse-position polling, drag deltas).
 - **Re-using a window `name` across mods.** Names are the registry key.
   Distinct windows need distinct names; use `key` to disambiguate within a
   mod.
