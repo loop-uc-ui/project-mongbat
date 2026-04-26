@@ -33,6 +33,8 @@ local NAMES = {
     stamLabel = NAME .. "StamBarLabel",
 }
 
+local DRAG_THRESHOLD = 4
+
 local state = {
     id          = 0,
     name        = "",
@@ -41,6 +43,8 @@ local state = {
     stamina     = 0, maxStamina = 1,
     inWar       = false,
     healthColor = Constants.Colors.HealhBar[1],
+    downWinX    = 0,
+    downWinY    = 0,
 }
 
 local M = {}
@@ -105,7 +109,8 @@ local function createBar(containerName, fillName, labelName, parentName, yOffset
         parent = parentName, module = M, key = key,
     }
     Api.Window.SetDimensions(containerName, BAR_W, BAR_H)
-    Api.Window.SetOffsetFromParent(containerName, PAD, yOffset)
+    Api.Window.ClearAnchors(containerName)
+    Api.Window.AddAnchor(containerName, "topleft", parentName, "topleft", PAD, yOffset)
 
     Mongbat.CreateWindow {
         name = fillName, template = "MongbatStatusBarFill",
@@ -113,14 +118,16 @@ local function createBar(containerName, fillName, labelName, parentName, yOffset
     }
     Api.DynamicImage.SetTexture(fillName, "StatusBar", 0, 0)
     Api.Window.SetDimensions(fillName, 0, BAR_H)
-    Api.Window.SetOffsetFromParent(fillName, 0, 0)
+    Api.Window.ClearAnchors(fillName)
+    Api.Window.AddAnchor(fillName, "topleft", containerName, "topleft", 0, 0)
 
     Mongbat.CreateWindow {
         name = labelName, template = "MongbatLabel",
         parent = containerName, module = M, key = labelKey,
     }
     Api.Window.SetDimensions(labelName, BAR_W, BAR_H)
-    Api.Window.SetOffsetFromParent(labelName, 0, 0)
+    Api.Window.ClearAnchors(labelName)
+    Api.Window.AddAnchor(labelName, "centerleft", containerName, "centerleft", 0, 0)
     Api.Label.SetTextColor(labelName, Constants.Colors.White)
     Api.Window.SetLayer(labelName, Constants.WindowLayers.Secondary)
 end
@@ -136,21 +143,20 @@ function M.OnLoad()
         bindings = { "PlayerStatus", "MobileName", "HealthBarColor" },
     }
     Api.Window.SetDimensions(NAME, PANEL_W, NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD)
-
-    -- Name label, then three bars stacked.
+    -- Name label, then three bars stacked as a column.
     Mongbat.CreateWindow {
         name = NAMES.name, template = "MongbatLabel",
         parent = NAME, module = M, key = "name",
     }
     Api.Window.SetDimensions(NAMES.name, BAR_W, NAME_H)
-    Api.Window.SetOffsetFromParent(NAMES.name, PAD, PAD)
+    Api.Window.ClearAnchors(NAMES.name)
+    Api.Window.AddAnchor(NAMES.name, "topleft", NAME, "topleft", PAD, PAD)
+    Api.Label.SetWordWrap(NAMES.name, false)
 
-    local y = PAD + NAME_H + SPACING
-    createBar(NAMES.hp,   NAMES.hpFill,   NAMES.hpLabel,   NAME, y,                      "hpBar",   "hpFill",   "hpLabel")
-    y = y + BAR_H + SPACING
-    createBar(NAMES.mana, NAMES.manaFill, NAMES.manaLabel, NAME, y,                      "manaBar", "manaFill", "manaLabel")
-    y = y + BAR_H + SPACING
-    createBar(NAMES.stam, NAMES.stamFill, NAMES.stamLabel, NAME, y,                      "stamBar", "stamFill", "stamLabel")
+    local baseY = PAD + NAME_H + SPACING
+    createBar(NAMES.hp,   NAMES.hpFill,   NAMES.hpLabel,   NAME, baseY,                       "hpBar",   "hpFill",   "hpLabel")
+    createBar(NAMES.mana, NAMES.manaFill, NAMES.manaLabel, NAME, baseY + BAR_H + SPACING,     "manaBar", "manaFill", "manaLabel")
+    createBar(NAMES.stam, NAMES.stamFill, NAMES.stamLabel, NAME, baseY + 2*(BAR_H + SPACING), "stamBar", "stamFill", "stamLabel")
 
     -- Engine may push partial updates before PlayerStatus arrives;
     -- pull defensively so first frame shows live values too.
@@ -188,6 +194,13 @@ end
 
 -- ---- Click handling on the outer panel ---------------------------------
 
+function M.OnLButtonDown(_name, key)
+    if key == "panel" then
+        state.downWinX, state.downWinY = Api.Window.GetPosition(NAME)
+        Api.Window.SetMoving(NAME, true)
+    end
+end
+
 function M.OnLButtonDblClk(_name, key)
     if key == "panel" and state.id ~= 0 then
         Api.UserAction.UseItem(state.id)
@@ -195,7 +208,13 @@ function M.OnLButtonDblClk(_name, key)
 end
 
 function M.OnLButtonUp(_name, key)
-    if key ~= "panel" or state.id == 0 then return end
+    if key ~= "panel" then return end
+    Api.Window.SetMoving(NAME, false)
+    local wx, wy = Api.Window.GetPosition(NAME)
+    local dx = math.abs(wx - state.downWinX)
+    local dy = math.abs(wy - state.downWinY)
+    if dx > DRAG_THRESHOLD or dy > DRAG_THRESHOLD then return end
+    if state.id == 0 then return end
     if Data.Drag():isDraggingItem() then
         Api.Drag.DragToObject(state.id)
     else

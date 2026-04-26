@@ -287,6 +287,12 @@ function M.OnRButtonDown(_name, key)
     end
 end
 
+function M.OnRButtonUp(_name, key)
+    if key == "panel" then
+        M.OnUnload()
+    end
+end
+
 function M.OnMouseOver(_name, key)
     local i = slotIndexFromKey(key)
     if not i then return end

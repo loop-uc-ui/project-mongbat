@@ -80,6 +80,7 @@ function M.OnLoad()
         Api.Window.SetOffsetFromParent(n, PAD_X, PAD_Y + (i - 1) * (BTN_H + BTN_SPACING))
         Api.Button.SetText(n, b.text)
     end)
+    Api.Window.SetShowing(NAME, false)
 end
 
 function M.OnUnload()

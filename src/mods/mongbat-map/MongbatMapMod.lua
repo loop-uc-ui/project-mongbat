@@ -13,7 +13,7 @@ local Data      = Mongbat.Data
 local Utils     = Mongbat.Utils
 local Constants = Mongbat.Constants
 
-local NAME       = "MongbatMapWindow"
+local NAME       = "MapWindow"
 local MAP_NAME   = "MongbatMapRadar"
 local LABEL_NAME = "MongbatMapCoords"
 
@@ -197,6 +197,12 @@ function M.OnLButtonDblClk(_name, key)
     state.isPanning      = false
     state.centerOnPlayer = true
     Api.Radar.SetCenterOnPlayer(true)
+end
+
+function M.OnRButtonUp(_name, key)
+    if key == "panel" or key == "map" then
+        M.OnUnload()
+    end
 end
 
 Mongbat.Mod {
