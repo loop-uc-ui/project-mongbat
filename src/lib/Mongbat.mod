@@ -12,6 +12,7 @@
 			<Dependency name="MongbatApi" />
 			<Dependency name="MongbatData" />
 			<Dependency name="MongbatDebugger" />
+			<Dependency name="MongbatUI" />
 		</Dependencies>
 
 		<Files>

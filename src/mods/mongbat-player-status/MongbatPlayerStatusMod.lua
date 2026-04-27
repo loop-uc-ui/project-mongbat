@@ -7,6 +7,7 @@
 -- to the Api setters; no descriptor diff, no Render, no cached values.
 
 local Api       = Mongbat.Api
+local UI        = Mongbat.UI
 local Data      = Mongbat.Data
 local Utils     = Mongbat.Utils
 local Constants = Mongbat.Constants
@@ -43,16 +44,16 @@ local state = {
     downWinY = 0,
 }
 
+-- UI widget handles, populated in OnLoad.
+local W = {}
+
 local M = {}
 
 -- ---- Push to engine ----------------------------------------------------
 
-local function setBar(fillName, labelName, current, max, color, fmt)
-    local pct   = math.max(0, math.min(1, current / max))
-    local width = math.floor(BAR_W * pct + 0.5)
-    Api.Window.SetDimensions(fillName, width, BAR_H)
-    Api.Window.SetColor(fillName, color)
-    Api.Label.SetText(labelName, string.format(fmt, current, max))
+local function setBar(bar, current, max, color, fmt)
+    bar:setValue(current, max, color)
+       :setLabel(string.format(fmt, current, max))
 end
 
 --- Pull live state from the engine and push it straight to the windows.
@@ -74,28 +75,27 @@ local function refresh()
     local frameColor = p:isInWarMode()
         and Constants.Colors.Notoriety[6]
         or  Constants.Colors.Notoriety[1]
-    Api.Window.SetColor(NAME, frameColor)
-    Api.Window.SetId(NAME, id)
-    Api.Label.SetText(NAMES.name, mobName ~= "" and mobName or " ")
+    W.frame:setColor(frameColor):setId(id)
+    W.nameLabel:setText(mobName ~= "" and mobName or " ")
 
-    setBar(NAMES.hpFill,   NAMES.hpLabel,   p:getCurrentHealth(),  maxHealth,  healthColor,                  "%d / %d")
-    setBar(NAMES.manaFill, NAMES.manaLabel, p:getCurrentMana(),    maxMana,    Constants.Colors.Blue,        "%d / %d")
-    setBar(NAMES.stamFill, NAMES.stamLabel, p:getCurrentStamina(), maxStamina, Constants.Colors.YellowDark,  "%d / %d")
+    setBar(W.hp,   p:getCurrentHealth(),  maxHealth,  healthColor,                 "%d / %d")
+    setBar(W.mana, p:getCurrentMana(),    maxMana,    Constants.Colors.Blue,       "%d / %d")
+    setBar(W.stam, p:getCurrentStamina(), maxStamina, Constants.Colors.YellowDark, "%d / %d")
 end
 
 -- ---- Resize callback --------------------------------------------------
 
 --- Called by Api.Window.BeginResize when the user finishes dragging the grip.
 local function onResizeEnd(_)
-    local dims = Api.Window.GetDimensions(NAME)
+    local dims = W.frame:getDimensions()
     BAR_W = math.max(MIN_W - 2 * PAD, dims.x - 2 * PAD)
-    Api.Window.SetDimensions(NAMES.name,      BAR_W, NAME_H)
-    Api.Window.SetDimensions(NAMES.hp,        BAR_W, BAR_H)
-    Api.Window.SetDimensions(NAMES.mana,      BAR_W, BAR_H)
-    Api.Window.SetDimensions(NAMES.stam,      BAR_W, BAR_H)
-    Api.Window.SetDimensions(NAMES.hpLabel,   BAR_W, BAR_H)
-    Api.Window.SetDimensions(NAMES.manaLabel, BAR_W, BAR_H)
-    Api.Window.SetDimensions(NAMES.stamLabel, BAR_W, BAR_H)
+    W.nameLabel:setDimensions(BAR_W, NAME_H)
+    UI.Window(NAMES.hp)       :setDimensions(BAR_W, BAR_H)
+    UI.Window(NAMES.mana)     :setDimensions(BAR_W, BAR_H)
+    UI.Window(NAMES.stam)     :setDimensions(BAR_W, BAR_H)
+    UI.Window(NAMES.hpLabel)  :setDimensions(BAR_W, BAR_H)
+    UI.Window(NAMES.manaLabel):setDimensions(BAR_W, BAR_H)
+    UI.Window(NAMES.stamLabel):setDimensions(BAR_W, BAR_H)
     refresh()
 end
 
@@ -106,28 +106,33 @@ local function createBar(containerName, fillName, labelName, parentName, yOffset
         name = containerName, template = "MongbatStatusBar",
         parent = parentName, module = M, key = key,
     }
-    Api.Window.SetDimensions(containerName, BAR_W, BAR_H)
-    Api.Window.ClearAnchors(containerName)
-    Api.Window.AddAnchor(containerName, "topleft", parentName, "topleft", PAD, yOffset)
+    UI.Window(containerName)
+        :setDimensions(BAR_W, BAR_H)
+        :clearAnchors()
+        :addAnchor("topleft", parentName, "topleft", PAD, yOffset)
 
     Mongbat.CreateWindow {
         name = fillName, template = "MongbatStatusBarFill",
         parent = containerName, module = M, key = fillKey,
     }
-    Api.DynamicImage.SetTexture(fillName, "StatusBar", 0, 0)
-    Api.Window.SetDimensions(fillName, 0, BAR_H)
-    Api.Window.ClearAnchors(fillName)
-    Api.Window.AddAnchor(fillName, "topleft", containerName, "topleft", 0, 0)
+    UI.DynamicImage(fillName):setTexture("StatusBar", 0, 0)
+    UI.Window(fillName)
+        :setDimensions(0, BAR_H)
+        :clearAnchors()
+        :addAnchor("topleft", containerName, "topleft", 0, 0)
 
     Mongbat.CreateWindow {
         name = labelName, template = "MongbatLabel",
         parent = containerName, module = M, key = labelKey,
     }
-    Api.Window.SetDimensions(labelName, BAR_W, BAR_H)
-    Api.Window.ClearAnchors(labelName)
-    Api.Window.AddAnchor(labelName, "centerleft", containerName, "centerleft", 0, 0)
-    Api.Label.SetTextColor(labelName, Constants.Colors.White)
-    Api.Window.SetLayer(labelName, Constants.WindowLayers.Secondary)
+    UI.Label(labelName)
+        :setDimensions(BAR_W, BAR_H)
+        :clearAnchors()
+        :addAnchor("centerleft", containerName, "centerleft", 0, 0)
+        :setLayer(Constants.WindowLayers.Secondary)
+        :setTextColor(Constants.Colors.White)
+
+    return UI.StatusBar { container = containerName, fill = fillName, label = labelName }
 end
 
 function M.OnLoad()
@@ -145,21 +150,23 @@ function M.OnLoad()
         minHeight = MIN_H,
         onResizeEnd = onResizeEnd,
     }
-    Api.Window.SetDimensions(NAME, PANEL_W, NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD)
+    W.frame = UI.Window(NAME):setDimensions(PANEL_W, NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD)
+
     -- Name label, then three bars stacked as a column.
     Mongbat.CreateWindow {
         name = NAMES.name, template = "MongbatLabel",
         parent = NAME, module = M, key = "name",
     }
-    Api.Window.SetDimensions(NAMES.name, BAR_W, NAME_H)
-    Api.Window.ClearAnchors(NAMES.name)
-    Api.Window.AddAnchor(NAMES.name, "topleft", NAME, "topleft", PAD, PAD)
-    Api.Label.SetWordWrap(NAMES.name, false)
+    W.nameLabel = UI.Label(NAMES.name)
+        :setDimensions(BAR_W, NAME_H)
+        :clearAnchors()
+        :addAnchor("topleft", NAME, "topleft", PAD, PAD)
+        :setWordWrap(false)
 
     local baseY = PAD + NAME_H + SPACING
-    createBar(NAMES.hp,   NAMES.hpFill,   NAMES.hpLabel,   NAME, baseY,                       "hpBar",   "hpFill",   "hpLabel")
-    createBar(NAMES.mana, NAMES.manaFill, NAMES.manaLabel, NAME, baseY + BAR_H + SPACING,     "manaBar", "manaFill", "manaLabel")
-    createBar(NAMES.stam, NAMES.stamFill, NAMES.stamLabel, NAME, baseY + 2*(BAR_H + SPACING), "stamBar", "stamFill", "stamLabel")
+    W.hp   = createBar(NAMES.hp,   NAMES.hpFill,   NAMES.hpLabel,   NAME, baseY,                       "hpBar",   "hpFill",   "hpLabel")
+    W.mana = createBar(NAMES.mana, NAMES.manaFill, NAMES.manaLabel, NAME, baseY + BAR_H + SPACING,     "manaBar", "manaFill", "manaLabel")
+    W.stam = createBar(NAMES.stam, NAMES.stamFill, NAMES.stamLabel, NAME, baseY + 2*(BAR_H + SPACING), "stamBar", "stamFill", "stamLabel")
 
     -- First-frame paint so the panel isn't empty until the next tick.
     refresh()
@@ -183,8 +190,8 @@ end
 
 function M.OnLButtonDown(_name, key)
     if key == "panel" then
-        state.downWinX, state.downWinY = Api.Window.GetPosition(NAME)
-        Api.Window.SetMoving(NAME, true)
+        state.downWinX, state.downWinY = W.frame:getPosition()
+        W.frame:setMoving(true)
     end
 end
 
@@ -197,8 +204,8 @@ end
 
 function M.OnLButtonUp(_name, key)
     if key ~= "panel" then return end
-    Api.Window.SetMoving(NAME, false)
-    local wx, wy = Api.Window.GetPosition(NAME)
+    W.frame:setMoving(false)
+    local wx, wy = W.frame:getPosition()
     local dx = math.abs(wx - state.downWinX)
     local dy = math.abs(wy - state.downWinY)
     if dx > DRAG_THRESHOLD or dy > DRAG_THRESHOLD then return end
@@ -213,7 +220,7 @@ end
 
 function M.OnRButtonUp(_name, key)
     if key == "panel" then
-        Api.Window.SetShowing(NAME, false)
+        W.frame:hide()
     end
 end
 

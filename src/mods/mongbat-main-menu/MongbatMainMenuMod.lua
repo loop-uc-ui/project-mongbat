@@ -8,6 +8,7 @@
 -- on key.
 
 local Api       = Mongbat.Api
+local UI        = Mongbat.UI
 local Utils     = Mongbat.Utils
 
 local NAME = "MainMenuWindow"
@@ -21,8 +22,11 @@ local BTN_SPACING = 4
 
 local M = {}
 
+-- UI handle for the outer window, populated in OnLoad.
+local frame
+
 local function close()
-    Api.Window.SetShowing(NAME, false)
+    frame:hide()
 end
 
 -- Buttons in display order. `text` may be a string or a numeric clilocId;
@@ -63,7 +67,7 @@ function M.OnLoad()
         key      = "menu",
         showing  = false,
     }
-    Api.Window.SetDimensions(NAME,
+    frame = UI.Window(NAME):setDimensions(
         BTN_W + 2 * PAD_X,
         BTN_H * #BUTTONS + (#BUTTONS - 1) * BTN_SPACING + 2 * PAD_Y)
 
@@ -76,11 +80,12 @@ function M.OnLoad()
             module   = M,
             key      = b.key,
         }
-        Api.Window.SetDimensions(n, BTN_W, BTN_H)
-        Api.Window.SetOffsetFromParent(n, PAD_X, PAD_Y + (i - 1) * (BTN_H + BTN_SPACING))
-        Api.Button.SetText(n, b.text)
+        UI.Button(n)
+            :setDimensions(BTN_W, BTN_H)
+            :setOffsetFromParent(PAD_X, PAD_Y + (i - 1) * (BTN_H + BTN_SPACING))
+            :setText(b.text)
     end)
-    Api.Window.SetShowing(NAME, false)
+    frame:hide()
 end
 
 function M.OnUnload()
