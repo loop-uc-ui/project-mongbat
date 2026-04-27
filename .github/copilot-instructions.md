@@ -17,8 +17,9 @@ area lives only in `src/lib/Mongbat.lua`, exposed through:
 - `Mongbat.Constants` — `Constants.Colors`, `WindowLayers`, `GumpIds`, etc.
 - `Mongbat.Debugger` — wraps `Debug.*` (`Print`, `PrintToChat`,
   `PrintToDebugConsole`, `Dump`, `DumpToConsole`)
-- `Mongbat.CreateWindow` / `RegisterWindow` / `DestroyWindow` /
-  `UnregisterWindow` / `GetWindow` — window registry helpers.
+- `Mongbat.UI` — declarative widget builders (Window, Label, Button,
+  DynamicImage, EditBox, TextLog) used inside `M.Build(emit)`
+- `Mongbat.GetWindow(engineName)` — registry lookup (rarely needed)
 
 Default-UI module lifecycle entry points (e.g.
 `ObjectHandleWindow.CreateObjectHandles`, `GenericGump.OnShown`,
@@ -35,70 +36,76 @@ first**, then consume it. Never silence the boundary with
 `---@diagnostic disable: undefined-global` in a mod — that flag means the
 boundary leaked.
 
-## Architecture: Router + Module
+## Architecture: Declarative Build + Router
 
-Mongbat is a **router**. The lib maintains a `name -> { module, key }`
-registry. When the engine fires an event on a window, the lib looks up the
-window''s owning mod and calls the matching method on that mod''s module
-table:
+Mongbat is a **declarative reconciler + router**. Each frame the lib calls
+`M.OnUpdate(dt)` then `M.Build(emit)` on every loaded mod. The mod calls
+`emit(key, spec)` once per window it wants this frame. The lib diffs the
+emitted set against the prior frame: new keys → create + register,
+existing keys → re-apply widget ops, missing keys → destroy.
+
+When the engine fires an event on a window, the lib looks up the window's
+owning mod and calls the matching method on that mod's module table:
 
 ```
-engine event on window "X"
+engine event on window "MongbatX_panel"
         |
         v
 Mongbat.EventHandler.<Event>  (wired in MongbatXxx XML templates)
         |
         v   (looks up SystemData.ActiveWindow.name in the registry)
         v
-M.<Event>(name, key, ...)     (runs in the owning mod)
+M.<Event>(name, key, ...)     (key = "panel", in the owning mod)
 ```
 
-Mods own all state. The lib never diffs descriptors, never re-renders, and
-holds no closures.
+Mods own all state. The lib holds no closures.
 
 ## Mod Shape (one-liner)
 
 A mod is a Lua module table `M` plus a `Mongbat.Mod{...}` declaration. It
-implements only the lifecycle methods it needs (`OnLoad`, `OnUnload`,
-`OnUpdate(dt)`, `OnUpdateWindow(name, key, dt)`, `On<Event>(name, key, ...)`).
-Windows are registered via `Mongbat.CreateWindow{ name, template, module=M, key?, parent?, bindings? }`.
+implements `M.Build(emit)` for windows and any lifecycle / event methods
+it needs (`OnLoad`, `OnUnload`, `OnUpdate(dt)`, `On<Event>(name, key, ...)`).
+Windows are emitted declaratively via `emit(key, { template, widget, parent?, name?, id?, showing?, replacesDefault? })`.
 
-**For the full mod-authoring workflow** (skeleton, lifecycle method
-reference, `CreateWindow` options, data wrapper reference, iteration
-helpers, `Api.Window.Destroy` vs chain helpers, anti-patterns), read
-[.github/skills/mongbat-mod-authoring/SKILL.md](skills/mongbat-mod-authoring/SKILL.md).
+**For the full mod-authoring workflow** (skeleton, `M.Build` reference,
+spec fields, `Mongbat.UI` widget reference, data wrapper reference,
+iteration helpers, `Api.Window.Destroy` vs chain helpers, anti-patterns),
+read [.github/skills/mongbat-mod-authoring/SKILL.md](skills/mongbat-mod-authoring/SKILL.md).
 Canonical example mods are linked there too.
 
 ## Workflow Rules
 
-1. **Distinct windows need unique names; routed events arrive with `key`.**
-   Pass `key = "..."` to `Mongbat.CreateWindow` and dispatch on it inside
-   `M.On*` methods. The lib uses `name` itself as the default key.
-2. **Pull data each frame in `OnUpdateWindow`.** Implement
-   `M.OnUpdateWindow(name, key, dt)` and read live state via
-   `Mongbat.Data.PlayerStatus():getCurrentHealth()` etc. The lib
-   auto-registers every WindowData type with the engine when a window is
-   created, so it populates each frame with no per-key opt-in. For
+1. **Windows go through `M.Build(emit)`.** Don't call any imperative
+   create/destroy helper from a mod — they no longer exist. Conditional
+   emission is the way to show/hide: skip a key in a frame and the lib
+   destroys it; re-emit later to recreate. Cheap.
+2. **Distinct windows need distinct keys; routed events arrive with `key`.**
+   The default engine name is `<modName>_<key>` (sanitized). Override
+   `name=` only when hijacking a fixed default-UI name (e.g.
+   `"MainMenuWindow"`, `"MapWindow"`); pair with `replacesDefault = true`.
+3. **Read engine data inline inside `M.Build`.** `Data.PlayerStatus():getCurrentHealth()`
+   etc. — the lib auto-registers every WindowData type for every emitted
+   window's id, so it populates each frame with no per-key opt-in. For
    per-mobile data (`MobileName`, `MobileStatus`, `HealthBarColor`,
-   `Paperdoll`), pass `id = mobileId` to `Mongbat.CreateWindow` so
+   `Paperdoll`), pass `id = mobileId` in the spec so
    `Mongbat.Data.MobileName(mobileId):getName()` resolves. The lib
    ref-counts each `(dataKey, id)` pair and unregisters when the last
-   window using that id is destroyed. The lib calls `OnUpdateWindow` once
-   per registered window per frame. Use mod-level `M.OnUpdate(dt)` for work
-   that doesn''t belong to any one window (cross-window state,
-   mouse-position polling, animations).
-3. **`Api.Window.Destroy` to own a default-UI window''s name.** Call
-   `Api.Window.Destroy("DefaultWindowName")` at the top of `M.OnLoad()`
-   before creating your replacement. Use `Api.<Module>.On<Event>` chain
-   helpers to react to default-UI module lifecycle entry points (e.g.
-   `Api.ObjectHandle.OnCreate`, `Api.GenericGump.OnShown`,
-   `Api.GumpsParsing.OnParsingCheck`).
-4. **Wrapper-first.** When a mod needs an engine global, stop and add the
+   window using that id is destroyed. Use mod-level `M.OnUpdate(dt)` only
+   for engine-side mutations that aren't expressible as widget setters
+   (e.g. radar pan / drag deltas).
+4. **`Api.Window.Destroy` to own a default-UI window's name.** Call
+   `Api.Window.Destroy("DefaultWindowName")` at the top of `M.OnLoad()`,
+   then emit your replacement under the same `name` with
+   `replacesDefault = true`. Use `Api.<Module>.On<Event>` chain helpers
+   (`Api.ObjectHandle.OnCreate`, `Api.GenericGump.OnShown`,
+   `Api.GumpsParsing.OnParsingCheck`) when you only need to react to
+   default-UI lifecycle without owning a window.
+5. **Wrapper-first.** When a mod needs an engine global, stop and add the
    wrapper to `src/lib/Mongbat.lua` before continuing.
-5. **Verify with `get_errors`.** After any mod edit, mod files must have
+6. **Verify with `get_errors`.** After any mod edit, mod files must have
    **zero** diagnostics. Lib pre-existing engine-global / `wstring`
    warnings are expected and out of scope.
-6. **No raw `ipairs` / `pairs` / `for i = 1, #t` in mods.** Use
+7. **No raw `ipairs` / `pairs` / `for i = 1, #t` in mods.** Use
    `Utils.Array.*` for arrays and `Utils.Table.*` for hash tables. Numeric
    `for i = 1, N` over an engine-supplied count (e.g. `GetNumEntries`,
    paperdoll slots) is fine.

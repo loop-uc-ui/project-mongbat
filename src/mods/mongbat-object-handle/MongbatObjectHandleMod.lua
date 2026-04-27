@@ -1,13 +1,13 @@
 -- Object handles: floating name labels pinned to world objects (mobiles +
--- items in view). The engine''s default UI calls
--- ObjectHandleWindow.CreateObjectHandles() when it wants the set refreshed
--- and DestroyObjectHandles() when it wants them gone. We chain via
--- Api.ObjectHandle so both our state and the default UI''s bookkeeping run.
+-- items in view). The engine populates WindowData.ObjectHandles on its
+-- own schedule; we read it every frame and emit one frame+label pair per
+-- handle. The lib's Build subsystem auto-creates/destroys windows as
+-- handles enter/leave the set.
 --
--- Pattern: Mongbat is a router. Each handle is its own pair of windows
--- (frame + label) attached to the world object. We diff against the
--- previous set on every refresh and create / destroy windows accordingly.
+-- Pattern: declarative. Dynamic per-id windows are the canonical Build
+-- use case -- no manual diff, no OnCreate/OnDestroy hooks.
 
+local UI        = Mongbat.UI
 local Api       = Mongbat.Api
 local Data      = Mongbat.Data
 local Utils     = Mongbat.Utils
@@ -19,96 +19,68 @@ local FRAME_PADDING = 16
 
 local M = {}
 
--- [id] = { frame = "...", label = "...", isMobile = bool, name = "..." }
-local owned = {}
+-- Cached metadata for click handlers; updated every Build pass.
+local metaById = {}
 
-local function frameName(id) return "MongbatObjectHandle"      .. id end
-local function labelName(id) return "MongbatObjectHandleLabel" .. id end
-
-local function destroyHandle(id)
-    local entry = owned[id]
-    if not entry then return end
-    Mongbat.DestroyWindow(entry.label)
-    Mongbat.DestroyWindow(entry.frame)
-    owned[id] = nil
-end
-
-local function destroyAll()
-    Utils.Table.ForEach(owned, function(id) destroyHandle(id) end)
-end
-
-local function createHandle(h)
-    local color   = Constants.Colors.Notoriety[h.notoriety]
-    local width   = #h.name * CHAR_W + FRAME_PADDING
-    local frame   = frameName(h.id)
-    local label   = labelName(h.id)
-
-    Mongbat.CreateWindow {
-        name = frame, template = "MongbatWindow",
-        module = M, key = tostring(h.id),
-    }
-    Api.Window.SetDimensions(frame, width, LABEL_H)
-    Api.Window.SetId(frame, h.id)
-    Api.Window.AttachToWorldObject(h.id, frame)
-    Api.Window.SetAlpha(frame, 0.7)
-    Api.Window.SetLayer(frame, Constants.WindowLayers.Background)
-    Api.Window.SetMovable(frame, false)
-    if h.isMobile and color then
-        Api.Window.SetColor(frame, color)
-    end
-
-    Mongbat.CreateWindow {
-        name = label, template = "MongbatLabel",
-        parent = frame, module = M, key = "label" .. h.id,
-    }
-    Api.Window.SetDimensions(label, #h.name * CHAR_W, LABEL_H)
-    Api.Window.SetId(label, h.id)
-    Api.Window.ClearAnchors(label)
-    Api.Window.AddAnchor(label, "center", "parent", "center", 0, 0)
-    Api.Label.SetText(label, h.name)
-    if color then Api.Label.SetTextColor(label, color) end
-    Api.Label.SetTextAlignment(label, Constants.TextAlignment.Center)
-
-    owned[h.id] = { frame = frame, label = label, isMobile = h.isMobile, name = h.name }
-end
-
-local function refresh()
-    local handles = Data.ObjectHandles():getHandles()
-    local seen    = {}
-
-    Utils.Table.ForEach(handles, function(_, h)
-        seen[h.id] = true
-        local entry = owned[h.id]
-        if entry and entry.name == h.name then
-            -- unchanged; nothing to do
-        else
-            if entry then destroyHandle(h.id) end
-            createHandle(h)
-        end
-    end)
-
-    Utils.Table.ForEach(owned, function(id)
-        if not seen[id] then destroyHandle(id) end
-    end)
-end
-
-function M.OnLoad()
-    -- The engine''s ObjectHandleWindow module owns the lifecycle signal.
-    Api.ObjectHandle.OnCreate(function() refresh() end)
-    Api.ObjectHandle.OnDestroy(function() destroyAll() end)
-end
-
-function M.OnUnload()
-    destroyAll()
-end
-
--- ---- Routed click handlers ------------------------------------------
+local function frameKey(id) return "frame:" .. id end
+local function labelKey(id) return "label:" .. id end
 
 local function idFromKey(key)
     if type(key) ~= "string" then return nil end
-    local s = key:match("^(%d+)$")
+    local s = key:match("^[a-z]+:(%d+)$")
     return s and tonumber(s) or nil
 end
+
+function M.Build(emit)
+    local handles = Data.ObjectHandles():getHandles()
+    local seen = {}
+
+    Utils.Table.ForEach(handles, function(_, h)
+        seen[h.id] = true
+        metaById[h.id] = { isMobile = h.isMobile, name = h.name }
+
+        local color = Constants.Colors.Notoriety[h.notoriety]
+        local width = #h.name * CHAR_W + FRAME_PADDING
+
+        local frame = UI.Window()
+            :setDimensions(width, LABEL_H)
+            :setId(h.id)
+            :attachToWorldObject(h.id)
+            :setAlpha(0.7)
+            :setLayer(Constants.WindowLayers.Background)
+            :setMovable(false)
+        if h.isMobile and color then frame:setColor(color) end
+
+        emit(frameKey(h.id), {
+            template = "MongbatWindow",
+            id       = h.id,
+            widget   = frame,
+        })
+
+        local label = UI.Label()
+            :setDimensions(#h.name * CHAR_W, LABEL_H)
+            :setId(h.id)
+            :clearAnchors()
+            :addAnchor("center", "parent", "center", 0, 0)
+            :setText(h.name)
+            :setTextAlignment(Constants.TextAlignment.Center)
+        if color then label:setTextColor(color) end
+
+        emit(labelKey(h.id), {
+            template = "MongbatLabel",
+            parent   = frameKey(h.id),
+            id       = h.id,
+            widget   = label,
+        })
+    end)
+
+    -- Drop stale metadata for handles that left the set.
+    Utils.Table.ForEach(metaById, function(id)
+        if not seen[id] then metaById[id] = nil end
+    end)
+end
+
+-- ---- Routed click handlers ------------------------------------------
 
 function M.OnMouseOver(name, key)
     if idFromKey(key) then
@@ -132,7 +104,7 @@ end
 function M.OnLButtonDown(_name, key)
     local id = idFromKey(key)
     if not id then return end
-    local entry = owned[id]
+    local entry = metaById[id]
     if entry and entry.isMobile then
         Api.HealthBar.BeginDrag(id)
     end

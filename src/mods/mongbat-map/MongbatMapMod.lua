@@ -1,21 +1,21 @@
--- Radar map: hijacks the default UI''s MapWindow so this mod owns
--- presentation. Engine still runs its MapCommon module — those callbacks
+-- Radar map: hijacks the default UI's MapWindow so this mod owns
+-- presentation. Engine still runs its MapCommon module; those callbacks
 -- short-circuit harmlessly when MapWindow no longer exists.
 --
--- Pattern: Mongbat is a router. The mod owns three windows (outer panel,
--- DynamicImage radar, coords label). Mod-level M.OnUpdate(dt) pushes the
--- per-frame texture coords + label text + pan delta + size-poll. Routed
--- engine events (M.OnLButtonDown / OnLButtonUp / OnLButtonDblClk /
--- OnMouseWheel / OnMouseOverEnd) carry (name, key, ...).
+-- Pattern: declarative. M.Build(emit) runs every frame and emits the three
+-- windows (panel, radar image, coords label). Live radar state is read
+-- inline. Pan-delta + size-poll + zoom run in M.OnUpdate (engine-side
+-- mutations that aren't expressible as widget setters).
 
+local UI        = Mongbat.UI
 local Api       = Mongbat.Api
 local Data      = Mongbat.Data
 local Utils     = Mongbat.Utils
 local Constants = Mongbat.Constants
 
-local NAME       = "MapWindow"
-local MAP_NAME   = "MongbatMapRadar"
-local LABEL_NAME = "MongbatMapCoords"
+-- Engine name override: the default UI's MapCommon module references
+-- "MapWindow" by name, so we hijack it.
+local PANEL_NAME = "MapWindow"
 
 local WINDOW_SIZE = 400
 local MARGIN      = 8
@@ -31,6 +31,7 @@ local state = {
     lastMouseY     = 0,
     radarW         = 0,
     radarH         = 0,
+    initialized    = false,
     zoom = {
         current = 0,
         min     = -2.0,
@@ -97,57 +98,59 @@ end
 
 function M.OnLoad()
     Api.Window.Destroy("MapWindow")
-    Mongbat.CreateWindow {
-        name = NAME, template = "MongbatWindow",
-        module = M, key = "panel",
-    }
-    Api.Window.SetDimensions(NAME, CONTENT + MARGIN * 2, CONTENT + MARGIN * 2)
-
-    Mongbat.CreateWindow {
-        name = MAP_NAME, template = "MongbatDynamicImage",
-        parent = NAME, module = M, key = "map",
-    }
-    Api.Window.SetDimensions(MAP_NAME, CONTENT, CONTENT)
-    Api.Window.ClearAnchors(MAP_NAME)
-    Api.Window.AddAnchor(MAP_NAME, "topleft",     "parent", "topleft",      MARGIN,  MARGIN)
-    Api.Window.AddAnchor(MAP_NAME, "bottomright", "parent", "bottomright", -MARGIN, -MARGIN)
-
-    Mongbat.CreateWindow {
-        name = LABEL_NAME, template = "MongbatLabelSmall",
-        parent = NAME, module = M, key = "coords",
-    }
-    Api.Window.SetDimensions(LABEL_NAME, CONTENT, LABEL_H)
-    Api.Window.SetLayer(LABEL_NAME, Constants.WindowLayers.Overlay)
-    Api.Window.ClearAnchors(LABEL_NAME)
-    Api.Window.AddAnchor(LABEL_NAME, "bottomleft", "parent", "bottomleft", MARGIN, -MARGIN)
-
-    applyRadarSize(CONTENT, CONTENT)
-    Api.Radar.SetRotation(0)
-    Api.Radar.SetWindowOffset(0, 0)
-    Api.Radar.SetCenterOnPlayer(true)
-    initializeZoom()
 end
 
-function M.OnUnload()
-    Mongbat.DestroyWindow(LABEL_NAME)
-    Mongbat.DestroyWindow(MAP_NAME)
-    Mongbat.DestroyWindow(NAME)
+function M.Build(emit)
+    local radar = Data.Radar()
+
+    emit("panel", {
+        name     = PANEL_NAME,                -- engine name fixed
+        template = "MongbatWindow",
+        widget   = UI.Window():setDimensions(CONTENT + MARGIN * 2, CONTENT + MARGIN * 2),
+    })
+
+    emit("map", {
+        template = "MongbatDynamicImage",
+        parent   = "panel",
+        widget   = UI.DynamicImage()
+            :setHandleInput(true)
+            :setDimensions(CONTENT, CONTENT)
+            :clearAnchors()
+            :addAnchor("topleft",     "panel", "topleft",      MARGIN,  MARGIN)
+            :addAnchor("bottomright", "panel", "bottomright", -MARGIN, -MARGIN)
+            :setTexture("radar_texture", radar:getTexCoordX(), radar:getTexCoordY())
+            :setTextureScale(radar:getTexScale()),
+    })
+
+    emit("coords", {
+        template = "MongbatLabelSmall",
+        parent   = "panel",
+        widget   = UI.Label()
+            :setText(formatLocationText())
+            :setDimensions(CONTENT, LABEL_H)
+            :setLayer(Constants.WindowLayers.Overlay)
+            :clearAnchors()
+            :addAnchor("bottomleft", "panel", "bottomleft", MARGIN, -MARGIN),
+    })
 end
 
 function M.OnUpdate(_dt)
-    if not Api.Window.DoesExist(MAP_NAME) then return end
+    -- The map window may not exist on the very first tick before Build has
+    -- run; guard accordingly.
+    if not Mongbat.GetWindow("MongbatMap_map") then return end
 
-    -- Resize-poll: outer window is movable+resizable; mirror to radar.
-    local dims = Api.Window.GetDimensions(MAP_NAME)
+    if not state.initialized then
+        applyRadarSize(CONTENT, CONTENT)
+        Api.Radar.SetRotation(0)
+        Api.Radar.SetWindowOffset(0, 0)
+        Api.Radar.SetCenterOnPlayer(true)
+        initializeZoom()
+        state.initialized = true
+    end
+
+    -- Mirror outer-window resizes to the radar engine state.
+    local dims = Api.Window.GetDimensions("MongbatMap_map")
     applyRadarSize(dims.x, dims.y)
-
-    -- Update texture from current radar state.
-    local radar = Data.Radar()
-    Api.DynamicImage.SetTexture(MAP_NAME, "radar_texture",
-        radar:getTexCoordX(), radar:getTexCoordY())
-    Api.DynamicImage.SetTextureScale(MAP_NAME, radar:getTexScale())
-
-    Api.Label.SetText(LABEL_NAME, formatLocationText())
 
     -- Pan delta.
     if state.isPanning then
@@ -199,9 +202,9 @@ function M.OnLButtonDblClk(_name, key)
     Api.Radar.SetCenterOnPlayer(true)
 end
 
-function M.OnRButtonUp(_name, key)
+function M.OnRButtonUp(name, key)
     if key == "panel" or key == "map" then
-        M.OnUnload()
+        Api.Window.SetShowing(name, false)
     end
 end
 

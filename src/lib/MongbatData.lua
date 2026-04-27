@@ -414,6 +414,7 @@ end
 ---@return table<number, ObjectHandle>
 function ObjectHandles:getHandles()
     local windowData = self:getData()
+    if not windowData or not windowData.ObjectId then return {} end
 
     return Mongbat.Utils.Array.MapToTable(
         windowData.ObjectId,

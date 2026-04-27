@@ -1,22 +1,17 @@
 -- Player paperdoll: equipment grid with a toggle to a full-figure view.
--- Hijacks the engine''s per-player PaperdollWindow<id> by suppressing the
--- default UI''s open flag and destroying any pre-existing instance, then
--- owns presentation entirely with a stable name.
+-- Hijacks the engine's per-player PaperdollWindow<id> by suppressing the
+-- default UI's open flag and destroying any pre-existing instance, then
+-- owns presentation entirely.
 --
--- Pattern: Mongbat is a router. Each slot, the toggle, the figure, and the
--- name label are individually-registered windows. Mode swaps destroy the
--- mode-specific children and recreate the other set; the outer window and
--- name label persist across mode changes.
+-- Pattern: declarative. M.Build(emit) re-emits every window each frame.
+-- Mode swaps simply emit a different child set; the lib auto-destroys
+-- the missing keys and creates the new ones.
 
+local UI        = Mongbat.UI
 local Api       = Mongbat.Api
 local Data      = Mongbat.Data
 local Constants = Mongbat.Constants
 local Utils     = Mongbat.Utils
-
-local NAME         = "MongbatPaperdollWindow"
-local TOGGLE_NAME  = "MongbatPaperdollToggle"
-local FIGURE_NAME  = "MongbatPaperdollFigure"
-local LABEL_NAME   = "MongbatPaperdollName"
 
 local NUM_SLOTS    = 19
 local COLUMNS      = 4
@@ -25,7 +20,6 @@ local PADDING      = 8
 local MARGIN       = 16
 local LABEL_HEIGHT = 22
 local LABEL_GAP    = 12
-local FIGURE_SCALE = 0.70
 
 local ROWS         = math.ceil(NUM_SLOTS / COLUMNS)
 local GRID_W       = COLUMNS * CELL + (COLUMNS - 1) * PADDING
@@ -37,11 +31,8 @@ local M = {}
 local state = {
     playerId = 0,
     mode     = "grid",   -- "grid" | "figure"
-    name     = "",
     slots    = {},        -- [1..NUM_SLOTS] = raw slot data
 }
-
-local function slotName(i) return NAME .. "Slot" .. i end
 
 -- ---- Pulls --------------------------------------------------------------
 
@@ -53,113 +44,11 @@ local function pullSlots()
     end
 end
 
-local function pullName()
-    if state.playerId == 0 then return end
-    local n = Data.MobileName(state.playerId):getName()
-    if n then state.name = n end
-end
-
 local function notorietyColor()
     if state.playerId == 0 then return nil end
     local n = Data.MobileStatus(state.playerId):getNotoriety()
     if n == nil then return nil end
     return Constants.Colors.Notoriety[n + 1]
-end
-
--- ---- Push -------------------------------------------------------------
-
-local function pushNameLabel()
-    if not Api.Window.DoesExist(LABEL_NAME) then return end
-    local text = state.name ~= "" and state.name or " "
-    Api.Label.SetText(LABEL_NAME, text)
-    local color = notorietyColor()
-    if color then Api.Label.SetTextColor(LABEL_NAME, color) end
-    Api.Window.SetId(LABEL_NAME, state.playerId)
-end
-
-local function pushSlotIcons()
-    for i = 1, NUM_SLOTS do
-        local n = slotName(i)
-        if Api.Window.DoesExist(n) then
-            Api.Equipment.UpdateItemIcon(n, state.slots[i])
-        end
-    end
-end
-
--- ---- Mode-specific creation ------------------------------------------
-
-local function destroyGridChildren()
-    for i = 1, NUM_SLOTS do Mongbat.DestroyWindow(slotName(i)) end
-    Mongbat.DestroyWindow(TOGGLE_NAME)
-end
-
-local function destroyFigureChildren()
-    Mongbat.DestroyWindow(FIGURE_NAME)
-end
-
-local function createGridChildren()
-    Api.Window.SetDimensions(NAME, GRID_WIN_W, GRID_WIN_H)
-
-    for i = 1, NUM_SLOTS do
-        local n = slotName(i)
-        local row = math.floor((i - 1) / COLUMNS)
-        local col = (i - 1) % COLUMNS
-        Mongbat.CreateWindow {
-            name = n, template = "MongbatDynamicImage",
-            parent = NAME, module = M, key = "slot" .. i,
-        }
-        Api.Window.SetDimensions(n, CELL, CELL)
-        Api.Window.SetOffsetFromParent(n,
-            MARGIN + col * (CELL + PADDING),
-            MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL + PADDING))
-        Api.Equipment.UpdateItemIcon(n, state.slots[i])
-    end
-
-    -- Toggle lives in the next grid cell (the 20th).
-    local toggleIndex = NUM_SLOTS + 1
-    local row = math.floor((toggleIndex - 1) / COLUMNS)
-    local col = (toggleIndex - 1) % COLUMNS
-    Mongbat.CreateWindow {
-        name = TOGGLE_NAME, template = "MongbatButton18",
-        parent = NAME, module = M, key = "toggle",
-    }
-    Api.Window.SetDimensions(TOGGLE_NAME, CELL, CELL)
-    Api.Window.SetOffsetFromParent(TOGGLE_NAME,
-        MARGIN + col * (CELL + PADDING),
-        MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL + PADDING))
-    Api.Button.SetText(TOGGLE_NAME, "\xE2\x98\xBA")
-end
-
-local function createFigureChildren()
-    local tex = Data.PaperdollTexture(state.playerId)
-    local texW, texH, anchorX, anchorY
-    if tex:hasData() then
-        texW, texH = tex:getWidth(), tex:getHeight()
-        anchorX, anchorY = tex:getXOffset(), tex:getYOffset() + 30
-    else
-        texW, texH = 200, 400
-        anchorX, anchorY = 0, 0
-    end
-
-    Api.Window.SetDimensions(NAME, texW, texH)
-
-    Mongbat.CreateWindow {
-        name = FIGURE_NAME, template = "MongbatFilteredDynamicImage",
-        parent = NAME, module = M, key = "figure",
-    }
-    Api.Window.SetDimensions(FIGURE_NAME, texW, texH)
-    Api.DynamicImage.SetTexture(FIGURE_NAME, tex:getTextureName(), 0, 0)
-    Api.Window.ClearAnchors(FIGURE_NAME)
-    Api.Window.AddAnchor(FIGURE_NAME, "center", "parent", "topleft", anchorX, anchorY)
-end
-
-local function setMode(mode)
-    if state.mode == mode then return end
-    if state.mode == "grid"   then destroyGridChildren()   end
-    if state.mode == "figure" then destroyFigureChildren() end
-    state.mode = mode
-    if mode == "grid"   then createGridChildren()   end
-    if mode == "figure" then createFigureChildren() end
 end
 
 -- ---- Lifecycle --------------------------------------------------------
@@ -169,55 +58,112 @@ function M.OnLoad()
 
     -- Suppress the default UI from re-opening its paperdoll window, and
     -- destroy any instance the engine may already have created for this
-    -- player. The default UI''s globals stay intact.
+    -- player. The default UI's globals stay intact.
     Api.Interface.SetPaperdollOpen(false)
     local defaultName = "PaperdollWindow" .. state.playerId
     if Api.Window.DoesExist(defaultName) then
         Api.Window.Destroy(defaultName)
     end
-
-    pullSlots(); pullName()
-
-    Mongbat.CreateWindow {
-        name = NAME, template = "MongbatWindow",
-        module = M, key = "panel",
-        id = state.playerId,
-    }
-    Api.Window.SetDimensions(NAME, GRID_WIN_W, GRID_WIN_H)
-    Api.Window.SetId(NAME, state.playerId)
-
-    -- Persistent name label across mode swaps.
-    Mongbat.CreateWindow {
-        name = LABEL_NAME, template = "MongbatLabel",
-        parent = NAME, module = M, key = "name",
-    }
-    Api.Window.SetDimensions(LABEL_NAME, GRID_WIN_W - MARGIN * 2, LABEL_HEIGHT)
-    Api.Window.SetOffsetFromParent(LABEL_NAME, MARGIN, MARGIN)
-    Api.Label.SetTextAlignment(LABEL_NAME, "center")
-    pushNameLabel()
-
-    createGridChildren()
 end
 
 function M.OnUnload()
-    if state.mode == "grid"   then destroyGridChildren()   end
-    if state.mode == "figure" then destroyFigureChildren() end
-    Mongbat.DestroyWindow(LABEL_NAME)
-    Mongbat.DestroyWindow(NAME)
     Api.Interface.SetPaperdollOpen(true)
 end
 
--- ---- Bindings ---------------------------------------------------------
+-- ---- Declarative build ------------------------------------------------
 
---- Per-frame pull/push. Called once per registered window per frame; we
---- only want the work once, so dispatch on the panel key. Slot data is
---- still cached in `state.slots` so the click handlers can read it.
-function M.OnUpdateWindow(_name, key, _dt)
-    if key ~= "panel" then return end
+function M.Build(emit)
+    if state.playerId == 0 then return end
+
     pullSlots()
-    pullName()
-    if state.mode == "grid" then pushSlotIcons() end
-    pushNameLabel()
+
+    local nameText = Data.MobileName(state.playerId):getName() or " "
+    local color    = notorietyColor()
+
+    -- Outer panel: dimensions depend on mode (figure mode resizes to the
+    -- texture's natural size).
+    local panelW, panelH = GRID_WIN_W, GRID_WIN_H
+    local figTex
+    if state.mode == "figure" then
+        figTex = Data.PaperdollTexture(state.playerId)
+        if figTex:hasData() then
+            panelW, panelH = figTex:getWidth(), figTex:getHeight()
+        else
+            panelW, panelH = 200, 400
+        end
+    end
+
+    emit("panel", {
+        template = "MongbatWindow",
+        id       = state.playerId,
+        widget   = UI.Window():setDimensions(panelW, panelH):setId(state.playerId),
+    })
+
+    -- Persistent name label across mode swaps.
+    local nameLabel = UI.Label()
+        :setDimensions(GRID_WIN_W - MARGIN * 2, LABEL_HEIGHT)
+        :setOffsetFromParent(MARGIN, MARGIN)
+        :setTextAlignment("center")
+        :setText(nameText)
+        :setId(state.playerId)
+    if color then nameLabel:setTextColor(color) end
+
+    emit("name", {
+        template = "MongbatLabel",
+        parent   = "panel",
+        id       = state.playerId,
+        widget   = nameLabel,
+    })
+
+    if state.mode == "grid" then
+        for i = 1, NUM_SLOTS do
+            local row = math.floor((i - 1) / COLUMNS)
+            local col = (i - 1) % COLUMNS
+            local slot = state.slots[i]
+            emit("slot" .. i, {
+                template = "MongbatDynamicImage",
+                parent   = "panel",
+                widget   = UI.DynamicImage()
+                    :setDimensions(CELL, CELL)
+                    :setOffsetFromParent(
+                        MARGIN + col * (CELL + PADDING),
+                        MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL + PADDING))
+                    :tap(function(name) Api.Equipment.UpdateItemIcon(name, slot) end),
+            })
+        end
+
+        -- Toggle in the next grid cell (the 20th).
+        local toggleIndex = NUM_SLOTS + 1
+        local row = math.floor((toggleIndex - 1) / COLUMNS)
+        local col = (toggleIndex - 1) % COLUMNS
+        emit("toggle", {
+            template = "MongbatButton18",
+            parent   = "panel",
+            widget   = UI.Button()
+                :setDimensions(CELL, CELL)
+                :setOffsetFromParent(
+                    MARGIN + col * (CELL + PADDING),
+                    MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL + PADDING))
+                :setText("\xE2\x98\xBA"),
+        })
+    elseif state.mode == "figure" then
+        local anchorX, anchorY
+        if figTex and figTex:hasData() then
+            anchorX, anchorY = figTex:getXOffset(), figTex:getYOffset() + 30
+        else
+            anchorX, anchorY = 0, 0
+        end
+        local texName = figTex and figTex:getTextureName() or ""
+        emit("figure", {
+            template = "MongbatFilteredDynamicImage",
+            parent   = "panel",
+            widget   = UI.DynamicImage()
+                :setDimensions(panelW, panelH)
+                :setTexture(texName, 0, 0)
+                :clearAnchors()
+                :addAnchor("center", "parent", "topleft", anchorX, anchorY),
+        })
+    end
 end
 
 -- ---- Click routing ----------------------------------------------------
@@ -241,14 +187,8 @@ function M.OnLButtonDown(_name, key)
 end
 
 function M.OnLButtonUp(_name, key)
-    if key == "toggle" then
-        setMode("figure")
-        return
-    end
-    if key == "figure" then
-        setMode("grid")
-        return
-    end
+    if key == "toggle" then state.mode = "figure"; return end
+    if key == "figure" then state.mode = "grid";   return end
     if key == "panel" then
         if Data.Drag():isDraggingItem() then
             Api.Drag.DropOnPaperdoll(state.playerId)
@@ -284,19 +224,19 @@ function M.OnRButtonDown(_name, key)
     end
 end
 
-function M.OnRButtonUp(_name, key)
+function M.OnRButtonUp(name, key)
     if key == "panel" then
-        M.OnUnload()
+        Api.Window.SetShowing(name, false)
     end
 end
 
-function M.OnMouseOver(_name, key)
+function M.OnMouseOver(name, key)
     local i = slotIndexFromKey(key)
     if not i then return end
     local slot = state.slots[i]
     if slot and slot.slotId ~= 0 then
         Api.ItemProperties.SetActiveItem({
-            windowName = NAME,
+            windowName = name,
             itemId     = slot.slotId,
             itemType   = Constants.ItemPropertyType.Item,
             detail     = Constants.ItemPropertyDetail.Long,

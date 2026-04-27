@@ -11,54 +11,47 @@
 --   3. When the engine fires an event, look up SystemData.ActiveWindow.name
 --      in the registry and dispatch to the owning mod's module function:
 --          M.<EventName>(name, key, ...)
---   4. Provide a single helper that creates a window, registers it, and
---      attaches all routable engine events + WindowData bindings.
+--   4. Provide a declarative window-emission subsystem: mods implement
+--      M.Build(emit), the lib calls it every frame, diffs the emitted set
+--      against the prior frame, and creates / updates / destroys engine
+--      windows + WindowData registrations accordingly.
 --
 -- Mods are plain Lua module tables. A mod looks like:
 --
---     local M = {}
---     local state = {}
+--     local UI = Mongbat.UI
+--     local M  = {}
 --
---     function M.OnLoad()
---         Mongbat.CreateWindow {
---             name     = "MongbatX",
+--     function M.Build(emit)
+--         emit("panel", {
 --             template = "MongbatWindow",
---             module   = M,
---             key      = "main",
---             bindings = { "PlayerStatus" },
---         }
+--             widget   = UI.Window():setDimensions(200, 100),
+--         })
+--         emit("label", {
+--             template = "MongbatLabel",
+--             parent   = "panel",
+--             widget   = UI.Label():setText("hi"):setOffsetFromParent(8, 8),
+--         })
 --     end
 --
---     function M.OnInitialize(name, key) ... end
 --     function M.OnLButtonUp(name, key, flags, x, y) ... end
---     function M.OnUpdateWindow(name, key, dt) ... end -- per-frame, per-window
---     function M.OnUpdate(dt) ... end                  -- per-frame, per-mod
---     function M.OnUnload() end
+--     function M.OnUpdate(dt) ... end          -- per-frame, per-mod
+--     function M.OnLoad() end                  -- once at load
+--     function M.OnUnload() end                -- once at unload
 --
 --     Mongbat.Mod { Name = "MongbatX", Path = "/src/mods/mongbat-x", Module = M }
 --
--- The framework never holds closures, never diffs descriptors. Live engine
--- data (WindowData.*) is pulled by mods each frame from M.OnUpdateWindow;
--- the lib only registers WindowData so the engine populates it. Click and
+-- The framework never holds closures, never bindings. Live engine data
+-- (WindowData.*) is pulled by mods inline inside M.Build via Mongbat.Data.*.
+-- The lib registers WindowData so the engine populates it. Click and
 -- lifecycle events are still pushed via active-window dispatch.
 
 local Core = {}
 
--- name -> { module = table, key = string }
+-- name -> { module = table, key = string, id = number? }
 local Windows = {}
 
--- Resizable windows config: [windowName] -> { minW, minH, onResizeEnd? }
-local ResizableWindows = {}
-
--- Internal module shared by all auto-created MongbatResizeGrip children.
-local ResizeGripModule = {}
-function ResizeGripModule.OnLButtonDown(name, _key)
-    -- Strip the "ResizeGrip" suffix to get the parent window name.
-    local parentName = name:sub(1, -(#"ResizeGrip" + 1))
-    local cfg = ResizableWindows[parentName]
-    if not cfg then return end
-    Mongbat.Api.Window.BeginResize(parentName, "topleft", cfg.minW, cfg.minH, false, cfg.onResizeEnd)
-end
+-- Forward declaration: defined later, needed by Core.UnloadMod.
+local teardownBuild
 
 -- Loaded mod modules in registration order. OnUpdate fan-out walks this.
 local LoadedMods = {}    -- array of { name = string, module = table }
@@ -158,102 +151,9 @@ local function detachAllData(name)
     end)
 end
 
---- Adds a window to the registry without creating it. Use when the window
---- already exists by other means and you want it routed.
----
---- Every WindowData type is registered with the engine for `id` (default 0)
---- so the engine populates `WindowData.<Key>[id]` each frame. Mods consume
---- it via `Mongbat.Data.<Key>(id)` in M.OnUpdateWindow(name, key, dt) -- the
---- lib does not push data events. Registrations are ref-counted per
---- (dataKey, id) and released when the last window using that id is
---- destroyed.
----@param opts { name: string, module: ModModule, key: string?, id: number? }
-function Core.RegisterWindow(opts)
-    local name   = opts.name
-    local module = opts.module
-    if not name   then error("Mongbat.RegisterWindow: name required") end
-    if not module then error("Mongbat.RegisterWindow: module required") end
-    local id = opts.id or 0
-    Windows[name] = { module = module, key = opts.key or name, id = id }
-    attachRoutableEvents(name)
-    attachAllData(id)
-end
-
---- Creates a window from a template, registers it, attaches all routable
---- engine events, and registers every WindowData type for the window's id.
----
---- Registry insertion happens BEFORE Mongbat.Api.Window.CreateFromTemplate so the
---- engine's OnInitialize fires into a registry that already knows the
---- window. (OnInitialize is declared on Mongbat templates in XML.)
----
---- Every WindowData type is registered with the engine for `id` (default 0)
---- so the engine populates `WindowData.<Key>[id]` each frame. Mods consume
---- it via `Mongbat.Data.<Key>(id)` in M.OnUpdateWindow(name, key, dt) -- the
---- lib does not push data events. Registrations are ref-counted per
---- (dataKey, id) and released when the last window using that id is
---- destroyed.
----
---- When `resizable = true` the lib creates a `MongbatResizeGrip` child anchored
---- to the bottom-right corner and wires it up automatically. Pass `minWidth` /
---- `minHeight` to clamp the resize, and an optional `onResizeEnd` callback for
---- post-resize layout work.
----@param opts { name: string, template: string, module: ModModule, key: string?, parent: string?, showing: boolean?, id: number?, resizable: boolean?, minWidth: number?, minHeight: number?, onResizeEnd: (fun(windowName: string))? }
-function Core.CreateWindow(opts)
-    local name = opts.name
-    if not name        then error("Mongbat.CreateWindow: name required") end
-    if not opts.template then error("Mongbat.CreateWindow: template required") end
-    if not opts.module then error("Mongbat.CreateWindow: module required") end
-    local id = opts.id or 0
-    Windows[name] = { module = opts.module, key = opts.key or name, id = id }
-    Mongbat.Api.Window.CreateFromTemplate(name, opts.template, opts.parent or "Root",
-        opts.showing ~= false)
-    attachRoutableEvents(name)
-    attachAllData(id)
-    if opts.resizable then
-        local minW    = opts.minWidth  or 0
-        local minH    = opts.minHeight or 0
-        ResizableWindows[name] = { minW = minW, minH = minH, onResizeEnd = opts.onResizeEnd }
-        local gripName = name .. "ResizeGrip"
-        -- Internal child; skip data registration (entry.id stays nil).
-        Windows[gripName] = { module = ResizeGripModule, key = "grip" }
-        Mongbat.Api.Window.CreateFromTemplate(gripName, "MongbatResizeGrip", name, true)
-        attachRoutableEvents(gripName)
-        Mongbat.Api.Window.ClearAnchors(gripName)
-        Mongbat.Api.Window.AddAnchor(gripName, "bottomright", name, "bottomright", 0, 0)
-    end
-end
-
---- Removes a window from the registry and destroys it from the engine.
----@param name string The name of the window to destroy.
-function Core.DestroyWindow(name)
-    if ResizableWindows[name] then
-        ResizableWindows[name] = nil
-        Windows[name .. "ResizeGrip"] = nil
-        -- The engine destroys child windows automatically when the parent is
-        -- destroyed, so no explicit DestroyWindow call is needed for the grip.
-    end
-    detachAllData(name)
-    Windows[name] = nil
-    if Mongbat.Api.Window.DoesExist(name) then
-        Mongbat.Api.Window.Destroy(name)
-    end
-end
-
---- Removes a window from the registry without destroying it. Use when the
---- engine destroyed the window for us (e.g. on shutdown).
----@param name string The name of the window to unregister.
-function Core.UnregisterWindow(name)
-    if ResizableWindows[name] then
-        ResizableWindows[name] = nil
-        Windows[name .. "ResizeGrip"] = nil
-    end
-    detachAllData(name)
-    Windows[name] = nil
-end
-
 --- Returns the registry entry for a window, or nil.
 ---@param name string The name of the window.
----@return { module: ModModule, key: string, bindings: string[]? }? The registry entry, or nil if the window is not registered.
+---@return { module: ModModule, key: string, id: number? }? The registry entry, or nil if the window is not registered.
 function Core.GetWindow(name)
     return Windows[name]
 end
@@ -277,33 +177,152 @@ function Core.UnloadMod(modName)
         if LoadedMods[i].name == modName then
             local m = LoadedMods[i].module
             if m.OnUnload then m.OnUnload() end
+            teardownBuild(modName)
             table.remove(LoadedMods, i)
             return
         end
     end
 end
 
---- Per-frame fan-out over registered windows. Every window whose owning
---- mod defines OnUpdateWindow is called once with `(name, key, dt)`. Mods
---- without OnUpdateWindow pay one table lookup per window per frame.
----@param dt number Elapsed time in seconds since the last frame.
-local function perFrameWindows(dt)
-    for name, entry in pairs(Windows) do
-        local fn = entry.module.OnUpdateWindow
-        if fn then fn(name, entry.key, dt) end
+
+-- ----- Build factory (declarative window emission) ------------------------
+--
+-- Mods may implement M.Build(emit). The lib calls Build every frame; the
+-- mod calls emit(key, spec) once per window it wants this frame. The lib
+-- diffs the emitted set against the prior frame: new keys -> create +
+-- register, existing keys -> re-apply widget ops, missing keys -> destroy.
+--
+-- spec = {
+--   template        : string            -- engine template name (required)
+--   widget          : MongbatUI widget  -- recorded ops, applied after create
+--   parent          : string?           -- sibling key in this mod, or nil
+--   name            : string?           -- override engine name (default-UI hijack)
+--   id              : number?           -- WindowData id (default 0)
+--   showing         : boolean?          -- initial visibility (default true)
+--   replacesDefault : boolean?          -- destroy engine name once before first create
+-- }
+--
+-- Engine name = spec.name or "<modName>_<key>" (sanitized).
+
+-- [modName] = { [key] = { engineName, template, parent, id, spec } }
+local BuildState = {}
+
+local function sanitizeKey(key)
+    return (tostring(key):gsub("[^%w_]", "_"))
+end
+
+local function defaultEngineName(modName, key)
+    return modName .. "_" .. sanitizeKey(key)
+end
+
+--- Destroys an engine window emitted by a previous Build frame.
+local function destroyBuiltEntry(entry)
+    detachAllData(entry.engineName)
+    Windows[entry.engineName] = nil
+    if Mongbat.Api.Window.DoesExist(entry.engineName) then
+        Mongbat.Api.Window.Destroy(entry.engineName)
     end
 end
 
+--- Run one frame of M.Build for a single mod.
+local function runBuild(modName, module)
+    if not module.Build then return end
+    local prev = BuildState[modName] or {}
+    local current = {}
+    local order = {}     -- emission order; parents must precede children
+    BuildState[modName] = current
+
+    -- Build a key -> engine-name lookup that includes both prior + this-frame
+    -- entries so widget _apply can resolve sibling-key references.
+    local function resolveKey(k)
+        local e = current[k] or prev[k]
+        return e and e.engineName or nil
+    end
+
+    local function emit(key, spec)
+        if current[key] then
+            error("Mongbat.Build [" .. modName .. "]: duplicate emit key '" .. tostring(key) .. "'")
+        end
+        local engineName = spec.name or defaultEngineName(modName, key)
+        local id = spec.id or 0
+        local parentKey = spec.parent
+        local parentEngine
+        if parentKey then
+            parentEngine = resolveKey(parentKey)
+            if not parentEngine then
+                error("Mongbat.Build [" .. modName .. "]: unknown parent key '" .. tostring(parentKey)
+                    .. "' for '" .. tostring(key) .. "'. Emit the parent first.")
+            end
+        else
+            parentEngine = "Root"
+        end
+        local entry = {
+            engineName = engineName,
+            template   = spec.template,
+            parentKey  = parentKey,
+            id         = id,
+            widget     = spec.widget,
+        }
+        current[key] = entry
+        order[#order + 1] = key
+
+        local prevEntry = prev[key]
+        if prevEntry and prevEntry.engineName == engineName and prevEntry.template == spec.template then
+            -- Existing window: re-apply widget ops.
+            -- (id changes are not handled; mods should keep id stable per key.)
+            if spec.widget then spec.widget:_apply(engineName, resolveKey) end
+            return
+        end
+
+        -- New (or template/name changed) — create from scratch.
+        if prevEntry then
+            destroyBuiltEntry(prevEntry)
+        end
+        if spec.replacesDefault and Mongbat.Api.Window.DoesExist(engineName) then
+            Mongbat.Api.Window.Destroy(engineName)
+        end
+        Windows[engineName] = { module = module, key = key, id = id }
+        Mongbat.Api.Window.CreateFromTemplate(engineName, spec.template, parentEngine,
+            spec.showing ~= false)
+        attachRoutableEvents(engineName)
+        attachAllData(id)
+        if spec.widget then spec.widget:_apply(engineName, resolveKey) end
+    end
+
+    module.Build(emit)
+
+    -- Destroy keys present last frame but not this frame.
+    for key, prevEntry in pairs(prev) do
+        if key ~= "_order" and not current[key] then
+            destroyBuiltEntry(prevEntry)
+        end
+    end
+
+    current._order = order
+end
+
+--- Tear down all windows emitted by this mod's Build (called from OnUnload).
+teardownBuild = function(modName)
+    local prev = BuildState[modName]
+    if not prev then return end
+    for key, entry in pairs(prev) do
+        if key ~= "_order" then destroyBuiltEntry(entry) end
+    end
+    BuildState[modName] = nil
+end
+
 --- Per-frame fan-out. Mod-level M.OnUpdate(dt) runs first across all loaded
---- mods, then per-window M.OnUpdateWindow(name, key, dt) runs for every
---- registered window whose owning module defines it.
+--- mods, then M.Build(emit) runs (declarative window emission). Build
+--- diffs the emitted window set vs prior frame to create / update / destroy.
 ---@param dt number Elapsed time in seconds since the last frame.
 function Core.PerFrame(dt)
     Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
         local fn = entry.module.OnUpdate
         if fn then fn(dt) end
     end)
-    perFrameWindows(dt)
+    Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
+        runBuild(entry.name, entry.module)
+    end)
 end
 
 -- ----- Global event handler table ------------------------------------------
@@ -346,7 +365,7 @@ Core.EventHandler.OnEditBoxKeyTab    = function() dispatchActive("OnEditBoxKeyTa
 ---@field OnLoad           (fun())?                                                              Called once when the mod is loaded.
 ---@field OnUnload         (fun())?                                                              Called once when the mod is unloaded.
 ---@field OnUpdate         (fun(dt: number))?                                                    Called every frame, once per mod.
----@field OnUpdateWindow   (fun(name: string, key: string, dt: number))?                         Called every frame, once per registered window.
+---@field Build            (fun(emit: fun(key: string, spec: table)))?                           Declarative window emission. Called every frame; emit each window the mod wants. Lib diffs vs prior frame.
 ---@field OnInitialize     (fun(name: string, key: string))?                                     Engine window created.
 ---@field OnShown          (fun(name: string, key: string))?                                     Window became visible.
 ---@field OnHidden         (fun(name: string, key: string))?                                     Window became hidden.
@@ -453,11 +472,7 @@ function Mongbat.Mod(model)
 end
 
 -- Window registry / event router.
-Mongbat.CreateWindow     = Core.CreateWindow
-Mongbat.RegisterWindow   = Core.RegisterWindow
-Mongbat.DestroyWindow    = Core.DestroyWindow
-Mongbat.UnregisterWindow = Core.UnregisterWindow
-Mongbat.GetWindow        = Core.GetWindow
+Mongbat.GetWindow = Core.GetWindow
 
 -- Global handler table referenced by XML templates and runtime
 -- WindowRegisterCoreEventHandler calls. Must be assigned to Mongbat

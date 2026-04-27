@@ -1,15 +1,15 @@
 -- Replaces the default MainMenuWindow with a Mongbat-styled vertical button
--- stack. The engine still toggles "MainMenuWindow" via the Escape key; the
--- engine''s WindowSetShowing hits our top-level window because we recreate
--- it under the same name during OnLoad.
+-- stack. The engine still toggles "MainMenuWindow" via the Escape key; we
+-- override the engine name with `name = NAME` and `replacesDefault = true`
+-- so the lib destroys the default UI's window once before recreating ours.
 --
--- Pattern: Mongbat is a router. The mod registers its main window plus one
--- child window per button, each with a unique key. M.OnLButtonUp dispatches
--- on key.
+-- Pattern: declarative. M.Build(emit) runs every frame. The lib diffs the
+-- emitted window set vs prior frame and creates / updates / destroys engine
+-- windows accordingly. Mods route engine click events on `key`.
 
-local Api       = Mongbat.Api
-local UI        = Mongbat.UI
-local Utils     = Mongbat.Utils
+local UI    = Mongbat.UI
+local Api   = Mongbat.Api
+local Utils = Mongbat.Utils
 
 local NAME = "MainMenuWindow"
 
@@ -22,15 +22,11 @@ local BTN_SPACING = 4
 
 local M = {}
 
--- UI handle for the outer window, populated in OnLoad.
-local frame
-
 local function close()
-    frame:hide()
+    Api.Window.SetShowing(NAME, false)
 end
 
--- Buttons in display order. `text` may be a string or a numeric clilocId;
--- Utils.String.ToWString normalises both into a wstring for the engine.
+-- Buttons in display order. `text` may be a string or a numeric clilocId.
 local BUTTONS = {
     { key = "logout",   text = 3000128,  click = function() Api.Event.Logout() end },
     { key = "exit",     text = 1077859,  click = function() Api.Event.ExitGame() end },
@@ -50,49 +46,27 @@ local BUTTONS = {
                          click = function() Api.Window.ToggleWindow("MongbatDebugWindow"); close() end },
 }
 
-local function buttonName(key)
-    return NAME .. "Button" .. key
-end
-
-function M.OnLoad()
-    -- Destroy the default UI's MainMenuWindow before recreating it under the
-    -- same name; the engine still toggles "MainMenuWindow" on Escape.
-    Api.Window.Destroy(NAME)
-    -- Outer window. Key "menu" so OnRButtonUp/OnShown/OnHidden can be
-    -- distinguished from button events.
-    Mongbat.CreateWindow {
-        name     = NAME,
-        template = "MongbatWindow",
-        module   = M,
-        key      = "menu",
-        showing  = false,
-    }
-    frame = UI.Window(NAME):setDimensions(
-        BTN_W + 2 * PAD_X,
-        BTN_H * #BUTTONS + (#BUTTONS - 1) * BTN_SPACING + 2 * PAD_Y)
+function M.Build(emit)
+    emit("menu", {
+        name            = NAME,           -- engine name fixed; default UI uses it on Esc
+        template        = "MongbatWindow",
+        replacesDefault = true,
+        showing         = false,
+        widget          = UI.Window():setDimensions(
+            BTN_W + 2 * PAD_X,
+            BTN_H * #BUTTONS + (#BUTTONS - 1) * BTN_SPACING + 2 * PAD_Y),
+    })
 
     Utils.Array.ForEach(BUTTONS, function(b, i)
-        local n = buttonName(b.key)
-        Mongbat.CreateWindow {
-            name     = n,
+        emit(b.key, {
             template = "MongbatButton",
-            parent   = NAME,
-            module   = M,
-            key      = b.key,
-        }
-        UI.Button(n)
-            :setDimensions(BTN_W, BTN_H)
-            :setOffsetFromParent(PAD_X, PAD_Y + (i - 1) * (BTN_H + BTN_SPACING))
-            :setText(b.text)
+            parent   = "menu",
+            widget   = UI.Button()
+                :setDimensions(BTN_W, BTN_H)
+                :setOffsetFromParent(PAD_X, PAD_Y + (i - 1) * (BTN_H + BTN_SPACING))
+                :setText(b.text),
+        })
     end)
-    frame:hide()
-end
-
-function M.OnUnload()
-    Utils.Array.ForEach(BUTTONS, function(b)
-        Mongbat.DestroyWindow(buttonName(b.key))
-    end)
-    Mongbat.DestroyWindow(NAME)
 end
 
 function M.OnLButtonUp(_name, key)
