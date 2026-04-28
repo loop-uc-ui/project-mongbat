@@ -215,8 +215,128 @@ local function defaultEngineName(modName, key)
     return modName .. "_" .. sanitizeKey(key)
 end
 
+-- ----- Live resize (declarative, opt-in via spec.resizable) ---------------
+--
+-- Mods opt a window into bottom-right grip resize by passing
+--   spec.resizable = { minW, minH, state }
+-- on its emit. The lib auto-creates a child grip window from the
+-- MongbatResizeGrip template. On grip mousedown the lib captures the
+-- starting cursor position + panel dimensions; each frame thereafter it
+-- calls WindowSetDimensions on the panel using the cursor delta and
+-- writes the new size into state.w / state.h. The mod's Build reads
+-- those fields and re-applies setDimensions ops to its own children.
+--
+-- Empirical note: just calling WindowSetDimensions on a MaskWindow does
+-- not reflow FullResizeImage children anchored to $parent until the
+-- window is moved. So after each SetDimensions we clear+re-add anchors
+-- on the panel's $parentBackground / $parentFrame to force a relayout.
+
+-- panelEngineName -> { minW, minH, state }
+local ResizableConfig = {}
+
+-- nil when not actively resizing.
+local LiveResize = nil
+
+local function gripNameFor(panelEngineName)
+    return panelEngineName .. "ResizeGrip"
+end
+
+local LiveResizeGripModule = {}
+
+function LiveResizeGripModule.OnLButtonDown(_gripName, panelEngineName)
+    local cfg = ResizableConfig[panelEngineName]
+    if not cfg then return end
+    if not Mongbat.Api.Window.DoesExist(panelEngineName) then return end
+    local dims = Mongbat.Api.Window.GetDimensions(panelEngineName)
+    local mp = Mongbat.Data.MousePosition()
+    LiveResize = {
+        window  = panelEngineName,
+        startMx = mp.x,
+        startMy = mp.y,
+        startW  = dims.x,
+        startH  = dims.y,
+    }
+end
+
+local function endLiveResize()
+    LiveResize = nil
+end
+
+local globalUpInstalled = false
+local function ensureGlobalUpHandler()
+    if globalUpInstalled then return end
+    globalUpInstalled = true
+    Mongbat.Api.Event.RegisterEventHandler(
+        Mongbat.Constants.SystemEvents.OnLButtonUpProcessed.getEvent(),
+        "Mongbat.EventHandler.OnLiveResizeUp"
+    )
+end
+
+-- Force-relayout the FullResizeImage backgrounds the MongbatWindow
+-- template instantiates as $parentBackground and $parentFrame. Clearing
+-- and re-adding their parent-anchored corners makes the engine recompute
+-- their geometry from the new parent dimensions.
+local function reflowMongbatWindowChildren(panelEngineName)
+    local bg    = panelEngineName .. "Background"
+    local frame = panelEngineName .. "Frame"
+    if Mongbat.Api.Window.DoesExist(bg) then
+        Mongbat.Api.Window.ClearAnchors(bg)
+        Mongbat.Api.Window.AddAnchor(bg, "topleft",     panelEngineName, "topleft",     0, 0)
+        Mongbat.Api.Window.AddAnchor(bg, "bottomright", panelEngineName, "bottomright", 0, 0)
+    end
+    if Mongbat.Api.Window.DoesExist(frame) then
+        Mongbat.Api.Window.ClearAnchors(frame)
+        Mongbat.Api.Window.AddAnchor(frame, "topleft",     bg, "topleft",     0, 0)
+        Mongbat.Api.Window.AddAnchor(frame, "bottomright", bg, "bottomright", 0, 0)
+    end
+end
+
+local function tickLiveResize()
+    if not LiveResize then return end
+    if not Mongbat.Api.Window.DoesExist(LiveResize.window) then
+        LiveResize = nil
+        return
+    end
+    local cfg = ResizableConfig[LiveResize.window]
+    if not cfg then return end
+    local mp = Mongbat.Data.MousePosition()
+    local newW = math.max(cfg.minW, LiveResize.startW + (mp.x - LiveResize.startMx))
+    local newH = math.max(cfg.minH, LiveResize.startH + (mp.y - LiveResize.startMy))
+    if cfg.state.w ~= newW or cfg.state.h ~= newH then
+        cfg.state.w = newW
+        cfg.state.h = newH
+        Mongbat.Api.Window.SetDimensions(LiveResize.window, newW, newH)
+        reflowMongbatWindowChildren(LiveResize.window)
+    end
+end
+
+local function ensureGrip(panelEngineName)
+    local gripName = gripNameFor(panelEngineName)
+    if Mongbat.Api.Window.DoesExist(gripName) then return end
+    Mongbat.Api.Window.CreateFromTemplate(gripName, "MongbatResizeGrip", panelEngineName, true)
+    Mongbat.Api.Window.ClearAnchors(gripName)
+    Mongbat.Api.Window.AddAnchor(gripName, "bottomright", panelEngineName, "bottomright", 0, 0)
+    Windows[gripName] = { module = LiveResizeGripModule, key = panelEngineName, id = 0 }
+    attachRoutableEvents(gripName)
+end
+
+local function teardownGrip(panelEngineName)
+    local cfg = ResizableConfig[panelEngineName]
+    if not cfg then return end
+    local gripName = gripNameFor(panelEngineName)
+    Windows[gripName] = nil
+    if Mongbat.Api.Window.DoesExist(gripName) then
+        Mongbat.Api.Window.Destroy(gripName)
+    end
+    ResizableConfig[panelEngineName] = nil
+    if LiveResize and LiveResize.window == panelEngineName then
+        LiveResize = nil
+    end
+end
+
 --- Destroys an engine window emitted by a previous Build frame.
 local function destroyBuiltEntry(entry)
+    teardownGrip(entry.engineName)
     detachAllData(entry.engineName)
     Windows[entry.engineName] = nil
     if Mongbat.Api.Window.DoesExist(entry.engineName) then
@@ -271,6 +391,14 @@ local function runBuild(modName, module)
             -- Existing window: re-apply widget ops.
             -- (id changes are not handled; mods should keep id stable per key.)
             if spec.widget then spec.widget:_apply(engineName, resolveKey) end
+            if spec.resizable then
+                local r = spec.resizable
+                ResizableConfig[engineName] = { minW = r.minW, minH = r.minH, state = r.state }
+                ensureGrip(engineName)
+                ensureGlobalUpHandler()
+            elseif ResizableConfig[engineName] then
+                teardownGrip(engineName)
+            end
             return
         end
 
@@ -287,6 +415,14 @@ local function runBuild(modName, module)
         attachRoutableEvents(engineName)
         attachAllData(id)
         if spec.widget then spec.widget:_apply(engineName, resolveKey) end
+        if spec.resizable then
+            local r = spec.resizable
+            ResizableConfig[engineName] = { minW = r.minW, minH = r.minH, state = r.state }
+            ensureGrip(engineName)
+            ensureGlobalUpHandler()
+        elseif ResizableConfig[engineName] then
+            teardownGrip(engineName)
+        end
     end
 
     module.Build(emit)
@@ -320,6 +456,7 @@ function Core.PerFrame(dt)
         local fn = entry.module.OnUpdate
         if fn then fn(dt) end
     end)
+    tickLiveResize()
     Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
         runBuild(entry.name, entry.module)
     end)
@@ -351,6 +488,10 @@ Core.EventHandler.OnEditBoxChanged   = function() dispatchActive("OnEditBoxChang
 Core.EventHandler.OnEditBoxKeyEscape = function() dispatchActive("OnEditBoxKeyEscape") end
 Core.EventHandler.OnEditBoxKeyReturn = function() dispatchActive("OnEditBoxKeyReturn") end
 Core.EventHandler.OnEditBoxKeyTab    = function() dispatchActive("OnEditBoxKeyTab") end
+
+-- Persistent global L_BUTTON_UP_PROCESSED handler used to end a live
+-- resize drag regardless of where the cursor is when released.
+Core.EventHandler.OnLiveResizeUp     = function() endLiveResize() end
 
 
 -- ========================================================================== --

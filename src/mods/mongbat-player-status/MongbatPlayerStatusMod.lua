@@ -18,13 +18,12 @@ local NAME_H  = 20
 local MIN_W   = 120
 local MIN_H   = NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD
 
--- Mutable layout state. Resize callback updates barWidth; Build picks it up
--- on the next frame. PANEL_W is used only for the very first frame; after
--- the user resizes, panelHeight is what we actually emit.
+-- Mutable layout state. The lib writes layout.w / layout.h while the user
+-- drags the resize grip; Build reads them on the next frame. PANEL_W is
+-- only used to seed the very first frame.
 local layout = {
-    barWidth    = PANEL_W - 2 * PAD,
-    panelWidth  = PANEL_W,
-    panelHeight = NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD,
+    w = PANEL_W,
+    h = NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD,
 }
 
 local DRAG_THRESHOLD = 4
@@ -48,17 +47,17 @@ local function destroyDefaultsOnce()
 end
 
 -- Build a bar's dynamic image fill width/colour and label text.
-local function emitBar(emit, key, current, max, color, yOffset)
+local function emitBar(emit, key, current, max, color, yOffset, barWidth)
     local cur = math.max(current, 0)
     local mx  = math.max(max, 1)
     local pct = math.min(cur / mx, 1)
-    local fillWidth = math.floor(layout.barWidth * pct + 0.5)
+    local fillWidth = math.floor(barWidth * pct + 0.5)
 
     emit(key, {
         template = "MongbatStatusBar",
         parent   = "panel",
         widget   = UI.Window()
-            :setDimensions(layout.barWidth, BAR_H)
+            :setDimensions(barWidth, BAR_H)
             :clearAnchors()
             :addAnchor("topleft", "panel", "topleft", PAD, yOffset),
     })
@@ -77,19 +76,12 @@ local function emitBar(emit, key, current, max, color, yOffset)
         parent   = key,
         widget   = UI.Label()
             :setText(string.format("%d / %d", cur, mx))
-            :setDimensions(layout.barWidth, BAR_H)
+            :setDimensions(barWidth, BAR_H)
             :clearAnchors()
             :addAnchor("centerleft", key, "centerleft", 0, 0)
             :setLayer(Constants.WindowLayers.Secondary)
             :setTextColor(Constants.Colors.White),
     })
-end
-
-local function onResizeEnd(engineName)
-    local dims = Api.Window.GetDimensions(engineName)
-    layout.panelWidth  = dims.x
-    layout.panelHeight = dims.y
-    layout.barWidth    = math.max(MIN_W - 2 * PAD, dims.x - 2 * PAD)
 end
 
 function M.OnLoad()
@@ -112,24 +104,16 @@ function M.Build(emit)
         and Constants.Colors.Notoriety[6]
         or  Constants.Colors.Notoriety[1]
 
+    local barWidth = math.max(MIN_W - 2 * PAD, layout.w - 2 * PAD)
+
     emit("panel", {
-        template = "MongbatWindow",
-        id       = id,
-        widget   = UI.Window()
-            :setDimensions(layout.panelWidth, layout.panelHeight)
+        template  = "MongbatWindow",
+        id        = id,
+        widget    = UI.Window()
+            :setDimensions(layout.w, layout.h)
             :setColor(frameColor)
             :setId(id),
-    })
-
-    -- Resize grip: emitted as a child key for symmetry with the rest of
-    -- the layout. Lib doesn't auto-create grips for Build mods; we wire it
-    -- up explicitly here.
-    emit("grip", {
-        template = "MongbatResizeGrip",
-        parent   = "panel",
-        widget   = UI.Window()
-            :clearAnchors()
-            :addAnchor("bottomright", "panel", "bottomright", 0, 0),
+        resizable = { minW = MIN_W, minH = MIN_H, state = layout },
     })
 
     emit("name", {
@@ -137,16 +121,16 @@ function M.Build(emit)
         parent   = "panel",
         widget   = UI.Label()
             :setText(mobName ~= "" and mobName or " ")
-            :setDimensions(layout.barWidth, NAME_H)
+            :setDimensions(barWidth, NAME_H)
             :clearAnchors()
             :addAnchor("topleft", "panel", "topleft", PAD, PAD)
             :setWordWrap(false),
     })
 
     local baseY = PAD + NAME_H + SPACING
-    emitBar(emit, "hp",   p:getCurrentHealth(),  maxHealth,  healthColor,                 baseY)
-    emitBar(emit, "mana", p:getCurrentMana(),    maxMana,    Constants.Colors.Blue,       baseY + BAR_H + SPACING)
-    emitBar(emit, "stam", p:getCurrentStamina(), maxStamina, Constants.Colors.YellowDark, baseY + 2 * (BAR_H + SPACING))
+    emitBar(emit, "hp",   p:getCurrentHealth(),  maxHealth,  healthColor,                 baseY,                          barWidth)
+    emitBar(emit, "mana", p:getCurrentMana(),    maxMana,    Constants.Colors.Blue,       baseY + BAR_H + SPACING,        barWidth)
+    emitBar(emit, "stam", p:getCurrentStamina(), maxStamina, Constants.Colors.YellowDark, baseY + 2 * (BAR_H + SPACING),  barWidth)
 end
 
 -- ---- Click handling on the outer panel ---------------------------------
@@ -155,9 +139,6 @@ function M.OnLButtonDown(name, key)
     if key == "panel" then
         state.downWinX, state.downWinY = Api.Window.GetPosition(name)
         Api.Window.SetMoving(name, true)
-    elseif key == "grip" then
-        Api.Window.BeginResize(Api.Window.GetParent(name),
-            "topleft", MIN_W, MIN_H, false, onResizeEnd)
     end
 end
 

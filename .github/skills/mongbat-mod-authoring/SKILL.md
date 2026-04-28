@@ -184,6 +184,7 @@ emit(key, {
     id              = mobileId,         -- optional; WindowData id (default 0)
     showing         = true,             -- optional; initial visibility (default true)
     replacesDefault = true,             -- optional; destroy engine name once before first create
+    resizable       = { minW=120, minH=80, state=layout }, -- optional; opt into bottom-right grip resize
 })
 ```
 
@@ -203,6 +204,12 @@ emit(key, {
 - **Dynamic per-id windows** (e.g. one window per object handle): emit
   `"frame:" .. id` and `"label:" .. id` per item; the lib auto-creates
   new ids and auto-destroys ones that disappeared.
+- **`resizable = { minW, minH, state }`** opts the window into bottom-right
+  grip resize. The lib auto-creates the grip child, polls the mouse
+  per-frame while dragging, and writes new dims into `state.w` and
+  `state.h` (fixed field names). Read those same fields from the same
+  table inside Build to drive widget dimensions on the next frame. No
+  callback — just point `state` at your mutable layout table.
 
 ### 6. `Mongbat.UI` Widget Reference
 

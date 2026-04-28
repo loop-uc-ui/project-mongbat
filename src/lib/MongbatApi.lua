@@ -2073,11 +2073,17 @@ function Api.Window.HasFocus(windowName)
 end
 
 ---
---- Sets the resizing state of a window.
+--- Sets the resizing state of a window. When `isResizing` is true the
+--- engine grows the window each frame from the cursor's distance to
+--- `anchorCorner`, properly reflowing FullResizeImage children. Pair with
+--- a clear-anchors + add-anchor at `anchorCorner` so the opposite corner
+--- stays pinned.
 ---@param windowName string The name of the window.
 ---@param isResizing boolean Whether the window is resizing.
-function Api.Window.SetResizing(windowName, isResizing)
-    WindowSetResizing(windowName, isResizing)
+---@param anchorCorner string? The fixed corner (e.g. "topleft"). Required when starting a resize.
+---@param lockRatio boolean? Lock aspect ratio.
+function Api.Window.SetResizing(windowName, isResizing, anchorCorner, lockRatio)
+    WindowSetResizing(windowName, isResizing, anchorCorner or "", lockRatio == true)
 end
 
 ---
