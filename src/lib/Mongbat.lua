@@ -1,4 +1,4 @@
-﻿---@diagnostic disable: undefined-global
+---@diagnostic disable: undefined-global
 -- ========================================================================== --
 -- Substrate: Window Registry + Event Router
 -- ========================================================================== --
@@ -388,9 +388,10 @@ local function runBuild(modName, module)
 
         local prevEntry = prev[key]
         if prevEntry and prevEntry.engineName == engineName and prevEntry.template == spec.template then
-            -- Existing window: re-apply widget ops.
-            -- (id changes are not handled; mods should keep id stable per key.)
-            if spec.widget then spec.widget:_apply(engineName, resolveKey) end
+            -- Existing window: re-apply widget ops (createOnly ops are skipped;
+            -- ops with unchanged primitive args are also skipped via cache).
+            entry.cache = prevEntry.cache or {}
+            if spec.widget then spec.widget:_apply(engineName, resolveKey, false, entry.cache) end
             if spec.resizable then
                 local r = spec.resizable
                 ResizableConfig[engineName] = { minW = r.minW, minH = r.minH, state = r.state }
@@ -414,7 +415,8 @@ local function runBuild(modName, module)
             spec.showing ~= false)
         attachRoutableEvents(engineName)
         attachAllData(id)
-        if spec.widget then spec.widget:_apply(engineName, resolveKey) end
+        entry.cache = {}
+        if spec.widget then spec.widget:_apply(engineName, resolveKey, true, entry.cache) end
         if spec.resizable then
             local r = spec.resizable
             ResizableConfig[engineName] = { minW = r.minW, minH = r.minH, state = r.state }
@@ -474,8 +476,43 @@ Core.EventHandler.OnInitialize    = function() dispatchActive("OnInitialize") en
 Core.EventHandler.OnShutdown      = function() dispatchActive("OnShutdown") end
 Core.EventHandler.OnShown         = function() dispatchActive("OnShown") end
 Core.EventHandler.OnHidden        = function() dispatchActive("OnHidden") end
-Core.EventHandler.OnLButtonUp     = function(flags, x, y) dispatchActive("OnLButtonUp",     flags, x, y) end
-Core.EventHandler.OnLButtonDown   = function(flags, x, y) dispatchActive("OnLButtonDown",   flags, x, y) end
+-- Track the Mongbat window entry that received LButtonDown so that:
+--   (a) LButtonUp on a child window still routes back to the original window, and
+--   (b) if the mouse moved (window was dragged), LButtonUp is suppressed.
+-- Snapshots mouse position (absolute screen coords) which is reliable regardless
+-- of whether SetMoving has committed the window position yet.
+-- Only one mouse-button drag can be in progress at a time.
+local _activeDrag = nil  -- { engineName, key, module, mx, my } | nil
+
+Core.EventHandler.OnLButtonDown = function(flags, x, y)
+    local name = SystemData.ActiveWindow.name
+    local entry = Windows[name]
+    if entry then
+        local mp = Mongbat.Data.MousePosition()
+        _activeDrag = { engineName = entry.engineName, key = entry.key, module = entry.module, mx = mp.x, my = mp.y }
+    else
+        _activeDrag = nil
+    end
+    dispatchActive("OnLButtonDown", flags, x, y)
+end
+
+Core.EventHandler.OnLButtonUp = function(flags, x, y)
+    local drag = _activeDrag
+    _activeDrag = nil
+    if drag then
+        local mp = Mongbat.Data.MousePosition()
+        if mp.x ~= drag.mx or mp.y ~= drag.my then
+            return  -- mouse moved: window was dragged, suppress click
+        end
+        -- Mouse did not move: dispatch Up to the original down-window.
+        -- This handles the case where LButtonUp fires on a child window
+        -- rather than the window that received LButtonDown.
+        local fn = drag.module["OnLButtonUp"]
+        if fn then fn(drag.engineName, drag.key, flags, x, y) end
+        return
+    end
+    dispatchActive("OnLButtonUp", flags, x, y)
+end
 Core.EventHandler.OnRButtonUp     = function(flags, x, y) dispatchActive("OnRButtonUp",     flags, x, y) end
 Core.EventHandler.OnRButtonDown   = function(flags, x, y) dispatchActive("OnRButtonDown",   flags, x, y) end
 Core.EventHandler.OnLButtonDblClk = function(flags, x, y) dispatchActive("OnLButtonDblClk", flags, x, y) end

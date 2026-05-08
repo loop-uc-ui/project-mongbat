@@ -42,6 +42,17 @@
           </EventHandlers>
       </Window>
 
+      <!-- Solid-color fill rectangle. Samples the 1-pixel solid middle of
+           the StatusBar texture (x=40,y=0) and tiles it; callers tint via setColor. -->
+      <DynamicImage name="MongbatSolidFill" handleinput="false">
+          <Size>
+              <AbsPoint x="168" y="24"/>
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
+      </DynamicImage>
+
       <Button name="MongbatButton" font="inter_medium_20">
           <TextColors>
               <Normal r="206" g="217" b="242" a="255"/>

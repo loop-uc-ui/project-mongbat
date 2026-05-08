@@ -10,34 +10,24 @@ local Api       = Mongbat.Api
 local Data      = Mongbat.Data
 local Constants = Mongbat.Constants
 
-local PANEL_W = 200
-local BAR_H   = 20
-local PAD     = 8
-local SPACING = 4
-local NAME_H  = 20
-local MIN_W   = 120
-local MIN_H   = NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD
+-- Initial / minimum sizes. Once the user resizes, layout.w/h drive
+-- everything; the proportions below decide how inner space is divided.
+local PANEL_W   = 200
+local PANEL_H   = 100
+local PAD       = 8       -- inset from panel edge to inner content
+local SPACING   = 6       -- gap between rows
+local NUM_BARS  = 3
+local NAME_RATIO = 0.20   -- name row's share of inner height
+local MIN_W     = 120
+local MIN_H     = 80
 
 -- Mutable layout state. The lib writes layout.w / layout.h while the user
--- drags the resize grip; Build reads them on the next frame. PANEL_W is
--- only used to seed the very first frame.
-local layout = {
-    w = PANEL_W,
-    h = NAME_H + 3 * BAR_H + 3 * SPACING + 2 * PAD,
-}
-
-local DRAG_THRESHOLD = 4
-
-local state = {
-    downWinX = 0,
-    downWinY = 0,
-}
+-- drags the resize grip; Build reads them on the next frame. PANEL_W/H
+-- only seed the very first frame.
+local layout = { w = PANEL_W, h = PANEL_H }
 
 local M = {}
 
--- The lib emits StatusWindow & WarShield destroys via replacesDefault on
--- the panel, but the panel's engine name is "MongbatPlayerStatus_panel"
--- (default), not "StatusWindow". Destroy them once at load.
 local destroyedDefaults = false
 local function destroyDefaultsOnce()
     if destroyedDefaults then return end
@@ -46,39 +36,46 @@ local function destroyDefaultsOnce()
     destroyedDefaults = true
 end
 
--- Build a bar's dynamic image fill width/colour and label text.
-local function emitBar(emit, key, current, max, color, yOffset, barWidth)
+-- Emit one bar row. `yOffset` is the absolute y offset from panel.topleft.
+-- `barW` / `barH` are derived from the panel size in Build.
+local function emitBar(emit, key, yOffset, current, max, color, barW, barH)
     local cur = math.max(current, 0)
     local mx  = math.max(max, 1)
     local pct = math.min(cur / mx, 1)
-    local fillWidth = math.floor(barWidth * pct + 0.5)
+    local fillWidth = math.floor(barW * pct + 0.5)
 
     emit(key, {
         template = "MongbatStatusBar",
         parent   = "panel",
         widget   = UI.Window()
-            :setDimensions(barWidth, BAR_H)
-            :clearAnchors()
-            :addAnchor("topleft", "panel", "topleft", PAD, yOffset),
+            :setDimensions(barW, barH)
+            :onlyOnCreate()
+                :clearAnchors()
+            :always()
+            :setOffsetFromParent(PAD, yOffset),
     })
     emit(key .. "Fill", {
-        template = "MongbatStatusBarFill",
+        template = "MongbatSolidFill",
         parent   = key,
         widget   = UI.DynamicImage()
-            :setTexture("StatusBar", 0, 0)
-            :setDimensions(fillWidth, BAR_H)
+            :setTexture("StatusBar", 40, 24)
+            :setTextureDimensions(1, 1)
+            :setDimensions(fillWidth, barH)
             :setColor(color)
-            :clearAnchors()
-            :addAnchor("topleft", key, "topleft", 0, 0),
+            :onlyOnCreate()
+                :clearAnchors()
+                :addAnchor("topleft", key, "topleft", 0, 0),
     })
     emit(key .. "Label", {
         template = "MongbatLabel",
         parent   = key,
         widget   = UI.Label()
             :setText(string.format("%d / %d", cur, mx))
-            :setDimensions(barWidth, BAR_H)
-            :clearAnchors()
-            :addAnchor("centerleft", key, "centerleft", 0, 0)
+            :setDimensions(barW, barH)
+            :onlyOnCreate()
+                :clearAnchors()
+                :addAnchor("topleft", key, "topleft", 0, 0)
+            :always()
             :setLayer(Constants.WindowLayers.Secondary)
             :setTextColor(Constants.Colors.White),
     })
@@ -91,7 +88,7 @@ end
 function M.Build(emit)
     local p = Data.PlayerStatus()
     local id = p:getId()
-    if id == 0 then return end  -- emit nothing this frame; lib will destroy any prior
+    if id == 0 then return end
 
     local maxHealth  = math.max(p:getMaxHealth(),  1)
     local maxMana    = math.max(p:getMaxMana(),    1)
@@ -104,7 +101,16 @@ function M.Build(emit)
         and Constants.Colors.Notoriety[6]
         or  Constants.Colors.Notoriety[1]
 
-    local barWidth = math.max(MIN_W - 2 * PAD, layout.w - 2 * PAD)
+    -- Reactive layout: derive every child dim from layout.w / layout.h.
+    -- Inner content area is the panel minus PAD on every side. Vertical
+    -- space is split between the name row and NUM_BARS bar rows; SPACING
+    -- separates each adjacent pair (name|bar1, bar1|bar2, bar2|bar3 -> 3
+    -- gaps).
+    local innerW   = layout.w - 2 * PAD
+    local innerH   = layout.h - 2 * PAD
+    local nameH    = math.floor(innerH * NAME_RATIO + 0.5)
+    local barsAreaH = innerH - nameH - NUM_BARS * SPACING
+    local barH     = math.max(1, math.floor(barsAreaH / NUM_BARS + 0.5))
 
     emit("panel", {
         template  = "MongbatWindow",
@@ -121,23 +127,29 @@ function M.Build(emit)
         parent   = "panel",
         widget   = UI.Label()
             :setText(mobName ~= "" and mobName or " ")
-            :setDimensions(barWidth, NAME_H)
-            :clearAnchors()
-            :addAnchor("topleft", "panel", "topleft", PAD, PAD)
+            :setDimensions(innerW, nameH)
+            :onlyOnCreate()
+                :clearAnchors()
+                :addAnchor("topleft", "panel", "topleft", PAD, PAD)
+            :always()
             :setWordWrap(false),
     })
 
-    local baseY = PAD + NAME_H + SPACING
-    emitBar(emit, "hp",   p:getCurrentHealth(),  maxHealth,  healthColor,                 baseY,                          barWidth)
-    emitBar(emit, "mana", p:getCurrentMana(),    maxMana,    Constants.Colors.Blue,       baseY + BAR_H + SPACING,        barWidth)
-    emitBar(emit, "stam", p:getCurrentStamina(), maxStamina, Constants.Colors.YellowDark, baseY + 2 * (BAR_H + SPACING),  barWidth)
+    -- Absolute y offsets computed from proportional row heights so every
+    -- row grows/shrinks when the panel is resized.
+    local hpY   = PAD + nameH + SPACING
+    local manaY = hpY   + barH + SPACING
+    local stamY = manaY + barH + SPACING
+
+    emitBar(emit, "hp",   hpY,   p:getCurrentHealth(),  maxHealth,  healthColor,                 innerW, barH)
+    emitBar(emit, "mana", manaY, p:getCurrentMana(),    maxMana,    Constants.Colors.Blue,       innerW, barH)
+    emitBar(emit, "stam", stamY, p:getCurrentStamina(), maxStamina, Constants.Colors.YellowDark, innerW, barH)
 end
 
 -- ---- Click handling on the outer panel ---------------------------------
 
 function M.OnLButtonDown(name, key)
     if key == "panel" then
-        state.downWinX, state.downWinY = Api.Window.GetPosition(name)
         Api.Window.SetMoving(name, true)
     end
 end
@@ -152,10 +164,6 @@ end
 function M.OnLButtonUp(name, key)
     if key ~= "panel" then return end
     Api.Window.SetMoving(name, false)
-    local wx, wy = Api.Window.GetPosition(name)
-    local dx = math.abs(wx - state.downWinX)
-    local dy = math.abs(wy - state.downWinY)
-    if dx > DRAG_THRESHOLD or dy > DRAG_THRESHOLD then return end
     local id = Data.PlayerStatus():getId()
     if id == 0 then return end
     if Data.Drag():isDraggingItem() then

@@ -34,9 +34,10 @@ local Api = Mongbat.Api
 local function isUnbound(self) return self.name == nil end
 
 -- Record an op when unbound, push directly when bound.
+-- Ops tagged createOnly=true are skipped during re-apply on existing windows.
 local function record(self, fn, ...)
     if isUnbound(self) then
-        self._ops[#self._ops + 1] = { fn = fn, args = { ... }, n = select("#", ...) }
+        self._ops[#self._ops + 1] = { fn = fn, args = { ... }, n = select("#", ...), createOnly = self._createOnly }
     else
         fn(self.name, ...)
     end
@@ -125,6 +126,12 @@ end
 function Window:tap(fn) return record(self, fn) end
 
 -- Anchors / parent. `rel` and `parent` may be sibling keys when unbound.
+--- Subsequent ops will only run when the engine window is first created,
+--- not on re-apply. Call :always() to resume normal (every-frame) recording.
+function Window:onlyOnCreate() self._createOnly = true; return self end
+--- Resume recording ops that run every frame (default mode).
+function Window:always() self._createOnly = false; return self end
+
 function Window:clearAnchors() return record(self, Api.Window.ClearAnchors) end
 function Window:addAnchor(point, rel, relPoint, x, y)
     return record(self, Api.Window.AddAnchor, point, asKeyRef(rel), relPoint, x, y)
@@ -136,39 +143,58 @@ function Window:getOffsetFromParent() return Api.Window.GetOffsetFromParent(self
 
 --- Walk recorded ops, binding to `engineName`. `resolveKey` is a function
 --- (string) -> string|nil that maps a sibling key to its engine name.
+--- `isCreate` true → new window (all ops fire). false → re-apply (createOnly
+--- ops skip; ops whose primitive args match `cache` also skip).
+--- `cache` is a per-entry table { [opIndex] = { arg1, arg2, ... } } carried
+--- across frames by the reconciler to avoid redundant engine calls.
 --- Bound widgets ignore _apply (no _ops).
-function Window:_apply(engineName, resolveKey)
+function Window:_apply(engineName, resolveKey, isCreate, cache)
     if not self._ops then return end
     for i = 1, #self._ops do
         local op = self._ops[i]
-        local args = op.args
-        -- Walk to op.n so trailing nils are preserved on engine calls
-        -- that take fixed-arity arguments.
-        if op.n == 0 then
-            op.fn(engineName)
-        elseif op.n == 1 then
-            op.fn(engineName, resolveArg(args[1], resolveKey))
-        elseif op.n == 2 then
-            op.fn(engineName, resolveArg(args[1], resolveKey), resolveArg(args[2], resolveKey))
-        elseif op.n == 3 then
-            op.fn(engineName,
-                resolveArg(args[1], resolveKey), resolveArg(args[2], resolveKey),
-                resolveArg(args[3], resolveKey))
-        elseif op.n == 4 then
-            op.fn(engineName,
-                resolveArg(args[1], resolveKey), resolveArg(args[2], resolveKey),
-                resolveArg(args[3], resolveKey), resolveArg(args[4], resolveKey))
-        elseif op.n == 5 then
-            op.fn(engineName,
-                resolveArg(args[1], resolveKey), resolveArg(args[2], resolveKey),
-                resolveArg(args[3], resolveKey), resolveArg(args[4], resolveKey),
-                resolveArg(args[5], resolveKey))
-        else
-            -- Fallback: build a resolved table and unpack.
-            local resolved = {}
-            for j = 1, op.n do resolved[j] = resolveArg(args[j], resolveKey) end
-            op.fn(engineName, table.unpack(resolved, 1, op.n))
-        end
+        if not (op.createOnly and not isCreate) then
+            local args, n = op.args, op.n
+            -- Pre-resolve args.
+            local a1, a2, a3, a4, a5
+            if n >= 1 then a1 = resolveArg(args[1], resolveKey) end
+            if n >= 2 then a2 = resolveArg(args[2], resolveKey) end
+            if n >= 3 then a3 = resolveArg(args[3], resolveKey) end
+            if n >= 4 then a4 = resolveArg(args[4], resolveKey) end
+            if n >= 5 then a5 = resolveArg(args[5], resolveKey) end
+            -- Skip single-arg ops whose value hasn't changed (e.g. setText,
+            -- setTextColor, setColor). Multi-arg geometry ops (setDimensions,
+            -- setOffsetFromParent) are NOT cached: the engine can reset child
+            -- layout when a parent repositions, so they must always fire.
+            local skip = false
+            if cache and not isCreate and n == 1 and type(a1) ~= "table" then
+                local c = cache[i]
+                if c then skip = (a1 == c[1]) end
+            end
+            if not skip then
+                -- Update cache for single-arg primitive ops.
+                if cache and not op.createOnly and n == 1 and type(a1) ~= "table" then
+                    cache[i] = { a1 }
+                end
+                -- Dispatch.
+                if n == 0 then
+                    op.fn(engineName)
+                elseif n == 1 then
+                    op.fn(engineName, a1)
+                elseif n == 2 then
+                    op.fn(engineName, a1, a2)
+                elseif n == 3 then
+                    op.fn(engineName, a1, a2, a3)
+                elseif n == 4 then
+                    op.fn(engineName, a1, a2, a3, a4)
+                elseif n == 5 then
+                    op.fn(engineName, a1, a2, a3, a4, a5)
+                else
+                    local resolved = {}
+                    for j = 1, n do resolved[j] = resolveArg(args[j], resolveKey) end
+                    op.fn(engineName, table.unpack(resolved, 1, n))
+                end
+            end
+        end -- if not createOnly
     end
 end
 
