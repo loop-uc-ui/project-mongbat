@@ -237,6 +237,134 @@ local ResizableConfig = {}
 -- nil when not actively resizing.
 local LiveResize = nil
 
+-- ===== Snap system ==========================================================
+-- Root-parented windows register themselves as snap targets. While a snappable
+-- window is being dragged, each frame we compute the closest edge pair between
+-- the mover and every other registered window.  When the distance is within
+-- SNAP_THRESHOLD pixels we show a MongbatSnapPreview ghost at the snap landing
+-- position. On LButtonUp we commit the snap (WindowAddAnchor to Root) if the
+-- preview was showing.
+
+-- Set of engine names that are currently registered as snap targets.
+local SnappableWindows = {}  -- { [engineName] = true }
+
+local SNAP_THRESHOLD = 20       -- screen-space pixels
+local SNAP_PREVIEW   = "MongbatSnapPreviewGhost"  -- singleton ghost window
+
+-- nil or { mover=engineName, snapped=bool, snapX=number, snapY=number }
+local _activeSnap = nil
+
+--- Show (or reposition) the snap-preview ghost window at Root-relative (rx, ry)
+--- sized to match the mover.
+local function _showSnapPreview(mover, rx, ry)
+    if not Mongbat.Api.Window.DoesExist(SNAP_PREVIEW) then
+        Mongbat.Api.Window.CreateFromTemplate(SNAP_PREVIEW, "MongbatSnapPreview", "Root", false)
+    end
+    local w, h = WindowGetDimensions(mover)
+    WindowSetDimensions(SNAP_PREVIEW, w, h)
+    WindowClearAnchors(SNAP_PREVIEW)
+    WindowAddAnchor(SNAP_PREVIEW, "topleft", "Root", "topleft", rx, ry)
+    WindowSetShowing(SNAP_PREVIEW, true)
+end
+
+local function _hideSnapPreview()
+    if Mongbat.Api.Window.DoesExist(SNAP_PREVIEW) then
+        WindowSetShowing(SNAP_PREVIEW, false)
+    end
+end
+
+local function _destroySnapPreview()
+    if Mongbat.Api.Window.DoesExist(SNAP_PREVIEW) then
+        Mongbat.Api.Window.Destroy(SNAP_PREVIEW)
+    end
+end
+
+--- Per-frame snap update. Uses edge-proximity + overlap detection so snapping
+--- fires whenever the mover's edge is within SNAP_THRESHOLD pixels of a target's
+--- parallel edge AND the two windows overlap on the perpendicular axis.
+--- This means the mover can snap to any point along a target's full side,
+--- not just when specific anchor-point pairs happen to align.
+local function tickSnap()
+    if not _activeSnap then return end
+    local mover = _activeSnap.mover
+    if not Mongbat.Api.Window.DoesExist(mover) or not WindowGetMoving(mover) then
+        _activeSnap = nil
+        _destroySnapPreview()
+        return
+    end
+
+    local scale  = (InterfaceCore and InterfaceCore.scale) or 1
+    local mx, my = WindowGetScreenPosition(mover)
+    local mw, mh = WindowGetDimensions(mover)
+
+    local bestDist = SNAP_THRESHOLD + 1
+    local bestX, bestY = nil, nil
+
+    for targetName in pairs(SnappableWindows) do
+        if targetName ~= mover and Mongbat.Api.Window.DoesExist(targetName) then
+            local tx, ty = WindowGetScreenPosition(targetName)
+            local tw, th = WindowGetDimensions(targetName)
+
+            -- Overlap tests on each axis.
+            local overlapV = my < ty + th and my + mh > ty   -- windows share vertical range
+            local overlapH = mx < tx + tw and mx + mw > tx   -- windows share horizontal range
+
+            -- Left edge of mover near right edge of target (mover attaches to the right).
+            if overlapV then
+                local d = math.abs(mx - (tx + tw))
+                if d < bestDist then
+                    bestDist = d
+                    bestX = math.floor((tx + tw) / scale + 0.5)
+                    bestY = math.floor(my / scale + 0.5)
+                end
+            end
+
+            -- Right edge of mover near left edge of target (mover attaches to the left).
+            if overlapV then
+                local d = math.abs((mx + mw) - tx)
+                if d < bestDist then
+                    bestDist = d
+                    bestX = math.floor((tx - mw) / scale + 0.5)
+                    bestY = math.floor(my / scale + 0.5)
+                end
+            end
+
+            -- Top edge of mover near bottom edge of target (mover attaches below).
+            if overlapH then
+                local d = math.abs(my - (ty + th))
+                if d < bestDist then
+                    bestDist = d
+                    bestX = math.floor(mx / scale + 0.5)
+                    bestY = math.floor((ty + th) / scale + 0.5)
+                end
+            end
+
+            -- Bottom edge of mover near top edge of target (mover attaches above).
+            if overlapH then
+                local d = math.abs((my + mh) - ty)
+                if d < bestDist then
+                    bestDist = d
+                    bestX = math.floor(mx / scale + 0.5)
+                    bestY = math.floor((ty - mh) / scale + 0.5)
+                end
+            end
+        end
+    end
+
+    if bestDist <= SNAP_THRESHOLD and bestX then
+        _showSnapPreview(mover, bestX, bestY)
+        _activeSnap.snapped = true
+        _activeSnap.snapX   = bestX
+        _activeSnap.snapY   = bestY
+    else
+        _hideSnapPreview()
+        _activeSnap.snapped = false
+        _activeSnap.snapX   = nil
+        _activeSnap.snapY   = nil
+    end
+end
+-- ===== End snap system =====================================================
+
 local function gripNameFor(panelEngineName)
     return panelEngineName .. "ResizeGrip"
 end
@@ -341,6 +469,7 @@ local function destroyBuiltEntry(entry)
     if entry.savePosition and Mongbat.Api.Window.DoesExist(entry.engineName) then
         Mongbat.Api.Window.SavePosition(entry.engineName, true)
     end
+    SnappableWindows[entry.engineName] = nil
     Windows[entry.engineName] = nil
     if Mongbat.Api.Window.DoesExist(entry.engineName) then
         Mongbat.Api.Window.Destroy(entry.engineName)
@@ -398,6 +527,15 @@ local function runBuild(modName, module)
         else
             savePosition = (parentEngine == "Root")
         end
+        -- `snappable`: register window as a snap target and enable snap-preview
+        -- when dragging. Defaults to true for root-level windows.
+        -- Override with spec.snappable = false to opt out.
+        local snappable
+        if spec.snappable ~= nil then
+            snappable = spec.snappable
+        else
+            snappable = (parentEngine == "Root")
+        end
         local entry = {
             engineName   = engineName,
             template     = spec.template,
@@ -405,6 +543,7 @@ local function runBuild(modName, module)
             id           = id,
             widget       = spec.widget,
             savePosition = savePosition,
+            snappable    = snappable,
         }
         current[key] = entry
         order[#order + 1] = key
@@ -415,9 +554,12 @@ local function runBuild(modName, module)
             -- ops with unchanged primitive args are also skipped via cache).
             entry.cache = prevEntry.cache or {}
             if spec.widget then spec.widget:_apply(engineName, resolveKey, false, entry.cache) end
-            -- Always keep draggableRoot current on the live registry entry.
+            -- Always keep draggableRoot and snappable current on the live registry entry.
             local winEntry = Windows[engineName]
-            if winEntry then winEntry.draggableRoot = draggableRoot end
+            if winEntry then
+                winEntry.draggableRoot = draggableRoot
+                winEntry.snappable     = snappable
+            end
             if spec.resizable then
                 local r = spec.resizable
                 ResizableConfig[engineName] = { minW = r.minW, minH = r.minH, state = r.state }
@@ -436,7 +578,7 @@ local function runBuild(modName, module)
         if spec.replacesDefault and Mongbat.Api.Window.DoesExist(engineName) then
             Mongbat.Api.Window.Destroy(engineName)
         end
-        Windows[engineName] = { module = module, key = key, id = id, draggableRoot = draggableRoot, savePosition = savePosition }
+        Windows[engineName] = { module = module, key = key, id = id, draggableRoot = draggableRoot, savePosition = savePosition, snappable = snappable }
         Mongbat.Api.Window.CreateFromTemplate(engineName, spec.template, parentEngine,
             spec.showing ~= false)
         attachRoutableEvents(engineName)
@@ -445,6 +587,9 @@ local function runBuild(modName, module)
         if spec.widget then spec.widget:_apply(engineName, resolveKey, true, entry.cache) end
         if savePosition then
             Mongbat.Api.Window.RestorePosition(engineName, false)
+        end
+        if snappable then
+            SnappableWindows[engineName] = true
         end
         if spec.resizable then
             local r = spec.resizable
@@ -488,6 +633,7 @@ function Core.PerFrame(dt)
         if fn then fn(dt) end
     end)
     tickLiveResize()
+    tickSnap()
     Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
         runBuild(entry.name, entry.module)
     end)
@@ -519,7 +665,13 @@ Core.EventHandler.OnLButtonDown = function(flags, x, y)
     if entry then
         local mp = Mongbat.Data.MousePosition()
         local mover = entry.draggableRoot
-        if mover then Mongbat.Api.Window.SetMoving(mover, true) end
+        if mover then
+            Mongbat.Api.Window.SetMoving(mover, true)
+            local moverWin = Windows[mover]
+            if moverWin and moverWin.snappable then
+                _activeSnap = { mover = mover, snapped = false, snapX = nil, snapY = nil }
+            end
+        end
         _activeDrag = { engineName = entry.engineName, key = entry.key, module = entry.module, mover = mover, mx = mp.x, my = mp.y }
     else
         _activeDrag = nil
@@ -532,6 +684,14 @@ Core.EventHandler.OnLButtonUp = function(flags, x, y)
     _activeDrag = nil
     if drag then
         if drag.mover then Mongbat.Api.Window.SetMoving(drag.mover, false) end
+        -- Commit snap if the preview was showing, then clean up.
+        local snap = _activeSnap
+        _activeSnap = nil
+        _destroySnapPreview()
+        if snap and snap.snapped then
+            WindowClearAnchors(snap.mover)
+            WindowAddAnchor(snap.mover, "topleft", "Root", "topleft", snap.snapX, snap.snapY)
+        end
         local mp = Mongbat.Data.MousePosition()
         if mp.x ~= drag.mx or mp.y ~= drag.my then
             return  -- mouse moved: window was dragged, suppress click
