@@ -115,6 +115,7 @@ function M.Build(emit)
     emit("panel", {
         template  = "MongbatWindow",
         id        = id,
+        draggable = true,
         widget    = UI.Window()
             :setDimensions(layout.w, layout.h)
             :setColor(frameColor)
@@ -148,11 +149,6 @@ end
 
 -- ---- Click handling on the outer panel ---------------------------------
 
-function M.OnLButtonDown(name, key)
-    if key == "panel" then
-        Api.Window.SetMoving(name, true)
-    end
-end
 
 function M.OnLButtonDblClk(_name, key)
     if key == "panel" then
@@ -163,7 +159,6 @@ end
 
 function M.OnLButtonUp(name, key)
     if key ~= "panel" then return end
-    Api.Window.SetMoving(name, false)
     local id = Data.PlayerStatus():getId()
     if id == 0 then return end
     if Data.Drag():isDraggingItem() then

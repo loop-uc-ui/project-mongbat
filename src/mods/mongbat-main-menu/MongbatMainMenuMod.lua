@@ -48,9 +48,10 @@ local BUTTONS = {
 
 function M.Build(emit)
     emit("menu", {
-        name            = NAME,           -- engine name fixed; default UI uses it on Esc
+        name            = NAME,
         template        = "MongbatWindow",
         replacesDefault = true,
+        draggable       = true,
         showing         = false,
         widget          = UI.Window():setDimensions(
             BTN_W + 2 * PAD_X,

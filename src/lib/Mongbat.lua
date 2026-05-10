@@ -376,6 +376,16 @@ local function runBuild(modName, module)
         else
             parentEngine = "Root"
         end
+        -- `draggable = true` in spec makes this window the drag root; SetMoving
+        -- will be called on it automatically when any descendant is pressed.
+        -- Children inherit draggableRoot from their parent's Windows entry.
+        local draggableRoot
+        if spec.draggable then
+            draggableRoot = engineName
+        elseif parentEngine and parentEngine ~= "Root" then
+            local parentWin = Windows[parentEngine]
+            draggableRoot = parentWin and parentWin.draggableRoot or nil
+        end
         local entry = {
             engineName = engineName,
             template   = spec.template,
@@ -392,6 +402,9 @@ local function runBuild(modName, module)
             -- ops with unchanged primitive args are also skipped via cache).
             entry.cache = prevEntry.cache or {}
             if spec.widget then spec.widget:_apply(engineName, resolveKey, false, entry.cache) end
+            -- Always keep draggableRoot current on the live registry entry.
+            local winEntry = Windows[engineName]
+            if winEntry then winEntry.draggableRoot = draggableRoot end
             if spec.resizable then
                 local r = spec.resizable
                 ResizableConfig[engineName] = { minW = r.minW, minH = r.minH, state = r.state }
@@ -410,7 +423,7 @@ local function runBuild(modName, module)
         if spec.replacesDefault and Mongbat.Api.Window.DoesExist(engineName) then
             Mongbat.Api.Window.Destroy(engineName)
         end
-        Windows[engineName] = { module = module, key = key, id = id }
+        Windows[engineName] = { module = module, key = key, id = id, draggableRoot = draggableRoot }
         Mongbat.Api.Window.CreateFromTemplate(engineName, spec.template, parentEngine,
             spec.showing ~= false)
         attachRoutableEvents(engineName)
@@ -482,14 +495,16 @@ Core.EventHandler.OnHidden        = function() dispatchActive("OnHidden") end
 -- Snapshots mouse position (absolute screen coords) which is reliable regardless
 -- of whether SetMoving has committed the window position yet.
 -- Only one mouse-button drag can be in progress at a time.
-local _activeDrag = nil  -- { engineName, key, module, mx, my } | nil
+local _activeDrag = nil  -- { engineName, key, module, mover, mx, my } | nil
 
 Core.EventHandler.OnLButtonDown = function(flags, x, y)
     local name = SystemData.ActiveWindow.name
     local entry = Windows[name]
     if entry then
         local mp = Mongbat.Data.MousePosition()
-        _activeDrag = { engineName = entry.engineName, key = entry.key, module = entry.module, mx = mp.x, my = mp.y }
+        local mover = entry.draggableRoot
+        if mover then Mongbat.Api.Window.SetMoving(mover, true) end
+        _activeDrag = { engineName = entry.engineName, key = entry.key, module = entry.module, mover = mover, mx = mp.x, my = mp.y }
     else
         _activeDrag = nil
     end
@@ -500,6 +515,7 @@ Core.EventHandler.OnLButtonUp = function(flags, x, y)
     local drag = _activeDrag
     _activeDrag = nil
     if drag then
+        if drag.mover then Mongbat.Api.Window.SetMoving(drag.mover, false) end
         local mp = Mongbat.Data.MousePosition()
         if mp.x ~= drag.mx or mp.y ~= drag.my then
             return  -- mouse moved: window was dragged, suppress click
