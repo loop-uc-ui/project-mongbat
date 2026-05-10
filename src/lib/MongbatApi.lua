@@ -2482,8 +2482,8 @@ end
 ---
 --- Saves the position of a window.
 ---@param window string The name of the window.
----@param closing boolean Whether the window is closing.
----@param alias string An alias for the window.
+---@param closing boolean? Whether the window is closing (default true).
+---@param alias string? An alias for the window.
 function Api.Window.SavePosition(window, closing, alias)
     WindowUtils.SaveWindowPosition(window, closing, alias)
 end
@@ -2491,9 +2491,9 @@ end
 ---
 --- Restores the position of a window.
 ---@param window string The name of the window.
----@param trackSize boolean Whether to track the size of the window.
----@param alias string An alias for the window.
----@param ignoreBounds boolean Whether to ignore the bounds of the window.
+---@param trackSize boolean? Whether to track the size of the window.
+---@param alias string? An alias for the window.
+---@param ignoreBounds boolean? Whether to ignore the bounds of the window.
 function Api.Window.RestorePosition(window, trackSize, alias, ignoreBounds)
     WindowUtils.RestoreWindowPosition(window, trackSize, alias, ignoreBounds)
 end

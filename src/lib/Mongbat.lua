@@ -338,6 +338,9 @@ end
 local function destroyBuiltEntry(entry)
     teardownGrip(entry.engineName)
     detachAllData(entry.engineName)
+    if entry.savePosition and Mongbat.Api.Window.DoesExist(entry.engineName) then
+        Mongbat.Api.Window.SavePosition(entry.engineName, true)
+    end
     Windows[entry.engineName] = nil
     if Mongbat.Api.Window.DoesExist(entry.engineName) then
         Mongbat.Api.Window.Destroy(entry.engineName)
@@ -386,12 +389,22 @@ local function runBuild(modName, module)
             local parentWin = Windows[parentEngine]
             draggableRoot = parentWin and parentWin.draggableRoot or nil
         end
+        -- `savePosition`: save/restore screen position via the engine's
+        -- persistent WindowPositions store. Defaults to true for root-level
+        -- windows (parentEngine == "Root"). Override with spec.savePosition.
+        local savePosition
+        if spec.savePosition ~= nil then
+            savePosition = spec.savePosition
+        else
+            savePosition = (parentEngine == "Root")
+        end
         local entry = {
-            engineName = engineName,
-            template   = spec.template,
-            parentKey  = parentKey,
-            id         = id,
-            widget     = spec.widget,
+            engineName   = engineName,
+            template     = spec.template,
+            parentKey    = parentKey,
+            id           = id,
+            widget       = spec.widget,
+            savePosition = savePosition,
         }
         current[key] = entry
         order[#order + 1] = key
@@ -423,13 +436,16 @@ local function runBuild(modName, module)
         if spec.replacesDefault and Mongbat.Api.Window.DoesExist(engineName) then
             Mongbat.Api.Window.Destroy(engineName)
         end
-        Windows[engineName] = { module = module, key = key, id = id, draggableRoot = draggableRoot }
+        Windows[engineName] = { module = module, key = key, id = id, draggableRoot = draggableRoot, savePosition = savePosition }
         Mongbat.Api.Window.CreateFromTemplate(engineName, spec.template, parentEngine,
             spec.showing ~= false)
         attachRoutableEvents(engineName)
         attachAllData(id)
         entry.cache = {}
         if spec.widget then spec.widget:_apply(engineName, resolveKey, true, entry.cache) end
+        if savePosition then
+            Mongbat.Api.Window.RestorePosition(engineName, false)
+        end
         if spec.resizable then
             local r = spec.resizable
             ResizableConfig[engineName] = { minW = r.minW, minH = r.minH, state = r.state }
