@@ -31,6 +31,10 @@ local function idFromKey(key)
     return s and tonumber(s) or nil
 end
 
+function M.OnLoad()
+    Api.ObjectHandle.SuppressDefault()
+end
+
 function M.Build(emit)
     local handles = Data.ObjectHandles():getHandles()
     local seen = {}

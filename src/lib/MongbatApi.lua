@@ -2764,6 +2764,14 @@ function Api.ObjectHandle.OnCreate(fn)
     chainObjectHandleWindow("CreateObjectHandles", fn)
 end
 
+--- Replaces `ObjectHandleWindow.CreateObjectHandles` with a no-op, preventing
+--- the default UI from creating its own object handle windows entirely.
+--- Call from `M.OnLoad()` when your mod owns object handle presentation.
+function Api.ObjectHandle.SuppressDefault()
+    if not ObjectHandleWindow then return end
+    ObjectHandleWindow.CreateObjectHandles = function() end
+end
+
 --- Chains a subscriber to `ObjectHandleWindow.DestroyObjectHandles`.
 --- Called when the engine destroys the object handle windows.
 ---@param fn fun()
