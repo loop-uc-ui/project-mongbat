@@ -26,6 +26,8 @@ local Systems = _Mongbat.Systems
 ---@field snapped boolean Whether a snap position was found this frame.
 ---@field snapX number?  Root-relative x of the snap landing position (logical coords).
 ---@field snapY number?  Root-relative y of the snap landing position (logical coords).
+---@field startMx number Mouse x (screen pixels) when the drag began.
+---@field startMy number Mouse y (screen pixels) when the drag began.
 
 ---@class Snap
 local Snap = {}
@@ -37,6 +39,10 @@ local SnappableWindows = {}
 
 local SNAP_THRESHOLD = 20
 local SNAP_PREVIEW   = "MongbatSnapPreviewGhost"  -- singleton ghost window
+-- Snap detection is suppressed until the mouse has moved this many screen
+-- pixels from the drag start. Prevents immediate snapping when windows
+-- happen to be adjacent at their default positions (e.g. first launch).
+local DRAG_DEAD_ZONE = 8
 
 ---@type SnapState?
 local _activeSnap = nil
@@ -79,7 +85,15 @@ end
 --- Begins snap tracking for a drag on `moverName`.
 ---@param moverName string
 function Snap.BeginDrag(moverName)
-    _activeSnap = { mover = moverName, snapped = false, snapX = nil, snapY = nil } --[[@as SnapState]]
+    local mp = Mongbat.Data.MousePosition()
+    _activeSnap = {
+        mover   = moverName,
+        snapped = false,
+        snapX   = nil,
+        snapY   = nil,
+        startMx = mp.x,
+        startMy = mp.y,
+    } --[[@as SnapState]]
 end
 
 --- Per-frame edge detection. Called from Mods.PerFrame.
@@ -97,11 +111,23 @@ function Snap.Tick()
     local mdims  = Mongbat.Api.Window.GetDimensions(mover)
     local mw, mh = mdims.x, mdims.y
 
+    -- Dead-zone: suppress snap until mouse has moved meaningfully from drag start.
+    local mp = Mongbat.Data.MousePosition()
+    local dx = mp.x - _activeSnap.startMx
+    local dy = mp.y - _activeSnap.startMy
+    if dx * dx + dy * dy < DRAG_DEAD_ZONE * DRAG_DEAD_ZONE then
+        hidePreview()
+        return
+    end
+
     local bestDist = SNAP_THRESHOLD + 1
     local bestX, bestY = nil, nil
 
     for targetName in pairs(SnappableWindows) do
-        if targetName ~= mover and Mongbat.Api.Window.DoesExist(targetName) then
+        if targetName ~= mover
+            and Mongbat.Api.Window.DoesExist(targetName)
+            and Mongbat.Api.Window.IsShowing(targetName)
+        then
             local tx, ty = Mongbat.Api.Window.GetPosition(targetName)
             local tdims  = Mongbat.Api.Window.GetDimensions(targetName)
             local tw, th = tdims.x, tdims.y

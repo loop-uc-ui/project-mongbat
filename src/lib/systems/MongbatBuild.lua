@@ -269,12 +269,14 @@ function Build.RunMod(modName, module)
             savePosition = (parentEngine == "Root")
         end
 
-        -- snappable: defaults true for root-level windows.
+        -- snappable: defaults true only for draggable root-level windows.
+        -- Non-draggable windows can't be moved by the user and shouldn't act
+        -- as snap targets (e.g. world-object-attached handles at Root level).
         local snappable
         if spec.snappable ~= nil then
             snappable = spec.snappable
         else
-            snappable = (parentEngine == "Root")
+            snappable = (parentEngine == "Root") and (spec.draggable == true)
         end
 
         local entry = {

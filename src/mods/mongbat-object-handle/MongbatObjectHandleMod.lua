@@ -56,8 +56,9 @@ function M.Build(emit)
         if h.isMobile and color then frame:setColor(color) end
 
         emit(frameKey(h.id), {
-            template = "MongbatWindow",
-            widget   = frame,
+            template  = "MongbatWindow",
+            snappable = false,
+            widget    = frame,
         })
 
         local label = UI.Label()
