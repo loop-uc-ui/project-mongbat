@@ -32,6 +32,7 @@ local state = {
     radarW         = 0,
     radarH         = 0,
     initialized    = false,
+    closed         = false,
     zoom = {
         current = 0,
         min     = -2.0,
@@ -97,16 +98,27 @@ local function formatLocationText()
 end
 
 function M.OnLoad()
-    Api.Window.Destroy("MapWindow")
+    Mongbat.UI.Defaults.OverrideAction("ToggleMapWindow", function()
+        state.closed = not state.closed
+        if state.closed then
+            state.initialized = false
+            state.isPanning   = false
+            state.radarW      = 0
+            state.radarH      = 0
+        end
+    end)
 end
 
 function M.Build(emit)
+    if state.closed then return end
+
     local radar = Data.Radar()
 
     emit("panel", {
-        name     = PANEL_NAME,                -- engine name fixed
-        template = "MongbatWindow",
-        widget   = UI.Window():setDimensions(CONTENT + MARGIN * 2, CONTENT + MARGIN * 2),
+        name             = PANEL_NAME,                -- engine name fixed
+        replacesDefault  = true,                      -- destroy + suppress default MapWindow
+        template         = "MongbatWindow",
+        widget           = UI.Window():setDimensions(CONTENT + MARGIN * 2, CONTENT + MARGIN * 2),
     })
 
     emit("map", {
@@ -202,9 +214,13 @@ function M.OnLButtonDblClk(_name, key)
     Api.Radar.SetCenterOnPlayer(true)
 end
 
-function M.OnRButtonUp(name, key)
-    if key == "panel" or key == "map" then
-        Api.Window.SetShowing(name, false)
+function M.OnRButtonUp(_name, key)
+    if key == "panel" or key == "map" or key == "coords" then
+        state.closed      = true
+        state.initialized = false
+        state.isPanning   = false
+        state.radarW      = 0
+        state.radarH      = 0
     end
 end
 

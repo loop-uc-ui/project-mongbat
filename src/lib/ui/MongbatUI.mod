@@ -12,6 +12,7 @@
 
 		<Files>
 			<File name="MongbatUI.lua"/>
+			<File name="MongbatDefaults.lua"/>
 		</Files>
 
 	</UiMod>

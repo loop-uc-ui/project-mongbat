@@ -32,7 +32,7 @@ local function idFromKey(key)
 end
 
 function M.OnLoad()
-    Api.ObjectHandle.SuppressDefault()
+    Mongbat.UI.Defaults.Suppress("ObjectHandleWindow", "CreateObjectHandles")
 end
 
 function M.Build(emit)

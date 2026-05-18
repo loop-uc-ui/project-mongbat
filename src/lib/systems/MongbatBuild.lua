@@ -132,8 +132,11 @@ local function createNewWindow(modName, module, key, spec, engineName, parentEng
                                id, rootKey, draggableRoot, savePosition, snappable,
                                entry, prevEntry, resolveKey)
     if prevEntry then destroyBuiltEntry(prevEntry) end
-    if spec.replacesDefault and Mongbat.Api.Window.DoesExist(engineName) then
-        Mongbat.Api.Window.Destroy(engineName)
+    if spec.replacesDefault then
+        if Mongbat.Api.Window.DoesExist(engineName) then
+            Mongbat.Api.Window.Destroy(engineName)
+        end
+        Mongbat.UI.Defaults.Suppress(engineName)
     end
 
     EngineLookup[engineName] = { modName = modName, key = key, rootKey = rootKey }
