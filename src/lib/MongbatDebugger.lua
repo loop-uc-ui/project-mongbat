@@ -45,4 +45,21 @@ function Debugger.Dump(name, value, memo)
     Debug.Dump(name, value, memo)
 end
 
+-- ========================================================================== --
+-- Debugger - Verbose mode
+-- ========================================================================== --
+-- Controls framework-internal diagnostic output (e.g. Router dispatch
+-- traces). Defaults off; opt in with Mongbat.Debugger.SetVerbose(true)
+-- when chasing a "why didn't my handler fire?" problem.
+
+local verbose = false
+
+--- Returns true when verbose framework-internal logging is enabled.
+---@return boolean
+function Debugger.IsVerbose() return verbose end
+
+--- Enables or disables verbose framework-internal logging.
+---@param enabled boolean
+function Debugger.SetVerbose(enabled) verbose = enabled and true or false end
+
 Mongbat.Debugger = Debugger

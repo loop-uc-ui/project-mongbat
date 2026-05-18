@@ -33,9 +33,20 @@ local Systems = _Mongbat.Systems
 local Build = {}
 Systems.Build = Build
 
--- [modName] = { [key] = { engineName, template, parentKey, id, widget, savePosition, snappable, cache? } }
+-- [modName] = { [key] = { engineName, template, parentKey, rootKey, id, widget, savePosition, snappable, cache? } }
 ---@type table<string, table>
 local BuildState = {}
+
+-- engineName -> { modName, key, rootKey } for O(1) router lookup.
+---@type table<string, { modName: string, key: string, rootKey: string }>
+local EngineLookup = {}
+
+-- Dismissed root keys per mod. A dismissed (modName, rootKey) skips all
+-- emits whose chain root is `rootKey`. Auto-cleared at the end of a frame
+-- when the mod did not re-attempt the rootKey emit (i.e. the mod has
+-- stopped wanting that subtree at all).
+---@type table<string, table<string, true>>
+local Dismissed = {}
 
 -- ----- Helpers -------------------------------------------------------------
 
@@ -51,19 +62,98 @@ end
 --- saves position, unregisters from snap, removes from registry, destroys engine window.
 ---@param entry table
 local function destroyBuiltEntry(entry)
-    local Resize   = Systems.Resize
-    local Registry = Systems.Registry
-    Registry.Remove(Resize.GripNameFor(entry.engineName))
-    Resize.Teardown(entry.engineName)
+    Systems.Resize.Teardown(entry.engineName)
     Systems.DataReg.Detach(entry.id)
     if entry.savePosition and Mongbat.Api.Window.DoesExist(entry.engineName) then
         Mongbat.Api.Window.SavePosition(entry.engineName, true)
     end
     Systems.Snap.Unregister(entry.engineName)
-    Registry.Remove(entry.engineName)
+    Systems.Registry.Remove(entry.engineName)
+    EngineLookup[entry.engineName] = nil
     if Mongbat.Api.Window.DoesExist(entry.engineName) then
         Mongbat.Api.Window.Destroy(entry.engineName)
     end
+end
+
+--- Applies resize state for one frame: ensures a grip exists (and is
+--- registered) when `spec.resizable` is set, or tears the grip down when
+--- the spec dropped the resizable flag.
+---@param engineName string
+---@param spec table
+local function ensureResizeGrip(engineName, spec)
+    local Resize = Systems.Resize
+    if spec.resizable then
+        local r = spec.resizable
+        Resize.SetConfig(engineName, { minW = r.minW, minH = r.minH, state = r.state })
+        Resize.EnsureGrip(engineName)
+    elseif Resize.IsConfigured(engineName) then
+        Resize.Teardown(engineName)
+    end
+end
+
+--- Re-applies widget ops + per-frame routing fields to an existing window.
+--- Called when the key was present last frame with the same engineName + template.
+---@param engineName string
+---@param spec table
+---@param entry table        new BuildState entry for this frame
+---@param prevEntry table    BuildState entry from prior frame (cache source)
+---@param resolveKey fun(key: string): string?
+---@param draggableRoot string?
+---@param snappable boolean
+local function reapplyExistingWindow(engineName, spec, entry, prevEntry, resolveKey, draggableRoot, snappable)
+    entry.cache = prevEntry.cache or {}
+    if spec.widget then spec.widget:_apply(engineName, resolveKey, false, entry.cache) end
+    local winEntry = Systems.Registry.Get(engineName)
+    if winEntry then
+        winEntry.draggableRoot = draggableRoot
+        winEntry.snappable     = snappable
+    end
+    ensureResizeGrip(engineName, spec)
+end
+
+--- Creates a new engine window, registers it, attaches data + events,
+--- applies widget ops, and restores persisted position / snap registration.
+--- Called when the key is new this frame, or when its engineName/template changed.
+---@param modName string
+---@param module ModModule
+---@param key string
+---@param spec table
+---@param engineName string
+---@param parentEngine string
+---@param id number
+---@param rootKey string
+---@param draggableRoot string?
+---@param savePosition boolean
+---@param snappable boolean
+---@param entry table         new BuildState entry to populate with cache
+---@param prevEntry table?    BuildState entry from prior frame (destroyed when engineName/template changed)
+---@param resolveKey fun(key: string): string?
+local function createNewWindow(modName, module, key, spec, engineName, parentEngine,
+                               id, rootKey, draggableRoot, savePosition, snappable,
+                               entry, prevEntry, resolveKey)
+    if prevEntry then destroyBuiltEntry(prevEntry) end
+    if spec.replacesDefault and Mongbat.Api.Window.DoesExist(engineName) then
+        Mongbat.Api.Window.Destroy(engineName)
+    end
+
+    EngineLookup[engineName] = { modName = modName, key = key, rootKey = rootKey }
+    Systems.Registry.Set(engineName, {
+        module        = module,
+        key           = key,
+        id            = id,
+        engineName    = engineName,
+        draggableRoot = draggableRoot,
+        savePosition  = savePosition,
+        snappable     = snappable,
+    })
+    Mongbat.Api.Window.CreateFromTemplate(engineName, spec.template, parentEngine, spec.showing ~= false)
+    Systems.Registry.AttachEvents(engineName)
+    Systems.DataReg.Attach(id)
+    entry.cache = {}
+    if spec.widget then spec.widget:_apply(engineName, resolveKey, true, entry.cache) end
+    if savePosition then Mongbat.Api.Window.RestorePosition(engineName, false) end
+    if snappable then Systems.Snap.Register(engineName) end
+    ensureResizeGrip(engineName, spec)
 end
 
 -- ----- Public API ----------------------------------------------------------
@@ -79,8 +169,13 @@ function Build.RunMod(modName, module)
     local order   = {}
     BuildState[modName] = current
 
+    -- Tracks keys the mod attempted to emit but were skipped because their
+    -- root is dismissed. Used so children of a dismissed parent skip
+    -- silently (no "unknown parent key" error) and so end-of-frame
+    -- auto-clear knows the mod still wants the root.
+    local skipped = {}
+
     local Registry = Systems.Registry
-    local Resize   = Systems.Resize
 
     -- key -> engineName lookup spanning both prior and current frame so
     -- widget _apply can resolve sibling-key parent references.
@@ -89,21 +184,67 @@ function Build.RunMod(modName, module)
         return e and e.engineName or nil
     end
 
+    -- Builds a "valid keys this frame" hint for parent-resolution errors.
+    -- Lists keys emitted before the failing call plus prior-frame keys
+    -- carried over.
+    local function knownKeys()
+        local seen, names = {}, {}
+        for _, k in ipairs(order) do
+            if not seen[k] then seen[k] = true; names[#names + 1] = k end
+        end
+        for k in pairs(prev) do
+            if k ~= "_order" and not seen[k] then seen[k] = true; names[#names + 1] = k end
+        end
+        if #names == 0 then return "(none yet)" end
+        table.sort(names)
+        return table.concat(names, ", ")
+    end
+
+    local dismissedForMod = Dismissed[modName]
+
     local function emit(key, spec)
         if current[key] then
-            error("Mongbat.Build [" .. modName .. "]: duplicate emit key '" .. tostring(key) .. "'")
+            error("Mongbat.Build [" .. modName .. "]: duplicate emit key '" .. tostring(key)
+                .. "'. Each window needs a unique key per frame.")
+        end
+
+        local parentKey = spec.parent
+
+        -- Resolve parent's rootKey so we know which subtree we're in.
+        -- If parent was already skipped this frame, cascade-skip silently.
+        local rootKey
+        local parentEntry
+        if parentKey then
+            if skipped[parentKey] then
+                skipped[key] = true
+                return
+            end
+            parentEntry = current[parentKey] or prev[parentKey]
+            if not parentEntry then
+                error("Mongbat.Build [" .. modName .. "]: unknown parent key '" .. tostring(parentKey)
+                    .. "' for '" .. tostring(key) .. "'. Emit the parent key before its children, "
+                    .. "or set parent=nil to root the window. Known keys: " .. knownKeys() .. ".")
+            end
+            rootKey = parentEntry.rootKey
+        else
+            rootKey = key
+        end
+
+        if dismissedForMod and dismissedForMod[rootKey] then
+            skipped[key] = true
+            return
         end
 
         local engineName = spec.name or defaultEngineName(modName, key)
         local id         = spec.id or 0
-        local parentKey  = spec.parent
         local parentEngine
 
         if parentKey then
             parentEngine = resolveKey(parentKey)
             if not parentEngine then
                 error("Mongbat.Build [" .. modName .. "]: unknown parent key '" .. tostring(parentKey)
-                    .. "' for '" .. tostring(key) .. "'. Emit the parent first.")
+                    .. "' for '" .. tostring(key) .. "'. Emit the parent key before its children, "
+                    .. "or set parent=nil to root the window. Known keys: " .. knownKeys() .. ".")
             end
         else
             parentEngine = "Root"
@@ -137,6 +278,7 @@ function Build.RunMod(modName, module)
             engineName   = engineName,
             template     = spec.template,
             parentKey    = parentKey,
+            rootKey      = rootKey,
             id           = id,
             widget       = spec.widget,
             savePosition = savePosition,
@@ -147,64 +289,11 @@ function Build.RunMod(modName, module)
 
         local prevEntry = prev[key]
         if prevEntry and prevEntry.engineName == engineName and prevEntry.template == spec.template then
-            -- Existing window: re-apply widget ops; update live registry entry.
-            entry.cache = prevEntry.cache or {}
-            if spec.widget then spec.widget:_apply(engineName, resolveKey, false, entry.cache) end
-            local winEntry = Registry.Get(engineName)
-            if winEntry then
-                winEntry.draggableRoot = draggableRoot
-                winEntry.snappable     = snappable
-            end
-            if spec.resizable then
-                local r = spec.resizable
-                Resize.SetConfig(engineName, { minW = r.minW, minH = r.minH, state = r.state })
-                local gripName = Resize.EnsureGrip(engineName)
-                if gripName then
-                    Registry.Set(gripName, { module = Resize.GripModule, key = engineName, id = 0, engineName = gripName })
-                    Registry.AttachEvents(gripName)
-                end
-                Resize.EnsureGlobalUpHandler()
-            elseif Resize.IsConfigured(engineName) then
-                Registry.Remove(Resize.GripNameFor(engineName))
-                Resize.Teardown(engineName)
-            end
-            return
-        end
-
-        -- New (or template/name changed): create from scratch.
-        if prevEntry then destroyBuiltEntry(prevEntry) end
-        if spec.replacesDefault and Mongbat.Api.Window.DoesExist(engineName) then
-            Mongbat.Api.Window.Destroy(engineName)
-        end
-
-        Registry.Set(engineName, {
-            module        = module,
-            key           = key,
-            id            = id,
-            engineName    = engineName,
-            draggableRoot = draggableRoot,
-            savePosition  = savePosition,
-            snappable     = snappable,
-        })
-        Mongbat.Api.Window.CreateFromTemplate(engineName, spec.template, parentEngine, spec.showing ~= false)
-        Registry.AttachEvents(engineName)
-        Systems.DataReg.Attach(id)
-        entry.cache = {}
-        if spec.widget then spec.widget:_apply(engineName, resolveKey, true, entry.cache) end
-        if savePosition then Mongbat.Api.Window.RestorePosition(engineName, false) end
-        if snappable then Systems.Snap.Register(engineName) end
-        if spec.resizable then
-            local r = spec.resizable
-            Resize.SetConfig(engineName, { minW = r.minW, minH = r.minH, state = r.state })
-            local gripName = Resize.EnsureGrip(engineName)
-            if gripName then
-                Registry.Set(gripName, { module = Resize.GripModule, key = engineName, id = 0, engineName = gripName })
-                Registry.AttachEvents(gripName)
-            end
-            Resize.EnsureGlobalUpHandler()
-        elseif Resize.IsConfigured(engineName) then
-            Registry.Remove(Resize.GripNameFor(engineName))
-            Resize.Teardown(engineName)
+            reapplyExistingWindow(engineName, spec, entry, prevEntry, resolveKey, draggableRoot, snappable)
+        else
+            createNewWindow(modName, module, key, spec, engineName, parentEngine,
+                            id, rootKey, draggableRoot, savePosition, snappable,
+                            entry, prevEntry, resolveKey)
         end
     end
 
@@ -217,7 +306,52 @@ function Build.RunMod(modName, module)
         end
     end
 
+    -- Auto-clear dismissed root keys the mod stopped trying to emit. A
+    -- root is still "wanted" if the mod called emit(rootKey, ...) this
+    -- frame, regardless of whether the emit was accepted (current) or
+    -- skipped because of dismiss (skipped).
+    if dismissedForMod then
+        for rootKey in pairs(dismissedForMod) do
+            if not current[rootKey] and not skipped[rootKey] then
+                dismissedForMod[rootKey] = nil
+            end
+        end
+        if next(dismissedForMod) == nil then
+            Dismissed[modName] = nil
+        end
+    end
+
     current._order = order
+end
+
+--- Destroys every built entry in `modName` whose chain root is `rootKey`
+--- and marks the root as dismissed. The dismissal is auto-cleared at
+--- end of frame if the mod stops calling `emit(rootKey, ...)`; if the
+--- mod keeps emitting it, the dismissal stays in effect (and the emits
+--- are silently skipped) until the mod stops.
+---@param modName string
+---@param rootKey string
+function Build.Dismiss(modName, rootKey)
+    local state = BuildState[modName]
+    if state then
+        Mongbat.Utils.Table.ForEach(state, function(k, entry)
+            if k ~= "_order" and entry.rootKey == rootKey then
+                destroyBuiltEntry(entry)
+                state[k] = nil
+            end
+        end)
+    end
+    Dismissed[modName] = Dismissed[modName] or {}
+    Dismissed[modName][rootKey] = true
+end
+
+--- Returns the routing context for `engineName`: which mod owns it,
+--- the per-mod key, and the chain-root key (the parent-chain top).
+--- Nil when the window is not a Build-owned window.
+---@param engineName string
+---@return { modName: string, key: string, rootKey: string }?
+function Build.GetRoot(engineName)
+    return EngineLookup[engineName]
 end
 
 --- Tears down all windows emitted by this mod's Build. Called on mod unload.
@@ -225,8 +359,8 @@ end
 function Build.TeardownMod(modName)
     local prev = BuildState[modName]
     if not prev then return end
-    for k, entry in pairs(prev) do
+    Mongbat.Utils.Table.ForEach(prev, function(k, entry)
         if k ~= "_order" then destroyBuiltEntry(entry) end
-    end
+    end)
     BuildState[modName] = nil
 end

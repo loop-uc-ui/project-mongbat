@@ -1,6 +1,6 @@
 ---@diagnostic disable: undefined-global
 -- ========================================================================== --
--- Mongbat — core coordinator
+-- Mongbat — public surface + bootstrap
 -- ========================================================================== --
 --
 -- All heavy subsystems live in _Mongbat.Systems.* (loaded via MongbatSystems.mod):
@@ -11,184 +11,64 @@
 --   Snap      — edge-snap
 --   Resize    — live resize grip
 --   Drag      — drag state
+--   Mods      — Mod class + lifecycle bookkeeping + per-frame fan-out
 --
--- This file is the public surface (Mongbat.*) and the mod lifecycle
--- coordinator (Core.*). It does not contain logic that belongs in a subsystem.
-
-local Core = {}
-
--- Loaded mod modules in registration order.
--- Array of { name: string, module: ModModule }
----@type { name: string, module: ModModule }[]
-local LoadedMods = {}
-
--- ----- Mod lifecycle -------------------------------------------------------
-
---- Registers and loads a mod. Appends to the per-frame fan-out list
---- and calls `module.OnLoad()` if defined.
----@param modName string
----@param module ModModule
-function Core.LoadMod(modName, module)
-    LoadedMods[#LoadedMods + 1] = { name = modName, module = module }
-    if module.OnLoad then module.OnLoad() end
-end
-
---- Unloads a mod by name. Calls `module.OnUnload()`, tears down Build
---- windows, and removes the mod from the per-frame fan-out list.
----@param modName string
-function Core.UnloadMod(modName)
-    for i = #LoadedMods, 1, -1 do
-        if LoadedMods[i].name == modName then
-            local m = LoadedMods[i].module
-            if m.OnUnload then m.OnUnload() end
-            _Mongbat.Systems.Build.TeardownMod(modName)
-            table.remove(LoadedMods, i)
-            return
-        end
-    end
-end
-
---- Returns the registry entry for a window, or nil.
----@param name string
----@return WindowEntry?
-function Core.GetWindow(name)
-    return _Mongbat.Systems.Registry.Get(name)
-end
-
---- Per-frame fan-out: OnUpdate -> Resize.Tick -> Snap.Tick -> Build.RunMod.
----@param dt number Elapsed time since the last frame (seconds).
-function Core.PerFrame(dt)
-    Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
-        local fn = entry.module.OnUpdate
-        if fn then fn(dt) end
-    end)
-    _Mongbat.Systems.Resize.Tick()
-    _Mongbat.Systems.Snap.Tick()
-    Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
-        _Mongbat.Systems.Build.RunMod(entry.name, entry.module)
-    end)
-end
-
-
--- ========================================================================== --
--- Mod
--- ========================================================================== --
-
---- The mod module table. All fields are optional; implement only what you need.
---- Lifecycle methods (OnLoad/OnUnload/OnUpdate) receive no window arguments.
---- Per-window event handlers always receive (name: string, key: string, ...) first.
----@class ModModule
----@field OnLoad           (fun())?                                                              Called once when the mod is loaded.
----@field OnUnload         (fun())?                                                              Called once when the mod is unloaded.
----@field OnUpdate         (fun(dt: number))?                                                    Called every frame, once per mod.
----@field Build            (fun(emit: fun(key: string, spec: table)))?                           Declarative window emission. Called every frame; emit each window the mod wants. Lib diffs vs prior frame.
----@field OnInitialize     (fun(name: string, key: string))?                                     Engine window created.
----@field OnShown          (fun(name: string, key: string))?                                     Window became visible.
----@field OnHidden         (fun(name: string, key: string))?                                     Window became hidden.
----@field OnShutdown       (fun(name: string, key: string))?                                     Window is being destroyed.
----@field OnLButtonUp      (fun(name: string, key: string, flags: number, x: number, y: number))? Left mouse button released.
----@field OnLButtonDown    (fun(name: string, key: string, flags: number, x: number, y: number))? Left mouse button pressed.
----@field OnRButtonUp      (fun(name: string, key: string, flags: number, x: number, y: number))? Right mouse button released.
----@field OnRButtonDown    (fun(name: string, key: string, flags: number, x: number, y: number))? Right mouse button pressed.
----@field OnLButtonDblClk  (fun(name: string, key: string, flags: number, x: number, y: number))? Left mouse double-click.
----@field OnMouseOver      (fun(name: string, key: string))?                                     Cursor entered window.
----@field OnMouseOverEnd   (fun(name: string, key: string))?                                     Cursor left window.
----@field OnMouseWheel     (fun(name: string, key: string, x: number, y: number, delta: number))? Scroll wheel moved.
----@field OnEditBoxChanged    (fun(name: string, key: string))?                                  Edit box text changed.
----@field OnEditBoxKeyEscape  (fun(name: string, key: string))?                                  Escape pressed in edit box.
----@field OnEditBoxKeyReturn  (fun(name: string, key: string))?                                  Return pressed in edit box.
----@field OnEditBoxKeyTab     (fun(name: string, key: string))?                                  Tab pressed in edit box.
-
----@class Mod
----@field Name string Name of the mod
----@field Path string Path to the mod resources
----@field Files string[]? list of files to load
----@field Module ModModule The mod's module table (event handlers + state)
-local Mod = {}
-Mod.__index = Mod
-
----@class ModModel
----@field Name string Name of the mod
----@field Path string Path to the mod resources
----@field Files string[]? list of files to load
----@field Module ModModule The mod's module table.
-
----@param model ModModel
----@return Mod
-function Mod:new(model)
-    local mod = setmetatable({}, self)
-    mod.Name   = model.Name
-    mod.Path   = model.Path
-    mod.Files  = model.Files or {}
-    mod.Module = model.Module or {}
-    return mod
-end
-
---- Persists the enabled state of the mod to Interface storage.
----@param isEnabled boolean Whether the mod is enabled.
-function Mod:setEnabled(isEnabled)
-    Mongbat.Api.Interface.SaveBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", isEnabled)
-end
-
---- Returns the persisted enabled state of the mod from Interface storage.
----@return boolean? The enabled state, or nil if not yet set.
-function Mod:isEnabled()
-    return Mongbat.Api.Interface.LoadBoolean("Mongbat.Mods." .. self.Name .. ".Enabled", true)
-end
-
---- Loads all resource files declared in `self.Files` for this mod, resolving
---- both the shipped path and the installed Interface path.
-function Mod:loadResources()
-    Mongbat.Utils.Array.ForEach(
-        self.Files,
-        function(file)
-            Mongbat.Api.Mod.LoadResources(
-                "Data/Interface/Default/project-mongbat" .. self.Path,
-                SystemData.Directories.Interface .. "/" .. SystemData.Settings.Interface.customUiName .. self.Path,
-                file
-            )
-        end
-    )
-end
-
-
--- ========================================================================== --
--- Mongbat public surface
--- ========================================================================== --
+-- This file owns only the public Mongbat.* surface (`Mongbat.Mod` factory,
+-- `Mongbat.ModManager`, `Mongbat.GetWindow`, `Mongbat.EventHandler`) and
+-- the engine-entry-point glue (`_Mongbat.OnInitialize/OnUpdate/OnShutdown`).
 
 -- Mongbat = {} is declared in MongbatInternal.lua, which loads before this
 -- file. Sub-modules populate Mongbat.Api, .Utils, .Constants, .Data.
 
----@type table<string, Mod>
-local Mods = {}
+local ModsSystem = _Mongbat.Systems.Mods
 
 Mongbat.ModManager = {}
 
+--- Registers a mod for deferred loading. Two-phase contract:
+---
+---   Phase 1 (NOW, during this call): the mod's .lua file has already been
+---     executed by its .mod manifest, so the module table exists. We build
+---     a `ModManager[name]` entry exposing `OnInitialize` / `OnShutdown`
+---     stubs the manifest will call. The mod is registered but not yet
+---     "loaded" — no resources fetched, no OnLoad fired.
+---
+---   Phase 2 (LATER, when the manifest's <OnInitialize> fires): the engine
+---     calls `Mongbat.ModManager[name].OnInitialize`, which checks the
+---     persisted enabled flag, loads XML/font/texture resources, and
+---     finally invokes the mod's `Module.OnLoad`. From this point the mod
+---     participates in the per-frame Build fan-out.
+---
+--- The split exists because every consumer mod's .mod manifest depends on
+--- the framework's .mod, so all `Mongbat.Mod{...}` calls happen during
+--- Lua file evaluation — before the engine fires per-manifest OnInitialize
+--- callbacks. Letting the manifest drive the second phase ensures resource
+--- loading and OnLoad happen at the correct lifecycle moment for each mod.
 ---@param model ModModel
 ---@return Mod
 function Mongbat.Mod(model)
-    local mod = Mod:new(model)
-    Mods[model.Name] = mod
+    local mod = ModsSystem.Mod:new(model)
     if mod:isEnabled() == nil then
         mod:setEnabled(true)
     end
-    -- ModManager entries are called by each consumer mod's .mod manifest
-    -- <OnInitialize>/<OnShutdown>, which fire after the mod's .lua file is loaded.
     Mongbat.ModManager[model.Name] = {
         OnInitialize = function()
             if mod:isEnabled() == false then return end
             mod:loadResources()
-            Core.LoadMod(mod.Name, mod.Module)
+            ModsSystem.Load(mod.Name, mod.Module)
         end,
         OnShutdown = function()
-            Core.UnloadMod(mod.Name)
+            ModsSystem.Unload(mod.Name)
         end,
     }
     return mod
 end
 
--- Window registry / event router.
-Mongbat.GetWindow = Core.GetWindow
+--- Returns the registry entry for a window, or nil.
+---@param name string
+---@return WindowEntry?
+function Mongbat.GetWindow(name)
+    return _Mongbat.Systems.Registry.Get(name)
+end
 
 -- Global handler table referenced by XML templates and runtime
 -- WindowRegisterCoreEventHandler calls. Must be assigned to Mongbat
@@ -211,11 +91,9 @@ function _Mongbat.OnInitialize()
 end
 
 function _Mongbat.OnUpdate(timePassed)
-    Core.PerFrame(timePassed)
+    _Mongbat.Systems.Mods.PerFrame(timePassed)
 end
 
 function _Mongbat.OnShutdown()
-    Mongbat.Utils.Table.ForEach(Mods, function(_, m)
-        Core.UnloadMod(m.Name)
-    end)
+    _Mongbat.Systems.Mods.UnloadAll()
 end

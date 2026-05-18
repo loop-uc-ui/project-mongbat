@@ -11,17 +11,18 @@
 -- applies the cursor delta as a new window size and writes it into
 -- state.w / state.h so the mod's Build can re-apply child dimensions.
 --
--- Mongbat.lua owns the Windows registry and attachRoutableEvents; it calls
--- EnsureGrip() and handles Windows[gripName] registration when a new grip
--- is returned.
+-- This module fully owns the grip's lifecycle: EnsureGrip creates the
+-- engine window AND registers it with Systems.Registry (so events route
+-- to GripModule). Teardown reverses both. Callers (Build) just need to
+-- call EnsureGrip / Teardown — they don't need to know GripModule exists.
 --
 -- Public surface: _Mongbat.Systems.Resize
 --   .GripModule               module table for grip Windows registry entries
 --   .GripNameFor(panelName)   canonical grip engine name
---   .EnsureGrip(panelName)    create grip window; returns gripName if new, nil if existed
+--   .EnsureGrip(panelName)    create + register grip window (idempotent)
 --   .SetConfig(panelName, cfg) update resize config for a panel
 --   .IsConfigured(panelName)  true when a resize config exists for the panel
---   .Teardown(panelName)      destroy grip window, clear config + live state
+--   .Teardown(panelName)      unregister + destroy grip, clear config + live state
 --   .EnsureGlobalUpHandler()  install the one-time global LButtonUp handler
 --   .Tick()                   per-frame size update while dragging
 --   .End()                    end a live resize drag (called from OnLiveResizeUp)
@@ -111,19 +112,27 @@ end
 
 -- ----- Public API ----------------------------------------------------------
 
---- Creates the grip window for `panelEngineName` if it does not already exist.
---- Returns the grip name when a new grip was created, nil when it already existed.
---- Mongbat.lua must then register the returned name in Windows and call
---- attachRoutableEvents on it.
+--- Creates and fully registers the grip window for `panelEngineName` if it
+--- does not already exist. Self-registers with Systems.Registry and attaches
+--- routable events so engine input dispatches to GripModule. Also installs
+--- the global LButtonUp handler on first use. Idempotent: safe to call every
+--- frame; only does work on first call per panel.
 ---@param panelEngineName string
----@return string? gripName
 function Resize.EnsureGrip(panelEngineName)
     local gripName = Resize.GripNameFor(panelEngineName)
-    if Mongbat.Api.Window.DoesExist(gripName) then return nil end
+    if Mongbat.Api.Window.DoesExist(gripName) then return end
     Mongbat.Api.Window.CreateFromTemplate(gripName, "MongbatResizeGrip", panelEngineName, true)
     Mongbat.Api.Window.ClearAnchors(gripName)
     Mongbat.Api.Window.AddAnchor(gripName, "bottomright", panelEngineName, "bottomright", 0, 0)
-    return gripName
+    local Registry = Systems.Registry
+    Registry.Set(gripName, {
+        module     = GripModule,
+        key        = panelEngineName,
+        id         = 0,
+        engineName = gripName,
+    })
+    Registry.AttachEvents(gripName)
+    Resize.EnsureGlobalUpHandler()
 end
 
 --- Updates (or sets) the resize config for a panel. Must be called before EnsureGrip.
@@ -140,12 +149,14 @@ function Resize.IsConfigured(panelEngineName)
     return ResizableConfig[panelEngineName] ~= nil
 end
 
---- Destroys the grip window, clears the resize config, and ends any live resize
---- for `panelEngineName`. Mongbat.lua must also nil out Windows[gripName].
+--- Unregisters and destroys the grip window, clears the resize config, and
+--- ends any live resize for `panelEngineName`. Idempotent: safe to call when
+--- no grip exists (returns early when never configured).
 ---@param panelEngineName string
 function Resize.Teardown(panelEngineName)
     if not ResizableConfig[panelEngineName] then return end
     local gripName = Resize.GripNameFor(panelEngineName)
+    Systems.Registry.Remove(gripName)
     if Mongbat.Api.Window.DoesExist(gripName) then
         Mongbat.Api.Window.Destroy(gripName)
     end
@@ -166,7 +177,7 @@ function Resize.EnsureGlobalUpHandler()
     )
 end
 
---- Per-frame size update while a live resize drag is active. Called from Core.PerFrame.
+--- Per-frame size update while a live resize drag is active. Called from Mods.PerFrame.
 function Resize.Tick()
     if not LiveResize then return end
     if not Mongbat.Api.Window.DoesExist(LiveResize.window) then

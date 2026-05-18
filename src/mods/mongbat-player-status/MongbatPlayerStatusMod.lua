@@ -168,12 +168,6 @@ function M.OnLButtonUp(name, key)
     end
 end
 
-function M.OnRButtonUp(name, key)
-    if key == "panel" then
-        Api.Window.SetShowing(name, false)
-    end
-end
-
 Mongbat.Mod {
     Name   = "MongbatPlayerStatus",
     Path   = "/src/mods/mongbat-player-status",

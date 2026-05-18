@@ -5,6 +5,68 @@ local Api = {}
 ---@alias Dimensions { x: number, y: number }
 
 -- ========================================================================== --
+-- Table of Contents
+-- ========================================================================== --
+--
+-- All engine wrappers Mongbat exposes, grouped by domain. Jump by name
+-- with your editor's symbol navigator (search `Api.<Name> = {}`).
+--
+--   Global Overrides            Safety-wrapped engine globals
+--
+--   --- Widgets ---
+--   Api.Window                  Window create/destroy, geometry, anchors
+--   Api.Label                   Label text + color
+--   Api.Button                  Button textures, state, click
+--   Api.EditTextBox             Single-line text entry
+--   Api.TextLog                 Scrolling text log
+--   Api.CircleImage             Circle-clipped image
+--   Api.DynamicImage            Runtime-textured image
+--   Api.AnimatedImage           Animation-frame image
+--   Api.Icon                    Inventory icon
+--   Api.StatusBar               Health/mana/etc. bar
+--   Api.Slider                  Slider control
+--   Api.ScrollWindow
+--   Api.HorizontalScrollWindow
+--   Api.PageWindow
+--   Api.ListBox
+--   Api.LogDisplay
+--   Api.ComboBox
+--   Api.ContextMenu
+--   Api.Viewport
+--
+--   --- Input / events ---
+--   Api.Event                   RegisterEventHandler / Unregister
+--   Api.Drag                    Cursor drag-source helpers
+--   Api.Target                  Left/right targeting cursor
+--   Api.UserAction              War mode, paperdoll toggles, etc.
+--
+--   --- World / mobiles ---
+--   Api.Object                  Distance / facing / object queries
+--   Api.Radar                   Radar window + pan helpers
+--   Api.Waypoint                World waypoints
+--   Api.Ability                 Racial abilities
+--   Api.ActionButton            Hotbar action buttons
+--   Api.HealthBar               Mobile health bar lifecycle
+--   Api.ObjectHandle            Object-handle (floating name) chain helpers
+--   Api.GenericGump             Generic-gump lifecycle chain helpers
+--   Api.GumpsParsing            Gumps parsing chain helpers
+--   Api.ItemProperties          Item tooltip data
+--   Api.Equipment               Paperdoll equipment slots
+--
+--   --- Chat / strings ---
+--   Api.Chat                    Send chat / channel switch
+--   Api.String                  Tid lookup, wstring conversions
+--
+--   --- System / lifecycle ---
+--   Api.InterfaceCore           Engine InterfaceCore wrappers
+--   Api.Interface               Customization save/load (booleans, numbers)
+--   Api.Mod                     Mod resource loading
+--   Api.Gump                    Gump lifecycle
+--   Api.CSV                     CSV parsing
+--   Api.Time                    Game time
+-- ========================================================================== --
+
+-- ========================================================================== --
 -- Global Overrides
 -- ========================================================================== --
 
@@ -2757,7 +2819,7 @@ Api.ObjectHandle = {}
 
 local function chainObjectHandleWindow(method, fn)
     if not ObjectHandleWindow then return end
-    local previous = ObjectHandleWindow[method] or function() end
+    local previous = ObjectHandleWindow[method] or function(...) end
     ObjectHandleWindow[method] = function(...)
         previous(...)
         fn(...)

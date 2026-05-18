@@ -26,15 +26,33 @@ Systems.Router = Router
 --- Looks up the active window in the Registry and invokes the owning
 --- mod's matching event function with `(name, key, ...)`. No-op when the
 --- window isn't registered or the module doesn't implement the event.
+---
+--- When `Mongbat.Debugger.SetVerbose(true)` is set, logs every dispatch
+--- attempt — both routed calls and silent no-ops (window not registered,
+--- or registered but module lacks the handler). Useful for diagnosing
+--- "why didn't my handler fire?" without sprinkling prints into mods.
 ---@param eventName string
 local function dispatchActive(eventName, ...)
     local name  = SystemData.ActiveWindow.name
     local entry = Systems.Registry.Get(name)
-    if not entry then return end
+    local verbose = Mongbat.Debugger.IsVerbose()
+    if not entry then
+        if verbose then
+            Mongbat.Debugger.Print("[Mongbat] " .. eventName .. " -> "
+                .. tostring(name) .. " (no registry entry)")
+        end
+        return
+    end
     local fn = entry.module[eventName]
     if fn then
-        Mongbat.Debugger.Print("[Mongbat] " .. eventName .. " -> " .. name .. " (" .. entry.key .. ")")
+        if verbose then
+            Mongbat.Debugger.Print("[Mongbat] " .. eventName .. " -> "
+                .. name .. " (" .. entry.key .. ")")
+        end
         fn(name, entry.key, ...)
+    elseif verbose then
+        Mongbat.Debugger.Print("[Mongbat] " .. eventName .. " -> "
+            .. name .. " (" .. entry.key .. ") — no handler")
     end
 end
 
@@ -101,7 +119,23 @@ EventHandler.OnLButtonUp = function(flags, x, y)
     dispatchActive("OnLButtonUp", flags, x, y)
 end
 
-EventHandler.OnRButtonUp     = function(flags, x, y) dispatchActive("OnRButtonUp",     flags, x, y) end
+EventHandler.OnRButtonUp = function(flags, x, y)
+    local name  = SystemData.ActiveWindow.name
+    local entry = Systems.Registry.Get(name)
+    if not entry then return end
+    -- Mod-level override takes full control.
+    if entry.module["OnRButtonUp"] then
+        dispatchActive("OnRButtonUp", flags, x, y)
+        return
+    end
+    -- Default: dismiss the chain-root subtree containing this window.
+    -- Dismiss auto-clears when the mod stops re-emitting the root, so
+    -- this is non-permanent and safe to apply uniformly.
+    local ref = Systems.Build.GetRoot(name)
+    if ref then
+        Systems.Build.Dismiss(ref.modName, ref.rootKey)
+    end
+end
 EventHandler.OnRButtonDown   = function(flags, x, y) dispatchActive("OnRButtonDown",   flags, x, y) end
 EventHandler.OnLButtonDblClk = function(flags, x, y) dispatchActive("OnLButtonDblClk", flags, x, y) end
 EventHandler.OnMouseOver     = function() dispatchActive("OnMouseOver") end

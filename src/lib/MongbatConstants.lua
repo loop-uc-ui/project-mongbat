@@ -5,6 +5,26 @@ local Constants = {}
 -- ========================================================================== --
 -- Constants
 -- ========================================================================== --
+--
+-- Three patterns live in this file. Use the one that matches the kind of
+-- value you're exposing:
+--
+-- 1. STATIC TABLE — `Constants.TargetType.Mobile = 2`
+--    Plain values that never change. Read directly: `Constants.TargetType.Mobile`.
+--    Use when the engine treats the value as a literal integer / string.
+--
+-- 2. FACTORY FUNCTION — `Constants.Broadcasts.Help() -> integer`
+--    Wraps a lookup into an engine global (e.g. `SystemData.Events[...]`).
+--    Defer to call-site because the engine global may not be populated when
+--    this file loads, or the index string is what we want to encapsulate.
+--    Read with `()`: `Constants.Broadcasts.Help()`.
+--
+-- 3. EVENT DESCRIPTOR — `Constants.SystemEvents.OnX = { getEvent, name }`
+--    Bundle of (a) engine event id (via `:getEvent()`) and (b) the handler
+--    function name to register against it (`"Mongbat.EventHandler.OnX"`).
+--    Used by `Api.Event.RegisterEventHandler` and chained-handler wiring.
+--    Two fields because the engine needs both at registration time.
+-- ========================================================================== --
 
 Constants.TargetType = {
     Mobile = 2,

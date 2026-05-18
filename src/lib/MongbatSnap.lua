@@ -82,7 +82,7 @@ function Snap.BeginDrag(moverName)
     _activeSnap = { mover = moverName, snapped = false, snapX = nil, snapY = nil } --[[@as SnapState]]
 end
 
---- Per-frame edge detection. Called from Core.PerFrame.
+--- Per-frame edge detection. Called from Mods.PerFrame.
 function Snap.Tick()
     if not _activeSnap then return end
     local mover = _activeSnap.mover

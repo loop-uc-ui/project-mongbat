@@ -674,8 +674,7 @@ end
 ---@return integer
 function PaperdollData:getNumSlots()
     local data = self:getData()
-    if data then return data.numSlots or 0 end
-    return 0
+    return (data and data.numSlots) or 0
 end
 
 --- Gets the slot data for a given index.
@@ -683,8 +682,7 @@ end
 ---@return PaperdollSlot|nil
 function PaperdollData:getSlot(index)
     local data = self:getData()
-    if data then return data[index] end
-    return nil
+    return data and data[index]
 end
 
 ---@param id integer The paperdoll entity ID
@@ -720,39 +718,32 @@ end
 function PaperdollTexture:getWidth()
     local data = self:getData()
     if not data then return 0 end
-    local w = data.Width
-    if data.IsLegacy == 1 then w = w * 2 end
-    return w
+    return data.IsLegacy == 1 and data.Width * 2 or data.Width
 end
 
 ---@return number Texture height (doubled for legacy textures)
 function PaperdollTexture:getHeight()
     local data = self:getData()
     if not data then return 0 end
-    local h = data.Height
-    if data.IsLegacy == 1 then h = h * 2 end
-    return h
+    return data.IsLegacy == 1 and data.Height * 2 or data.Height
 end
 
 ---@return number X offset for anchoring
 function PaperdollTexture:getXOffset()
     local data = self:getData()
-    if not data then return 0 end
-    return data.xOffset
+    return (data and data.xOffset) or 0
 end
 
 ---@return number Y offset for anchoring
 function PaperdollTexture:getYOffset()
     local data = self:getData()
-    if not data then return 0 end
-    return data.yOffset
+    return (data and data.yOffset) or 0
 end
 
 ---@return boolean Whether this is a legacy texture
 function PaperdollTexture:isLegacy()
     local data = self:getData()
-    if not data then return false end
-    return data.IsLegacy == 1
+    return data ~= nil and data.IsLegacy == 1
 end
 
 ---@return string The engine texture name for this paperdoll

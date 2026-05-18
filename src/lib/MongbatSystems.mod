@@ -20,6 +20,7 @@
 			<File name="MongbatSnap.lua"/>
 			<File name="MongbatResize.lua"/>
 			<File name="MongbatDrag.lua"/>
+			<File name="MongbatMods.lua"/>
 		</Files>
 
 	</UiMod>
