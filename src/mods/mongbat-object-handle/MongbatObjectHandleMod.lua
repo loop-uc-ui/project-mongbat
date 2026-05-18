@@ -57,7 +57,6 @@ function M.Build(emit)
 
         emit(frameKey(h.id), {
             template = "MongbatWindow",
-            id       = h.id,
             widget   = frame,
         })
 
@@ -73,7 +72,6 @@ function M.Build(emit)
         emit(labelKey(h.id), {
             template = "MongbatLabel",
             parent   = frameKey(h.id),
-            id       = h.id,
             widget   = label,
         })
     end)

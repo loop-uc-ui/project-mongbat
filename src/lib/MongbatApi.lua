@@ -2527,6 +2527,13 @@ function Api.InterfaceCore.GetScaleFactor()
     return 1 / InterfaceCore.scale
 end
 
+---
+--- Gets the raw UI scale (screen pixels per logical pixel).
+---@return number The UI scale.
+function Api.InterfaceCore.GetScale()
+    return InterfaceCore.scale
+end
+
 --- Triggers a full UI reload.
 function Api.InterfaceCore.ReloadUI()
     InterfaceCore.ReloadUI()

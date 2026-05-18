@@ -1,4 +1,4 @@
-﻿-- Suppresses the pet training progress gump by intercepting GumpsParsing's
+-- Suppresses the pet training progress gump by intercepting GumpsParsing's
 -- per-frame parsing pass and clearing the entry before the engine can show
 -- it. No windows; pure init-time hook via Api.GumpsParsing.
 

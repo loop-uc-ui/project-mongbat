@@ -1,0 +1,118 @@
+---@diagnostic disable: undefined-global
+-- ========================================================================== --
+-- _Mongbat.Systems.Router: Event dispatch + EventHandler table
+-- ========================================================================== --
+--
+-- Owns the Mongbat.EventHandler table that XML templates and runtime
+-- RegisterCoreEventHandler calls point at. Each handler looks up the
+-- active window in the Registry and calls the matching method on its
+-- owning mod's module table.
+--
+-- OnLButtonDown/Up additionally orchestrate drag (Drag system) and
+-- snap (Snap system). OnLiveResizeUp ends a live resize (Resize system).
+--
+-- Public surface: _Mongbat.Systems.Router
+--   .EventHandler   table assigned to Mongbat.EventHandler at boot
+--   .Dispatch(eventName, ...)  dispatch an event to the active window
+
+local Systems = _Mongbat.Systems
+
+---@class Router
+local Router = {}
+Systems.Router = Router
+
+-- ----- Dispatch ------------------------------------------------------------
+
+--- Looks up the active window in the Registry and invokes the owning
+--- mod's matching event function with `(name, key, ...)`. No-op when the
+--- window isn't registered or the module doesn't implement the event.
+---@param eventName string
+local function dispatchActive(eventName, ...)
+    local name  = SystemData.ActiveWindow.name
+    local entry = Systems.Registry.Get(name)
+    if not entry then return end
+    local fn = entry.module[eventName]
+    if fn then
+        Mongbat.Debugger.Print("[Mongbat] " .. eventName .. " -> " .. name .. " (" .. entry.key .. ")")
+        fn(name, entry.key, ...)
+    end
+end
+
+Router.Dispatch = dispatchActive
+
+-- ----- EventHandler table --------------------------------------------------
+
+---@class EventHandler
+local EventHandler = {}
+Router.EventHandler = EventHandler
+
+EventHandler.OnInitialize    = function() dispatchActive("OnInitialize") end
+EventHandler.OnShutdown      = function() dispatchActive("OnShutdown") end
+EventHandler.OnShown         = function() dispatchActive("OnShown") end
+EventHandler.OnHidden        = function() dispatchActive("OnHidden") end
+
+-- OnLButtonDown/Up orchestrate drag + snap using the sub-systems.
+-- Drag owns the active-drag state; Snap owns the snap preview.
+
+EventHandler.OnLButtonDown = function(flags, x, y)
+    local name  = SystemData.ActiveWindow.name
+    local entry = Systems.Registry.Get(name)
+    if entry then
+        local mp    = Mongbat.Data.MousePosition()
+        local mover = entry.draggableRoot
+        if mover then
+            Mongbat.Api.Window.SetMoving(mover, true)
+            local moverEntry = Systems.Registry.Get(mover)
+            if moverEntry and moverEntry.snappable then
+                Systems.Snap.BeginDrag(mover)
+            end
+        end
+        Systems.Drag.Begin({
+            engineName = entry.engineName,
+            key        = entry.key,
+            module     = entry.module,
+            mover      = mover,
+            mx         = mp.x,
+            my         = mp.y,
+        })
+    else
+        Systems.Drag.Clear()
+    end
+    dispatchActive("OnLButtonDown", flags, x, y)
+end
+
+EventHandler.OnLButtonUp = function(flags, x, y)
+    local drag = Systems.Drag.GetActive()
+    Systems.Drag.Clear()
+    if drag then
+        if drag.mover then Mongbat.Api.Window.SetMoving(drag.mover, false) end
+        Systems.Snap.Commit()
+        local mp = Mongbat.Data.MousePosition()
+        if mp.x ~= drag.mx or mp.y ~= drag.my then
+            return  -- mouse moved: window was dragged, suppress click
+        end
+        -- Mouse did not move: dispatch Up to the original down-window.
+        -- This handles the case where LButtonUp fires on a child window
+        -- rather than the window that received LButtonDown.
+        local fn = drag.module["OnLButtonUp"]
+        if fn then fn(drag.engineName, drag.key, flags, x, y) end
+        return
+    end
+    dispatchActive("OnLButtonUp", flags, x, y)
+end
+
+EventHandler.OnRButtonUp     = function(flags, x, y) dispatchActive("OnRButtonUp",     flags, x, y) end
+EventHandler.OnRButtonDown   = function(flags, x, y) dispatchActive("OnRButtonDown",   flags, x, y) end
+EventHandler.OnLButtonDblClk = function(flags, x, y) dispatchActive("OnLButtonDblClk", flags, x, y) end
+EventHandler.OnMouseOver     = function() dispatchActive("OnMouseOver") end
+EventHandler.OnMouseOverEnd  = function() dispatchActive("OnMouseOverEnd") end
+EventHandler.OnMouseWheel    = function(x, y, delta) dispatchActive("OnMouseWheel", x, y, delta) end
+EventHandler.OnSlide         = function(value) dispatchActive("OnSlide", value) end
+EventHandler.OnSelChanged    = function(...) dispatchActive("OnSelChanged", ...) end
+EventHandler.OnEditBoxChanged   = function() dispatchActive("OnEditBoxChanged") end
+EventHandler.OnEditBoxKeyEscape = function() dispatchActive("OnEditBoxKeyEscape") end
+EventHandler.OnEditBoxKeyReturn = function() dispatchActive("OnEditBoxKeyReturn") end
+EventHandler.OnEditBoxKeyTab    = function() dispatchActive("OnEditBoxKeyTab") end
+
+-- Ends a live resize drag regardless of where the cursor is when released.
+EventHandler.OnLiveResizeUp = function() Systems.Resize.End() end

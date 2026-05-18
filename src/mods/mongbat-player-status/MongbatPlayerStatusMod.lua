@@ -1,4 +1,4 @@
-﻿-- Player status panel: name + HP / Mana / Stamina bars. Hijacks the default
+-- Player status panel: name + HP / Mana / Stamina bars. Hijacks the default
 -- StatusWindow and WarShield so this mod owns presentation entirely.
 --
 -- Pattern: declarative. M.Build(emit) runs every frame; the lib diffs and
