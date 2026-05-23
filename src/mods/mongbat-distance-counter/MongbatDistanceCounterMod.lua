@@ -8,7 +8,9 @@
 local UI        = Mongbat.UI
 local Api       = Mongbat.Api
 local Data      = Mongbat.Data
+local Utils     = Mongbat.Utils
 local Constants = Mongbat.Constants
+local Number    = Utils.Number
 
 -- Pixels per tile in the 2:1 isometric projection at default camera zoom.
 local PIXELS_PER_TILE = 64
@@ -36,7 +38,7 @@ local function compute()
 
     local pos = Data.MousePosition()
     local mx, my = pos.x, pos.y
-    if mx < vpX or mx > vpX + vpW or my < vpY or my > vpY + vpH then
+    if not Number.IsBetween(mx, vpX, vpX + vpW) or not Number.IsBetween(my, vpY, vpY + vpH) then
         return nil
     end
 

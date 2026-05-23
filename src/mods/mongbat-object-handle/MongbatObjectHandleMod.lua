@@ -38,7 +38,8 @@ function M.Build(emit)
         metaById[h.id] = { isMobile = h.isMobile, name = h.name }
 
         local color = Constants.Colors.Notoriety[h.notoriety]
-        local width = #h.name * CHAR_W + FRAME_PADDING
+    local nameWidth = Utils.String.Len(h.name) * CHAR_W
+    local width = nameWidth + FRAME_PADDING
 
         local frame = UI.Window()
             :setDimensions(width, LABEL_H)
@@ -57,7 +58,7 @@ function M.Build(emit)
         })
 
         local label = UI.Label()
-            :setDimensions(#h.name * CHAR_W, LABEL_H)
+            :setDimensions(nameWidth, LABEL_H)
             :setId(h.id)
             :clearAnchors()
             :addAnchor("center", "parent", "center", 0, 0)

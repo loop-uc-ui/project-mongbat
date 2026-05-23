@@ -19,6 +19,7 @@
 --   .Cancel()                destroy preview; clear state without anchoring
 
 local Systems = _Mongbat.Systems
+local Number = Mongbat.Utils.Number
 
 --- Active snap tracking state.
 ---@class SnapState
@@ -140,8 +141,8 @@ function Snap.Tick()
                 local d = math.abs(mx - (tx + tw))
                 if d < bestDist then
                     bestDist = d
-                    bestX = math.floor((tx + tw) / scale + 0.5)
-                    bestY = math.floor(my / scale + 0.5)
+                    bestX = Number.Round((tx + tw) / scale)
+                    bestY = Number.Round(my / scale)
                 end
             end
 
@@ -150,8 +151,8 @@ function Snap.Tick()
                 local d = math.abs((mx + mw) - tx)
                 if d < bestDist then
                     bestDist = d
-                    bestX = math.floor((tx - mw) / scale + 0.5)
-                    bestY = math.floor(my / scale + 0.5)
+                    bestX = Number.Round((tx - mw) / scale)
+                    bestY = Number.Round(my / scale)
                 end
             end
 
@@ -160,8 +161,8 @@ function Snap.Tick()
                 local d = math.abs(my - (ty + th))
                 if d < bestDist then
                     bestDist = d
-                    bestX = math.floor(mx / scale + 0.5)
-                    bestY = math.floor((ty + th) / scale + 0.5)
+                    bestX = Number.Round(mx / scale)
+                    bestY = Number.Round((ty + th) / scale)
                 end
             end
 
@@ -170,8 +171,8 @@ function Snap.Tick()
                 local d = math.abs((my + mh) - ty)
                 if d < bestDist then
                     bestDist = d
-                    bestX = math.floor(mx / scale + 0.5)
-                    bestY = math.floor((ty - mh) / scale + 0.5)
+                    bestX = Number.Round(mx / scale)
+                    bestY = Number.Round((ty - mh) / scale)
                 end
             end
         end

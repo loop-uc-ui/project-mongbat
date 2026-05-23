@@ -371,6 +371,48 @@ function Utils.Table.MapToArray(_table, forEach)
 end
 
 -- ========================================================================== --
+-- Utils - Number
+-- ========================================================================== --
+
+Utils.Number = {}
+
+---@param value number
+---@param min number
+---@param max number
+---@return number
+function Utils.Number.Clamp(value, min, max)
+    return math.max(min, math.min(max, value))
+end
+
+---@param value number
+---@return integer
+function Utils.Number.Round(value)
+    return math.floor(value + 0.5)
+end
+
+---@param value number
+---@param min number
+---@return number
+function Utils.Number.AtLeast(value, min)
+    return math.max(value, min)
+end
+
+---@param current number
+---@param max number
+---@return number
+function Utils.Number.Ratio(current, max)
+    return Utils.Number.Clamp(Utils.Number.AtLeast(current, 0) / Utils.Number.AtLeast(max, 1), 0, 1)
+end
+
+---@param value number
+---@param min number
+---@param max number
+---@return boolean
+function Utils.Number.IsBetween(value, min, max)
+    return value >= min and value <= max
+end
+
+-- ========================================================================== --
 -- Utils - String
 -- ========================================================================== --
 
@@ -447,6 +489,13 @@ function Utils.String.Find(haystack, needle)
         return wstring.find(haystack, needle)
     end
     return string.find(haystack, needle)
+end
+
+---@param text string|wstring
+---@param pattern string|wstring
+---@return string?
+function Utils.String.Match(text, pattern)
+    return string.match(Utils.String.FromWString(text), Utils.String.FromWString(pattern))
 end
 
 ---@param fmt string

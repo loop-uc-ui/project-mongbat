@@ -13,7 +13,7 @@ area lives only in `src/lib/**`, exposed through:
 
 - `Mongbat.Api` — wraps engine functions (`Api.Window.*`, `Api.Label.*`, ...)
 - `Mongbat.Data` — wraps `WindowData.*` with nil-safe typed accessors
-- `Mongbat.Utils` — `Utils.String/Table/Array` (string utils dispatch on
+- `Mongbat.Utils` — `Utils.String/Table/Array/Number` (string utils dispatch on
   `string|wstring`)
 - `Mongbat.Constants` — `Constants.Colors`, `WindowLayers`, `GumpIds`, etc.
 - `Mongbat.Debugger` — wraps `Debug.*` (`Print`, `PrintToChat`,

@@ -170,7 +170,7 @@ end
 
 local function slotIndexFromKey(key)
     if type(key) ~= "string" then return nil end
-    local s = key:match("^slot(%d+)$")
+    local s = Utils.String.Match(key, "^slot(%d+)$")
     return s and tonumber(s) or nil
 end
 

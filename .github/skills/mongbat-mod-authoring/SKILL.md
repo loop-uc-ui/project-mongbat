@@ -22,7 +22,7 @@ Mods reference ONLY:
 
 - `Mongbat.Api` — engine function wrappers
 - `Mongbat.Data` — `WindowData.*` accessor wrappers (nil-safe)
-- `Mongbat.Utils` — `Utils.String/Table/Array`
+- `Mongbat.Utils` — `Utils.String/Table/Array/Number`
 - `Mongbat.Constants` — `Colors`, `WindowLayers`, `GumpIds`, etc.
 - `Mongbat.Debugger` — `Debug.*` wrappers (`Print`, `PrintToChat`, `Dump`, ...)
 - `Mongbat.UI` — declarative widget builders (Window, Label, Button, DynamicImage, EditBox, TextLog)

@@ -28,6 +28,7 @@
 --   .End()                    end a live resize drag (called from OnLiveResizeUp)
 
 local Systems = _Mongbat.Systems
+local Number = Mongbat.Utils.Number
 
 --- Per-panel resize configuration stored by Mongbat.lua via SetConfig.
 ---@class ResizeConfig
@@ -199,8 +200,8 @@ function Resize.Tick()
         return
     end
     local mp   = Mongbat.Data.MousePosition()
-    local newW = math.max(cfg.minW, LiveResize.startW + (mp.x - LiveResize.startMx))
-    local newH = math.max(cfg.minH, LiveResize.startH + (mp.y - LiveResize.startMy))
+    local newW = Number.AtLeast(LiveResize.startW + (mp.x - LiveResize.startMx), cfg.minW)
+    local newH = Number.AtLeast(LiveResize.startH + (mp.y - LiveResize.startMy), cfg.minH)
     if cfg.state.w ~= newW or cfg.state.h ~= newH then
         if not Mongbat.Api.Window.DoesExist(LiveResize.window) then
             LiveResize = nil

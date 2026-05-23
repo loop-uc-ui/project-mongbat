@@ -8,7 +8,9 @@
 local UI        = Mongbat.UI
 local Api       = Mongbat.Api
 local Data      = Mongbat.Data
+local Utils     = Mongbat.Utils
 local Constants = Mongbat.Constants
+local Number    = Utils.Number
 
 -- Initial / minimum sizes. Once the user resizes, layout.w/h drive
 -- everything; the proportions below decide how inner space is divided.
@@ -39,10 +41,9 @@ end
 -- Emit one bar row. `yOffset` is the absolute y offset from panel.topleft.
 -- `barW` / `barH` are derived from the panel size in Build.
 local function emitBar(emit, key, yOffset, current, max, color, barW, barH)
-    local cur = math.max(current, 0)
-    local mx  = math.max(max, 1)
-    local pct = math.min(cur / mx, 1)
-    local fillWidth = math.floor(barW * pct + 0.5)
+    local cur = Number.AtLeast(current, 0)
+    local mx  = Number.AtLeast(max, 1)
+    local fillWidth = Number.Round(barW * Number.Ratio(current, max))
 
     emit(key, {
         template = "MongbatStatusBar",
@@ -68,7 +69,7 @@ local function emitBar(emit, key, yOffset, current, max, color, barW, barH)
         template = "MongbatLabel",
         parent   = key,
         widget   = UI.Label()
-            :setText(string.format("%d / %d", cur, mx))
+            :setText(Utils.String.Format("%d / %d", cur, mx))
             :setDimensions(barW, barH)
             :onlyOnCreate()
                 :clearAnchors()
@@ -88,9 +89,9 @@ function M.Build(emit)
     local id = p:getId()
     if id == 0 then return end
 
-    local maxHealth  = math.max(p:getMaxHealth(),  1)
-    local maxMana    = math.max(p:getMaxMana(),    1)
-    local maxStamina = math.max(p:getMaxStamina(), 1)
+    local maxHealth  = Number.AtLeast(p:getMaxHealth(),  1)
+    local maxMana    = Number.AtLeast(p:getMaxMana(),    1)
+    local maxStamina = Number.AtLeast(p:getMaxStamina(), 1)
 
     local healthColor = Data.HealthBarColor(id):getVisualStateColor()
         or Constants.Colors.HealhBar[1]
@@ -107,7 +108,7 @@ function M.Build(emit)
     local innerH    = layout.h - 2 * PAD
     local nameH     = NAME_H
     local barsAreaH = innerH - nameH - NUM_BARS * SPACING
-    local barH      = math.max(1, math.floor(barsAreaH / NUM_BARS + 0.5))
+    local barH      = Number.AtLeast(Number.Round(barsAreaH / NUM_BARS), 1)
 
     emit("panel", {
         template  = "MongbatWindow",
@@ -147,15 +148,15 @@ end
 -- ---- Click handling on the outer panel ---------------------------------
 
 
-function M.OnLButtonDblClk(_name, key)
-    if key == "panel" then
+function M.OnLButtonDblClk(window)
+    if window.key == "panel" then
         local id = Data.PlayerStatus():getId()
         if id ~= 0 then Api.UserAction.UseItem(id) end
     end
 end
 
-function M.OnLButtonUp(name, key)
-    if key ~= "panel" then return end
+function M.OnLButtonUp(window)
+    if window.key ~= "panel" then return end
     local id = Data.PlayerStatus():getId()
     if id == 0 then return end
     if Data.Drag():isDraggingItem() then

@@ -12,6 +12,7 @@ local Api       = Mongbat.Api
 local Data      = Mongbat.Data
 local Utils     = Mongbat.Utils
 local Constants = Mongbat.Constants
+local Number    = Utils.Number
 
 -- Engine name override: the default UI's MapCommon module references
 -- "MapWindow" by name, so we hijack it.
@@ -49,7 +50,7 @@ local state = {
 local function adjustZoom(delta)
     local z = state.zoom
     local step = z.current < 0.0 and 0.2 or z.step
-    z.current = math.max(z.min, math.min(z.max, z.current + delta * step))
+    z.current = Number.Clamp(z.current + delta * step, z.min, z.max)
     Api.Radar.SetZoom(z.current)
 end
 
@@ -89,11 +90,11 @@ local function applyRadarSize(w, h)
 end
 
 local function getContentSize()
-    return math.max(1, layout.w - MARGIN * 2), math.max(1, layout.h - MARGIN * 2)
+    return Number.AtLeast(layout.w - MARGIN * 2, 1), Number.AtLeast(layout.h - MARGIN * 2, 1)
 end
 
 local function applyPanelSizeToRadar(panelW, panelH)
-    applyRadarSize(math.max(1, panelW - MARGIN * 2), math.max(1, panelH - MARGIN * 2))
+    applyRadarSize(Number.AtLeast(panelW - MARGIN * 2, 1), Number.AtLeast(panelH - MARGIN * 2, 1))
 end
 
 local function formatLocationText()
