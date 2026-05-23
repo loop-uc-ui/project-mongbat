@@ -54,6 +54,10 @@ local function adjustZoom(delta)
     Api.Radar.SetZoom(z.current)
 end
 
+local function isMapWindow(window)
+    return window.rootKey == "panel"
+end
+
 local function initializeZoom()
     local facet   = Api.Radar.GetFacet()
     local area    = Api.Radar.GetArea()
@@ -204,7 +208,8 @@ end
 -- ---- Routed events --------------------------------------------------
 
 function M.OnMouseWheel(window, _x, _y, delta)
-    if window.key == "map" then adjustZoom(-delta) end
+    if not isMapWindow(window) then return end
+    adjustZoom(-delta)
 end
 
 function M.OnLButtonDown(window, flags)
