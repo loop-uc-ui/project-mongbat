@@ -147,15 +147,15 @@ end
 -- ---- Click handling on the outer panel ---------------------------------
 
 
-function M.OnLButtonDblClk(window)
-    if window.key == "panel" then
+function M.OnLButtonDblClk(_name, key)
+    if key == "panel" then
         local id = Data.PlayerStatus():getId()
         if id ~= 0 then Api.UserAction.UseItem(id) end
     end
 end
 
-function M.OnLButtonUp(window)
-    if window.key ~= "panel" then return end
+function M.OnLButtonUp(name, key)
+    if key ~= "panel" then return end
     local id = Data.PlayerStatus():getId()
     if id == 0 then return end
     if Data.Drag():isDraggingItem() then
