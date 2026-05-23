@@ -1,76 +1,96 @@
 # Mongbat
 
-A Lua framework and mod collection for the **Ultima Online: Enhanced Client**
-UI. Mongbat is a thin **router**: each mod is a Lua module table `M` that
-registers windows via `Mongbat.CreateWindow{...}` and implements lifecycle
-methods (`OnLoad`, `OnUnload`, `OnUpdate`, `On<Event>(name, key, ...)`).
-The framework dispatches engine events on a window to its owning mod and
-otherwise stays out of the way — mods own all state in plain Lua tables.
+Mongbat is a Lua framework and mod collection for the **Ultima Online:
+Enhanced Client** UI. It provides a small declarative UI layer over the EC
+window system, plus a set of replacement and quality-of-life mods built on top
+of that layer.
+
+The framework lives in `src/lib/`. Mods live in `src/mods/mongbat-<name>/`.
+
+## What Mongbat Provides
+
+- A declarative `M.Build(emit)` model for creating, updating, and destroying EC
+  windows.
+- Routed window events: engine events are delivered to the owning mod as
+  `M.On<Event>(window, ...)`, where `window.key`, `window.name`, `window.id`,
+  and `window.rootKey` describe the emitted window.
+- Framework wrappers for EC globals through `Mongbat.Api`, `Mongbat.Data`,
+  `Mongbat.UI`, `Mongbat.Utils`, `Mongbat.Constants`, and
+  `Mongbat.Debugger`.
+- Automatic `WindowData` registration for emitted windows, including ref-counted
+  cleanup when windows leave the emitted set.
+- Built-in support for draggable, snappable, and resizable declarative windows.
+- A hard boundary that keeps direct EC globals out of mods.
 
 ## Repository Layout
 
-```
+```text
 src/
-  lib/                          The framework
-    Mongbat.lua                 Substrate, Api, Data, Utils, Constants,
-                                CreateWindow/RegisterWindow/...,
-                                Mod/ModManager, EventHandler dispatch
-    Mongbat.xml                 Window templates referenced by CreateWindow
-    Mongbat.mod                 EC mod manifest
-    *.dds                       Texture atlases
-  mods/                         One folder per mod
-    mongbat-<name>/
-      Mongbat<Name>Mod.lua      Module table M + Mongbat.Mod{...} declaration
-      Mongbat<Name>.mod         EC mod manifest
-      [Mongbat<Name>.xml]       Optional per-mod templates
-docs/                           Reference XSD + dumped default-UI XML
-types/Engine.lua                Lua-LS type stubs for engine globals
-Fonts/                          Embedded font definitions
-.github/                        CI, copilot instructions, prompts, skills
+  lib/
+    Mongbat.lua                 Public bootstrap and mod registration
+    Mongbat.mod                 Framework EC manifest
+    Mongbat.xml                 Shared XML templates and textures
+    api/                        Api wrappers around EC functions
+    core/                       Utils, constants, debugger, internal setup
+    systems/                    Build, router, registry, data, snap, resize
+    ui/                         Declarative widget builders and default UI helpers
+  mods/
+    mongbat-<name>/             One EC mod per folder
+      Mongbat<Name>.mod         Mod manifest
+      Mongbat<Name>Mod.lua      Module table, Build, handlers, declaration
+docs/                           Local EC/default-UI reference files
+Fonts/                          Bundled font definitions
+types/                          Lua language server stubs for EC globals
+.github/skills/                 Detailed project workflows for agents/contributors
 ```
 
-## Framework Design
+## Included Mods
 
-Mongbat draws a clear boundary between the framework and mod code. Engine
-globals (`WindowData`, `SystemData`, `GenericGump`, `GumpsParsing`,
-`ObjectHandleWindow`, `InterfaceCore`, `wstring`, `EquipmentData`, etc.) are
-wrapped inside `src/lib/Mongbat.lua` and exposed to mods through:
+| Mod | Purpose |
+|---|---|
+| `mongbat-main-menu` | Replaces `MainMenuWindow` with a Mongbat-styled vertical menu. |
+| `mongbat-player-status` | Replaces the default status window with a resizable HP/mana/stamina panel. |
+| `mongbat-map` | Replaces `MapWindow` with a resizable radar map, panning, wheel zoom, and coordinates. |
+| `mongbat-object-handle` | Replaces object handles with declarative floating labels for mobiles and items. |
+| `mongbat-paperdoll` | Replaces the player paperdoll with grid and figure modes. |
+| `mongbat-debug` | Replaces the debug window with full and filtered log views. |
+| `mongbat-distance-counter` | Shows cursor distance while targeting. |
+| `mongbat-classic-vendor-search` | Forces vendor search gumps through the classic GenericGump path and recolors labels. |
+| `mongbat-suppress-pet-training-gump` | Suppresses the pet training progress gump. |
 
-- `Mongbat.Api` — engine function wrappers (`Api.Window.*`, `Api.Label.*`, …)
-- `Mongbat.Data` — nil-safe typed accessors over `WindowData.*`
-- `Mongbat.Utils` — `Utils.String` / `Utils.Table` / `Utils.Array`
-- `Mongbat.Constants` — colors, window layers, gump IDs
-- `Mongbat.Debugger` — `Print`, `Dump`, `PrintToChat`, `PrintToDebugConsole`
-- Window registry — `Mongbat.CreateWindow`, `RegisterWindow`, `DestroyWindow`,
-  `UnregisterWindow`, `GetWindow`
+## Framework Model
 
-Mods interact only through these namespaces. When something isn't yet
-exposed, the pattern is to add a wrapper to the lib and consume it from
-the mod.
-
-## Anatomy of a Mod (sketch)
-
-A mod is a Lua module table `M` plus a `Mongbat.Mod{...}` declaration:
+Mods do not create or destroy windows imperatively. Each frame, the framework
+calls `M.OnUpdate(dt)` if present, then `M.Build(emit)`. The mod emits the set
+of windows it wants to exist for that frame:
 
 ```lua
-local Api = Mongbat.Api
+local UI = Mongbat.UI
+
 local M = {}
 
-function M.OnLoad()
-    Mongbat.CreateWindow {
-        name     = "MongbatExampleWindow",
-        template = "MongbatWindow",
-        module   = M,
-        bindings = { "PlayerStatus" },   -- optional WindowData subscriptions
-    }
+function M.Build(emit)
+    emit("panel", {
+        template  = "MongbatWindow",
+        draggable = true,
+        widget    = UI.Window():setDimensions(220, 120),
+    })
+
+    emit("label", {
+        template = "MongbatLabel",
+        parent   = "panel",
+        widget   = UI.Label()
+            :setText("Hello")
+            :setDimensions(180, 24)
+            :setOffsetFromParent(20, 20),
+    })
 end
 
-function M.OnUnload()
-    Mongbat.DestroyWindow("MongbatExampleWindow")
+function M.OnLButtonUp(window, flags, x, y)
+    if window.key == "label" then
+        -- handle the click
+    end
 end
-
-function M.OnLButtonUp(name, key, flags, x, y) ... end
-function M.OnUpdatePlayerStatus(name, key, data) ... end
 
 Mongbat.Mod {
     Name   = "MongbatExample",
@@ -79,54 +99,69 @@ Mongbat.Mod {
 }
 ```
 
-The full mod-authoring workflow — lifecycle method reference,
-`CreateWindow` options, every `Data.*` wrapper, iteration helpers, the
-`Api.Window.Destroy` vs chain-helper distinction, anti-patterns, and
-canonical example mods — lives in
-[.github/skills/mongbat-mod-authoring/SKILL.md](.github/skills/mongbat-mod-authoring/SKILL.md).
+The Build system diffs the emitted set against the previous frame. New keys are
+created, existing keys are re-applied, and missing keys are destroyed. Child
+windows use `parent = "someKey"`, not engine names.
 
-### Notable Api Wrappers
+## Mod Boundary
 
-- `Api.GenericGump.OnShown(fn)` / `Api.GenericGump.GetLastLabels()`
-- `Api.GumpsParsing.SetGumpName(id, name)` / `SuppressGump(id)`
-- `Api.HealthBar.BeginDrag(id)`
-- `Api.Window.GetActiveName()`
-- `Utils.String.Lower/Upper/Len/Find/IsEmpty` — type-dispatched on
-  `string|wstring`, preserving input type.
-- `Mongbat.Debugger.Print/Dump/PrintToChat/PrintToDebugConsole` — wraps
-  `Debug.*` for ad-hoc debug output from both lib and mod code.
+Mods should only use the Mongbat public surface:
 
-## Building & Deploying
+- `Mongbat.Api` for wrapped EC functions.
+- `Mongbat.Data` for nil-safe `WindowData` accessors.
+- `Mongbat.UI` for declarative widgets.
+- `Mongbat.Utils.String`, `Mongbat.Utils.Table`, `Mongbat.Utils.Array`, and
+  `Mongbat.Utils.Number` for common helpers.
+- `Mongbat.Constants` for colors, layers, IDs, and other shared constants.
+- `Mongbat.Debugger` for debug output.
+- `Mongbat.UI.Defaults` for default-UI suppression and action overrides.
 
-The repo is the source of truth; the EC loads UI from a separate folder:
+Direct EC globals such as `WindowData`, `SystemData`, `GenericGump`,
+`GumpsParsing`, `ObjectHandleWindow`, `InterfaceCore`, `wstring`, `WindowGetId`,
+and `Debug` belong in `src/lib/**`, not in mods. If a mod needs engine behavior
+that is not wrapped yet, add the wrapper to the framework first.
 
+## Developing
+
+1. Edit files under `src/`.
+2. Run diagnostics in VS Code. Changed mod files should have zero diagnostics.
+3. Deploy to the EC UI folder with the `Deploy to EC` task.
+4. Test in the Enhanced Client.
+5. If the client fails at runtime, read the EC Lua log first and trace the
+   earliest error.
+
+Deployment copies `.lua`, `.xml`, `.mod`, and `.dds` files from `src/` to:
+
+```text
+C:\Program Files (x86)\Electronic Arts\Ultima Online Enhanced\UserInterface\project-mongbat
 ```
-C:\Program Files (x86)\Electronic Arts\
-  Ultima Online Enhanced\UserInterface\project-mongbat
-```
 
-Changes are **not live until copied there** (Program Files writes require
-admin). Always verify the deployed file matches the repo before debugging.
+Text files should be written as UTF-8 without BOM. This matters because the EC
+Lua runtime cannot parse a UTF-8 BOM at the start of Lua files.
 
-## Type Checking
+## Default UI Reference
 
-`types/Engine.lua` provides Lua Language Server stubs for engine globals,
-configured by `.luarc.json`. **Mod files should produce zero diagnostics.**
-Lib-side warnings about undefined engine globals are expected — the lib is
-where those globals legally live.
+When wrapping new engine behavior or debugging client behavior, compare against
+the default UI before inventing a mechanism.
 
-## Default-UI Reference (Upstream Ground Truth)
+- Source: <https://github.com/loop-uc-ui/enhanced-client-default>
+- Docs: <https://loop-uc-ui.github.io/enhanced-client-default-docs/>
+- Local mirror: [`docs/`](docs/)
 
-The Enhanced Client default UI is the source of truth for how the engine
-actually behaves. When wrapping a new engine global or debugging an
-unexpected interaction, consult upstream **before** inventing a mechanism:
+The local `docs/` folder includes EC files that are not available in the public
+default-UI repository, such as `InterfaceCore.txt`, `UO_GenericGump.txt`,
+`UO_DefaultWindow.txt`, `UO_StandardDialog.txt`, `singelinetextentry.txt`, and
+`Interface.xsd`.
 
-- **Source:** <https://github.com/loop-uc-ui/enhanced-client-default>
-- **Docs:**   <https://loop-uc-ui.github.io/enhanced-client-default-docs/>
+## Contributor Notes
 
-The [`docs/`](docs/) folder mirrors a few engine-level files extracted from
-the EC binary (`InterfaceCore.txt`, `UO_GenericGump.txt`,
-`UO_DefaultWindow.txt`, `UO_StandardDialog.txt`, `singelinetextentry.txt`,
-`Interface.xsd`) — these are not in the upstream repo. The
-[research-default-ui SKILL](.github/skills/research-default-ui/SKILL.md)
-documents how to fetch source and look things up.
+The detailed project workflows live under `.github/skills/`:
+
+- [Mod authoring](.github/skills/mongbat-mod-authoring/SKILL.md)
+- [Framework development](.github/skills/mongbat-framework-dev/SKILL.md)
+- [Mod verification](.github/skills/mongbat-mod-verification/SKILL.md)
+- [Runtime error recovery](.github/skills/mongbat-error-recovery/SKILL.md)
+- [Default UI research](.github/skills/research-default-ui/SKILL.md)
+
+Those files are more prescriptive than this README. The README is the overview;
+the skills are the working checklists.
