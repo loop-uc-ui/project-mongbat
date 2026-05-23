@@ -9,13 +9,14 @@
 -- still fire on engine events and reach for child windows that no longer
 -- exist, spraying anchor errors into the log.
 --
--- `Mongbat.UI.Defaults.Suppress(moduleName, fnName?)`
+-- `Mongbat.UI.Defaults.Suppress(moduleName, fnName?, observer?)`
 --   Replaces functions on the named default-UI module with no-ops. With a
 --   `fnName` only that entry is suppressed; otherwise every function on
---   the module is. `MongbatBuild` calls this automatically with the engine
---   window name for any spec emitted with `replacesDefault = true` -- the
---   default-UI module global is assumed to share that name (the convention
---   the default UI follows).
+--   the module is. If `observer` is supplied, the replacement no-op calls it
+--   with the suppressed function name before returning. `MongbatBuild` calls
+--   this automatically with the engine window name for any spec emitted with
+--   `replacesDefault = true` -- the default-UI module global is assumed to
+--   share that name (the convention the default UI follows).
 --
 -- `Mongbat.UI.Defaults.OverrideAction(name, fn)`
 --   Replaces an entry in the default UI's `Actions` table (the
@@ -28,20 +29,28 @@ local Defaults = {}
 
 local noop = function() end
 
+local function observedNoop(fnName, observer)
+    if not observer then return noop end
+    return function(...)
+        observer(fnName, ...)
+    end
+end
+
 --- Suppresses default-UI module callbacks by replacing them with no-ops.
 --- Safe to call repeatedly. If `fnName` is omitted, every function on the
 --- module is suppressed.
 ---@param moduleName string  Name of the default-UI module global (e.g. "MapWindow").
 ---@param fnName    string? Optional single function to suppress.
-function Defaults.Suppress(moduleName, fnName)
+---@param observer  (fun(fnName: string, ...))? Optional observer called by the replacement no-op.
+function Defaults.Suppress(moduleName, fnName, observer)
     local mod = _G[moduleName]
     if type(mod) ~= "table" then return end
     if fnName then
-        if type(mod[fnName]) == "function" then mod[fnName] = noop end
+        if type(mod[fnName]) == "function" then mod[fnName] = observedNoop(fnName, observer) end
         return
     end
     for k, v in pairs(mod) do
-        if type(v) == "function" then mod[k] = noop end
+        if type(v) == "function" then mod[k] = observedNoop(k, observer) end
     end
 end
 

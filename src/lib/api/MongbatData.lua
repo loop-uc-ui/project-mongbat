@@ -691,6 +691,12 @@ function Data.Paperdoll(id)
     return PaperdollData:new(id)
 end
 
+--- Returns the paperdoll id currently being initialized/opened by the engine.
+---@return integer
+function Data.CurrentPaperdollId()
+    return (SystemData.Paperdoll and SystemData.Paperdoll.Id) or 0
+end
+
 -- ========================================================================== --
 -- Data - Paperdoll Texture
 -- ========================================================================== --
