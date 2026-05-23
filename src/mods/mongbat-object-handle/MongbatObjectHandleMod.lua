@@ -25,12 +25,6 @@ local metaById = {}
 local function frameKey(id) return "frame:" .. id end
 local function labelKey(id) return "label:" .. id end
 
-local function idFromKey(key)
-    if type(key) ~= "string" then return nil end
-    local s = key:match("^[a-z]+:(%d+)$")
-    return s and tonumber(s) or nil
-end
-
 function M.OnLoad()
     Mongbat.UI.Defaults.Suppress("ObjectHandleWindow", "CreateObjectHandles")
 end
@@ -57,6 +51,7 @@ function M.Build(emit)
 
         emit(frameKey(h.id), {
             template  = "MongbatWindow",
+            id        = h.id,
             snappable = false,
             widget    = frame,
         })
@@ -73,6 +68,7 @@ function M.Build(emit)
         emit(labelKey(h.id), {
             template = "MongbatLabel",
             parent   = frameKey(h.id),
+            id       = h.id,
             widget   = label,
         })
     end)
@@ -85,27 +81,27 @@ end
 
 -- ---- Routed click handlers ------------------------------------------
 
-function M.OnMouseOver(name, key)
-    if idFromKey(key) then
-        Api.Window.SetAlpha(name, 1.0)
-        Api.Window.SetLayer(name, Constants.WindowLayers.Default)
+function M.OnMouseOver(window)
+    if window.id then
+        Api.Window.SetAlpha(window.name, 1.0)
+        Api.Window.SetLayer(window.name, Constants.WindowLayers.Default)
     end
 end
 
-function M.OnMouseOverEnd(name, key)
-    if idFromKey(key) then
-        Api.Window.SetAlpha(name, 0.7)
-        Api.Window.SetLayer(name, Constants.WindowLayers.Background)
+function M.OnMouseOverEnd(window)
+    if window.id then
+        Api.Window.SetAlpha(window.name, 0.7)
+        Api.Window.SetLayer(window.name, Constants.WindowLayers.Background)
     end
 end
 
-function M.OnLButtonDblClk(_name, key)
-    local id = idFromKey(key)
+function M.OnLButtonDblClk(window)
+    local id = window.id
     if id then Api.UserAction.UseItem(id) end
 end
 
-function M.OnLButtonDown(_name, key)
-    local id = idFromKey(key)
+function M.OnLButtonDown(window)
+    local id = window.id
     if not id then return end
     local entry = metaById[id]
     if entry and entry.isMobile then
@@ -113,8 +109,8 @@ function M.OnLButtonDown(_name, key)
     end
 end
 
-function M.OnLButtonUp(_name, key)
-    local id = idFromKey(key)
+function M.OnLButtonUp(window)
+    local id = window.id
     if not id then return end
     if Data.Drag():isDraggingItem() then
         Api.Drag.DragToObject(id)

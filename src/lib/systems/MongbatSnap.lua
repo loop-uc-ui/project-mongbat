@@ -196,7 +196,11 @@ function Snap.Commit()
     local snap = _activeSnap
     _activeSnap = nil
     destroyPreview()
-    if snap and snap.snapped then
+    if snap and snap.snapped
+        and snap.snapX ~= nil
+        and snap.snapY ~= nil
+        and Mongbat.Api.Window.DoesExist(snap.mover)
+    then
         Mongbat.Api.Window.ClearAnchors(snap.mover)
         Mongbat.Api.Window.AddAnchor(snap.mover, "topleft", "Root", "topleft", snap.snapX, snap.snapY)
     end

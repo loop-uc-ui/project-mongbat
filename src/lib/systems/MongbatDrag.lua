@@ -22,6 +22,7 @@ local Systems = _Mongbat.Systems
 ---@class DragState
 ---@field engineName string  Engine name of the window that received LButtonDown.
 ---@field key string         Mod key for the pressed window.
+---@field window RoutedWindow Public context for the pressed window.
 ---@field module ModModule   Mod module owning the pressed window.
 ---@field mover string?      Engine name of the draggable root (nil if non-draggable).
 ---@field mx number          Mouse x at LButtonDown.

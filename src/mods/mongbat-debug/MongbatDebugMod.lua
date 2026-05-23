@@ -133,13 +133,13 @@ function M.Build(emit)
     })
 end
 
-function M.OnEditBoxChanged(name, key)
-    if key == "filter" then applyFilter(Api.EditTextBox.GetText(name)) end
+function M.OnEditBoxChanged(window)
+    if window.key == "filter" then applyFilter(Api.EditTextBox.GetText(window.name)) end
 end
 
-function M.OnEditBoxKeyEscape(name, key)
-    if key == "filter" then
-        Api.EditTextBox.Clear(name)
+function M.OnEditBoxKeyEscape(window)
+    if window.key == "filter" then
+        Api.EditTextBox.Clear(window.name)
         applyFilter(Utils.String.ToWString(""))
     end
 end

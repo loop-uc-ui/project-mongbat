@@ -19,7 +19,7 @@
 --   draggable       boolean?          makes this window the drag root
 --   savePosition    boolean?          override position persistence (default true for root)
 --   snappable       boolean?          override snap registration (default true for root)
---   resizable       { minW, minH, state }?  enables bottom-right grip resize
+--   resizable       { minW, minH, state, onResize? }?  enables bottom-right grip resize
 --
 -- Engine name = spec.name or "<modName>_<key>" (sanitized).
 --
@@ -84,7 +84,7 @@ local function ensureResizeGrip(engineName, spec)
     local Resize = Systems.Resize
     if spec.resizable then
         local r = spec.resizable
-        Resize.SetConfig(engineName, { minW = r.minW, minH = r.minH, state = r.state })
+        Resize.SetConfig(engineName, { minW = r.minW, minH = r.minH, state = r.state, onResize = r.onResize })
         Resize.EnsureGrip(engineName)
     elseif Resize.IsConfigured(engineName) then
         Resize.Teardown(engineName)
@@ -145,11 +145,18 @@ local function createNewWindow(modName, module, key, spec, engineName, parentEng
         key           = key,
         id            = id,
         engineName    = engineName,
+        rootKey       = rootKey,
         draggableRoot = draggableRoot,
         savePosition  = savePosition,
         snappable     = snappable,
     })
     Mongbat.Api.Window.CreateFromTemplate(engineName, spec.template, parentEngine, spec.showing ~= false)
+    if not Mongbat.Api.Window.DoesExist(engineName) then
+        Systems.Registry.Remove(engineName)
+        EngineLookup[engineName] = nil
+        error("Mongbat.Build [" .. modName .. "]: failed to create window '" .. engineName
+            .. "' from template '" .. tostring(spec.template) .. "'.")
+    end
     Systems.Registry.AttachEvents(engineName)
     Systems.DataReg.Attach(id)
     entry.cache = {}

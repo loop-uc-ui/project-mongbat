@@ -37,28 +37,28 @@ local Registered = {}
 
 --- The mod module table. All fields are optional; implement only what you need.
 --- Lifecycle methods (OnLoad/OnUnload/OnUpdate) receive no window arguments.
---- Per-window event handlers always receive (name: string, key: string, ...) first.
+--- Per-window event handlers always receive (window: RoutedWindow, ...) first.
 ---@class ModModule
 ---@field OnLoad           (fun())?                                                              Called once when the mod is loaded.
 ---@field OnUnload         (fun())?                                                              Called once when the mod is unloaded.
 ---@field OnUpdate         (fun(dt: number))?                                                    Called every frame, once per mod.
 ---@field Build            (fun(emit: fun(key: string, spec: table)))?                           Declarative window emission. Called every frame; emit each window the mod wants. Lib diffs vs prior frame.
----@field OnInitialize     (fun(name: string, key: string))?                                     Engine window created.
----@field OnShown          (fun(name: string, key: string))?                                     Window became visible.
----@field OnHidden         (fun(name: string, key: string))?                                     Window became hidden.
----@field OnShutdown       (fun(name: string, key: string))?                                     Window is being destroyed.
----@field OnLButtonUp      (fun(name: string, key: string, flags: number, x: number, y: number))? Left mouse button released.
----@field OnLButtonDown    (fun(name: string, key: string, flags: number, x: number, y: number))? Left mouse button pressed.
----@field OnRButtonUp      (fun(name: string, key: string, flags: number, x: number, y: number))? Right mouse button released.
----@field OnRButtonDown    (fun(name: string, key: string, flags: number, x: number, y: number))? Right mouse button pressed.
----@field OnLButtonDblClk  (fun(name: string, key: string, flags: number, x: number, y: number))? Left mouse double-click.
----@field OnMouseOver      (fun(name: string, key: string))?                                     Cursor entered window.
----@field OnMouseOverEnd   (fun(name: string, key: string))?                                     Cursor left window.
----@field OnMouseWheel     (fun(name: string, key: string, x: number, y: number, delta: number))? Scroll wheel moved.
----@field OnEditBoxChanged    (fun(name: string, key: string))?                                  Edit box text changed.
----@field OnEditBoxKeyEscape  (fun(name: string, key: string))?                                  Escape pressed in edit box.
----@field OnEditBoxKeyReturn  (fun(name: string, key: string))?                                  Return pressed in edit box.
----@field OnEditBoxKeyTab     (fun(name: string, key: string))?                                  Tab pressed in edit box.
+---@field OnInitialize     (fun(window: RoutedWindow))?                                          Engine window created.
+---@field OnShown          (fun(window: RoutedWindow))?                                          Window became visible.
+---@field OnHidden         (fun(window: RoutedWindow))?                                          Window became hidden.
+---@field OnShutdown       (fun(window: RoutedWindow))?                                          Window is being destroyed.
+---@field OnLButtonUp      (fun(window: RoutedWindow, flags: number, x: number, y: number))?      Left mouse button released.
+---@field OnLButtonDown    (fun(window: RoutedWindow, flags: number, x: number, y: number))?      Left mouse button pressed.
+---@field OnRButtonUp      (fun(window: RoutedWindow, flags: number, x: number, y: number))?      Right mouse button released.
+---@field OnRButtonDown    (fun(window: RoutedWindow, flags: number, x: number, y: number))?      Right mouse button pressed.
+---@field OnLButtonDblClk  (fun(window: RoutedWindow, flags: number, x: number, y: number))?      Left mouse double-click.
+---@field OnMouseOver      (fun(window: RoutedWindow))?                                          Cursor entered window.
+---@field OnMouseOverEnd   (fun(window: RoutedWindow))?                                          Cursor left window.
+---@field OnMouseWheel     (fun(window: RoutedWindow, x: number, y: number, delta: number))?      Scroll wheel moved.
+---@field OnEditBoxChanged    (fun(window: RoutedWindow))?                                       Edit box text changed.
+---@field OnEditBoxKeyEscape  (fun(window: RoutedWindow))?                                       Escape pressed in edit box.
+---@field OnEditBoxKeyReturn  (fun(window: RoutedWindow))?                                       Return pressed in edit box.
+---@field OnEditBoxKeyTab     (fun(window: RoutedWindow))?                                       Tab pressed in edit box.
 
 ---@class Mod
 ---@field Name string Name of the mod

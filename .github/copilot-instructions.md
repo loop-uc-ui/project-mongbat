@@ -1,14 +1,15 @@
 # Project Guidelines — Mongbat
 
 Mongbat is a Lua framework + mod collection for the **Ultima Online: Enhanced
-Client** UI. The framework lives in `src/lib/Mongbat.lua`; mods live in
+Client** UI. The framework lives in `src/lib/` (`Mongbat.lua` plus `api/`,
+`core/`, `ui/`, and `systems/` submodules); mods live in
 `src/mods/mongbat-<name>/`. See [README.md](../README.md) for full
 orientation.
 
 ## The Hard Rule (read this first)
 
 **Mods must never reference engine globals directly.** All engine surface
-area lives only in `src/lib/Mongbat.lua`, exposed through:
+area lives only in `src/lib/**`, exposed through:
 
 - `Mongbat.Api` — wraps engine functions (`Api.Window.*`, `Api.Label.*`, ...)
 - `Mongbat.Data` — wraps `WindowData.*` with nil-safe typed accessors
@@ -32,7 +33,8 @@ Forbidden in `src/mods/**`: `WindowData`, `SystemData`, `GenericGump`,
 `ItemProperties`, `EquipmentData`, `wstring`, `WindowGetId`, `Debug`, etc.
 
 If you need something the lib doesn''t expose, **add the wrapper to the lib
-first**, then consume it. Never silence the boundary with
+first**, then consume it. Use the `mongbat-framework-dev` skill for lib-side
+work. Never silence the boundary with
 `---@diagnostic disable: undefined-global` in a mod — that flag means the
 boundary leaked.
 
@@ -55,7 +57,7 @@ Mongbat.EventHandler.<Event>  (wired in MongbatXxx XML templates)
         |
         v   (looks up SystemData.ActiveWindow.name in the registry)
         v
-M.<Event>(name, key, ...)     (key = "panel", in the owning mod)
+M.<Event>(window, ...)        (window.key = "panel", window.id = emitted id)
 ```
 
 Mods own all state. The lib holds no closures.
@@ -64,7 +66,7 @@ Mods own all state. The lib holds no closures.
 
 A mod is a Lua module table `M` plus a `Mongbat.Mod{...}` declaration. It
 implements `M.Build(emit)` for windows and any lifecycle / event methods
-it needs (`OnLoad`, `OnUnload`, `OnUpdate(dt)`, `On<Event>(name, key, ...)`).
+it needs (`OnLoad`, `OnUnload`, `OnUpdate(dt)`, `On<Event>(window, ...)`).
 Windows are emitted declaratively via `emit(key, { template, widget, parent?, name?, id?, showing?, replacesDefault? })`.
 
 **For the full mod-authoring workflow** (skeleton, `M.Build` reference,
@@ -72,6 +74,13 @@ spec fields, `Mongbat.UI` widget reference, data wrapper reference,
 iteration helpers, `Api.Window.Destroy` vs chain helpers, anti-patterns),
 read [.github/skills/mongbat-mod-authoring/SKILL.md](skills/mongbat-mod-authoring/SKILL.md).
 Canonical example mods are linked there too.
+
+For framework work, use
+[.github/skills/mongbat-framework-dev/SKILL.md](skills/mongbat-framework-dev/SKILL.md).
+After mod edits, use
+[.github/skills/mongbat-mod-verification/SKILL.md](skills/mongbat-mod-verification/SKILL.md).
+For runtime failures, use
+[.github/skills/mongbat-error-recovery/SKILL.md](skills/mongbat-error-recovery/SKILL.md).
 
 ## Workflow Rules
 
@@ -101,7 +110,7 @@ Canonical example mods are linked there too.
    `Api.GumpsParsing.OnParsingCheck`) when you only need to react to
    default-UI lifecycle without owning a window.
 5. **Wrapper-first.** When a mod needs an engine global, stop and add the
-   wrapper to `src/lib/Mongbat.lua` before continuing.
+   wrapper to `src/lib/**` before continuing.
 6. **Verify with `get_errors`.** After any mod edit, mod files must have
    **zero** diagnostics. Lib pre-existing engine-global / `wstring`
    warnings are expected and out of scope.
@@ -119,6 +128,27 @@ consult upstream first — never invent a mechanism the default UI doesn''t use.
 - Docs:   <https://loop-uc-ui.github.io/enhanced-client-default-docs/>
 - Local mirror of frequently-referenced files: [`docs/`](../docs/).
 
+Comparison checklist:
+
+1. Identify the default-UI module that owns the behavior.
+2. Read the relevant call sites in context, especially Initialize/Shutdown
+   and event handlers.
+3. Match argument order, registration timing, anchors, save/restore position,
+   and teardown behavior before changing Mongbat.
+4. If a first fix fails, stop and re-read the log and source before trying a
+   second theory.
+
+## Agent Debugging Workflow
+
+When something breaks in-client, read the EC Lua log first and trace the
+earliest error. Do not start by adding timing guards, broadcast dispatch,
+fallback routes, or extra state. After one failed fix, reassess from the log
+and exact code path. Prefer deleting an unnecessary helper over adding another
+layer to compensate for it.
+
+Use `mongbat-error-recovery` for runtime failures and `research-default-ui`
+whenever EC engine behavior is uncertain.
+
 ## UTF-8 BOM Gotcha
 
 VS Code or external tools may silently add a UTF-8 BOM (`EF BB BF`) to
@@ -129,8 +159,11 @@ with `attempt to index global ''Mongbat'' (a nil value)`. Save as **UTF-8**
 
 ## Slash Commands
 
-- `/new-mod` — scaffold a new mod
-- `/wrap-engine-global` — add a Mongbat wrapper for an engine global
-- `/audit-mod` — find direct engine-global references in a mod
-- `/mongbat-mod-authoring` — full mod-authoring workflow skill
-- `/research-default-ui` — look up how the default UI handles something (fetch source, check lifecycle, verify globals)
+- `/new-mod` — prompt: scaffold a new declarative `M.Build(emit)` mod
+- `/wrap-engine-global` — prompt: add a Mongbat wrapper for an engine global
+- `/audit-mod` — prompt: find direct engine-global references in a mod
+- `/mongbat-mod-authoring` — skill: full mod-authoring workflow
+- `/mongbat-framework-dev` — skill: lib-side wrappers, data accessors, and runtime systems
+- `/mongbat-mod-verification` — skill: post-change mod verification checklist
+- `/mongbat-error-recovery` — skill: runtime failure and failed-fix recovery
+- `/research-default-ui` — skill: look up how the default UI handles something (fetch source, check lifecycle, verify globals)

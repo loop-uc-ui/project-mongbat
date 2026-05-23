@@ -6,7 +6,7 @@
 -- Owns the Mongbat.EventHandler table that XML templates and runtime
 -- RegisterCoreEventHandler calls point at. Each handler looks up the
 -- active window in the Registry and calls the matching method on its
--- owning mod's module table.
+-- owning mod's module table with a public window context.
 --
 -- OnLButtonDown/Up additionally orchestrate drag (Drag system) and
 -- snap (Snap system). OnLiveResizeUp ends a live resize (Resize system).
@@ -23,8 +23,18 @@ Systems.Router = Router
 
 -- ----- Dispatch ------------------------------------------------------------
 
+local function windowContext(entry)
+    return {
+        name       = entry.engineName,
+        engineName = entry.engineName,
+        key        = entry.key,
+        id         = entry.id,
+        rootKey    = entry.rootKey,
+    }
+end
+
 --- Looks up the active window in the Registry and invokes the owning
---- mod's matching event function with `(name, key, ...)`. No-op when the
+--- mod's matching event function with `(window, ...)`. No-op when the
 --- window isn't registered or the module doesn't implement the event.
 ---
 --- When `Mongbat.Debugger.SetVerbose(true)` is set, logs every dispatch
@@ -49,7 +59,7 @@ local function dispatchActive(eventName, ...)
             Mongbat.Debugger.Print("[Mongbat] " .. eventName .. " -> "
                 .. name .. " (" .. entry.key .. ")")
         end
-        fn(name, entry.key, ...)
+        fn(windowContext(entry), ...)
     elseif verbose then
         Mongbat.Debugger.Print("[Mongbat] " .. eventName .. " -> "
             .. name .. " (" .. entry.key .. ") — no handler")
@@ -88,6 +98,7 @@ EventHandler.OnLButtonDown = function(flags, x, y)
         Systems.Drag.Begin({
             engineName = entry.engineName,
             key        = entry.key,
+            window     = windowContext(entry),
             module     = entry.module,
             mover      = mover,
             mx         = mp.x,
@@ -113,7 +124,7 @@ EventHandler.OnLButtonUp = function(flags, x, y)
         -- This handles the case where LButtonUp fires on a child window
         -- rather than the window that received LButtonDown.
         local fn = drag.module["OnLButtonUp"]
-        if fn then fn(drag.engineName, drag.key, flags, x, y) end
+        if fn then fn(drag.window, flags, x, y) end
         return
     end
     dispatchActive("OnLButtonUp", flags, x, y)

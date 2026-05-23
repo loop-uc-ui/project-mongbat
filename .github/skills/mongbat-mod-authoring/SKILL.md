@@ -1,6 +1,6 @@
 ---
 name: mongbat-mod-authoring
-description: "Use when creating, migrating, modifying, or refactoring a mod in src/mods/. Walks through the declarative Build-pattern authoring workflow: identify engine globals, add Mongbat wrappers FIRST, declare a module table M with M.Build(emit) for windows and lifecycle methods (OnLoad/OnUnload/OnUpdate/On<Event>), route engine events on (name, key), verify zero diagnostics in mod files. Covers mongbat mod authoring, mod scaffolding, mod migration, declarative window emission, M.Build, Mongbat.UI widgets, Mongbat.Mod declaration. DO NOT USE for src/lib/Mongbat.lua framework work — that's where engine globals legally live."
+description: "Use when creating, migrating, modifying, or refactoring a mod in src/mods/. Walks through the declarative Build-pattern authoring workflow: identify engine globals, add Mongbat wrappers FIRST, declare a module table M with M.Build(emit) for windows and lifecycle methods (OnLoad/OnUnload/OnUpdate/On<Event>), route engine events with a window context, verify zero diagnostics in mod files. Covers mongbat mod authoring, mod scaffolding, mod migration, declarative window emission, M.Build, Mongbat.UI widgets, Mongbat.Mod declaration. DO NOT USE for src/lib framework work — use mongbat-framework-dev."
 ---
 
 # Mongbat Mod Authoring
@@ -12,9 +12,9 @@ description: "Use when creating, migrating, modifying, or refactoring a mod in s
 - Adding features (windows, lifecycle methods) to an existing mod
 - Refactoring a mod to the declarative Build pattern
 
-**Do NOT use** when editing `src/lib/Mongbat.lua` — the framework is the one
-place engine globals are allowed. For that, use the `/wrap-engine-global`
-prompt instead.
+**Do NOT use** when editing `src/lib/**` — the framework is the one place
+engine globals are allowed. For that, use `mongbat-framework-dev` or the
+`/wrap-engine-global` prompt.
 
 ## The Boundary (non-negotiable)
 
@@ -60,7 +60,7 @@ Mongbat.EventHandler.<Event>  (wired in MongbatXxx XML templates)
         |
         v   (looks up SystemData.ActiveWindow.name in the registry)
         v
-M.<Event>(name, key, ...)     (key = "panel", in the owning mod)
+M.<Event>(window, ...)        (window.key = "panel", window.id = emitted id)
 ```
 
 Mods own all state. The lib never holds closures, never pushes data events.
@@ -74,15 +74,25 @@ what you're building:
 
 | Need | Read |
 |---|---|
+| First mod / simple buttons | [mongbat-main-menu](../../../src/mods/mongbat-main-menu/MongbatMainMenuMod.lua) |
+| Behavior-only hook, no windows | [mongbat-classic-vendor-search](../../../src/mods/mongbat-classic-vendor-search/MongbatClassicVendorSearchMod.lua) |
 | Per-frame label, conditional emit | [mongbat-distance-counter](../../../src/mods/mongbat-distance-counter/MongbatDistanceCounterMod.lua) |
 | EditBox + LogDisplay + filter state | [mongbat-debug](../../../src/mods/mongbat-debug/MongbatDebugMod.lua) |
-| Replace a default window + button stack | [mongbat-main-menu](../../../src/mods/mongbat-main-menu/MongbatMainMenuMod.lua) |
 | Composite live status bars | [mongbat-player-status](../../../src/mods/mongbat-player-status/MongbatPlayerStatusMod.lua) |
 | Suppression-only, no windows | [mongbat-suppress-pet-training-gump](../../../src/mods/mongbat-suppress-pet-training-gump/MongbatSuppressPetTrainingGumpMod.lua) |
-| Chain helpers, no windows | [mongbat-classic-vendor-search](../../../src/mods/mongbat-classic-vendor-search/MongbatClassicVendorSearchMod.lua) |
 | Mode-swapping children | [mongbat-paperdoll](../../../src/mods/mongbat-paperdoll/MongbatPaperdollMod.lua) |
 | Dynamic per-id windows | [mongbat-object-handle](../../../src/mods/mongbat-object-handle/MongbatObjectHandleMod.lua) |
 | Per-frame OnUpdate(dt) drag/zoom | [mongbat-map](../../../src/mods/mongbat-map/MongbatMapMod.lua) |
+
+Suggested reading order by complexity:
+
+1. `mongbat-main-menu` — basic window, buttons, routed clicks.
+2. `mongbat-classic-vendor-search` — hook-only behavior, no Build windows.
+3. `mongbat-distance-counter` — small dynamic data display.
+4. `mongbat-object-handle` — dynamic per-id windows and key parsing.
+5. `mongbat-player-status` — responsive/resizable composite layout.
+6. `mongbat-debug` — conditional showing and TextLog setup.
+7. `mongbat-map` / `mongbat-paperdoll` — advanced engine-side state.
 
 Also read [.github/copilot-instructions.md](../../copilot-instructions.md).
 
@@ -91,7 +101,8 @@ Also read [.github/copilot-instructions.md](../../copilot-instructions.md).
 Sketch what engine surface the mod needs (data tables, default-UI module
 calls, lifecycle hooks). For each:
 
-1. Search `src/lib/Mongbat.lua` for an existing wrapper. If found, plan to
+1. Search `src/lib/api/MongbatApi*.lua`, `src/lib/api/MongbatData.lua`, and
+  nearby framework files for an existing wrapper. If found, plan to
    use it.
 2. If not, **stop and run `/wrap-engine-global` first**. Add the wrapper to
    the lib, then resume mod authoring.
@@ -144,9 +155,9 @@ function M.Build(emit)
     })
 end
 
--- Routed engine events. The dispatcher always passes (name, key, ...).
-function M.OnLButtonUp(_name, key)
-    if key == "panel" then ... end
+-- Routed engine events. The dispatcher always passes (window, ...).
+function M.OnLButtonUp(window)
+  if window.key == "panel" then ... end
 end
 
 Mongbat.Mod {
@@ -164,12 +175,12 @@ Mongbat.Mod {
 | `M.OnUnload()` | — | Once at teardown. The lib auto-destroys all Build-emitted windows; only undo OnLoad's side effects (TextLogs, default-UI flags). |
 | `M.OnUpdate(dt)` | `dt` | Every frame, once per mod. Use for engine-side mutations not expressible as widget setters (radar pan, drag deltas). |
 | `M.Build(emit)` | `emit` | Every frame, once per mod. Emit each window the mod wants this frame. Lib diffs vs prior frame. |
-| `M.OnInitialize` | `(name, key)` | Engine fires when a window is created |
-| `M.OnShown` / `M.OnHidden` / `M.OnShutdown` | `(name, key)` | Window visibility/destroy |
-| `M.OnLButtonUp/Down`, `M.OnRButtonUp/Down`, `M.OnLButtonDblClk` | `(name, key, flags?, x?, y?)` | Mouse buttons |
-| `M.OnMouseOver` / `M.OnMouseOverEnd` | `(name, key)` | Hover transitions |
-| `M.OnMouseWheel` | `(name, key, x, y, delta)` | Scroll wheel |
-| `M.OnEditBoxChanged/KeyEscape/KeyReturn/KeyTab` | `(name, key)` | Edit-box events |
+| `M.OnInitialize` | `(window)` | Engine fires when a window is created |
+| `M.OnShown` / `M.OnHidden` / `M.OnShutdown` | `(window)` | Window visibility/destroy |
+| `M.OnLButtonUp/Down`, `M.OnRButtonUp/Down`, `M.OnLButtonDblClk` | `(window, flags?, x?, y?)` | Mouse buttons |
+| `M.OnMouseOver` / `M.OnMouseOverEnd` | `(window)` | Hover transitions |
+| `M.OnMouseWheel` | `(window, x, y, delta)` | Scroll wheel |
+| `M.OnEditBoxChanged/KeyEscape/KeyReturn/KeyTab` | `(window)` | Edit-box events |
 
 Any method you don't define is simply not called.
 
@@ -188,7 +199,7 @@ emit(key, {
 })
 ```
 
-- **`key`** is mod-local, used to dispatch routed events (`M.On*(name, key)`).
+- **`key`** is mod-local, available as `window.key` in routed events.
   Distinct windows in a mod need distinct keys.
 - **Engine name** = `spec.name or "<modName>_<sanitized key>"`. The default
   is fine for new windows; use `name=` only when the default UI references
@@ -201,6 +212,9 @@ emit(key, {
   lib unregisters when the last window using that id is destroyed.
 - **Conditional windows:** simply don't `emit()` a key in a frame and the
   lib destroys it. Re-emit later to recreate. Cheap.
+- **Conditional showing:** use `showing = state.visible` when the window
+  should stay alive but be hidden. Use conditional emission when the subtree
+  should be destroyed while absent.
 - **Dynamic per-id windows** (e.g. one window per object handle): emit
   `"frame:" .. id` and `"label:" .. id` per item; the lib auto-creates
   new ids and auto-destroys ones that disappeared.
@@ -240,6 +254,16 @@ as a special target to anchor to the immediate engine parent.
 **Escape hatch — `:tap(fn)`** records `fn(engineName)` for non-setter Api
 calls (e.g. `Api.LogDisplay.AddLog`, `Api.Equipment.UpdateItemIcon`).
 Runs every frame the window is re-emitted.
+
+### 6a. `:onlyOnCreate()` / `:always()`
+
+Widget ops normally run on create and every re-apply. Use `:onlyOnCreate()`
+for static setup such as initial anchors, one-time texture setup, or config
+that should not be repeated. Call `:always()` to return to normal recording.
+
+If an anchor, offset, or parent relationship changes as layout state changes,
+keep its `clearAnchors()` / `addAnchor()` pair in the normal always phase.
+Do not split a changing anchor across create-only and always phases.
 
 ### 7. Data Wrapper Reference
 
@@ -298,9 +322,10 @@ After every mod edit:
 2. Run `grep_search` for the engine-global blacklist on the mod file →
    expect zero matches outside string literals and `---@class`/`---@field`
    annotations.
-3. If you added or modified a wrapper in `src/lib/Mongbat.lua`, expect lib
+3. If you added or modified a wrapper in `src/lib/**`, expect lib
    pre-existing engine-global warnings to remain unchanged in count;
    anything NEW is a regression.
+4. For a complete post-change checklist, use `mongbat-mod-verification`.
 
 ## Anti-Patterns
 

@@ -102,6 +102,26 @@ the network.
 4. **Search the fetched content** — look for the exact call site (Initialize, Shutdown, Update, etc.).
 5. **Read call sites in context** — understand the full function, not just the line.
 
+## Comparison Checklist
+
+When debugging Mongbat behavior against the default UI, compare the complete
+mechanism before changing code:
+
+1. **Lifecycle:** where Initialize, Shutdown, OnShown, OnHidden, and update
+	handlers register or unregister state.
+2. **Arguments:** exact engine-global argument order. EC APIs often use
+	surprising order such as `(objectId, windowName)`.
+3. **Anchors/layout:** whether default UI uses `ClearAnchors`, multiple
+	anchors, `SetOffsetFromParent`, `WindowSetResizing`, or save/restore
+	position.
+4. **Ownership:** whether the default UI destroys, hides, suppresses, chains,
+	or overrides behavior.
+5. **Cleanup:** whether shutdown unregisters `WindowData`, destroys windows,
+	restores callbacks, or saves position.
+
+If Mongbat differs from default UI, state the reason in the final answer or
+code comment. If there is no reason, match the default UI.
+
 ---
 
 ## Common Research Queries

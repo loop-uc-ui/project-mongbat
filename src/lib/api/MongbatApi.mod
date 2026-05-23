@@ -13,6 +13,11 @@
 
 		<Files>
 			<File name="MongbatApi.lua"/>
+			<File name="MongbatApiWidgets.lua"/>
+			<File name="MongbatApiInput.lua"/>
+			<File name="MongbatApiWorld.lua"/>
+			<File name="MongbatApiSystem.lua"/>
+			<File name="MongbatApiDefaultUI.lua"/>
 		</Files>
 
 	</UiMod>

@@ -17,9 +17,9 @@ local PANEL_H   = 100
 local PAD       = 8       -- inset from panel edge to inner content
 local SPACING   = 6       -- gap between rows
 local NUM_BARS  = 3
-local NAME_RATIO = 0.20   -- name row's share of inner height
+local NAME_H    = 20      -- fixed height for the name label row
 local MIN_W     = 120
-local MIN_H     = 80
+local MIN_H     = 60
 
 -- Mutable layout state. The lib writes layout.w / layout.h while the user
 -- drags the resize grip; Build reads them on the next frame. PANEL_W/H
@@ -49,10 +49,8 @@ local function emitBar(emit, key, yOffset, current, max, color, barW, barH)
         parent   = "panel",
         widget   = UI.Window()
             :setDimensions(barW, barH)
-            :onlyOnCreate()
-                :clearAnchors()
-            :always()
-            :setOffsetFromParent(PAD, yOffset),
+            :clearAnchors()
+            :addAnchor("topleft", "panel", "topleft", PAD, yOffset),
     })
     emit(key .. "Fill", {
         template = "MongbatSolidFill",
@@ -103,14 +101,13 @@ function M.Build(emit)
 
     -- Reactive layout: derive every child dim from layout.w / layout.h.
     -- Inner content area is the panel minus PAD on every side. Vertical
-    -- space is split between the name row and NUM_BARS bar rows; SPACING
-    -- separates each adjacent pair (name|bar1, bar1|bar2, bar2|bar3 -> 3
-    -- gaps).
-    local innerW   = layout.w - 2 * PAD
-    local innerH   = layout.h - 2 * PAD
-    local nameH    = math.floor(innerH * NAME_RATIO + 0.5)
+    -- space is split between the fixed name row and NUM_BARS bar rows;
+    -- SPACING separates each adjacent pair.
+    local innerW    = layout.w - 2 * PAD
+    local innerH    = layout.h - 2 * PAD
+    local nameH     = NAME_H
     local barsAreaH = innerH - nameH - NUM_BARS * SPACING
-    local barH     = math.max(1, math.floor(barsAreaH / NUM_BARS + 0.5))
+    local barH      = math.max(1, math.floor(barsAreaH / NUM_BARS + 0.5))
 
     emit("panel", {
         template  = "MongbatWindow",
@@ -128,7 +125,7 @@ function M.Build(emit)
         parent   = "panel",
         widget   = UI.Label()
             :setText(mobName ~= "" and mobName or " ")
-            :setDimensions(innerW, nameH)
+            :setDimensions(innerW, NAME_H)
             :onlyOnCreate()
                 :clearAnchors()
                 :addAnchor("topleft", "panel", "topleft", PAD, PAD)
@@ -150,15 +147,15 @@ end
 -- ---- Click handling on the outer panel ---------------------------------
 
 
-function M.OnLButtonDblClk(_name, key)
-    if key == "panel" then
+function M.OnLButtonDblClk(window)
+    if window.key == "panel" then
         local id = Data.PlayerStatus():getId()
         if id ~= 0 then Api.UserAction.UseItem(id) end
     end
 end
 
-function M.OnLButtonUp(name, key)
-    if key ~= "panel" then return end
+function M.OnLButtonUp(window)
+    if window.key ~= "panel" then return end
     local id = Data.PlayerStatus():getId()
     if id == 0 then return end
     if Data.Drag():isDraggingItem() then

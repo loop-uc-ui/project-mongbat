@@ -1,5 +1,5 @@
 ---
-description: "Scaffold a new Mongbat mod with the router pattern (module-table M with lifecycle methods, Mongbat.CreateWindow registration, Mongbat.Mod{} declaration, .mod manifest)."
+description: "Scaffold a new Mongbat mod with the current declarative router pattern (module-table M, M.Build(emit), routed lifecycle/event methods, Mongbat.Mod{} declaration, .mod manifest)."
 argument-hint: "Mod name in PascalCase (e.g. CombatTimer) and a one-line purpose"
 agent: "agent"
 ---
@@ -13,8 +13,8 @@ provide a PascalCase name and a one-line purpose; ask if they didn't.
 
 Read these to anchor on the current pattern (do not skip):
 - [.github/copilot-instructions.md](../copilot-instructions.md) — the hard rule and mod shape
-- [src/mods/mongbat-distance-counter/MongbatDistanceCounterMod.lua](../../src/mods/mongbat-distance-counter/MongbatDistanceCounterMod.lua) — canonical single-window example
-- [src/mods/mongbat-debug/MongbatDebugMod.lua](../../src/mods/mongbat-debug/MongbatDebugMod.lua) — stateful with bindings + handlers
+- [src/mods/mongbat-distance-counter/MongbatDistanceCounterMod.lua](../../src/mods/mongbat-distance-counter/MongbatDistanceCounterMod.lua) — canonical single-window Build example
+- [src/mods/mongbat-debug/MongbatDebugMod.lua](../../src/mods/mongbat-debug/MongbatDebugMod.lua) — stateful conditional showing + handlers
 - A neighbor `*.mod` manifest, e.g.
   [src/mods/mongbat-distance-counter/MongbatDistanceCounter.mod](../../src/mods/mongbat-distance-counter/MongbatDistanceCounter.mod)
 
@@ -30,11 +30,11 @@ Read these to anchor on the current pattern (do not skip):
 4. **Create the lua file.** Use the module-table skeleton (see below).
    Decide:
    - Does it call `Api.Window.Destroy` to own a default-UI window's name?
-   - Does it need `bindings`? (reacting to engine data — preferred over polling)
-   - Does it need `M.OnUpdate(dt)`? (true per-frame work only — animations,
-     mouse polling)
+   - Does it need `M.Build(emit)` windows, or is it a hook-only mod?
+   - Does it need `M.OnUpdate(dt)`? (true per-frame engine-side work only — animations,
+     radar panning, mouse polling)
    - Does it need any windows at all? (suppression / chain-helper-only mods don't)
-5. **Reference only `Mongbat.{Api,Data,Utils,Constants,Debugger,CreateWindow,RegisterWindow,DestroyWindow,UnregisterWindow,GetWindow,Mod}`.**
+5. **Reference only `Mongbat.{Api,Data,Utils,Constants,Debugger,UI,GetWindow,Mod}`.**
    If you find yourself wanting `WindowData`, `GenericGump`, `wstring`,
    `ObjectHandleWindow`, `Debug`, etc., **stop** and run `/wrap-engine-global` first.
 6. **Verify.** Run `get_errors` on the new file; expect zero diagnostics.
@@ -47,33 +47,37 @@ Read these to anchor on the current pattern (do not skip):
 
 local Api       = Mongbat.Api
 local Data      = Mongbat.Data
+local UI        = Mongbat.UI
 local Utils     = Mongbat.Utils
 local Constants = Mongbat.Constants
-
-local NAME = "Mongbat<Name>Window"
 
 local M = {}
 local state = { ... }
 
 function M.OnLoad()
     -- Api.Window.Destroy("DefaultUiWindowName")  -- optional; omit if not replacing a default window
-    Mongbat.CreateWindow {
-        name     = NAME,
-        template = "MongbatWindow",
-        module   = M,
-        key      = "panel",
-        -- bindings = { "PlayerStatus" },   -- optional
-    }
-    Api.Window.SetDimensions(NAME, 200, 100)
 end
 
-function M.OnUnload()
-    Mongbat.DestroyWindow(NAME)
+function M.Build(emit)
+  emit("panel", {
+    template = "MongbatWindow",
+    widget   = UI.Window()
+      :setDimensions(200, 100),
+  })
+
+  emit("label", {
+    template = "MongbatLabel",
+    parent   = "panel",
+    widget   = UI.Label()
+      :setText("Hello")
+      :onlyOnCreate()
+        :clearAnchors()
+        :addAnchor("topleft", "panel", "topleft", 8, 8),
+  })
 end
 
 -- function M.OnUpdate(dt)            -- per-frame; only define if needed
--- function M.OnLButtonUp(_name, key) -- routed mouse events arrive with key
--- function M.OnUpdatePlayerStatus(_name, _key, data)  -- one per binding key
+-- function M.OnLButtonUp(window)      -- routed mouse events arrive with window.key / window.id
 
 Mongbat.Mod {
     Name   = "Mongbat<Name>",
@@ -86,7 +90,8 @@ Mongbat.Mod {
 
 - Direct engine globals (`WindowData`, `wstring`, ...). Add wrappers first.
 - `L"..."` wstring literals — `L` is undefined. Use `Utils.String.ToWString("...")`.
-- `M.OnUpdate(dt)` for engine-data polling — use `bindings` + `M.OnUpdate<Key>`.
+- Imperative window creation from mods — windows go through `M.Build(emit)`.
+- `M.OnUpdate(dt)` for engine-data polling — read `Mongbat.Data` inline in `M.Build`.
 - Re-using a window `name` across mods — names are registry keys.
-- Forgetting `Mongbat.DestroyWindow(NAME)` in `M.OnUnload`.
+- Creating/destroying Build-owned windows in `M.OnLoad` / `M.OnUnload`.
 - `---@diagnostic disable: undefined-global` — boundary violation marker.

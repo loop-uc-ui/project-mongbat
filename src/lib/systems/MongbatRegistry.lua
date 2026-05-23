@@ -22,9 +22,18 @@ local Systems = _Mongbat.Systems
 ---@field key string            The key within the owning mod (passed to event handlers).
 ---@field id number?            WindowData id registered for this window.
 ---@field engineName string     Engine name of this window.
+---@field rootKey string?       Root emit key for this window's emitted subtree.
 ---@field draggableRoot string? Engine name of the root window to call SetMoving on.
 ---@field snappable boolean?    Whether this window participates in edge-snap.
 ---@field savePosition boolean? Whether screen position is saved/restored.
+
+--- Public window context passed to routed mod handlers.
+---@class RoutedWindow
+---@field name string           Engine name of this window.
+---@field engineName string     Engine name of this window.
+---@field key string            The key within the owning mod.
+---@field id number?            WindowData id registered for this window.
+---@field rootKey string?       Root emit key for this window's emitted subtree.
 
 ---@class Registry
 local Registry = {}

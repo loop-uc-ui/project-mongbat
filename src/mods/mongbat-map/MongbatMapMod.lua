@@ -20,7 +20,12 @@ local PANEL_NAME = "MapWindow"
 local WINDOW_SIZE = 400
 local MARGIN      = 8
 local LABEL_H     = 16
-local CONTENT     = WINDOW_SIZE
+local PANEL_W     = WINDOW_SIZE + MARGIN * 2
+local PANEL_H     = WINDOW_SIZE + MARGIN * 2
+local MIN_W       = 160
+local MIN_H       = 160
+
+local layout = { w = PANEL_W, h = PANEL_H }
 
 local M = {}
 
@@ -83,6 +88,14 @@ local function applyRadarSize(w, h)
     end
 end
 
+local function getContentSize()
+    return math.max(1, layout.w - MARGIN * 2), math.max(1, layout.h - MARGIN * 2)
+end
+
+local function applyPanelSizeToRadar(panelW, panelH)
+    applyRadarSize(math.max(1, panelW - MARGIN * 2), math.max(1, panelH - MARGIN * 2))
+end
+
 local function formatLocationText()
     local x, y
     if state.centerOnPlayer then
@@ -113,12 +126,15 @@ function M.Build(emit)
     if state.closed then return end
 
     local radar = Data.Radar()
+    local contentW, contentH = getContentSize()
 
     emit("panel", {
         name             = PANEL_NAME,                -- engine name fixed
         replacesDefault  = true,                      -- destroy + suppress default MapWindow
         template         = "MongbatWindow",
-        widget           = UI.Window():setDimensions(CONTENT + MARGIN * 2, CONTENT + MARGIN * 2),
+        draggable        = true,
+        widget           = UI.Window():setDimensions(layout.w, layout.h),
+        resizable        = { minW = MIN_W, minH = MIN_H, state = layout, onResize = applyPanelSizeToRadar },
     })
 
     emit("map", {
@@ -126,7 +142,7 @@ function M.Build(emit)
         parent   = "panel",
         widget   = UI.DynamicImage()
             :setHandleInput(true)
-            :setDimensions(CONTENT, CONTENT)
+            :setDimensions(contentW, contentH)
             :clearAnchors()
             :addAnchor("topleft",     "panel", "topleft",      MARGIN,  MARGIN)
             :addAnchor("bottomright", "panel", "bottomright", -MARGIN, -MARGIN)
@@ -139,7 +155,7 @@ function M.Build(emit)
         parent   = "panel",
         widget   = UI.Label()
             :setText(formatLocationText())
-            :setDimensions(CONTENT, LABEL_H)
+            :setDimensions(contentW, LABEL_H)
             :setLayer(Constants.WindowLayers.Overlay)
             :clearAnchors()
             :addAnchor("bottomleft", "panel", "bottomleft", MARGIN, -MARGIN),
@@ -152,7 +168,8 @@ function M.OnUpdate(_dt)
     if not Mongbat.GetWindow("MongbatMap_map") then return end
 
     if not state.initialized then
-        applyRadarSize(CONTENT, CONTENT)
+        local contentW, contentH = getContentSize()
+        applyRadarSize(contentW, contentH)
         Api.Radar.SetRotation(0)
         Api.Radar.SetWindowOffset(0, 0)
         Api.Radar.SetCenterOnPlayer(true)
@@ -160,9 +177,10 @@ function M.OnUpdate(_dt)
         state.initialized = true
     end
 
-    -- Mirror outer-window resizes to the radar engine state.
-    local dims = Api.Window.GetDimensions("MongbatMap_map")
-    applyRadarSize(dims.x, dims.y)
+    -- Mirror declarative layout size to the radar engine state. Live resize
+    -- also calls applyPanelSizeToRadar after Resize.Tick so the texture does
+    -- not lag one frame behind the stretched image.
+    applyRadarSize(getContentSize())
 
     -- Pan delta.
     if state.isPanning then
@@ -184,38 +202,38 @@ end
 
 -- ---- Routed events --------------------------------------------------
 
-function M.OnMouseWheel(_name, key, _x, _y, delta)
-    if key == "map" then adjustZoom(-delta) end
+function M.OnMouseWheel(window, _x, _y, delta)
+    if window.key == "map" then adjustZoom(-delta) end
 end
 
-function M.OnLButtonDown(name, key, flags)
-    if key ~= "map" then return end
+function M.OnLButtonDown(window, flags)
+    if window.key ~= "map" then return end
     if not Data.IsShift(flags) then return end
     state.isPanning      = true
     state.centerOnPlayer = false
     local pos = Data.MousePosition()
     state.lastMouseX, state.lastMouseY = pos.x, pos.y
     Api.Radar.SetCenterOnPlayer(false)
-    Api.Window.SetMoving(Api.Window.GetParent(name), false)
+    Api.Window.SetMoving(Api.Window.GetParent(window.name), false)
 end
 
-function M.OnLButtonUp(_name, key)
-    if key == "map" then state.isPanning = false end
+function M.OnLButtonUp(window)
+    if window.key == "map" then state.isPanning = false end
 end
 
-function M.OnMouseOverEnd(_name, key)
-    if key == "map" then state.isPanning = false end
+function M.OnMouseOverEnd(window)
+    if window.key == "map" then state.isPanning = false end
 end
 
-function M.OnLButtonDblClk(_name, key)
-    if key ~= "map" then return end
+function M.OnLButtonDblClk(window)
+    if window.key ~= "map" then return end
     state.isPanning      = false
     state.centerOnPlayer = true
     Api.Radar.SetCenterOnPlayer(true)
 end
 
-function M.OnRButtonUp(_name, key)
-    if key == "panel" or key == "map" or key == "coords" then
+function M.OnRButtonUp(window)
+    if window.key == "panel" or window.key == "map" or window.key == "coords" then
         state.closed      = true
         state.initialized = false
         state.isPanning   = false

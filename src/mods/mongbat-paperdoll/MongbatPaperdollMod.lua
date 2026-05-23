@@ -174,8 +174,8 @@ local function slotIndexFromKey(key)
     return s and tonumber(s) or nil
 end
 
-function M.OnLButtonDown(_name, key)
-    local i = slotIndexFromKey(key)
+function M.OnLButtonDown(window)
+    local i = slotIndexFromKey(window.key)
     if not i then return end
     local slot = state.slots[i]
     if not slot or slot.slotId == 0 then return end
@@ -186,16 +186,16 @@ function M.OnLButtonDown(_name, key)
     Api.Drag.SetObjectMouseClickData(slot.slotId, Constants.DragSource.Paperdoll())
 end
 
-function M.OnLButtonUp(_name, key)
-    if key == "toggle" then state.mode = "figure"; return end
-    if key == "figure" then state.mode = "grid";   return end
-    if key == "panel" then
+function M.OnLButtonUp(window)
+    if window.key == "toggle" then state.mode = "figure"; return end
+    if window.key == "figure" then state.mode = "grid";   return end
+    if window.key == "panel" then
         if Data.Drag():isDraggingItem() then
             Api.Drag.DropOnPaperdoll(state.playerId)
         end
         return
     end
-    local i = slotIndexFromKey(key)
+    local i = slotIndexFromKey(window.key)
     if not i then return end
     if not Data.Drag():isDraggingItem() then return end
     local slot = state.slots[i]
@@ -206,8 +206,8 @@ function M.OnLButtonUp(_name, key)
     end
 end
 
-function M.OnLButtonDblClk(_name, key)
-    local i = slotIndexFromKey(key)
+function M.OnLButtonDblClk(window)
+    local i = slotIndexFromKey(window.key)
     if not i then return end
     local slot = state.slots[i]
     if slot and slot.slotId ~= 0 then
@@ -215,8 +215,8 @@ function M.OnLButtonDblClk(_name, key)
     end
 end
 
-function M.OnRButtonDown(_name, key)
-    local i = slotIndexFromKey(key)
+function M.OnRButtonDown(window)
+    local i = slotIndexFromKey(window.key)
     if not i then return end
     local slot = state.slots[i]
     if slot and slot.slotId ~= 0 then
@@ -224,19 +224,19 @@ function M.OnRButtonDown(_name, key)
     end
 end
 
-function M.OnRButtonUp(name, key)
-    if key == "panel" then
-        Api.Window.SetShowing(name, false)
+function M.OnRButtonUp(window)
+    if window.key == "panel" then
+        Api.Window.SetShowing(window.name, false)
     end
 end
 
-function M.OnMouseOver(name, key)
-    local i = slotIndexFromKey(key)
+function M.OnMouseOver(window)
+    local i = slotIndexFromKey(window.key)
     if not i then return end
     local slot = state.slots[i]
     if slot and slot.slotId ~= 0 then
         Api.ItemProperties.SetActiveItem({
-            windowName = name,
+            windowName = window.name,
             itemId     = slot.slotId,
             itemType   = Constants.ItemPropertyType.Item,
             detail     = Constants.ItemPropertyDetail.Long,
@@ -245,8 +245,8 @@ function M.OnMouseOver(name, key)
     end
 end
 
-function M.OnMouseOverEnd(_name, key)
-    if slotIndexFromKey(key) then
+function M.OnMouseOverEnd(window)
+    if slotIndexFromKey(window.key) then
         Api.ItemProperties.ClearMouseOverItem()
     end
 end

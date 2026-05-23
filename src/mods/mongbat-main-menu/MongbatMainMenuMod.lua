@@ -70,14 +70,14 @@ function M.Build(emit)
     end)
 end
 
-function M.OnLButtonUp(_name, key)
-    if key == "menu" then return end
-    local hit = Utils.Array.Find(BUTTONS, function(b) return b.key == key end)
+function M.OnLButtonUp(window)
+    if window.key == "menu" then return end
+    local hit = Utils.Array.Find(BUTTONS, function(b) return b.key == window.key end)
     if hit then hit.click() end
 end
 
-function M.OnRButtonUp(_name, key)
-    if key == "menu" then close() end
+function M.OnRButtonUp(window)
+    if window.key == "menu" then close() end
 end
 
 Mongbat.Mod {

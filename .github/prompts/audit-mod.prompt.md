@@ -6,8 +6,10 @@ agent: "agent"
 
 # Audit a Mod for Engine-Global References
 
-Mods must reference only `Mongbat.{Api,Data,Utils,Constants,Debugger,CreateWindow,RegisterWindow,DestroyWindow,UnregisterWindow,GetWindow,Mod}`.
+Mods must reference only `Mongbat.{Api,Data,Utils,Constants,Debugger,UI,GetWindow,Mod}` plus `Mongbat.UI.Defaults` when taking ownership of default-UI behavior.
 This prompt finds violations and proposes fixes.
+
+After applying fixes, use the `mongbat-mod-verification` skill.
 
 ## Procedure
 
@@ -67,7 +69,7 @@ This prompt finds violations and proposes fixes.
    - **Add a new wrapper.** If no existing wrapper covers the use, run
      `/wrap-engine-global` for that global first, then come back.
 
-5. **Apply the fixes** with `multi_replace_string_in_file`. Remove the
+5. **Apply the fixes**. Remove the
    `---@diagnostic disable` directive after the file is clean.
 
 6. **Verify.** Run `get_errors` on each modified mod file → expect zero
