@@ -65,12 +65,18 @@ local _activeSnap = nil
 
 local _linksLoaded = false
 
+local function getVisibleDimensions(name)
+    local dims = Mongbat.Api.Window.GetDimensions(name)
+    local windowScale = Mongbat.Api.Window.GetScale(name) or 1
+    return Number.Round(dims.x * windowScale), Number.Round(dims.y * windowScale)
+end
+
 local function showPreview(mover, rx, ry)
     if not Mongbat.Api.Window.DoesExist(SNAP_PREVIEW) then
         Mongbat.Api.Window.CreateFromTemplate(SNAP_PREVIEW, "MongbatSnapPreview", "Root", false)
     end
-    local dims = Mongbat.Api.Window.GetDimensions(mover)
-    Mongbat.Api.Window.SetDimensions(SNAP_PREVIEW, dims.x, dims.y)
+    local w, h = getVisibleDimensions(mover)
+    Mongbat.Api.Window.SetDimensions(SNAP_PREVIEW, w, h)
     Mongbat.Api.Window.ClearAnchors(SNAP_PREVIEW)
     Mongbat.Api.Window.AddAnchor(SNAP_PREVIEW, "topleft", "Root", "topleft", rx, ry)
     Mongbat.Api.Window.SetShowing(SNAP_PREVIEW, true)
@@ -125,12 +131,14 @@ end
 
 local function disconnectAll(name)
     local links = SnapLinks[name]
+    local changed = links ~= nil
     if links then
         for other in pairs(links) do
             if SnapLinks[other] then SnapLinks[other][name] = nil end
         end
     end
     SnapLinks[name] = nil
+    return changed
 end
 
 local function collectGroup(root)
@@ -190,11 +198,11 @@ end
 
 local function edgePosition(name, edge)
     local x, y = Mongbat.Api.Window.GetPosition(name)
-    local dims = Mongbat.Api.Window.GetDimensions(name)
+    local w, h = getVisibleDimensions(name)
     if edge == "left" then return x, y end
-    if edge == "right" then return x + dims.x, y end
+    if edge == "right" then return x + w, y end
     if edge == "top" then return x, y end
-    if edge == "bottom" then return x, y + dims.y end
+    if edge == "bottom" then return x, y + h end
     return x, y
 end
 
@@ -238,7 +246,9 @@ end
 --- Removes `engineName` from the set of snap targets.
 ---@param engineName string
 function Snap.Unregister(engineName)
+    ensureLinksLoaded()
     SnappableWindows[engineName] = nil
+    if disconnectAll(engineName) then saveLinks() end
 end
 
 --- Removes `engineName` from its snapped group without unregistering it.
@@ -317,8 +327,7 @@ function Snap.Tick()
 
     local scale  = Mongbat.Api.InterfaceCore.GetScale()
     local mx, my = Mongbat.Api.Window.GetPosition(mover)
-    local mdims  = Mongbat.Api.Window.GetDimensions(mover)
-    local mw, mh = mdims.x, mdims.y
+    local mw, mh = getVisibleDimensions(mover)
 
     -- Dead-zone: suppress snap until mouse has moved meaningfully from drag start.
     local mp = Mongbat.Data.MousePosition()
@@ -341,8 +350,7 @@ function Snap.Tick()
             and Mongbat.Api.Window.IsShowing(targetName)
         then
             local tx, ty = Mongbat.Api.Window.GetPosition(targetName)
-            local tdims  = Mongbat.Api.Window.GetDimensions(targetName)
-            local tw, th = tdims.x, tdims.y
+            local tw, th = getVisibleDimensions(targetName)
 
             local overlapV = my < ty + th and my + mh > ty
             local overlapH = mx < tx + tw and mx + mw > tx

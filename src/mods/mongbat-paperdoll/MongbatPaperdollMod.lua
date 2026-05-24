@@ -25,6 +25,10 @@ local GRID_W       = COLUMNS * CELL + (COLUMNS - 1) * PADDING
 local GRID_H       = ROWS    * CELL + (ROWS    - 1) * PADDING
 local GRID_WIN_W   = GRID_W + MARGIN * 2 + 16
 local GRID_WIN_H   = LABEL_HEIGHT + LABEL_GAP + GRID_H + MARGIN * 2 + 16
+local GRID_LEFT    = (GRID_WIN_W - GRID_W) / 2
+local FIGURE_PAD   = 8
+local FIGURE_ZOOM  = 1.3
+local FIGURE_ALIGN_X = -12
 
 local M = {}
 local state = {
@@ -46,6 +50,18 @@ end
 
 local function slotKey(id, index)
     return "slot_" .. id .. "_" .. index
+end
+
+local function toggleKey(id)
+    return "toggle_" .. id
+end
+
+local function figureAreaKey(id)
+    return "figure_area_" .. id
+end
+
+local function figureImageKey(id)
+    return "figure_image_" .. id
 end
 
 local function ensurePaperdoll(id)
@@ -142,17 +158,10 @@ local function emitPaperdoll(emit, doll)
     local nameText = Data.MobileName(id):getName() or " "
     local color    = notorietyColor(id)
 
-    -- Outer panel: dimensions depend on mode (figure mode resizes to the
-    -- texture's natural size).
     local panelW, panelH = GRID_WIN_W, GRID_WIN_H
     local figTex
     if doll.mode == "figure" then
         figTex = Data.PaperdollTexture(id)
-        if figTex:hasData() then
-            panelW, panelH = figTex:getWidth(), figTex:getHeight()
-        else
-            panelW, panelH = 200, 400
-        end
     end
 
     emit(rootKey, {
@@ -161,7 +170,10 @@ local function emitPaperdoll(emit, doll)
         template        = "MongbatWindow",
         id              = id,
         draggable       = true,
-        widget          = UI.Window():setDimensions(panelW, panelH):setId(id),
+        widget          = UI.Window()
+            :setDimensions(panelW, panelH)
+            :setScale(1)
+            :setId(id),
     })
 
     -- Persistent name label across mode swaps.
@@ -180,6 +192,12 @@ local function emitPaperdoll(emit, doll)
         widget   = nameLabel,
     })
 
+    local toggleIndex = NUM_SLOTS + 1
+    local toggleRow = math.floor((toggleIndex - 1) / COLUMNS)
+    local toggleCol = (toggleIndex - 1) % COLUMNS
+    local toggleX = GRID_LEFT + toggleCol * (CELL + PADDING)
+    local toggleY = MARGIN + LABEL_HEIGHT + LABEL_GAP + toggleRow * (CELL + PADDING)
+
     if doll.mode == "grid" then
         for i = 1, NUM_SLOTS do
             local row = math.floor((i - 1) / COLUMNS)
@@ -193,47 +211,67 @@ local function emitPaperdoll(emit, doll)
                     :setHandleInput(true)
                     :setDimensions(CELL, CELL)
                     :setOffsetFromParent(
-                        MARGIN + col * (CELL + PADDING),
+                        GRID_LEFT + col * (CELL + PADDING),
                         MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL + PADDING))
                     :tap(function(name) Api.Equipment.UpdateItemIcon(name, slot) end),
             })
         end
-
-        -- Toggle in the next grid cell (the 20th).
-        local toggleIndex = NUM_SLOTS + 1
-        local row = math.floor((toggleIndex - 1) / COLUMNS)
-        local col = (toggleIndex - 1) % COLUMNS
-        emit("toggle_" .. id, {
-            template = "MongbatButton18",
+    else
+        local texW, texH = GRID_W, GRID_H
+        if figTex and figTex:hasData() then
+            texW, texH = figTex:getWidth(), figTex:getHeight()
+        end
+        local contentTop = MARGIN + LABEL_HEIGHT + LABEL_GAP
+        local contentH = GRID_WIN_H - contentTop - MARGIN
+        local contentW = GRID_WIN_W - MARGIN * 2
+        local maxW = contentW - FIGURE_PAD * 2
+        local maxH = contentH - FIGURE_PAD * 2
+        local baseImageW, baseImageH, baseFitScale = Utils.Number.FitSize(texW, texH, maxW, maxH)
+        local fitScale = baseFitScale * FIGURE_ZOOM
+        local imageW = math.floor(texW * fitScale)
+        local imageH = math.floor(texH * fitScale)
+        local texName = figTex and figTex:getTextureName() or ""
+        local visualAnchorX = baseImageW / 2
+        if figTex and figTex:hasData() then
+            visualAnchorX = figTex:getXOffset() * baseFitScale
+        end
+        local baseImageX = contentW / 2 - visualAnchorX
+        local baseImageY = (contentH - baseImageH) / 2
+        local imageX = baseImageX - (imageW - baseImageW) / 2 + FIGURE_ALIGN_X
+        local imageY = baseImageY - (imageH - baseImageH) / 2
+        emit(figureAreaKey(id), {
+            template = "MongbatContainer",
             parent   = rootKey,
             id       = id,
-            widget   = UI.Button()
-                :setDimensions(CELL, CELL)
-                :setOffsetFromParent(
-                    MARGIN + col * (CELL + PADDING),
-                    MARGIN + LABEL_HEIGHT + LABEL_GAP + row * (CELL + PADDING))
-                :setText("\xE2\x98\xBA"),
+            widget   = UI.Window()
+                :setDimensions(contentW, contentH)
+                :setOffsetFromParent(MARGIN, contentTop),
         })
-    elseif doll.mode == "figure" then
-        local anchorX, anchorY
-        if figTex and figTex:hasData() then
-            anchorX, anchorY = figTex:getXOffset(), figTex:getYOffset() + 30
-        else
-            anchorX, anchorY = 0, 0
-        end
-        local texName = figTex and figTex:getTextureName() or ""
-        emit("figure_" .. id, {
-            template = "MongbatFilteredDynamicImage",
-            parent   = rootKey,
+        emit(figureImageKey(id), {
+            template = "MongbatPaperdollTexture",
+            parent   = figureAreaKey(id),
             id       = id,
             widget   = UI.DynamicImage()
                 :setHandleInput(true)
-                :setDimensions(panelW, panelH)
+                :setDimensions(texW, texH)
+                :setScale(fitScale)
                 :setTexture(texName, 0, 0)
+                :setTextureScale(1)
                 :clearAnchors()
-                :addAnchor("center", "parent", "topleft", anchorX, anchorY),
+                :setOffsetFromParent(imageX, imageY),
         })
     end
+
+    emit(toggleKey(id), {
+        template = "MongbatButton18",
+        parent   = rootKey,
+        id       = id,
+        widget   = UI.Button()
+            :setDimensions(CELL, CELL)
+            :setOffsetFromParent(toggleX, toggleY)
+            :setLayer(Constants.WindowLayers.Overlay)
+            :setText("+"),
+    })
 end
 
 function M.Build(emit)
@@ -272,8 +310,11 @@ end
 function M.OnLButtonUp(window)
     local doll = getDoll(window)
     if not doll then return end
-    if window.key == "toggle_" .. doll.id then doll.mode = "figure"; return end
-    if window.key == "figure_" .. doll.id then doll.mode = "grid";   return end
+    if window.key == toggleKey(doll.id) then
+        doll.mode = doll.mode == "figure" and "grid" or "figure"
+        return
+    end
+    if window.key == figureImageKey(doll.id) then doll.mode = "grid";   return end
     if window.key == panelKey(doll.id) then
         if Data.Drag():isDraggingItem() then
             Api.Drag.DropOnPaperdoll(doll.id)

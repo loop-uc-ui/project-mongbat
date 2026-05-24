@@ -42,6 +42,15 @@
           </EventHandlers>
       </Window>
 
+      <Window name="MongbatContainer" handleinput="false">
+          <Size>
+              <AbsPoint x="0" y="0"/>
+          </Size>
+          <EventHandlers>
+              <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+          </EventHandlers>
+      </Window>
+
       <!-- Solid-color fill rectangle. Samples the 1-pixel solid middle of
            the StatusBar texture (x=40,y=0) and tiles it; callers tint via setColor. -->
       <DynamicImage name="MongbatSolidFill" handleinput="false">
@@ -153,16 +162,26 @@
         </EventHandlers>
       </DynamicImage>
 
-      <DynamicImage name="MongbatFilteredDynamicImage" filtering="true" texturescale="1.0" scaleAnchor="center" handleinput="false">
-        <Size>
-          <AbsPoint x="250" y="250" />
-        </Size>
-        <EventHandlers>
-            <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
-        </EventHandlers>
-      </DynamicImage>
+        <DynamicImage name="MongbatFilteredDynamicImage" filtering="true" texturescale="1.0" scaleAnchor="center" handleinput="false">
+                <Size>
+                    <AbsPoint x="250" y="250" />
+                </Size>
+                <EventHandlers>
+                        <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+                </EventHandlers>
+        </DynamicImage>
 
-      <MapDisplay name="MongbatMapDisplay">
+        <DynamicImage name="MongbatPaperdollTexture" filtering="true" texturescale="1.0" handleinput="true" sticky="false" draganddrop="true" popable="false" layer="secondary">
+                <Size>
+                    <AbsPoint x="0" y="0" />
+                </Size>
+                <TexCoords x="0" y="0" />
+                <EventHandlers>
+                        <EventHandler event="OnInitialize" function="Mongbat.EventHandler.OnInitialize"/>
+                </EventHandlers>
+        </DynamicImage>
+
+        <MapDisplay name="MongbatMapDisplay">
         <Size>
           <AbsPoint x="300" y="300" />
         </Size>

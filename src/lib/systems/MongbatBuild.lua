@@ -108,6 +108,11 @@ local function reapplyExistingWindow(engineName, spec, entry, prevEntry, resolve
         winEntry.draggableRoot = draggableRoot
         winEntry.snappable     = snappable
     end
+    if snappable then
+        Systems.Snap.Register(engineName)
+    else
+        Systems.Snap.Unregister(engineName)
+    end
     ensureResizeGrip(engineName, spec)
 end
 

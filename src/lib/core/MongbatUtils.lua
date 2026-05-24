@@ -404,6 +404,24 @@ function Utils.Number.Ratio(current, max)
     return Utils.Number.Clamp(Utils.Number.AtLeast(current, 0) / Utils.Number.AtLeast(max, 1), 0, 1)
 end
 
+---@param width number
+---@param height number
+---@param maxWidth number
+---@param maxHeight number
+---@param allowUpscale boolean?
+---@return integer fittedWidth
+---@return integer fittedHeight
+---@return number scale
+function Utils.Number.FitSize(width, height, maxWidth, maxHeight, allowUpscale)
+    if width <= 0 or height <= 0 or maxWidth <= 0 or maxHeight <= 0 then
+        return 0, 0, 1
+    end
+
+    local scale = math.min(maxWidth / width, maxHeight / height)
+    if not allowUpscale then scale = math.min(scale, 1) end
+    return math.floor(width * scale), math.floor(height * scale), scale
+end
+
 ---@param value number
 ---@param min number
 ---@param max number
