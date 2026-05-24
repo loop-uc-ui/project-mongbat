@@ -155,6 +155,7 @@ function Mods.PerFrame(dt)
         if fn then fn(dt) end
     end)
     Systems.Resize.Tick()
+    Systems.Snap.TickGroup()
     Systems.Snap.Tick()
     Mongbat.Utils.Array.ForEach(LoadedMods, function(entry)
         Systems.Build.RunMod(entry.name, entry.module)

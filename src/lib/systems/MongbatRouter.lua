@@ -89,6 +89,9 @@ EventHandler.OnLButtonDown = function(flags, x, y)
         local mp    = Mongbat.Data.MousePosition()
         local mover = entry.draggableRoot
         if mover then
+            if Mongbat.Data.IsShift(flags) then
+                Systems.Snap.Detach(mover)
+            end
             Mongbat.Api.Window.SetMoving(mover, true)
             local moverEntry = Systems.Registry.Get(mover)
             if moverEntry and moverEntry.snappable then

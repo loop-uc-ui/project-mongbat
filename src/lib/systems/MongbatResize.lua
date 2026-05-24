@@ -211,6 +211,7 @@ function Resize.Tick()
         cfg.state.h = newH
         Mongbat.Api.Window.SetDimensions(LiveResize.window, newW, newH)
         reflowMongbatWindowChildren(LiveResize.window)
+        Systems.Snap.AdjustForResize(LiveResize.window)
         if cfg.onResize then cfg.onResize(newW, newH) end
     end
 end
