@@ -236,19 +236,51 @@ local function translateBranch(root, blocked, dx, dy, moved)
     end
 end
 
+local function reconcileWindowToExistingLinks(name)
+    local links = SnapLinks[name]
+    if not links then return end
+    if not Mongbat.Api.Window.DoesExist(name) or not Mongbat.Api.Window.IsShowing(name) then return end
+
+    local matchedOther = nil
+    local matchedLink = Mongbat.Utils.Table.Find(links, function(other, link)
+        if SnappableWindows[other]
+            and Mongbat.Api.Window.DoesExist(other)
+            and Mongbat.Api.Window.IsShowing(other)
+        then
+            matchedOther = other
+            return true
+        end
+        return false
+    end)
+
+    if not matchedOther or not matchedLink then return end
+    local nameEdgeX, nameEdgeY = edgePosition(name, matchedLink.edge)
+    local otherEdgeX, otherEdgeY = edgePosition(matchedOther, matchedLink.otherEdge)
+    local dx, dy = 0, 0
+    if matchedLink.edge == "left" or matchedLink.edge == "right" then
+        dx = otherEdgeX - nameEdgeX
+    else
+        dy = otherEdgeY - nameEdgeY
+    end
+    translateWindow(name, dx, dy)
+end
+
 --- Adds `engineName` to the set of snap targets.
 ---@param engineName string
 function Snap.Register(engineName)
     ensureLinksLoaded()
     SnappableWindows[engineName] = true
+    -- When windows are recreated (e.g. relog), align to any existing linked
+    -- neighbor so persisted snap links restore border attachment.
+    reconcileWindowToExistingLinks(engineName)
 end
 
 --- Removes `engineName` from the set of snap targets.
+--- Does not remove persisted links; detaching is explicit via Snap.Detach.
 ---@param engineName string
 function Snap.Unregister(engineName)
     ensureLinksLoaded()
     SnappableWindows[engineName] = nil
-    if disconnectAll(engineName) then saveLinks() end
 end
 
 --- Removes `engineName` from its snapped group without unregistering it.
